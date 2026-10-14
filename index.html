@@ -2,276 +2,150 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>مهامي</title>
+<meta name="description" content="مهامك وأهدافك اليومية ومنبهاتها وإحصائيات إنجازك في تطبيق واحد.">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مهامي">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #f5f6fa;
-    --card: #ffffff;
-    --text: #1f2330;
-    --muted: #6b7185;
-    --border: #e3e5ee;
-    --accent: #4f6bed;
-    --accent-soft: #e8ecfd;
-    --high: #e5484d;
-    --mid: #f5a524;
-    --low: #30a46c;
-    --shadow: 0 1px 3px rgba(20, 24, 40, .06), 0 4px 16px rgba(20, 24, 40, .05);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #12141b;
-      --card: #1b1e28;
-      --text: #e8eaf2;
-      --muted: #9097ad;
-      --border: #2b2f3d;
-      --accent: #7b8ff5;
-      --accent-soft: #252b47;
-      --shadow: 0 1px 3px rgba(0, 0, 0, .3);
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: "Tajawal", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.5;
-  }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
-  header h1 { margin: 0 0 4px; font-size: 1.8rem; }
-  header p { margin: 0 0 20px; color: var(--muted); }
-
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-shadow: var(--shadow); }
-  .stat b { display: block; font-size: 1.5rem; }
-  .stat span { color: var(--muted); font-size: .9rem; }
-  .progress { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 20px; }
-  .progress div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
-
-  form.add { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: grid; gap: 10px; margin-bottom: 18px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  input, select, button { font: inherit; color: inherit; }
-  input[type=text], input[type=date], select {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0;
-  }
-  input[type=text] { flex: 1; }
-  .row > * { flex: 1 1 140px; }
-  button { cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; }
-  .primary { background: var(--accent); color: #fff; font-weight: 700; }
-
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-  .toolbar input { flex: 1 1 180px; }
-  .tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
-  .tabs button { background: transparent; padding: 6px 12px; color: var(--muted); }
-  .tabs button.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-
-  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  li.task {
-    display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--border);
-    border-inline-start: 4px solid var(--low); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow);
-  }
-  li.task.p-high { border-inline-start-color: var(--high); }
-  li.task.p-mid { border-inline-start-color: var(--mid); }
-  li.task input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
-  .body { flex: 1; min-width: 0; }
-  .title { overflow-wrap: anywhere; }
-  .done .title { text-decoration: line-through; color: var(--muted); }
-  .meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin-top: 2px; }
-  .tag { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 0 8px; }
-  .overdue { color: var(--high); font-weight: 700; }
-  .actions { display: flex; gap: 4px; }
-  .actions button { background: transparent; color: var(--muted); padding: 6px 8px; }
-  .actions button:hover { background: var(--bg); color: var(--text); }
-  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
-  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; color: var(--muted); font-size: .9rem; }
-  .link { background: transparent; color: var(--muted); padding: 4px 8px; text-decoration: underline; }
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Reem+Kufi:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>مهامي</h1>
-    <p>كل مهامك في مكان واحد</p>
-  </header>
-
-  <section class="stats">
-    <div class="stat"><b id="sTotal">0</b><span>كل المهام</span></div>
-    <div class="stat"><b id="sActive">0</b><span>قيد التنفيذ</span></div>
-    <div class="stat"><b id="sDone">0</b><span>منجزة</span></div>
-  </section>
-  <div class="progress"><div id="bar"></div></div>
-
-  <form class="add" id="addForm">
-    <input type="text" id="title" placeholder="ما المهمة الجديدة؟" required autocomplete="off">
-    <div class="row">
-      <select id="priority" aria-label="الأولوية">
-        <option value="low">أولوية منخفضة</option>
-        <option value="mid" selected>أولوية متوسطة</option>
-        <option value="high">أولوية عالية</option>
-      </select>
-      <input type="text" id="category" placeholder="التصنيف (عمل، شخصي…)" list="cats" autocomplete="off">
-      <datalist id="cats"></datalist>
-      <input type="date" id="due" aria-label="تاريخ الاستحقاق">
-      <button class="primary" type="submit">إضافة</button>
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <h1 id="appTitle">مهامي</h1>
+      <p class="sub" id="greeting"></p>
     </div>
-  </form>
-
-  <div class="toolbar">
-    <input type="text" id="search" placeholder="بحث…">
-    <div class="tabs" id="tabs">
-      <button data-f="all" class="on">الكل</button>
-      <button data-f="active">الحالية</button>
-      <button data-f="done">المنجزة</button>
-    </div>
-    <select id="sort" aria-label="الترتيب">
-      <option value="created">الأحدث</option>
-      <option value="due">حسب التاريخ</option>
-      <option value="priority">حسب الأولوية</option>
-    </select>
+    <button type="button" class="install" id="installBtn" hidden>تثبيت التطبيق</button>
   </div>
+</header>
 
-  <ul id="list"></ul>
+<main id="view" class="wrap" tabindex="-1"></main>
 
-  <div class="footer">
-    <span id="left"></span>
-    <button class="link" id="clearDone">حذف المنجزة</button>
+<button type="button" class="fab" data-action="new" aria-label="إضافة مهمة">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<nav class="tabbar" id="tabbar" aria-label="الأقسام">
+  <button type="button" data-tab="today"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM4 9h16M8 3v4M16 3v4"/></svg><span>اليوم</span></button>
+  <button type="button" data-tab="tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span>المهام</span></button>
+  <button type="button" data-tab="goals"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01"/></svg><span>الأهداف</span></button>
+  <button type="button" data-tab="stats"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16M8 16v-4M12 16V8M16 16v-6"/></svg><span>الإحصائيات</span></button>
+  <button type="button" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-6M5 10V4M12 20v-8M12 8V4M19 20v-4M19 12V4M2 14h6M9 8h6M16 16h6"/></svg><span>التخصيص</span></button>
+</nav>
+
+<div class="alarm" id="alarm" role="alertdialog" aria-live="assertive" hidden>
+  <div class="alarm-text">
+    <strong>منبه</strong>
+    <span id="alarmTitle"></span>
+  </div>
+  <div class="alarm-actions">
+    <button type="button" class="primary" data-action="alarm-done">تمت</button>
+    <button type="button" data-action="alarm-snooze">غفوة 10 دقائق</button>
+    <button type="button" data-action="alarm-dismiss">إغلاق</button>
   </div>
 </div>
 
-<script>
-  const KEY = "my-tasks-v1";
-  const PRI = { high: 3, mid: 2, low: 1 };
-  const PRI_LABEL = { high: "عالية", mid: "متوسطة", low: "منخفضة" };
-  let tasks = load();
-  let filter = "all";
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  function load() {
-    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
-  }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch {}
-  }
-  const $ = (id) => document.getElementById(id);
-  const today = () => new Date().toISOString().slice(0, 10);
+<dialog id="sheet" aria-labelledby="sheetTitle">
+  <form id="editor" novalidate>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">مهمة جديدة</h2>
+      <button type="button" class="icon-btn" data-action="close-sheet" aria-label="إغلاق">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
 
-  function render() {
-    const q = $("search").value.trim().toLowerCase();
-    let view = tasks.filter((t) =>
-      (filter === "all" || (filter === "done") === t.done) &&
-      (!q || t.title.toLowerCase().includes(q) || (t.category || "").toLowerCase().includes(q))
-    );
-    const sort = $("sort").value;
-    view.sort((a, b) => {
-      if (sort === "due") return (a.due || "9999") .localeCompare(b.due || "9999");
-      if (sort === "priority") return PRI[b.priority] - PRI[a.priority];
-      return b.created - a.created;
-    });
+    <label class="field">
+      <span>العنوان</span>
+      <input type="text" id="fTitle" autocomplete="off" placeholder="مثال: مراجعة تقرير الشهر" required>
+    </label>
 
-    const list = $("list");
-    list.innerHTML = "";
-    if (!view.length) {
-      list.innerHTML = `<li class="empty">${tasks.length ? "لا توجد مهام مطابقة" : "لا توجد مهام بعد — أضف أول مهمة!"}</li>`;
-    }
-    for (const t of view) {
-      const li = document.createElement("li");
-      li.className = `task p-${t.priority}${t.done ? " done" : ""}`;
+    <div class="seg" id="fKind" role="group" aria-label="النوع">
+      <button type="button" data-kind="once">مهمة لمرة واحدة</button>
+      <button type="button" data-kind="repeat">هدف متكرر</button>
+    </div>
 
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = t.done;
-      cb.setAttribute("aria-label", "إنجاز");
-      cb.onchange = () => { t.done = cb.checked; save(); render(); };
+    <div class="grid2">
+      <label class="field">
+        <span>الأولوية</span>
+        <select id="fPriority">
+          <option value="high">عالية</option>
+          <option value="mid">متوسطة</option>
+          <option value="low">منخفضة</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>التصنيف</span>
+        <input type="text" id="fCategory" list="cats" autocomplete="off" placeholder="عمل، بيت، صحة…">
+      </label>
+    </div>
+    <datalist id="cats"></datalist>
 
-      const body = document.createElement("div");
-      body.className = "body";
-      const title = document.createElement("div");
-      title.className = "title";
-      title.textContent = t.title;
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.append(span(`الأولوية: ${PRI_LABEL[t.priority]}`));
-      if (t.category) meta.append(span(t.category, "tag"));
-      if (t.due) meta.append(span(`📅 ${t.due}`, !t.done && t.due < today() ? "overdue" : ""));
-      body.append(title, meta);
+    <div id="onceFields">
+      <label class="field">
+        <span>تاريخ الاستحقاق</span>
+        <input type="date" id="fDue">
+      </label>
+    </div>
 
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      actions.append(
-        btn("✏️", "تعديل", () => {
-          const v = prompt("تعديل المهمة:", t.title);
-          if (v && v.trim()) { t.title = v.trim(); save(); render(); }
-        }),
-        btn("🗑️", "حذف", () => {
-          if (confirm("حذف هذه المهمة؟")) { tasks = tasks.filter((x) => x.id !== t.id); save(); render(); }
-        })
-      );
-      li.append(cb, body, actions);
-      list.append(li);
-    }
+    <div id="repeatFields" class="stack" hidden>
+      <div class="field">
+        <span>أيام التكرار</span>
+        <div class="days" id="fDays"></div>
+      </div>
+      <div class="grid2">
+        <label class="field">
+          <span>يبدأ من</span>
+          <input type="date" id="fStart">
+        </label>
+        <label class="field">
+          <span>ينتهي في</span>
+          <input type="date" id="fUntil">
+          <small class="hint">اتركه فارغاً ليستمر بلا نهاية</small>
+        </label>
+      </div>
+    </div>
 
-    const done = tasks.filter((t) => t.done).length;
-    $("sTotal").textContent = tasks.length;
-    $("sActive").textContent = tasks.length - done;
-    $("sDone").textContent = done;
-    $("bar").style.width = tasks.length ? `${(done / tasks.length) * 100}%` : "0";
-    $("left").textContent = `${tasks.length - done} مهمة متبقية`;
-    $("cats").innerHTML = [...new Set(tasks.map((t) => t.category).filter(Boolean))]
-      .map((c) => `<option value="${c.replace(/"/g, "&quot;")}">`).join("");
-  }
+    <div class="grid2 alarm-row">
+      <label class="field">
+        <span>وقت المنبه</span>
+        <input type="time" id="fTime">
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="fRemind">
+        <span>تشغيل المنبه</span>
+      </label>
+    </div>
 
-  function span(text, cls = "") {
-    const s = document.createElement("span");
-    s.textContent = text;
-    if (cls) s.className = cls;
-    return s;
-  }
-  function btn(icon, label, onClick) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = icon;
-    b.title = label;
-    b.setAttribute("aria-label", label);
-    b.onclick = onClick;
-    return b;
-  }
+    <section class="notes" aria-labelledby="notesHead">
+      <h3 id="notesHead">الملاحظات <span class="count" id="notesCount"></span></h3>
+      <ul id="notesList"></ul>
+      <label class="field">
+        <span class="sr">ملاحظة جديدة</span>
+        <textarea id="fNote" rows="3" placeholder="أضف ملاحظة… يمكنك إضافة ما تشاء من الملاحظات"></textarea>
+      </label>
+      <button type="button" class="ghost" data-action="add-note">إضافة الملاحظة</button>
+    </section>
 
-  $("addForm").onsubmit = (e) => {
-    e.preventDefault();
-    const title = $("title").value.trim();
-    if (!title) return;
-    tasks.push({
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
-      title,
-      priority: $("priority").value,
-      category: $("category").value.trim(),
-      due: $("due").value,
-      done: false,
-      created: Date.now(),
-    });
-    save();
-    $("title").value = "";
-    $("due").value = "";
-    $("title").focus();
-    render();
-  };
-  $("tabs").onclick = (e) => {
-    const f = e.target.dataset.f;
-    if (!f) return;
-    filter = f;
-    for (const b of $("tabs").children) b.classList.toggle("on", b.dataset.f === f);
-    render();
-  };
-  $("search").oninput = render;
-  $("sort").onchange = render;
-  $("clearDone").onclick = () => {
-    if (!tasks.some((t) => t.done)) return;
-    if (confirm("حذف كل المهام المنجزة؟")) { tasks = tasks.filter((t) => !t.done); save(); render(); }
-  };
+    <div class="sheet-actions">
+      <button type="submit" class="primary">حفظ</button>
+      <button type="button" class="ghost" data-action="ics" id="icsBtn">إضافة إلى تقويم الجوال</button>
+      <button type="button" class="danger" data-action="delete-task" id="delBtn">حذف</button>
+    </div>
+  </form>
+</dialog>
 
-  render();
-</script>
+<script src="app.js"></script>
 </body>
 </html>

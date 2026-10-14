@@ -1,0 +1,26 @@
+{
+  "name": "مهامي",
+  "short_name": "مهامي",
+  "description": "مهامك وأهدافك اليومية ومنبهاتها وإحصائيات إنجازك في تطبيق واحد.",
+  "lang": "ar",
+  "dir": "rtl",
+  "id": "./",
+  "start_url": "./#today",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f5f4",
+  "theme_color": "#0f766e",
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "مهمة جديدة", "url": "./?new=task#today" },
+    { "name": "هدف جديد", "url": "./?new=goal#goals" },
+    { "name": "الإحصائيات", "url": "./#stats" }
+  ]
+}
