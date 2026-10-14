@@ -117,13 +117,16 @@ function load() {
   }
   s.tasks = (s.tasks || []).map(normalize);
   s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', sound: true, prayer: null, ...(s.settings || {}) };
+  s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
+  s.timer = s.timer || null;
+  s.sessions = Array.isArray(s.sessions) ? s.sessions : [];
   return s;
 }
 
 const S = load();
-const ui = { tab: 'today', filter: 'active', q: '', sort: 'smart', cat: '', calMonth: today().slice(0, 7), calSel: today(), smart: '' };
+const ui = { tab: 'today', filter: 'active', q: '', sort: 'smart', cat: '', calMonth: today().slice(0, 7), calSel: today(), smart: '', timerEnded: null };
 
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
@@ -233,6 +236,7 @@ function step(id, date, delta) {
 }
 
 function removeTask(id) {
+  if (S.timer && S.timer.taskId === id) { S.timer = null; timerNotify(true); }
   S.tasks = S.tasks.filter((t) => t.id !== id);
   for (const k of Object.keys(S.fired)) if (k.startsWith(id + '|')) delete S.fired[k];
   for (const k of Object.keys(S.snoozed)) if (k.startsWith(id + '|')) delete S.snoozed[k];
@@ -259,6 +263,8 @@ function metaHTML(t, d) {
   if (isRepeat(t) && t.target > 1) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
   if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}${t.subtasks.filter((x) => x.done).length}/${t.subtasks.length}</span>`);
   if (t.notes.length) meta.push(`<span class="num">${icon('note')}${t.notes.length}</span>`);
+  const tracked = trackedMs(t.id);
+  if (tracked >= 60000) meta.push(`<span class="num">${icon('clock')}${fmtDur(tracked)}</span>`);
   return meta.join('');
 }
 
@@ -612,6 +618,24 @@ function chartSVG(byDay) {
   return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في آخر 14 يوماً">${parts.join('')}</svg>`;
 }
 
+function focusPanelHTML() {
+  const t0 = today();
+  const weekStart = addDays(t0, -6);
+  const week = S.sessions.filter((x) => sessionDay(x) >= weekStart);
+  if (!S.sessions.length) return '';
+  const todayMs = week.filter((x) => sessionDay(x) === t0).reduce((n, x) => n + x.ms, 0);
+  const weekMs = week.reduce((n, x) => n + x.ms, 0);
+  const by = {};
+  for (const x of week) by[x.taskId] = (by[x.taskId] || 0) + x.ms;
+  const rows = Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const max = rows.length ? rows[0][1] : 1;
+  return `<section class="panel">
+    <h2>وقت التركيز</h2>
+    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> · آخر 7 أيام <b>${fmtDur(weekMs)}</b></p>
+    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => `<li class="hbar"><span class="name">${esc((getTask(id) || {}).title || 'مهمة محذوفة')}</span><span class="track"><span class="fill" style="width:${(ms / max) * 100}%; display:block"></span></span><span class="v">${fmtDur(ms)}</span></li>`).join('')}</ul>` : ''}
+  </section>`;
+}
+
 function viewStats() {
   const ev = completionEvents();
   const byDay = {};
@@ -638,6 +662,7 @@ function viewStats() {
     <div class="readout" id="readout">المس عموداً لترى تفاصيل اليوم.</div>
     ${chartSVG(byDay)}
   </section>
+  ${focusPanelHTML()}
   <section class="panel">
     <h2>حسب التصنيف</h2>
     ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => `<li class="hbar"><span class="name">${esc(c)}</span><span class="track"><span class="fill" style="width:${(n / catMax) * 100}%; display:block"></span></span><span class="v">${n}</span></li>`).join('')}</ul>`
@@ -739,7 +764,7 @@ function viewSettings() {
   </div>`;
 }
 
-const VIEWS = { today: viewToday, tasks: viewTasks, calendar: viewCalendar, goals: viewGoals, stats: viewStats, settings: viewSettings };
+const VIEWS = { today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals, stats: viewStats, settings: viewSettings };
 
 function render() {
   const view = $('view');
@@ -754,6 +779,8 @@ function render() {
     if (b.closest('#view')) continue;
     if (b.dataset.tab === ui.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
+  document.body.dataset.tab = ui.tab;
+  tickTimer();
   renderGreeting();
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
 }
@@ -899,6 +926,12 @@ function openSheet(id, opts = {}) {
   $('fNote').value = '';
   $('fSub').value = '';
   $('delBtn').hidden = !existing;
+  $('timerSec').hidden = !existing;
+  if (existing) {
+    const ms = trackedMs(existing.id);
+    const n = sessionsOf(existing.id).length;
+    $('timerTotal').textContent = ms ? `سجّلت ${fmtDur(ms)} في ${n} ${n === 1 ? 'جلسة' : n === 2 ? 'جلستين' : 'جلسات'}` : 'لم تسجّل وقتاً لهذه المهمة بعد.';
+  }
   $('delBtn').classList.remove('armed');
   $('delBtn').textContent = 'حذف';
   armed = null;
@@ -1227,6 +1260,276 @@ function useLocation() {
   }, () => toast('لم نتمكن من تحديد موقعك. اسمح بالموقع أو اختر مدينتك من القائمة.'), { timeout: 15000, maximumAge: 86400000 });
 }
 
+// ---------- timer (count-up and countdown) ----------
+const fmtDur = (ms) => {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'أقل من دقيقة';
+  const h = Math.floor(m / 60), r = m % 60;
+  return h ? `${h} س${r ? ` ${r} د` : ''}` : `${r} د`;
+};
+const sessionsOf = (id) => S.sessions.filter((x) => x.taskId === id);
+const trackedMs = (id) => sessionsOf(id).reduce((n, x) => n + x.ms, 0);
+const sessionDay = (x) => iso(new Date(x.end));
+const timerTitle = (tm) => (getTask(tm.taskId) || {}).title || 'بلا مهمة';
+
+let wakeLock = null;
+async function updateWakeLock() {
+  const want = S.timer && S.timer.running && S.settings.timer.awake && document.visibilityState === 'visible';
+  try {
+    if (want && !wakeLock && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+
+async function timerNotify(close) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (!reg) return;
+    if (close || !S.timer) { (await reg.getNotifications({ tag: 'timer' })).forEach((n) => n.close()); return; }
+    const [title, opts] = TimerShared.notification(S.timer, timerTitle(S.timer));
+    await reg.showNotification(title, opts);
+  } catch {}
+}
+
+function startTimer(taskId, mode, minutes, phase = 'work') {
+  if (S.timer) finishTimer();
+  unlockAudio();
+  const now = Date.now();
+  S.timer = { taskId, mode, phase, planned: mode === 'down' ? minutes * 60000 : 0, start: now, startedAt: now, acc: 0, running: true };
+  if (phase === 'work') S.settings.timer.lastTask = taskId;
+  ui.timerEnded = null;
+  save();
+  ensureNotifPermission().then(() => timerNotify());
+  updateWakeLock();
+  render();
+}
+
+function applyTimerAction(action, ts = Date.now()) {
+  if (!S.timer) return;
+  if (action === 'timer-stop') { finishTimer(ts); return; }
+  S.timer = TimerShared.apply(S.timer, action, ts);
+  save();
+  timerNotify();
+  updateWakeLock();
+  render();
+}
+
+// save the session (work phase only) and clear the timer
+function finishTimer(ts = Date.now(), quiet) {
+  const tm = S.timer;
+  if (!tm) return;
+  let ms = TimerShared.elapsed(tm, ts);
+  if (tm.mode === 'down') ms = Math.min(ms, tm.planned);
+  if (tm.phase === 'work' && ms >= 30000) {
+    S.sessions.push({ id: uid(), taskId: tm.taskId, start: tm.startedAt, end: ts, ms: Math.round(ms), mode: tm.mode });
+  }
+  S.timer = null;
+  save();
+  timerNotify(true);
+  updateWakeLock();
+  if (!quiet) { render(); if (tm.phase === 'work' && ms >= 30000) toast(`سُجّل ${fmtDur(ms)} لـ «${(getTask(tm.taskId) || {}).title || ''}»`); }
+}
+
+function cancelTimer() {
+  S.timer = null;
+  ui.timerEnded = null;
+  save();
+  timerNotify(true);
+  updateWakeLock();
+  render();
+}
+
+async function countdownEnded(tm, endTs) {
+  const late = Date.now() - endTs > 5 * 60000;
+  finishTimer(endTs, true);
+  ui.timerEnded = { taskId: tm.taskId, phase: tm.phase, minutes: Math.round(tm.planned / 60000) };
+  render();
+  if (late) return;
+  beep();
+  try { if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 600]); } catch {}
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+      const title = tm.phase === 'break' ? 'انتهت الاستراحة' : `انتهى الوقت: ${timerTitle(tm)}`;
+      const body = tm.phase === 'break' ? 'جاهز لجولة جديدة؟' : `أنهيت ${fmtDur(tm.planned)} من التركيز`;
+      const opts = { body, tag: 'timer-end', requireInteraction: true, vibrate: [400, 200, 400, 200, 600], lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+      if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
+    } catch {}
+  }
+}
+
+function tickTimer() {
+  const tm = S.timer;
+  const bar = $('timerBar');
+  if (!tm) { bar.hidden = true; return; }
+  const e = TimerShared.elapsed(tm);
+  if (tm.mode === 'down' && e >= tm.planned) { countdownEnded(tm, tm.start + (tm.planned - tm.acc)); return; }
+  const shown = tm.mode === 'down' ? tm.planned - e : e;
+  bar.hidden = ui.tab === 'timer';
+  bar.classList.toggle('paused', !tm.running);
+  $('timerBarClock').textContent = TimerShared.clock(shown);
+  $('timerBarTitle').textContent = tm.phase === 'break' ? 'استراحة' : timerTitle(tm);
+  const d = $('tDisplay');
+  if (d) {
+    d.textContent = TimerShared.clock(shown);
+    const p = tm.mode === 'down' ? (e / tm.planned) * 100 : ((e % 3600000) / 3600000) * 100;
+    $('tRing').style.setProperty('--p', p.toFixed(2));
+  }
+}
+
+// actions pressed on the notification (phone or watch) while the page was asleep
+async function applyPendingTimerActions() {
+  if (!('caches' in window)) return;
+  try {
+    const c = await caches.open('mahami-actions');
+    const res = await c.match('pending');
+    if (!res) return;
+    const list = await res.json();
+    await c.delete('pending');
+    for (const a of list.sort((x, y) => x.ts - y.ts)) applyTimerAction(a.action, a.ts);
+  } catch {}
+}
+
+function timerTaskOptions(selected) {
+  const t0 = today();
+  const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : !t.done && t.due && t.due <= t0));
+  const others = S.tasks.filter((t) => !isRepeat(t) && !t.done && !todays.includes(t));
+  const goals = S.tasks.filter((t) => isRepeat(t) && !todays.includes(t) && !goalEnded(t));
+  const opt = (t) => `<option value="${t.id}"${t.id === selected ? ' selected' : ''}>${esc(t.title)}</option>`;
+  return [['اليوم', todays], ['مهام أخرى', others], ['أهداف', goals]]
+    .filter(([, l]) => l.length).map(([g, l]) => `<optgroup label="${g}">${l.map(opt).join('')}</optgroup>`).join('');
+}
+
+function viewTimer() {
+  const tm = S.timer;
+  const cfg = S.settings.timer;
+  let card;
+  if (tm) {
+    const e = TimerShared.elapsed(tm);
+    const shown = tm.mode === 'down' ? tm.planned - e : e;
+    const p = tm.mode === 'down' ? (e / tm.planned) * 100 : ((e % 3600000) / 3600000) * 100;
+    const sub = tm.phase === 'break' ? 'استراحة' : tm.mode === 'down' ? `متبقٍ من ${fmtDur(tm.planned)}` : 'الوقت المستغرق';
+    card = `<section class="timer-card" aria-live="off">
+      <div class="t-task">${tm.phase === 'break' ? 'استراحة قصيرة' : esc(timerTitle(tm))}</div>
+      <div class="t-ring${tm.running ? '' : ' paused'}" id="tRing" style="--p:${p.toFixed(2)}">
+        <div class="t-inner"><div class="t-digits" id="tDisplay">${TimerShared.clock(shown)}</div><div class="t-sub">${tm.running ? sub : 'متوقف مؤقتاً'}</div></div>
+      </div>
+      <div class="t-actions">
+        ${tm.running ? '<button type="button" class="ghost" data-action="timer-pause">إيقاف مؤقت</button>' : '<button type="button" class="primary" data-action="timer-resume">استئناف</button>'}
+        <button type="button" class="${tm.running ? 'primary' : 'ghost'}" data-action="timer-stop">${tm.phase === 'break' ? 'إنهاء الاستراحة' : 'إنهاء وحفظ'}</button>
+        <button type="button" class="danger" data-action="timer-cancel" id="tCancel">إلغاء</button>
+      </div>
+      <p class="note-text">يظهر المؤقت في إشعار على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>
+    </section>`;
+  } else if (ui.timerEnded) {
+    const en = ui.timerEnded;
+    const t = getTask(en.taskId);
+    card = `<section class="timer-card">
+      <div class="t-ended"><strong>${en.phase === 'break' ? 'انتهت الاستراحة' : 'أحسنت! انتهى الوقت'}</strong>
+      <span class="note-text">${en.phase === 'break' ? 'جاهز لجولة جديدة؟' : `سُجّلت ${en.minutes} دقيقة لـ «${esc(t ? t.title : '')}»`}</span></div>
+      <div class="t-actions">
+        ${en.phase === 'break' ? '' : `<button type="button" class="ghost" data-action="timer-break">استراحة ${cfg.brk} دقائق</button>`}
+        <button type="button" class="primary" data-action="timer-again">جولة ${en.phase === 'break' ? 'جديدة' : 'أخرى'} (${cfg.minutes} د)</button>
+        ${t && !doneOn(t, today()) && en.phase !== 'break' ? '<button type="button" class="ghost" data-action="timer-done-task">تمت المهمة</button>' : ''}
+        <button type="button" data-action="timer-close-end">إغلاق</button>
+      </div>
+    </section>`;
+  } else {
+    const opts = timerTaskOptions(cfg.lastTask);
+    const seg = (v, l) => `<button type="button" data-action="timer-mode" data-v="${v}" aria-pressed="${cfg.mode === v}">${l}</button>`;
+    const chip = (action, v, cur, l) => `<button type="button" class="chip" data-action="${action}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`;
+    card = `<section class="timer-card">
+      <div class="t-task">مؤقت المهام</div>
+      ${opts ? `<div class="timer-form">
+        <label class="field"><span>المهمة</span><select id="tTask">${opts}</select></label>
+        <div class="field"><span>النوع</span><div class="seg">${seg('up', 'يحسب الوقت المستغرق')}${seg('down', 'عدّ تنازلي')}</div></div>
+        ${cfg.mode === 'down' ? `
+        <div class="field"><span>مدة التركيز</span><div class="chips wrap">${[15, 25, 30, 45, 60, 90].map((m) => chip('timer-min', m, cfg.minutes, `${m} د`)).join('')}
+          <input type="number" id="tCustom" min="1" max="600" inputmode="numeric" value="${cfg.minutes}" aria-label="مدة مخصصة بالدقائق" style="width:6em"></div></div>
+        <div class="field"><span>الاستراحة بعدها</span><div class="chips wrap">${[5, 10, 15].map((m) => chip('timer-brk', m, cfg.brk, `${m} د`)).join('')}</div></div>` : ''}
+        <label class="switch"><input type="checkbox" id="tAwake"${cfg.awake ? ' checked' : ''}><span>إبقاء الشاشة مضاءة أثناء المؤقت</span></label>
+        <button type="button" class="primary t-start" data-action="timer-start">ابدأ</button>
+      </div>` : emptyHTML('لا مهام بعد', 'أضف مهمة أولاً ثم شغّل لها المؤقت.', '<button type="button" class="ghost" data-action="new">إضافة مهمة</button>')}
+    </section>`;
+  }
+  const t0 = today();
+  const todays = S.sessions.filter((x) => sessionDay(x) === t0);
+  const todayMs = todays.reduce((n, x) => n + x.ms, 0);
+  const byTask = {};
+  for (const x of todays) byTask[x.taskId] = (byTask[x.taskId] || 0) + x.ms;
+  const rows = Object.entries(byTask).sort((a, b) => b[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  const recent = S.sessions.slice(-8).reverse();
+  return `${card}
+  <section class="panel">
+    <div class="section-head"><h2>وقتك اليوم</h2><b class="num">${todayMs ? fmtDur(todayMs) : '0 د'}</b></div>
+    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => `<li class="hbar"><span class="name">${esc((getTask(id) || {}).title || 'مهمة محذوفة')}</span><span class="track"><span class="fill" style="width:${(ms / max) * 100}%; display:block"></span></span><span class="v">${fmtDur(ms)}</span></li>`).join('')}</ul>`
+      : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
+  </section>
+  ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} · ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} · ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
+}
+
+let timerArmed = false;
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action^="timer-"]');
+  if (!el) return;
+  const { action, v } = el.dataset;
+  const cfg = S.settings.timer;
+  switch (action) {
+    case 'timer-start': {
+      const id = $('tTask') && $('tTask').value;
+      if (!id) break;
+      startTimer(id, cfg.mode, cfg.minutes);
+      break;
+    }
+    case 'timer-pause': applyTimerAction('timer-pause'); break;
+    case 'timer-resume': applyTimerAction('timer-resume'); break;
+    case 'timer-stop': applyTimerAction('timer-stop'); break;
+    case 'timer-cancel':
+      if (!timerArmed) {
+        timerArmed = true; el.textContent = 'تأكيد الإلغاء (لن يُحفظ)'; el.classList.add('armed');
+        setTimeout(() => { timerArmed = false; if (el.isConnected) { el.textContent = 'إلغاء'; el.classList.remove('armed'); } }, 3000);
+        break;
+      }
+      timerArmed = false;
+      cancelTimer();
+      break;
+    case 'timer-mode': cfg.mode = v; save(); render(); break;
+    case 'timer-min': cfg.minutes = Number(v); save(); render(); break;
+    case 'timer-brk': cfg.brk = Number(v); save(); render(); break;
+    case 'timer-break': startTimer(ui.timerEnded.taskId, 'down', cfg.brk, 'break'); break;
+    case 'timer-again': startTimer(ui.timerEnded.taskId, 'down', cfg.minutes); break;
+    case 'timer-done-task': {
+      const en = ui.timerEnded;
+      ui.timerEnded = null;
+      const t = getTask(en.taskId);
+      if (t && isRepeat(t) && t.target > 1) { setCount(t, today(), t.target); save(); render(); }
+      else if (t && !doneOn(t, today())) toggle(t.id, today());
+      else render();
+      break;
+    }
+    case 'timer-close-end': ui.timerEnded = null; render(); break;
+    case 'timer-for': {
+      const id = draft && draft.id;
+      if (!id || !getTask(id)) break;
+      closeSheet();
+      ui.tab = 'timer';
+      startTimer(id, cfg.mode, cfg.minutes);
+      history.replaceState(null, '', '#timer');
+      break;
+    }
+  }
+});
+document.addEventListener('change', (e) => {
+  const cfg = S.settings.timer;
+  if (e.target.id === 'tTask') { cfg.lastTask = e.target.value; save(); }
+  if (e.target.id === 'tAwake') { cfg.awake = e.target.checked; save(); updateWakeLock(); }
+  if (e.target.id === 'tCustom') { const n = parseInt(e.target.value, 10); if (n > 0) { cfg.minutes = Math.min(600, n); save(); render(); } }
+});
+
 // ---------- events ----------
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action], [data-tab]');
@@ -1428,6 +1731,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('message', (e) => {
     const m = e.data || {};
     if (m.type === 'alarm-action') alarmAction(m.action, m.id, m.key);
+    if (m.type === 'timer-pending') applyPendingTimerActions();
   });
 }
 
@@ -1443,8 +1747,12 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
   checkAlarms();
   setInterval(checkAlarms, 15000);
+  applyPendingTimerActions();
+  setInterval(tickTimer, 1000);
+  updateWakeLock();
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { checkAlarms(); if (!sheet.open) render(); }
+    updateWakeLock();
+    if (document.visibilityState === 'visible') { applyPendingTimerActions(); checkAlarms(); if (!sheet.open) render(); }
   });
   let lastDay = today();
   setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open) render(); } }, 60000);

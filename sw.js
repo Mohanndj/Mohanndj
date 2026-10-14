@@ -1,9 +1,11 @@
 // Offline cache + notification actions for «مهامي»
-const CACHE = 'mahami-v3.0.0';
+importScripts('timer-shared.js');
+const CACHE = 'mahami-v4.0.0';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './timer-shared.js',
   './prayer.js',
   './nlp.js',
   './app.js',
@@ -45,7 +47,32 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
+// Timer buttons (pressed on the phone or on a paired watch): record the press, refresh the
+// notification at once, and let the page apply it now or the next time it wakes up.
+async function timerAction(n, action) {
+  const ts = Date.now();
+  const { timer, title } = n.data || {};
+  const c = await caches.open('mahami-actions');
+  const prev = await c.match('pending');
+  const list = prev ? await prev.json() : [];
+  list.push({ action, ts });
+  await c.put('pending', new Response(JSON.stringify(list), { headers: { 'Content-Type': 'application/json' } }));
+  const next = TimerShared.apply(timer, action, ts);
+  if (next) {
+    const [t, opts] = TimerShared.notification(next, title, ts);
+    await self.registration.showNotification(t, opts);
+  } else {
+    n.close();
+  }
+  const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of all) client.postMessage({ type: 'timer-pending' });
+}
+
 self.addEventListener('notificationclick', (e) => {
+  if (e.notification.tag === 'timer' && e.action) {
+    e.waitUntil(timerAction(e.notification, e.action));
+    return;
+  }
   const { id, key } = e.notification.data || {};
   const action = e.action || 'open';
   e.notification.close();
@@ -57,6 +84,6 @@ self.addEventListener('notificationclick', (e) => {
       return client.focus();
     }
     const qs = action !== 'open' && id ? `?action=${action}&id=${encodeURIComponent(id)}&key=${encodeURIComponent(key || '')}` : '';
-    return self.clients.openWindow(`./${qs}#today`);
+    return self.clients.openWindow(`./${qs}#${e.notification.tag === 'timer' ? 'timer' : 'today'}`);
   })());
 });

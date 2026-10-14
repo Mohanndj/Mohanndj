@@ -12,9 +12,9 @@
   --mid: #a8670f;
   --low: #3f7a52;
   --shadow: 0 1px 2px rgb(16 33 30 / .06), 0 8px 24px rgb(16 33 30 / .08);
-  --font-display: "Reem Kufi", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --fs: 16px;
+  --font-display: "Sakkal Majalla", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --font-body: "Sakkal Majalla", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --fs: 18px;
   --tabbar-h: 64px;
   color-scheme: light;
 }
@@ -34,7 +34,7 @@
   --shadow: 0 1px 2px rgb(0 0 0 / .35);
   color-scheme: dark;
 }
-:root[data-size="big"] { --fs: 18px; }
+:root[data-size="big"] { --fs: 21px; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -373,3 +373,38 @@ dialog::backdrop { background: rgb(10 18 16 / .45); }
 
 /* grid children must be allowed to shrink so scrolling rows stay inside the screen */
 .wrap > *, .smart > *, .section > *, .panel > *, #editor > * { min-width: 0; }
+
+/* ---------- timer ---------- */
+body[data-tab="timer"] .fab, body[data-tab="settings"] .fab { display: none; }
+.timer-card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px 16px; display: grid; gap: 16px; justify-items: center; text-align: center; }
+.t-task { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; overflow-wrap: anywhere; max-width: 100%; }
+.t-ring {
+  --p: 0; width: min(260px, 72vw); aspect-ratio: 1; max-width: 100%; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--line) 0);
+}
+.t-ring.paused { background: conic-gradient(var(--muted) calc(var(--p) * 1%), var(--line) 0); }
+.t-inner { width: calc(100% - 20px); aspect-ratio: 1; border-radius: 50%; background: var(--card); display: grid; place-content: center; gap: 2px; }
+.t-digits { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: clamp(2.6rem, 14vw, 3.6rem); font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; letter-spacing: .02em; line-height: 1.1; }
+.t-sub { color: var(--muted); font-size: .9rem; }
+.t-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.t-actions button { min-width: 110px; padding: 12px 18px; font-size: 1rem; }
+.t-start { width: 100%; padding: 14px; font-size: 1.15rem; }
+.timer-form { display: grid; gap: 14px; width: 100%; text-align: start; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
+.t-ended { display: grid; gap: 6px; }
+.t-ended strong { font-family: var(--font-display); font-size: 1.4rem; }
+.sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sessions li { display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; padding: 8px 10px; background: var(--bg); border-radius: 10px; }
+.sessions li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions .num { color: var(--muted); flex: none; }
+.timer-bar {
+  position: fixed; z-index: 6; display: flex; align-items: center; gap: 8px;
+  bottom: calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom, 0px));
+  right: max(16px, calc(env(safe-area-inset-right, 0px) + 16px));
+  max-width: calc(100% - 120px); background: var(--fg); color: var(--bg); border-radius: 99px; padding: 8px 14px;
+  box-shadow: var(--shadow);
+}
+.timer-bar svg { width: 18px; height: 18px; }
+.timer-bar b { font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; direction: ltr; }
+.timer-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: .85rem; }
+.timer-bar.paused { opacity: .75; }
