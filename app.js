@@ -4,6 +4,7 @@
 const KEY = 'mahami-v2';
 const OLD_KEY = 'my-tasks-v1';
 const LOCALE = 'ar-u-nu-latn';
+const HIJRI = 'ar-SA-u-ca-islamic-umalqura-nu-latn';
 const PRI = { high: 3, mid: 2, low: 1 };
 const PRI_LABEL = { high: 'عالية', mid: 'متوسطة', low: 'منخفضة' };
 const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday first
@@ -16,8 +17,19 @@ const ACCENTS = {
   amber: { name: 'عنبري', light: '#a45a0a', dark: '#eda54a' },
   graphite: { name: 'رمادي', light: '#3b4656', dark: '#aab6c6' },
 };
+const ALARM_OPTIONS = [
+  [0, 'في الموعد'], [5, 'قبل 5 د'], [10, 'قبل 10 د'], [15, 'قبل 15 د'], [30, 'قبل 30 د'],
+  [60, 'قبل ساعة'], [120, 'قبل ساعتين'], [1440, 'قبل يوم'],
+];
 const SNOOZE_MIN = 10;
 const MISSED_WINDOW_MIN = 180; // alarms older than this when the app opens are skipped
+const SMART_EXAMPLES = [
+  'ذكرني أتصل بأبوي بكرة الساعة 5 العصر وقبلها بربع ساعة',
+  'اشرب 8 أكواب ماء كل يوم لمدة شهر',
+  'قراءة القرآن بعد الفجر يومياً',
+  'اجتماع الفريق كل أحد وثلاثاء الساعة 9 الصبح #عمل',
+  'دفع الفاتورة يوم الخميس مهم',
+];
 
 const ICONS = {
   check: 'M20 6L9 17l-5-5',
@@ -25,6 +37,16 @@ const ICONS = {
   repeat: 'M17 2l4 4-4 4M3 11V10a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3',
   note: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5',
   cal: 'M4 5h16v15H4zM4 9h16M8 3v4M16 3v4',
+  steps: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  flag: 'M4 22V4M4 4h13l-2 4 2 4H4',
+  tag: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01',
+  spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
+  target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  prev: 'M9 18l6-6-6-6',
+  next: 'M15 18l-6-6 6-6',
+  pin: 'M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 
@@ -38,9 +60,14 @@ const parse = (s) => new Date(s + 'T00:00');
 const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
 const today = () => iso(new Date());
 const minutesOf = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+const hmOf = (min) => { const m = ((Math.round(min) % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
 const fmtDate = (s, opts = { day: 'numeric', month: 'short' }) => parse(s).toLocaleDateString(LOCALE, opts);
 const fmtTime = (hm) => new Date(`2000-01-01T${hm}`).toLocaleTimeString(LOCALE, { hour: 'numeric', minute: '2-digit' });
+const fmtMin = (min) => fmtTime(hmOf(min));
 const fmtStamp = (ts) => new Date(ts).toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+function fmtHijri(s, opts = { day: 'numeric', month: 'long', year: 'numeric' }) {
+  try { return parse(s).toLocaleDateString(HIJRI, opts); } catch { return ''; }
+}
 function relDate(s) {
   const t = today();
   if (s === t) return 'اليوم';
@@ -50,9 +77,12 @@ function relDate(s) {
 }
 const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 const daysWord = (n) => (n === 0 ? '0 يوم' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
+const minsWord = (n) => (n === 15 ? 'ربع ساعة' : n === 30 ? 'نصف ساعة' : n % 1440 === 0 ? plural(n / 1440, 'يوم', 'يومين', 'أيام', 'يوماً')
+  : n % 60 === 0 ? plural(n / 60, 'ساعة', 'ساعتين', 'ساعات', 'ساعة') : plural(n, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'));
 
 // ---------- state ----------
 function normalize(t) {
+  const target = Math.max(1, Math.min(999, Number(t.target) || 1));
   return {
     id: t.id || uid(),
     title: String(t.title || ''),
@@ -60,13 +90,18 @@ function normalize(t) {
     category: t.category || '',
     due: t.due || '',
     time: t.time || '',
-    remind: !!t.remind,
+    prayer: t.prayer && t.prayer.name ? { name: t.prayer.name, offset: Number(t.prayer.offset) || 0 } : null,
+    alarms: Array.isArray(t.alarms) ? t.alarms.map(Number) : (t.remind && t.time ? [0] : []),
     notes: Array.isArray(t.notes) ? t.notes : [],
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
     created: t.created || Date.now(),
     done: !!t.done,
     doneAt: t.doneAt || null,
     repeat: t.repeat && Array.isArray(t.repeat.days) ? t.repeat : null,
     completions: t.completions && typeof t.completions === 'object' ? t.completions : {},
+    target,
+    unit: t.unit || '',
+    counts: t.counts && typeof t.counts === 'object' ? t.counts : {},
   };
 }
 
@@ -81,20 +116,51 @@ function load() {
     } catch {}
   }
   s.tasks = (s.tasks || []).map(normalize);
-  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', sound: true, ...(s.settings || {}) };
+  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', sound: true, prayer: null, ...(s.settings || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
   return s;
 }
 
 const S = load();
-const ui = { tab: 'today', filter: 'active', q: '', sort: 'smart', cat: '' };
+const ui = { tab: 'today', filter: 'active', q: '', sort: 'smart', cat: '', calMonth: today().slice(0, 7), calSel: today(), smart: '' };
 
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
+
+// ---------- prayer times ----------
+const prayerMemo = new Map();
+function prayerTimes(d) {
+  const cfg = S.settings.prayer;
+  if (!cfg) return null;
+  const k = `${d}|${cfg.lat}|${cfg.lng}|${cfg.method}|${cfg.asr}`;
+  if (!prayerMemo.has(k)) prayerMemo.set(k, Prayer.times(d, cfg));
+  return prayerMemo.get(k);
+}
+function prayerPhrase(p) {
+  const name = Prayer.NAMES[p.name];
+  if (!p.offset) return `مع ${name}`;
+  const w = minsWord(Math.abs(p.offset));
+  return `${p.offset < 0 ? 'قبل' : 'بعد'} ${name} ${/^\d/.test(w) ? 'بـ ' + w : 'ب' + w}`;
+}
+
+// minutes after midnight for the task on date d, or null
+function timeOn(t, d) {
+  if (t.prayer) {
+    const pt = prayerTimes(d);
+    return pt ? pt[t.prayer.name] + t.prayer.offset : null;
+  }
+  return t.time ? minutesOf(t.time) : null;
+}
+const hasTime = (t) => !!(t.time || t.prayer);
+function timeLabel(t, d) {
+  const m = timeOn(t, d);
+  if (t.prayer) return prayerPhrase(t.prayer) + (m != null ? ` (${fmtMin(m)})` : '');
+  return m != null ? fmtMin(m) : '';
+}
 
 // ---------- recurrence ----------
 const isRepeat = (t) => !!t.repeat;
@@ -104,6 +170,7 @@ function occursOn(t, d) {
   return r.days.includes(parse(d).getDay());
 }
 const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done);
+const countOn = (t, d) => (t.completions[d] && !t.counts[d] ? t.target : t.counts[d] || 0);
 const goalEnded = (t) => isRepeat(t) && t.repeat.until && t.repeat.until < today();
 
 function repeatLabel(t) {
@@ -121,7 +188,6 @@ function goalStats(t) {
     total++;
     if (t.completions[d]) hit++;
   }
-  // current streak: walk back over occurrence days; today doesn't break it if not done yet
   let streak = 0;
   for (let d = end; d >= t.repeat.start; d = addDays(d, -1)) {
     if (!occursOn(t, d)) continue;
@@ -133,17 +199,35 @@ function goalStats(t) {
 }
 
 // ---------- actions ----------
+function setCount(t, d, n) {
+  n = Math.max(0, Math.min(t.target, n));
+  if (n) t.counts[d] = n; else delete t.counts[d];
+  if (n >= t.target) t.completions[d] = t.completions[d] || Date.now();
+  else delete t.completions[d];
+}
+
 function toggle(id, date) {
   const t = getTask(id);
   if (!t) return;
   if (isRepeat(t)) {
     const d = date || today();
-    if (t.completions[d]) delete t.completions[d];
+    if (t.target > 1) {
+      const c = countOn(t, d);
+      setCount(t, d, c >= t.target ? 0 : c + 1);
+    } else if (t.completions[d]) delete t.completions[d];
     else t.completions[d] = Date.now();
   } else {
     t.done = !t.done;
     t.doneAt = t.done ? Date.now() : null;
   }
+  save();
+  render();
+}
+
+function step(id, date, delta) {
+  const t = getTask(id);
+  if (!t) return;
+  setCount(t, date, countOn(t, date) + delta);
   save();
   render();
 }
@@ -156,10 +240,14 @@ function removeTask(id) {
   render();
 }
 
-// ---------- rendering ----------
-function itemHTML(t, date) {
-  const d = date || today();
-  const done = doneOn(t, d);
+// ---------- rendering: items ----------
+function checkButton(t, d, done) {
+  const counted = isRepeat(t) && t.target > 1;
+  const label = counted ? `${countOn(t, d)} من ${t.target}${t.unit ? ' ' + t.unit : ''}، اضغط للزيادة` : done ? 'إلغاء الإنجاز' : 'تمت';
+  return `<button type="button" class="check${counted ? ' counted' : ''}" data-action="toggle" data-id="${t.id}" data-date="${d}" aria-pressed="${done}" aria-label="${esc(label)}">${icon('check')}${counted ? `<span class="cnt">${countOn(t, d)}</span>` : ''}</button>`;
+}
+
+function metaHTML(t, d) {
   const meta = [`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`];
   if (t.category) meta.push(`<span class="cat">${esc(t.category)}</span>`);
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
@@ -167,13 +255,21 @@ function itemHTML(t, date) {
     const late = !t.done && t.due < today();
     meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة · ' : ''}${esc(relDate(t.due))}</span>`);
   }
-  if (t.time) meta.push(`<span class="num">${t.remind ? icon('bell') : ''}${esc(fmtTime(t.time))}</span>`);
+  if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
+  if (isRepeat(t) && t.target > 1) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
+  if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}${t.subtasks.filter((x) => x.done).length}/${t.subtasks.length}</span>`);
   if (t.notes.length) meta.push(`<span class="num">${icon('note')}${t.notes.length}</span>`);
+  return meta.join('');
+}
+
+function itemHTML(t, date) {
+  const d = date || today();
+  const done = doneOn(t, d);
   return `<li class="task p-${t.priority}${done ? ' done' : ''}">
-    <button type="button" class="check" data-action="toggle" data-id="${t.id}" data-date="${d}" aria-pressed="${done}" aria-label="${done ? 'إلغاء الإنجاز' : 'تمت'}">${icon('check')}</button>
+    ${checkButton(t, d, done)}
     <button type="button" class="t-main" data-action="open" data-id="${t.id}">
       <span class="t-title">${esc(t.title)}</span>
-      <span class="meta">${meta.join('')}</span>
+      <span class="meta">${metaHTML(t, d)}</span>
     </button>
   </li>`;
 }
@@ -181,43 +277,125 @@ function itemHTML(t, date) {
 const emptyHTML = (title, text, action) =>
   `<div class="empty"><strong>${title}</strong><span>${text}</span>${action || ''}</div>`;
 
-function viewToday() {
-  const d = today();
+function itemsOn(d) {
   const items = [];
   for (const t of S.tasks) {
     if (isRepeat(t)) { if (occursOn(t, d)) items.push(t); }
-    else if (!t.done && t.due && t.due <= d) items.push(t);
-    else if (t.done && t.doneAt && iso(new Date(t.doneAt)) === d) items.push(t);
+    else if (t.due === d) items.push(t);
   }
-  items.sort((a, b) =>
-    doneOn(a, d) - doneOn(b, d) ||
-    (a.time || '99').localeCompare(b.time || '99') ||
-    PRI[b.priority] - PRI[a.priority]);
+  return items;
+}
+
+const byTime = (d) => (a, b) =>
+  doneOn(a, d) - doneOn(b, d) ||
+  (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999) ||
+  PRI[b.priority] - PRI[a.priority];
+
+// ---------- view: today ----------
+function prayerStripHTML() {
+  const d = today();
+  const pt = prayerTimes(d);
+  if (!pt) {
+    return `<div class="prayer-cta"><span>${icon('moon')} أضف مدينتك لتظهر أوقات الصلاة وتربط مهامك بها</span><button type="button" class="ghost" data-tab="settings">إعداد</button></div>`;
+  }
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const next = Prayer.PRAYERS.find((p) => pt[p] > nowMin) || 'fajr';
+  return `<div class="prayers" aria-label="أوقات الصلاة اليوم">${Prayer.PRAYERS.map((p) =>
+    `<div class="${p === next ? 'next' : ''}">${Prayer.NAMES[p]}<b>${esc(fmtMin(pt[p]))}</b></div>`).join('')}</div>`;
+}
+
+function smartHTML() {
+  return `<form class="smart" id="smartForm" autocomplete="off">
+    <label class="smart-label" for="smartIn">${icon('spark')} اكتب بكلامك وسأفهم الموعد والتكرار</label>
+    <div class="smart-row">
+      <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="مثال: ذكرني أتصل بأبوي بكرة الساعة 5 العصر" enterkeyhint="done">
+      <button type="submit" class="primary">إضافة</button>
+    </div>
+    <div id="smartPreview">${smartPreviewHTML()}</div>
+  </form>`;
+}
+
+function smartToTask(r) {
+  const t0 = today();
+  const t = normalize({
+    id: uid(), title: r.title, priority: r.priority, category: r.category,
+    time: r.prayer ? '' : r.time, prayer: r.prayer,
+    alarms: (r.time || r.prayer) ? [0, ...r.before.filter((b) => b > 0)] : [],
+    created: Date.now(),
+  });
+  t.alarms = [...new Set(t.alarms)].sort((a, b) => a - b);
+  if (r.kind === 'repeat') {
+    t.repeat = { days: (r.days && r.days.length ? r.days : [...DAY_ORDER]).sort(), start: r.start || t0, until: r.until || null };
+    t.target = r.target || 1;
+    t.unit = r.target > 1 ? r.unit : '';
+  } else {
+    t.due = r.due || '';
+    // "الساعة 5" said after 5 o'clock means tomorrow
+    if (r.autoDue && t.due === t0) {
+      const m = timeOn(t, t0);
+      const now = new Date();
+      if (m != null && m <= now.getHours() * 60 + now.getMinutes()) t.due = addDays(t0, 1);
+    }
+  }
+  return t;
+}
+
+function smartPreviewHTML() {
+  const text = ui.smart.trim();
+  if (!text) {
+    return `<div class="examples" aria-label="أمثلة">${SMART_EXAMPLES.map((e) => `<button type="button" data-action="example" data-v="${esc(e)}">${esc(e)}</button>`).join('')}</div>`;
+  }
+  const r = SmartParse.parse(text);
+  if (!r.title) return '<div class="parsed"><span class="tag warn">اكتب ما تريد فعله</span></div>';
+  const t = smartToTask(r);
+  const d = isRepeat(t) ? t.repeat.start : t.due || today();
+  const tags = [`<span class="tag title">${esc(t.title)}</span>`];
+  if (isRepeat(t)) tags.push(`<span class="tag">${icon('repeat')}${esc(repeatLabel(t))}</span>`);
+  else if (t.due) tags.push(`<span class="tag">${icon('cal')}${esc(relDate(t.due))}</span>`);
+  if (hasTime(t)) tags.push(`<span class="tag">${icon(t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d))}</span>`);
+  if (t.prayer && !S.settings.prayer) tags.push('<span class="tag warn">حدّد مدينتك في الإعدادات</span>');
+  for (const a of t.alarms.filter((x) => x > 0)) tags.push(`<span class="tag">${icon('bell')}قبل ${esc(minsWord(a))}</span>`);
+  if (t.target > 1) tags.push(`<span class="tag">${icon('target')}${t.target} ${esc(t.unit)} يومياً</span>`);
+  if (t.priority !== 'mid') tags.push(`<span class="tag">${icon('flag')}أولوية ${PRI_LABEL[t.priority]}</span>`);
+  if (t.category) tags.push(`<span class="tag">${icon('tag')}${esc(t.category)}</span>`);
+  return `<div class="parsed">${tags.join('')}</div>
+    <div class="smart-actions"><button type="button" class="ghost" data-action="smart-edit">تعديل قبل الإضافة</button></div>`;
+}
+
+function viewToday() {
+  const d = today();
+  const items = S.tasks.filter((t) => {
+    if (isRepeat(t)) return occursOn(t, d);
+    if (!t.done && t.due && t.due <= d) return true;
+    return t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
+  });
+  items.sort(byTime(d));
   const done = items.filter((t) => doneOn(t, d)).length;
   const pct = items.length ? Math.round((done / items.length) * 100) : 0;
   const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
   const open = items.length - done;
   const undated = S.tasks.filter((t) => !isRepeat(t) && !t.done && !t.due).length;
-
-  const summary = items.length
-    ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل مهام اليوم')
-    : 'لا شيء مجدول لليوم';
+  const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل مهام اليوم') : 'لا شيء مجدول لليوم';
   return `
+  ${smartHTML()}
   <div class="today-card">
     <div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
     <div class="txt">
       <b>${summary}</b>
-      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${undated ? `${undated} بلا تاريخ في «المهام»` : 'تابع تقدمك في «الإحصائيات»'}</span>
+      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${undated ? `${undated} بلا تاريخ في «المهام»` : esc(fmtHijri(d))}</span>
     </div>
   </div>
+  ${prayerStripHTML()}
   <section class="section">
     <div class="section-head"><h2>مهام اليوم وأهدافه</h2><small>${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}</small></div>
     ${items.length
       ? `<ul class="list">${items.map((t) => itemHTML(t, d)).join('')}</ul>`
-      : emptyHTML('يومك فارغ', 'أضف مهمة بتاريخ اليوم أو هدفاً يومياً من زر الإضافة.', '<button type="button" class="ghost" data-action="new">إضافة مهمة</button>')}
+      : emptyHTML('يومك فارغ', 'اكتب في المربع أعلاه أو اضغط زر الإضافة.')}
   </section>`;
 }
 
+// ---------- view: tasks ----------
 function categories() {
   return [...new Set(S.tasks.map((t) => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
 }
@@ -225,14 +403,15 @@ function categories() {
 function viewTasks() {
   const q = ui.q.trim().toLowerCase();
   const t0 = today();
-  let list = S.tasks.filter((t) => !isRepeat(t) &&
+  const list = S.tasks.filter((t) => !isRepeat(t) &&
     (ui.filter === 'all' || (ui.filter === 'done') === t.done) &&
     (!ui.cat || t.category === ui.cat) &&
-    (!q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) || t.notes.some((n) => n.text.toLowerCase().includes(q))));
+    (!q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) ||
+      t.notes.some((n) => n.text.toLowerCase().includes(q)) || t.subtasks.some((n) => n.text.toLowerCase().includes(q))));
   list.sort((a, b) => {
     if (ui.filter === 'done') return (b.doneAt || 0) - (a.doneAt || 0);
     if (ui.sort === 'created') return b.created - a.created;
-    if (ui.sort === 'due') return (a.due || '9999').localeCompare(b.due || '9999') || b.created - a.created;
+    if (ui.sort === 'due') return (a.due || '9999').localeCompare(b.due || '9999') || (timeOn(a, a.due) ?? 9999) - (timeOn(b, b.due) ?? 9999);
     const lateA = a.due && a.due < t0, lateB = b.due && b.due < t0;
     return lateB - lateA || PRI[b.priority] - PRI[a.priority] || (a.due || '9999').localeCompare(b.due || '9999');
   });
@@ -242,7 +421,7 @@ function viewTasks() {
   const hasAny = S.tasks.some((t) => !isRepeat(t));
   return `
   <div class="toolbar">
-    <input type="search" id="search" placeholder="بحث في المهام والملاحظات" aria-label="بحث" value="${esc(ui.q)}">
+    <input type="search" id="search" placeholder="بحث في المهام والخطوات والملاحظات" aria-label="بحث" value="${esc(ui.q)}">
     <div class="seg" role="group" aria-label="عرض">${seg}</div>
     <select id="sort" aria-label="الترتيب">
       <option value="smart"${ui.sort === 'smart' ? ' selected' : ''}>الأهم أولاً</option>
@@ -255,12 +434,67 @@ function viewTasks() {
     ${cats.map((c) => `<button type="button" class="chip" data-action="cat" data-v="${esc(c)}" aria-pressed="${ui.cat === c}">${esc(c)}</button>`).join('')}
   </div>` : ''}
   ${list.length
-    ? `<ul class="list">${list.map((t) => itemHTML(t)).join('')}</ul>`
+    ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || t0)).join('')}</ul>`
     : hasAny
       ? emptyHTML(q ? 'لا نتائج' : ui.filter === 'done' ? 'لا مهام منجزة بعد' : 'لا مهام حالية', q ? 'جرّب كلمة بحث أخرى.' : 'كل شيء مُنجز هنا.')
       : emptyHTML('لا مهام بعد', 'اضغط زر + لإضافة أول مهمة.', '<button type="button" class="ghost" data-action="new">إضافة مهمة</button>')}`;
 }
 
+// ---------- view: calendar ----------
+function viewCalendar() {
+  const [y, m] = ui.calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const lead = (first.getDay() - 6 + 7) % 7; // weeks start on Saturday
+  const daysIn = new Date(y, m, 0).getDate();
+  const total = Math.ceil((lead + daysIn) / 7) * 7;
+  const t0 = today();
+  const cells = [];
+  for (let i = 0; i < total; i++) {
+    const d = iso(new Date(y, m - 1, 1 - lead + i));
+    const out = d.slice(0, 7) !== ui.calMonth;
+    const items = itemsOn(d);
+    const marks = items.slice(0, 4).map((t) => `<i class="${doneOn(t, d) ? 'done' : 'p-' + t.priority}"></i>`).join('') +
+      (items.length > 4 ? `<span class="more">+${items.length - 4}</span>` : '');
+    const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${items.length ? `، ${items.length} عنصر` : ''}`;
+    cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${parse(d).getDate()}</span><span class="marks">${marks}</span></button>`);
+  }
+  const monthName = first.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
+  const lastIso = iso(new Date(y, m, 0));
+  const h1 = fmtHijri(iso(first), { month: 'long', year: 'numeric' });
+  const h2 = fmtHijri(lastIso, { month: 'long', year: 'numeric' });
+  const hijri = h1 === h2 ? h1 : `${fmtHijri(iso(first), { month: 'long' })} – ${h2}`;
+  const sel = ui.calSel;
+  const selItems = itemsOn(sel).sort(byTime(sel));
+  return `
+  <div class="cal-head">
+    <div class="nav"><button type="button" data-action="cal-move" data-v="-1" aria-label="الشهر السابق">${icon('prev')}</button></div>
+    <div class="titles"><h2>${esc(monthName)}</h2><small>${esc(hijri)}</small></div>
+    <div class="nav">
+      <button type="button" data-action="cal-move" data-v="1" aria-label="الشهر التالي">${icon('next')}</button>
+    </div>
+  </div>
+  <div class="cal">
+    <div class="cal-grid">
+      ${DAY_ORDER.map((d) => `<div class="cal-dow">${DAY_SHORT[d]}</div>`).join('')}
+      ${cells.join('')}
+    </div>
+    <div class="cal-legend">
+      <span><i style="background:var(--high)"></i>عالية</span><span><i style="background:var(--mid)"></i>متوسطة</span>
+      <span><i style="background:var(--low)"></i>منخفضة</span><span><i style="background:var(--line)"></i>منجزة</span>
+      ${ui.calMonth !== t0.slice(0, 7) || sel !== t0 ? '<button type="button" class="chip" data-action="cal-today" style="margin-inline-start:auto">اليوم</button>' : ''}
+    </div>
+  </div>
+  <section class="section">
+    <div class="section-head">
+      <h2>${esc(fmtDate(sel, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
+      <button type="button" class="ghost" data-action="new-on" data-v="${sel}">إضافة لهذا اليوم</button>
+    </div>
+    <small class="hint">${esc(fmtHijri(sel))}</small>
+    ${selItems.length ? `<ul class="list">${selItems.map((t) => itemHTML(t, sel)).join('')}</ul>` : emptyHTML('لا شيء في هذا اليوم', 'اضغط «إضافة لهذا اليوم» لتضيف مهمة بتاريخه.')}
+  </section>`;
+}
+
+// ---------- view: goals ----------
 function goalHTML(t) {
   const t0 = today();
   const occursToday = occursOn(t, t0);
@@ -274,15 +508,26 @@ function goalHTML(t) {
     dots.push(`<span class="dot ${cls}${d === t0 ? ' today' : ''}" title="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'short' }))}"><i></i>${DAY_SHORT[parse(d).getDay()].slice(0, 2)}</span>`);
   }
   const notStarted = t.repeat.start > t0;
+  const counted = t.target > 1;
+  const c = countOn(t, t0);
+  const counter = counted && occursToday ? `
+    <div class="row-between">
+      <div class="stepper">
+        <button type="button" data-action="step" data-id="${t.id}" data-v="-1" aria-label="إنقاص">−</button>
+        <span class="val">${c} / ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>
+        <button type="button" data-action="step" data-id="${t.id}" data-v="1" aria-label="زيادة">+</button>
+      </div>
+    </div>
+    <div class="progress-line"><i style="width:${(c / t.target) * 100}%"></i></div>` : '';
   return `<li class="goal${done ? ' done' : ''}">
     <div class="goal-top">
-      <button type="button" class="check" data-action="toggle" data-id="${t.id}" data-date="${t0}" aria-pressed="${done}"
-        aria-label="${occursToday ? (done ? 'إلغاء إنجاز اليوم' : 'أنجزته اليوم') : 'ليس مجدولاً اليوم'}"${occursToday ? '' : ' disabled'}>${icon('check')}</button>
+      ${occursToday ? checkButton(t, t0, done) : `<button type="button" class="check" disabled aria-label="ليس مجدولاً اليوم">${icon('check')}</button>`}
       <button type="button" class="t-main" data-action="open" data-id="${t.id}">
         <span class="t-title">${esc(t.title)}</span>
-        <span class="meta"><span>${icon('repeat')}${esc(repeatLabel(t))}</span>${t.time ? `<span class="num">${t.remind ? icon('bell') : ''}${esc(fmtTime(t.time))}</span>` : ''}${t.notes.length ? `<span class="num">${icon('note')}${t.notes.length}</span>` : ''}${t.category ? `<span class="cat">${esc(t.category)}</span>` : ''}</span>
+        <span class="meta">${metaHTML(t, t0).replace(/<span class="pri[^>]*>[^<]*<\/span>/, '')}</span>
       </button>
     </div>
+    ${counter}
     ${notStarted ? `<p class="note-text">يبدأ ${esc(relDate(t.repeat.start))}</p>` : `
     <div class="goal-stats">
       <span>السلسلة الحالية: <b>${daysWord(st.streak)}</b></span>
@@ -296,10 +541,11 @@ function viewGoals() {
   const goals = S.tasks.filter(isRepeat);
   if (!goals.length) {
     return `<section class="section"><h2>الأهداف المتكررة</h2>${emptyHTML('لا أهداف بعد',
-      'الهدف المتكرر يظهر في يومك تلقائياً، يومياً أو في أيام تختارها، إلى تاريخ محدد أو بلا نهاية.',
+      'الهدف المتكرر يظهر في يومك تلقائياً، يومياً أو في أيام تختارها، إلى تاريخ محدد أو بلا نهاية. ويمكن أن يكون بعدد، مثل 8 أكواب ماء.',
       '<button type="button" class="ghost" data-action="new-goal">إضافة هدف</button>')}</section>`;
   }
-  const active = goals.filter((t) => !goalEnded(t)).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const t0 = today();
+  const active = goals.filter((t) => !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
   const ended = goals.filter(goalEnded);
   return `
   <section class="section">
@@ -309,6 +555,7 @@ function viewGoals() {
   ${ended.length ? `<section class="section"><h2>أهداف انتهت مدتها</h2><ul class="list">${ended.map(goalHTML).join('')}</ul></section>` : ''}`;
 }
 
+// ---------- view: stats ----------
 function completionEvents() {
   const ev = [];
   for (const t of S.tasks) {
@@ -323,9 +570,8 @@ function streaks(byDay) {
   let cur = 0;
   let d = byDay[t0] ? t0 : addDays(t0, -1);
   while (byDay[d]) { cur++; d = addDays(d, -1); }
-  const days = Object.keys(byDay).sort();
   let best = 0, run = 0, prev = null;
-  for (const x of days) {
+  for (const x of Object.keys(byDay).sort()) {
     run = prev && addDays(prev, 1) === x ? run + 1 : 1;
     best = Math.max(best, run);
     prev = x;
@@ -350,19 +596,17 @@ function chartSVG(byDay) {
     parts.push(`<text class="axis" x="${W - padR + 6}" y="${y(v) + 4}" text-anchor="start">${v}</text>`);
   }
   days.forEach((d, i) => {
-    // RTL: oldest on the right, today on the left
-    const x = padL + (N - 1 - i) * bw + gap / 2;
+    const x = padL + (N - 1 - i) * bw + gap / 2; // RTL: today on the left
     const v = counts[i];
     const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${v} ${v === 1 ? 'إنجاز' : 'إنجازات'}`;
     let bar = `<rect class="zero" x="${x}" y="${y(0) - 2}" width="${w}" height="2" rx="1"/>`;
     if (v > 0) {
-      const top = y(v), h = y(0) - top, r = Math.min(4, h, w / 2);
+      const top = y(v), r = Math.min(4, y(0) - top, w / 2);
       bar = `<path class="bar" d="M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${y(0)} Z"/>`;
     }
     parts.push(`<g class="col" data-tip="${esc(label)}"><rect class="hit" x="${x - gap / 2}" y="${padT}" width="${bw}" height="${ph + padB}"><title>${esc(label)}</title></rect>${bar}</g>`);
     if (i === N - 1 || (N - 1 - i) % 3 === 0) {
-      const txt = i === N - 1 ? 'اليوم' : String(parse(d).getDate());
-      parts.push(`<text class="axis" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${txt}</text>`);
+      parts.push(`<text class="axis" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${i === N - 1 ? 'اليوم' : parse(d).getDate()}</text>`);
     }
   });
   return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في آخر 14 يوماً">${parts.join('')}</svg>`;
@@ -381,7 +625,7 @@ function viewStats() {
   const catMax = cats.length ? cats[0][1] : 1;
   const goals = S.tasks.filter((t) => isRepeat(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
   const openCount = S.tasks.filter((t) => !isRepeat(t) && !t.done).length;
-
+  const subsDone = S.tasks.reduce((n, t) => n + t.subtasks.filter((x) => x.done).length, 0);
   return `
   <div class="tiles">
     <div class="tile"><b>${byDay[t0] || 0}</b><span>أنجزت اليوم</span></div>
@@ -404,9 +648,10 @@ function viewStats() {
     ${goals.length ? `<ul class="hbars">${goals.map(({ t, st }) => `<li class="hbar"><span class="name" title="${esc(t.title)}">${esc(t.title)}</span><span class="track"><span class="fill" style="width:${st.rate}%; display:block"></span></span><span class="v">${st.rate}%</span></li>`).join('')}</ul>`
       : '<p class="note-text">أضف هدفاً متكرراً لتتابع نسبة التزامك به.</p>'}
   </section>
-  <p class="note-text">لديك ${openCount} ${openCount === 1 ? 'مهمة مفتوحة' : 'مهام مفتوحة'} الآن.</p>`;
+  <p class="note-text">لديك ${openCount} ${openCount === 1 ? 'مهمة مفتوحة' : 'مهام مفتوحة'} الآن${subsDone ? `، وأنجزت ${subsDone} خطوة داخل مهامك` : ''}.</p>`;
 }
 
+// ---------- view: settings ----------
 function notifStatus() {
   if (!('Notification' in window)) return '<span class="status-bad">هذا المتصفح لا يدعم الإشعارات. ثبّت التطبيق على الشاشة الرئيسية أولاً.</span>';
   if (Notification.permission === 'granted') return '<span class="status-ok">الإشعارات مفعّلة</span>';
@@ -414,10 +659,40 @@ function notifStatus() {
   return '<span>الإشعارات غير مفعّلة بعد</span>';
 }
 
+function prayerSettingsHTML() {
+  const cfg = S.settings.prayer;
+  const cityVal = cfg ? cfg.city : '';
+  const pt = prayerTimes(today());
+  return `<section class="panel">
+    <h2>أوقات الصلاة</h2>
+    <p class="note-text">تُحسب على جوالك دون إنترنت، وتستخدمها المهام المرتبطة بالصلاة مثل «بعد العصر».</p>
+    <label class="field"><span>المدينة</span>
+      <select id="setCity">
+        <option value=""${!cfg ? ' selected' : ''}>لا أريد أوقات الصلاة</option>
+        ${cfg && cfg.city === 'here' ? `<option value="here" selected>موقعي الحالي</option>` : ''}
+        ${Prayer.CITIES.map((c) => `<option value="${c.id}"${cityVal === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}
+      </select>
+    </label>
+    <div class="btn-row"><button type="button" class="ghost" data-action="geo">${icon('pin')} استخدم موقعي الحالي</button></div>
+    ${cfg ? `
+    <div class="grid2">
+      <label class="field"><span>طريقة الحساب</span>
+        <select id="setMethod">${Object.entries(Prayer.METHODS).map(([k, m]) => `<option value="${k}"${cfg.method === k ? ' selected' : ''}>${m.name}</option>`).join('')}</select>
+      </label>
+      <label class="field"><span>العصر</span>
+        <select id="setAsr"><option value="standard"${cfg.asr !== 'hanafi' ? ' selected' : ''}>الجمهور</option><option value="hanafi"${cfg.asr === 'hanafi' ? ' selected' : ''}>الحنفي</option></select>
+      </label>
+    </div>
+    <div class="prayers">${['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].filter((p) => p !== 'sunrise').map((p) => `<div>${Prayer.NAMES[p]}<b>${esc(fmtMin(pt[p]))}</b></div>`).join('')}</div>
+    <p class="note-text">الشروق ${esc(fmtMin(pt.sunrise))}. تُحسب بتوقيت جوالك، فاختر مدينة في نفس منطقتك الزمنية.</p>` : ''}
+  </section>`;
+}
+
 function viewSettings() {
   const st = S.settings;
   const segBtn = (action, v, label, cur) => `<button type="button" data-action="${action}" data-v="${v}" aria-pressed="${cur === v}">${label}</button>`;
   return `<div class="settings">
+  <h2>التخصيص والإعدادات</h2>
   <section class="panel">
     <h2>شخصي</h2>
     <label class="field"><span>اسمك (يظهر في التحية)</span><input type="text" id="setName" value="${esc(st.name)}" autocomplete="off" placeholder="مثال: مهند"></label>
@@ -434,6 +709,7 @@ function viewSettings() {
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
     </div>
   </section>
+  ${prayerSettingsHTML()}
   <section class="panel">
     <h2>المنبهات</h2>
     <p class="note-text" id="notifStatus">${notifStatus()}</p>
@@ -463,20 +739,29 @@ function viewSettings() {
   </div>`;
 }
 
-const VIEWS = { today: viewToday, tasks: viewTasks, goals: viewGoals, stats: viewStats, settings: viewSettings };
+const VIEWS = { today: viewToday, tasks: viewTasks, calendar: viewCalendar, goals: viewGoals, stats: viewStats, settings: viewSettings };
 
 function render() {
   const view = $('view');
-  // keep focus/caret in the search box across re-renders
-  const active = document.activeElement && document.activeElement.id;
-  const caret = active === 'search' ? document.activeElement.selectionStart : null;
+  const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
+  const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
   view.innerHTML = VIEWS[ui.tab]();
-  if (active === 'search' && $('search')) { $('search').focus(); $('search').setSelectionRange(caret, caret); }
-  for (const b of $('tabbar').children) {
+  if (active && $(active)) {
+    $(active).focus();
+    try { if (caret != null) $(active).setSelectionRange(caret, caret); } catch {}
+  }
+  for (const b of document.querySelectorAll('[data-tab]')) {
+    if (b.closest('#view')) continue;
     if (b.dataset.tab === ui.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
-  renderGreetingOnly();
+  renderGreeting();
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
+}
+
+function renderGreeting() {
+  const name = S.settings.name.trim();
+  const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
+  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(today(), { weekday: 'long', day: 'numeric', month: 'long' })}`;
 }
 
 // ---------- theme ----------
@@ -500,13 +785,16 @@ function toast(msg) {
   el.textContent = msg;
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
 }
 
 // ---------- editor sheet ----------
 const sheet = $('sheet');
 let draft = null;
 let draftIsNew = true;
+let armed = null; // id of a note/step waiting for a second tap to delete
+let armTimer = null;
+function armReset(fn) { clearTimeout(armTimer); armTimer = setTimeout(fn, 3000); }
 
 function setKind(kind) {
   draft.kind = kind;
@@ -515,10 +803,45 @@ function setKind(kind) {
   $('repeatFields').hidden = kind !== 'repeat';
 }
 
+function setTimeMode(mode) {
+  draft.timeMode = mode;
+  for (const b of $('fTimeMode').children) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+  $('clockFields').hidden = mode !== 'clock';
+  $('prayerFields').hidden = mode !== 'prayer';
+  $('alarmField').hidden = mode === 'none';
+  if (mode !== 'none') {
+    if (!draft.alarms.length && draft.autoAlarm) draft.alarms = [0];
+    draft.autoAlarm = false;
+  }
+  renderAlarms();
+  updatePrayerHint();
+}
+
+function updatePrayerHint() {
+  if (!draft || draft.timeMode !== 'prayer') return;
+  $('fPrMin').hidden = $('fPrRel').value === 'at';
+  const d = draft.kind === 'repeat' ? ($('fStart').value || today()) : ($('fDue').value || today());
+  const pt = prayerTimes(d);
+  if (!pt) { $('prayerHint').innerHTML = 'لم تحدد مدينتك بعد. <button type="button" class="ghost" data-tab="settings" data-close="1">حدّدها الآن</button>'; return; }
+  const p = readPrayer();
+  $('prayerHint').textContent = `الوقت في ${relDate(d)}: ${fmtMin(pt[p.name] + p.offset)} (${Prayer.NAMES[p.name]} ${fmtMin(pt[p.name])})`;
+}
+function readPrayer() {
+  const rel = $('fPrRel').value;
+  const mins = Number($('fPrMin').value);
+  return { name: $('fPrName').value, offset: rel === 'before' ? -mins : rel === 'after' ? mins : 0 };
+}
+
 function renderDays() {
   $('fDays').innerHTML =
     `<button type="button" data-action="all-days" aria-pressed="${draft.days.length === 7}">كل يوم</button>` +
+    `<button type="button" data-action="work-days" aria-pressed="${draft.days.length === 5 && [0, 1, 2, 3, 4].every((d) => draft.days.includes(d))}">أيام الدوام</button>` +
     DAY_ORDER.map((d) => `<button type="button" data-action="day" data-v="${d}" aria-pressed="${draft.days.includes(d)}">${DAY_SHORT[d]}</button>`).join('');
+}
+
+function renderAlarms() {
+  $('fAlarms').innerHTML = ALARM_OPTIONS.map(([v, l]) =>
+    `<button type="button" data-action="alarm-opt" data-v="${v}" aria-pressed="${draft.alarms.includes(v)}">${l}</button>`).join('');
 }
 
 function renderNotes() {
@@ -527,40 +850,70 @@ function renderNotes() {
   $('notesList').innerHTML = notes.slice().reverse().map((n) => `
     <li class="note"><p>${esc(n.text)}</p>
       <div class="note-foot"><span class="num">${esc(fmtStamp(n.at))}</span>
-      <button type="button" data-action="del-note" data-v="${n.id}" class="${armedNote === n.id ? 'armed' : ''}">${armedNote === n.id ? 'تأكيد الحذف' : 'حذف'}</button></div>
+      <button type="button" data-action="del-note" data-v="${n.id}" class="${armed === n.id ? 'armed' : ''}">${armed === n.id ? 'تأكيد الحذف' : 'حذف'}</button></div>
     </li>`).join('');
 }
 
-function openSheet(id, kind) {
-  const t = id ? getTask(id) : null;
-  draftIsNew = !t;
+function renderSubs() {
+  const subs = draft.subtasks;
+  $('subsCount').textContent = subs.length ? `(${subs.filter((s) => s.done).length}/${subs.length})` : '';
+  $('subsList').innerHTML = subs.map((s) => `
+    <li class="sub${s.done ? ' done' : ''}">
+      <input type="checkbox" data-action="toggle-sub" data-v="${s.id}"${s.done ? ' checked' : ''} aria-label="تمت الخطوة">
+      <span>${esc(s.text)}</span>
+      <button type="button" data-action="del-sub" data-v="${s.id}" class="${armed === s.id ? 'armed' : ''}">${armed === s.id ? 'تأكيد' : 'حذف'}</button>
+    </li>`).join('');
+}
+
+function openSheet(id, opts = {}) {
+  const existing = id ? getTask(id) : null;
+  const t = existing || opts.prefill || null;
+  draftIsNew = !existing;
   const t0 = today();
-  draft = t
-    ? { id: t.id, kind: isRepeat(t) ? 'repeat' : 'once', days: t.repeat ? [...t.repeat.days] : [...DAY_ORDER], notes: t.notes.map((n) => ({ ...n })) }
-    : { id: uid(), kind: kind || 'once', days: [...DAY_ORDER], notes: [] };
-  $('sheetTitle').textContent = t ? (isRepeat(t) ? 'تعديل الهدف' : 'تعديل المهمة') : (kind === 'repeat' ? 'هدف جديد' : 'مهمة جديدة');
+  const kind = t ? (isRepeat(t) ? 'repeat' : 'once') : opts.kind || 'once';
+  draft = {
+    id: t ? t.id : uid(),
+    kind,
+    days: t && t.repeat ? [...t.repeat.days] : [...DAY_ORDER],
+    notes: t ? t.notes.map((n) => ({ ...n })) : [],
+    subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
+    alarms: t ? [...t.alarms] : [],
+    autoAlarm: !t || !t.alarms.length,
+    timeMode: t && t.prayer ? 'prayer' : t && t.time ? 'clock' : 'none',
+  };
+  $('sheetTitle').textContent = existing ? (isRepeat(existing) ? 'تعديل الهدف' : 'تعديل المهمة') : (kind === 'repeat' ? 'هدف جديد' : 'مهمة جديدة');
   $('fTitle').value = t ? t.title : '';
   $('fPriority').value = t ? t.priority : 'mid';
   $('fCategory').value = t ? t.category : (ui.tab === 'tasks' && ui.cat) || '';
-  $('fDue').value = t ? t.due : (ui.tab === 'today' ? t0 : '');
-  $('fStart').value = t && t.repeat ? t.repeat.start : t0;
+  $('fDue').value = t ? t.due : opts.due || (ui.tab === 'today' ? t0 : '');
+  $('fStart').value = t && t.repeat ? t.repeat.start : opts.due || t0;
   $('fUntil').value = t && t.repeat ? t.repeat.until || '' : '';
+  $('fTarget').value = t ? t.target : 1;
+  $('fUnit').value = t ? t.unit : '';
   $('fTime').value = t ? t.time : '';
-  $('fRemind').checked = t ? t.remind : false;
+  const p = t && t.prayer ? t.prayer : { name: 'asr', offset: 15 };
+  $('fPrName').value = p.name;
+  $('fPrRel').value = p.offset < 0 ? 'before' : p.offset > 0 ? 'after' : 'at';
+  const absOff = String(Math.abs(p.offset) || 15);
+  $('fPrMin').value = [...$('fPrMin').options].some((o) => o.value === absOff) ? absOff : '15';
   $('fNote').value = '';
-  $('delBtn').hidden = !t;
+  $('fSub').value = '';
+  $('delBtn').hidden = !existing;
   $('delBtn').classList.remove('armed');
   $('delBtn').textContent = 'حذف';
-  armedNote = null;
-  setKind(draft.kind);
+  armed = null;
+  setKind(kind);
+  setTimeMode(draft.timeMode);
   renderDays();
   renderNotes();
-  if (typeof sheet.showModal === 'function') sheet.showModal(); else sheet.setAttribute('open', '');
+  renderSubs();
+  if (typeof sheet.showModal === 'function') { if (!sheet.open) sheet.showModal(); } else sheet.setAttribute('open', '');
+  $('editor').scrollTop = 0;
   setTimeout(() => { if (!t) $('fTitle').focus(); }, 50);
 }
 
 function closeSheet() {
-  if (typeof sheet.close === 'function') sheet.close(); else sheet.removeAttribute('open');
+  if (typeof sheet.close === 'function') { if (sheet.open) sheet.close(); } else sheet.removeAttribute('open');
   draft = null;
 }
 
@@ -569,70 +922,84 @@ function readDraft() {
   if (!title) return null;
   const existing = getTask(draft.id);
   const base = existing || normalize({ id: draft.id, created: Date.now() });
-  const time = $('fTime').value;
   const t = {
     ...base,
     title,
     priority: $('fPriority').value,
     category: $('fCategory').value.trim(),
-    time,
-    remind: !!time && $('fRemind').checked,
     notes: draft.notes,
+    subtasks: draft.subtasks,
+    time: draft.timeMode === 'clock' ? $('fTime').value : '',
+    prayer: draft.timeMode === 'prayer' ? readPrayer() : null,
   };
+  t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
   if (draft.kind === 'repeat') {
     const start = $('fStart').value || today();
     let until = $('fUntil').value || null;
     if (until && until < start) until = start;
-    t.repeat = { days: draft.days.length ? [...draft.days].sort() : [...DAY_ORDER].sort(), start, until };
+    t.repeat = { days: (draft.days.length ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+    t.target = Math.max(1, Math.min(999, parseInt($('fTarget').value, 10) || 1));
+    t.unit = t.target > 1 ? $('fUnit').value.trim() : '';
     t.due = '';
     t.done = false;
     t.doneAt = null;
   } else {
     t.repeat = null;
-    t.due = $('fDue').value || (time ? today() : '');
+    t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
   return t;
 }
 
 function commitDraft() {
   const t = readDraft();
-  if (!t) { $('fTitle').focus(); toast('اكتب عنواناً أولاً.'); return false; }
+  if (!t) { $('fTitle').focus(); toast('اكتب عنواناً أولاً.'); return null; }
   const i = S.tasks.findIndex((x) => x.id === t.id);
   if (i === -1) S.tasks.push(t); else S.tasks[i] = t;
-  // a changed time should be able to ring again today
-  for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k];
+  for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k]; // new time may ring again
   save();
   return t;
 }
 
-let armedNote = null;
-let armTimer = null;
-function armReset(fn) { clearTimeout(armTimer); armTimer = setTimeout(fn, 3000); }
-
-$('editor').addEventListener('submit', (e) => {
-  e.preventDefault();
-  if ($('fNote').value.trim()) addNote();
-  const t = commitDraft();
-  if (!t) return;
-  const wasNew = draftIsNew;
-  closeSheet();
-  if (t.remind) ensureNotifPermission();
-  render();
-  toast(wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
-});
-sheet.addEventListener('close', () => { draft = null; });
-sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+// notes and steps on an existing task are kept right away
+function persistDraftList(field) {
+  const t = getTask(draft.id);
+  if (t) { t[field] = draft[field].map((n) => ({ ...n })); save(); render(); }
+}
 
 function addNote() {
   const text = $('fNote').value.trim();
   if (!text) return;
   draft.notes.push({ id: uid(), text, at: Date.now() });
   $('fNote').value = '';
-  // notes on an existing task are kept right away
-  const t = getTask(draft.id);
-  if (t) { t.notes = draft.notes.map((n) => ({ ...n })); save(); render(); }
+  persistDraftList('notes');
   renderNotes();
 }
+function addSub() {
+  const text = $('fSub').value.trim();
+  if (!text) return;
+  draft.subtasks.push({ id: uid(), text, done: false });
+  $('fSub').value = '';
+  persistDraftList('subtasks');
+  renderSubs();
+}
+
+$('editor').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if ($('fNote').value.trim()) addNote();
+  if ($('fSub').value.trim()) addSub();
+  const t = commitDraft();
+  if (!t) return;
+  const wasNew = draftIsNew;
+  closeSheet();
+  if (t.alarms.length) ensureNotifPermission();
+  render();
+  toast(wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+});
+sheet.addEventListener('close', () => { draft = null; });
+sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+$('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
+$('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
+for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart']) $(id).addEventListener('change', updatePrayerHint);
 
 // ---------- calendar export (.ics) ----------
 function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
@@ -643,23 +1010,27 @@ function buildICS(t) {
   const now = new Date();
   const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
   const date = isRepeat(t) ? t.repeat.start : (t.due || today());
+  const m = timeOn(t, date);
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mahami//AR', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
     `UID:${t.id}@mahami`, `DTSTAMP:${stamp}`];
-  if (t.time) {
-    lines.push(`DTSTART:${icsDate(date)}T${t.time.replace(':', '')}00`, 'DURATION:PT15M');
-  } else {
-    lines.push(`DTSTART;VALUE=DATE:${icsDate(date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(date, 1))}`);
-  }
+  if (m != null) lines.push(`DTSTART:${icsDate(date)}T${hmOf(m).replace(':', '')}00`, 'DURATION:PT15M');
+  else lines.push(`DTSTART;VALUE=DATE:${icsDate(date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(date, 1))}`);
   lines.push(`SUMMARY:${icsEscape(t.title)}`);
-  if (t.notes.length) lines.push(`DESCRIPTION:${icsEscape(t.notes.map((n) => n.text).join('\n—\n'))}`);
+  const desc = [];
+  if (t.prayer) desc.push(`${prayerPhrase(t.prayer)} (وقت التقويم ثابت ولا يتغير مع مواعيد الصلاة)`);
+  if (t.subtasks.length) desc.push(t.subtasks.map((s) => `${s.done ? '✓' : '○'} ${s.text}`).join('\n'));
+  if (t.notes.length) desc.push(t.notes.map((n) => n.text).join('\n—\n'));
+  if (desc.length) lines.push(`DESCRIPTION:${icsEscape(desc.join('\n\n'))}`);
   if (isRepeat(t)) {
     const r = t.repeat;
     let rule = r.days.length === 7 ? 'FREQ=DAILY' : `FREQ=WEEKLY;BYDAY=${r.days.map((d) => ICS_DAYS[d]).join(',')}`;
-    if (r.until) rule += `;UNTIL=${icsDate(r.until)}${t.time ? 'T235959' : ''}`;
+    if (r.until) rule += `;UNTIL=${icsDate(r.until)}${m != null ? 'T235959' : ''}`;
     lines.push(`RRULE:${rule}`);
   }
-  lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(t.title)}`, `TRIGGER:${t.time ? '-PT0M' : 'PT9H'}`, 'END:VALARM',
-    'END:VEVENT', 'END:VCALENDAR');
+  const alarms = m != null ? (t.alarms.length ? t.alarms : [0]) : [];
+  for (const off of alarms) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(t.title)}`, `TRIGGER:-PT${off}M`, 'END:VALARM');
+  if (m == null) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(t.title)}`, 'TRIGGER:PT9H', 'END:VALARM');
+  lines.push('END:VEVENT', 'END:VCALENDAR');
   return lines.join('\r\n') + '\r\n';
 }
 
@@ -710,47 +1081,64 @@ async function ensureNotifPermission() {
   if (ui.tab === 'settings') render();
 }
 
-async function systemNotify(t, key) {
+async function systemNotify(title, body, key, id) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const body = t.time ? `الموعد: ${fmtTime(t.time)}` : 'تذكير';
   const opts = {
     body, tag: key, renotify: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
     icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [200, 100, 200, 100, 400],
-    data: { id: t.id, key },
+    data: { id, key },
     actions: [{ action: 'done', title: 'تمت' }, { action: 'snooze', title: `غفوة ${SNOOZE_MIN} دقائق` }],
   };
   try {
     const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
-    if (reg) await reg.showNotification(t.title, opts);
-    else new Notification(t.title, { body, tag: key });
+    if (reg) await reg.showNotification(title, opts);
+    else new Notification(title, { body, tag: key });
   } catch {}
 }
 
 const alarmQueue = [];
-function ring(t, key) {
+function alarmBody(t, d, off) {
+  const when = timeLabel(t, d);
+  const m = timeOn(t, d);
+  const left = m == null ? 0 : Math.round((parse(d).getTime() + m * 60000 - Date.now()) / 60000);
+  return off && left > 0 ? `بعد ${minsWord(left)} · ${when}` : `الآن · ${when}`;
+}
+function ring(t, key, d, off) {
   S.fired[key] = Date.now();
   delete S.snoozed[key];
   save();
-  alarmQueue.push({ id: t.id, key });
+  alarmQueue.push({ id: t.id, key, d, off });
   showAlarm();
   beep();
-  if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
-  if (document.visibilityState !== 'visible') systemNotify(t, key);
+  try { if (navigator.vibrate && navigator.userActivation?.hasBeenActive) navigator.vibrate([300, 150, 300]); } catch {}
+  if (document.visibilityState !== 'visible') systemNotify(t.title, alarmBody(t, d, off), key, t.id);
 }
 
 function showAlarm() {
   const cur = alarmQueue[0];
   if (!cur) { $('alarm').hidden = true; return; }
+  if (cur.id === '__test') {
+    $('alarmKicker').textContent = 'منبه تجريبي';
+    $('alarmTitle').textContent = 'هذا شكل المنبه وصوته';
+    $('alarm').hidden = false;
+    return;
+  }
   const t = getTask(cur.id);
   if (!t) { alarmQueue.shift(); showAlarm(); return; }
-  $('alarmTitle').textContent = t.title + (t.time ? ` · ${fmtTime(t.time)}` : '');
+  const m = timeOn(t, cur.d);
+  const left = m == null ? 0 : Math.round((parse(cur.d).getTime() + m * 60000 - Date.now()) / 60000);
+  $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق · بعد ${minsWord(left)}` : 'منبه';
+  $('alarmTitle').textContent = `${t.title} · ${timeLabel(t, cur.d)}`;
   $('alarm').hidden = false;
 }
 
 function alarmAction(action, id, key) {
   const t = getTask(id);
-  const date = key ? key.split('|')[1] : today();
-  if (t && action === 'done' && !doneOn(t, date)) toggle(id, date);
+  const date = key && key.includes('|') ? key.split('|')[1] : today();
+  if (t && action === 'done') {
+    if (isRepeat(t) && t.target > 1) { setCount(t, date, t.target); save(); render(); }
+    else if (!doneOn(t, date)) toggle(id, date);
+  }
   if (t && action === 'snooze') {
     S.snoozed[key] = Date.now() + SNOOZE_MIN * 60000;
     save();
@@ -762,30 +1150,35 @@ function alarmAction(action, id, key) {
 }
 
 function checkAlarms() {
-  const now = new Date();
-  const d = iso(now);
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const now = Date.now();
+  const d0 = today();
   for (const t of S.tasks) {
-    if (!t.remind || !t.time) continue;
-    const applies = isRepeat(t) ? occursOn(t, d) : t.due === d;
-    if (!applies || doneOn(t, d)) continue;
-    const key = `${t.id}|${d}`;
-    const snooze = S.snoozed[key];
-    if (snooze) { if (Date.now() >= snooze) ring(t, key); continue; }
-    if (S.fired[key]) continue;
-    const at = minutesOf(t.time);
-    if (nowMin < at) continue;
-    if (nowMin - at > MISSED_WINDOW_MIN) { S.fired[key] = Date.now(); save(); continue; }
-    ring(t, key);
+    if (!t.alarms.length || !hasTime(t)) continue;
+    // a "day before" alarm belongs to tomorrow's occurrence
+    for (const d of [d0, addDays(d0, 1), addDays(d0, 2)]) {
+      const applies = isRepeat(t) ? occursOn(t, d) : t.due === d;
+      if (!applies || doneOn(t, d)) continue;
+      const m = timeOn(t, d);
+      if (m == null) continue;
+      const at = parse(d).getTime() + m * 60000;
+      for (const off of t.alarms) {
+        const fireAt = at - off * 60000;
+        const key = `${t.id}|${d}|${off}`;
+        const sn = S.snoozed[key];
+        if (sn) { if (now >= sn) ring(t, key, d, off); continue; }
+        if (S.fired[key] || now < fireAt) continue;
+        if (now - fireAt > MISSED_WINDOW_MIN * 60000) { S.fired[key] = now; save(); continue; }
+        ring(t, key, d, off);
+      }
+    }
   }
-  // forget old alarm records
-  const cutoff = Date.now() - 3 * 86400000;
+  const cutoff = now - 4 * 86400000;
   for (const k of Object.keys(S.fired)) if (S.fired[k] < cutoff) delete S.fired[k];
 }
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: 2, exported: new Date().toISOString(), tasks: S.tasks, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: 3, exported: new Date().toISOString(), tasks: S.tasks, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -808,11 +1201,38 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+// ---------- prayer settings ----------
+function setCity(id) {
+  if (!id) { S.settings.prayer = null; }
+  else if (id !== 'here') {
+    const c = Prayer.CITIES.find((x) => x.id === id);
+    const prev = S.settings.prayer;
+    S.settings.prayer = { city: c.id, label: c.name, lat: c.lat, lng: c.lng, method: c.method, asr: prev ? prev.asr : 'standard' };
+  }
+  save();
+  render();
+}
+function useLocation() {
+  if (!navigator.geolocation) { toast('جهازك لا يتيح تحديد الموقع. اختر مدينتك من القائمة.'); return; }
+  toast('جارٍ تحديد موقعك…');
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const prev = S.settings.prayer;
+    const { latitude: lat, longitude: lng } = pos.coords;
+    // nearest listed city gives a sensible default calculation method
+    const near = Prayer.CITIES.reduce((a, c) => ((c.lat - lat) ** 2 + (c.lng - lng) ** 2 < (a.lat - lat) ** 2 + (a.lng - lng) ** 2 ? c : a));
+    S.settings.prayer = { city: 'here', label: 'موقعي الحالي', lat, lng, method: prev ? prev.method : near.method, asr: prev ? prev.asr : 'standard' };
+    save();
+    render();
+    toast('حُدّثت أوقات الصلاة حسب موقعك');
+  }, () => toast('لم نتمكن من تحديد موقعك. اسمح بالموقع أو اختر مدينتك من القائمة.'), { timeout: 15000, maximumAge: 86400000 });
+}
+
 // ---------- events ----------
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action], [data-tab]');
   if (!el) return;
   if (el.dataset.tab) {
+    if (el.dataset.close) closeSheet();
     ui.tab = el.dataset.tab;
     render();
     window.scrollTo({ top: 0 });
@@ -821,28 +1241,69 @@ document.addEventListener('click', (e) => {
   }
   const { action, id, v } = el.dataset;
   switch (action) {
-    case 'new': openSheet(null, 'once'); break;
-    case 'new-goal': openSheet(null, 'repeat'); break;
+    case 'new': openSheet(null, { kind: 'once', due: ui.tab === 'calendar' ? ui.calSel : undefined }); break;
+    case 'new-goal': openSheet(null, { kind: 'repeat' }); break;
+    case 'new-on': openSheet(null, { kind: 'once', due: v }); break;
     case 'open': openSheet(id); break;
     case 'toggle': toggle(id, el.dataset.date); break;
+    case 'step': step(id, today(), Number(v)); break;
     case 'filter': ui.filter = v; render(); break;
     case 'cat': ui.cat = v; render(); break;
+    case 'example': ui.smart = v; render(); $('smartIn').focus(); break;
+    case 'smart-edit': {
+      const r = SmartParse.parse(ui.smart);
+      if (!r.title) break;
+      openSheet(null, { prefill: smartToTask(r) });
+      break;
+    }
+    case 'cal-day': {
+      ui.calSel = v;
+      if (v.slice(0, 7) !== ui.calMonth) ui.calMonth = v.slice(0, 7);
+      render();
+      break;
+    }
+    case 'cal-move': {
+      const [y, m] = ui.calMonth.split('-').map(Number);
+      const d = new Date(y, m - 1 + Number(v), 1);
+      ui.calMonth = iso(d).slice(0, 7);
+      ui.calSel = ui.calMonth === today().slice(0, 7) ? today() : iso(d);
+      render();
+      break;
+    }
+    case 'cal-today': ui.calMonth = today().slice(0, 7); ui.calSel = today(); render(); break;
     case 'close-sheet': closeSheet(); break;
     case 'all-days': draft.days = draft.days.length === 7 ? [] : [...DAY_ORDER]; renderDays(); break;
+    case 'work-days': draft.days = [0, 1, 2, 3, 4]; renderDays(); break;
     case 'day': {
       const d = Number(v);
       draft.days = draft.days.includes(d) ? draft.days.filter((x) => x !== d) : [...draft.days, d];
       renderDays();
       break;
     }
-    case 'add-note': addNote(); $('fNote').focus(); break;
-    case 'del-note':
-      if (armedNote !== v) { armedNote = v; renderNotes(); armReset(() => { armedNote = null; if (draft) renderNotes(); }); break; }
-      armedNote = null;
-      draft.notes = draft.notes.filter((n) => n.id !== v);
-      { const t = getTask(draft.id); if (t) { t.notes = draft.notes.map((n) => ({ ...n })); save(); render(); } }
-      renderNotes();
+    case 'alarm-opt': {
+      const n = Number(v);
+      draft.alarms = draft.alarms.includes(n) ? draft.alarms.filter((x) => x !== n) : [...draft.alarms, n];
+      renderAlarms();
       break;
+    }
+    case 'add-note': addNote(); $('fNote').focus(); break;
+    case 'add-sub': addSub(); $('fSub').focus(); break;
+    case 'toggle-sub': {
+      const s = draft.subtasks.find((x) => x.id === v);
+      if (s) { s.done = el.checked; persistDraftList('subtasks'); renderSubs(); }
+      break;
+    }
+    case 'del-note':
+    case 'del-sub': {
+      const field = action === 'del-note' ? 'notes' : 'subtasks';
+      const rerender = field === 'notes' ? renderNotes : renderSubs;
+      if (armed !== v) { armed = v; rerender(); armReset(() => { armed = null; if (draft) rerender(); }); break; }
+      armed = null;
+      draft[field] = draft[field].filter((n) => n.id !== v);
+      persistDraftList(field);
+      rerender();
+      break;
+    }
     case 'delete-task': {
       const btn = $('delBtn');
       if (!btn.classList.contains('armed')) {
@@ -860,6 +1321,8 @@ document.addEventListener('click', (e) => {
     case 'ics': {
       const t = commitDraft();
       if (!t) break;
+      draftIsNew = false;
+      $('delBtn').hidden = false;
       render();
       downloadFile(`${t.title.slice(0, 40).replace(/[\\/:*?"<>|]/g, '') || 'mahami'}.ics`, buildICS(t), 'text/calendar');
       toast('افتح الملف ليُضاف الموعد ومنبهه إلى تقويمك');
@@ -868,14 +1331,14 @@ document.addEventListener('click', (e) => {
     case 'accent': S.settings.accent = v; save(); applyTheme(); render(); break;
     case 'theme': S.settings.theme = v; save(); applyTheme(); render(); break;
     case 'size': S.settings.size = v; save(); applyTheme(); render(); break;
+    case 'geo': useLocation(); break;
     case 'notif': ensureNotifPermission(); break;
     case 'test-alarm':
       unlockAudio();
-      alarmQueue.push({ id: '__test', key: '__test' });
-      $('alarmTitle').textContent = 'هذا مثال على شكل المنبه وصوته';
-      $('alarm').hidden = false;
+      alarmQueue.unshift({ id: '__test', key: '__test' });
+      showAlarm();
       setTimeout(beep, 50);
-      systemNotify({ title: 'منبه تجريبي من «مهامي»', time: '' }, '__test');
+      systemNotify('منبه تجريبي من «مهامي»', 'هكذا ستصلك التنبيهات', '__test', '');
       break;
     case 'alarm-done':
     case 'alarm-snooze':
@@ -896,25 +1359,43 @@ document.addEventListener('click', (e) => {
   }
 });
 
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'search') { ui.q = e.target.value; render(); }
-  if (e.target.id === 'setName') { S.settings.name = e.target.value; save(); renderGreetingOnly(); }
-});
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'sort') { ui.sort = e.target.value; render(); }
-  if (e.target.id === 'setSound') { S.settings.sound = e.target.checked; save(); }
-  if (e.target.id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
-  if (e.target.id === 'fTime' && e.target.value && !$('fRemind').checked) $('fRemind').checked = true;
-});
-$('fNote').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); }
+document.addEventListener('submit', (e) => {
+  if (e.target.id !== 'smartForm') return;
+  e.preventDefault();
+  const r = SmartParse.parse(ui.smart);
+  if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبوي بكرة الساعة 5'); return; }
+  const t = smartToTask(r);
+  S.tasks.push(t);
+  save();
+  ui.smart = '';
+  render();
+  if (t.alarms.length) ensureNotifPermission();
+  const when = isRepeat(t) ? repeatLabel(t) : t.due ? relDate(t.due) : 'بلا تاريخ';
+  toast(`أُضيفت: ${t.title} · ${when}${hasTime(t) ? ' · ' + timeLabel(t, t.due || t.repeat?.start || today()) : ''}`);
 });
 
-function renderGreetingOnly() {
-  const name = S.settings.name.trim();
-  const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
-  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(today(), { weekday: 'long', day: 'numeric', month: 'long' })}`;
-}
+document.addEventListener('input', (e) => {
+  const id = e.target.id;
+  if (id === 'search') { ui.q = e.target.value; render(); }
+  if (id === 'smartIn') { ui.smart = e.target.value; $('smartPreview').innerHTML = smartPreviewHTML(); }
+  if (id === 'setName') { S.settings.name = e.target.value; save(); renderGreeting(); }
+});
+document.addEventListener('change', (e) => {
+  const id = e.target.id;
+  if (id === 'sort') { ui.sort = e.target.value; render(); }
+  if (id === 'setSound') { S.settings.sound = e.target.checked; save(); }
+  if (id === 'setCity') setCity(e.target.value);
+  if (id === 'setMethod' && S.settings.prayer) { S.settings.prayer.method = e.target.value; save(); render(); }
+  if (id === 'setAsr' && S.settings.prayer) { S.settings.prayer.asr = e.target.value; save(); render(); }
+  if (id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
+  if (id === 'fTime' && e.target.value && draft && !draft.alarms.length) { draft.alarms = [0]; renderAlarms(); }
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('#fKind button, #fTimeMode button');
+  if (!b || !draft) return;
+  if (b.dataset.kind) { setKind(b.dataset.kind); updatePrayerHint(); }
+  if (b.dataset.mode) setTimeMode(b.dataset.mode);
+});
 
 // chart readout (hover / touch)
 document.addEventListener('pointerover', (e) => {
@@ -958,14 +1439,13 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   applyTheme();
   render();
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
-  if (params.get('new')) openSheet(null, params.get('new') === 'goal' ? 'repeat' : 'once');
+  if (params.get('new')) openSheet(null, { kind: params.get('new') === 'goal' ? 'repeat' : 'once' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
   checkAlarms();
   setInterval(checkAlarms, 15000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { checkAlarms(); render(); }
+    if (document.visibilityState === 'visible') { checkAlarms(); if (!sheet.open) render(); }
   });
-  // re-render once the day changes so "today" stays correct
   let lastDay = today();
-  setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); } }, 60000);
+  setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open) render(); } }, 60000);
 })();

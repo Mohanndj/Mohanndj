@@ -1,9 +1,11 @@
 // Offline cache + notification actions for «مهامي»
-const CACHE = 'mahami-v2.0.0';
+const CACHE = 'mahami-v3.0.0';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './prayer.js',
+  './nlp.js',
   './app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
