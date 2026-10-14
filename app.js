@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -56,6 +56,12 @@ const ICONS = {
   folder: 'M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   back: 'M9 18l6-6-6-6',
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+  sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
+  pin2: 'M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z',
+  book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
+  bulb: 'M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z',
+  chart: 'M4 4v16h16M8 16v-4M12 16V8M16 16v-6',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15l1.6 1-2 3.4-1.8-.6a7 7 0 0 1-1.7 1L15 22h-4l-.5-2.2a7 7 0 0 1-1.7-1l-1.8.6-2-3.4 1.6-1a7 7 0 0 1 0-2l-1.6-1 2-3.4 1.8.6a7 7 0 0 1 1.7-1L11 2h4l.5 2.2a7 7 0 0 1 1.7 1l1.8-.6 2 3.4-1.6 1a7 7 0 0 1 0 2z',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 
@@ -83,6 +89,12 @@ function relDate(s) {
   if (s === addDays(t, 1)) return 'غداً';
   if (s === addDays(t, -1)) return 'أمس';
   return fmtDate(s);
+}
+// relative day name, or the date with its Hijri day when it is further away
+function relDateH(s) {
+  const r = relDate(s);
+  if (!S.settings.hijri || ['اليوم', 'غداً', 'أمس'].includes(r)) return r;
+  return `${r} · ${fmtHijri(s, { day: 'numeric', month: 'long' })}`;
 }
 const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 const daysWord = (n) => (n === 0 ? '0 يوم' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
@@ -143,7 +155,10 @@ function load() {
   }
   s.tasks = (s.tasks || []).map(normalize);
   s.projects = (Array.isArray(s.projects) ? s.projects : []).map(normalizeProject);
-  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', font: 'mix', sound: true, prayer: null, ...(s.settings || {}) };
+  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', font: 'mix', digits: 'arab', hijri: true, sound: true, prayer: null, ...(s.settings || {}) };
+  s.memos = (Array.isArray(s.memos) ? s.memos : []).map(normalizeMemo);
+  s.books = (Array.isArray(s.books) ? s.books : []).map(normalizeBook);
+  s.benefits = (Array.isArray(s.benefits) ? s.benefits : []).map(normalizeBenefit);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -329,7 +344,7 @@ function metaHTML(t, d, opts = {}) {
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
   else if (t.due && !opts.noDue) {
     const late = !t.done && t.due < today();
-    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة · ' : ''}${esc(relDate(t.due))}</span>`);
+    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة · ' : ''}${esc(relDateH(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
@@ -566,7 +581,7 @@ function viewProject(p) {
       <span><b class="num">${st.progress}%</b> الإنجاز</span>
       <span><b class="num">${st.done}/${st.total}</b> مهام</span>
       <span><b class="num">${st.stepsDone}/${st.steps}</b> خطوات</span>
-      ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDate(p.due))}</span>` : ''}
+      ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
     </div>
   </section>
   <section class="section">
@@ -602,7 +617,7 @@ function viewCalendar() {
     if (!out) for (const t of items) if (t.projectId) projectsShown.add(t.projectId);
     const marks = items.slice(0, 4).map((t) => markOf(t, d)).join('') + (items.length > 4 ? `<span class="more">+${items.length - 4}</span>` : '');
     const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${items.length ? `، ${items.length} عنصر` : ''}`;
-    cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${parse(d).getDate()}</span><span class="marks">${marks}</span></button>`);
+    cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${parse(d).getDate()}</span>${S.settings.hijri ? `<span class="hd">${esc(fmtHijri(d, { day: 'numeric' }))}</span>` : ''}<span class="marks">${marks}</span></button>`);
   }
   const monthName = first.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
   const lastIso = iso(new Date(y, m, 0));
@@ -689,7 +704,7 @@ function onceGoalHTML(t) {
   const t0 = today();
   const left = t.due && !t.done ? Math.round((parse(t.due) - parse(t0)) / 86400000) : null;
   const deadline = t.due ? (t.done ? `أُنجز ${t.doneAt ? esc(relDate(iso(new Date(t.doneAt)))) : ''}`
-    : left < 0 ? `<span class="late">تأخر ${daysWord(-left)}</span>` : left === 0 ? 'الموعد اليوم' : `باقٍ ${daysWord(left)} (${esc(fmtDate(t.due))})`) : (t.done ? 'أُنجز' : 'بلا موعد نهائي');
+    : left < 0 ? `<span class="late">تأخر ${daysWord(-left)}</span>` : left === 0 ? 'الموعد اليوم' : `باقٍ ${daysWord(left)} (${esc(relDateH(t.due))})`) : (t.done ? 'أُنجز' : 'بلا موعد نهائي');
   return `<li class="goal${t.done ? ' done' : ''}">
     <div class="goal-top">
       ${checkButton(t, t0, t.done)}
@@ -851,6 +866,7 @@ function viewStats() {
       : '<p class="note-text">أضف هدفاً لتتابع التزامك به.</p>'}
   </section>
   ${focusPanelHTML()}
+  ${readingPanelHTML()}
   <section class="panel">
     <h2>حسب التصنيف</h2>
     ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => hbar(esc(c), n, (n / catMax) * 100)).join('')}</ul>`
@@ -922,6 +938,10 @@ function viewSettings() {
         <span class="big" style="font-family:${esc(fd)}, serif">${name}: مهامي اليوم</span>
         <small style="font-family:${esc(fb)}, serif">${desc} · اتصل بأبي الساعة 5 العصر</small></button>`).join('')}</div>
     </div>
+    <div class="field"><span>الأرقام</span>
+      <div class="seg">${segBtn('digits', 'arab', 'عربية ١٢٣', st.digits)}${segBtn('digits', 'latn', 'إنجليزية 123', st.digits)}</div>
+    </div>
+    <label class="switch"><input type="checkbox" id="setHijri"${st.hijri ? ' checked' : ''}><span>إظهار التاريخ الهجري بجانب الميلادي</span></label>
     <div class="field"><span>حجم الخط</span>
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
     </div>
@@ -954,14 +974,18 @@ function viewSettings() {
   <section class="panel">
     <h2>البيانات</h2>
     <div class="row-between">
-      <span class="note-text">${S.tasks.length} عنصر و${S.projects.length} مشروع</span>
+      <span class="note-text">${S.tasks.length} مهمة وهدف، ${S.projects.length} مشروع، ${S.memos.length} ملاحظة، ${S.books.length} كتاب، ${S.benefits.length} فائدة</span>
       <button type="button" class="danger" data-action="wipe">حذف كل البيانات</button>
     </div>
   </section>
   </div>`;
 }
 
-const VIEWS = { today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals, stats: viewStats, settings: viewSettings };
+const VIEWS = {
+  today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
+  stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
+};
+const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'stats'];
 
 function render() {
   const view = $('view');
@@ -972,9 +996,11 @@ function render() {
     $(active).focus();
     try { if (caret != null) $(active).setSelectionRange(caret, caret); } catch {}
   }
+  const navTab = MORE_TABS.includes(ui.tab) ? 'more' : ui.tab;
   for (const b of document.querySelectorAll('[data-tab]')) {
-    if (b.closest('#view')) continue;
-    if (b.dataset.tab === ui.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    if (b.closest('#view') || b.closest('dialog')) continue;
+    const cur = b.closest('#tabbar') ? navTab : ui.tab;
+    if (b.dataset.tab === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
   document.body.dataset.view = ui.tab;
   tickTimer();
@@ -985,7 +1011,8 @@ function render() {
 function renderGreeting() {
   const name = S.settings.name.trim();
   const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
-  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(today(), { weekday: 'long', day: 'numeric', month: 'long' })}`;
+  const t0 = today();
+  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(t0, { weekday: 'long', day: 'numeric', month: 'long' })}${S.settings.hijri ? ` · ${fmtHijri(t0)}` : ''}`;
 }
 
 function go(tab, project) {
@@ -995,6 +1022,35 @@ function go(tab, project) {
   window.scrollTo({ top: 0 });
   history.replaceState(null, '', '#' + tab);
 }
+
+// ---------- Arabic-Indic numerals ----------
+// Every number shown on screen is converted (text only: input values, attributes and stored data
+// keep Western digits so dates, sorting and Excel stay correct).
+const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+const toArabicDigits = (s) => s.replace(/[0-9]/g, (d) => AR_DIGITS[d]).replace(/([٠-٩])\s?%/g, '$1٪');
+const digitsOut = (s) => (S.settings.digits === 'arab' ? toArabicDigits(String(s)) : String(s));
+const SKIP_DIGITS = new Set(['TEXTAREA', 'SCRIPT', 'STYLE', 'TITLE']);
+function localizeDigits(root) {
+  if (S.settings.digits !== 'arab' || !root) return;
+  if (root.nodeType === 3) {
+    if (/[0-9]/.test(root.nodeValue) && !(root.parentNode && SKIP_DIGITS.has(root.parentNode.nodeName))) root.nodeValue = toArabicDigits(root.nodeValue);
+    return;
+  }
+  if (root.nodeType !== 1 || SKIP_DIGITS.has(root.nodeName)) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (/[0-9]/.test(n.nodeValue) && !SKIP_DIGITS.has(n.parentNode.nodeName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+  });
+  const nodes = [];
+  while (w.nextNode()) nodes.push(w.currentNode);
+  for (const n of nodes) n.nodeValue = toArabicDigits(n.nodeValue);
+}
+new MutationObserver((muts) => {
+  if (S.settings.digits !== 'arab') return;
+  for (const m of muts) {
+    if (m.type === 'characterData') localizeDigits(m.target);
+    else for (const n of m.addedNodes) localizeDigits(n);
+  }
+}).observe(document.body, { subtree: true, childList: true, characterData: true });
 
 // ---------- theme ----------
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1408,6 +1464,7 @@ async function ensureNotifPermission() {
 
 async function systemNotify(title, body, key, id) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  title = digitsOut(title); body = digitsOut(body);
   const opts = {
     body, tag: key, renotify: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
     icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [200, 100, 200, 100, 400],
@@ -1505,7 +1562,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1518,6 +1575,9 @@ function importData(file) {
       S.tasks = data.tasks.map(normalize);
       S.projects = (Array.isArray(data.projects) ? data.projects : []).map(normalizeProject);
       if (Array.isArray(data.sessions)) S.sessions = data.sessions;
+      S.memos = (Array.isArray(data.memos) ? data.memos : []).map(normalizeMemo);
+      S.books = (Array.isArray(data.books) ? data.books : []).map(normalizeBook);
+      S.benefits = (Array.isArray(data.benefits) ? data.benefits : []).map(normalizeBenefit);
       if (data.settings) Object.assign(S.settings, data.settings);
       save();
       applyTheme();
@@ -1593,7 +1653,7 @@ function startTimer(taskId, mode, minutes, phase = 'work') {
   if (S.timer) finishTimer();
   unlockAudio();
   const now = Date.now();
-  S.timer = { taskId, mode, phase, planned: mode === 'down' ? minutes * 60000 : 0, start: now, startedAt: now, acc: 0, running: true };
+  S.timer = { taskId, mode, phase, planned: mode === 'down' ? minutes * 60000 : 0, start: now, startedAt: now, acc: 0, running: true, ar: S.settings.digits === 'arab' };
   if (phase === 'work') S.settings.timer.lastTask = taskId;
   ui.timerEnded = null;
   save();
@@ -1648,8 +1708,8 @@ async function countdownEnded(tm, endTs) {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
       const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
-      const title = tm.phase === 'break' ? 'انتهت الاستراحة' : `انتهى الوقت: ${timerTitle(tm)}`;
-      const body = tm.phase === 'break' ? 'جاهز لجولة جديدة؟' : `أنهيت ${fmtDur(tm.planned)} من التركيز`;
+      const title = digitsOut(tm.phase === 'break' ? 'انتهت الاستراحة' : `انتهى الوقت: ${timerTitle(tm)}`);
+      const body = digitsOut(tm.phase === 'break' ? 'جاهز لجولة جديدة؟' : `أنهيت ${fmtDur(tm.planned)} من التركيز`);
       const opts = { body, tag: 'timer-end', requireInteraction: true, vibrate: [400, 200, 400, 200, 600], lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
       if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
     } catch {}
@@ -1959,6 +2019,11 @@ document.addEventListener('click', (e) => {
     case 'theme': S.settings.theme = v; save(); applyTheme(); render(); break;
     case 'size': S.settings.size = v; save(); applyTheme(); render(); break;
     case 'font': S.settings.font = v; save(); applyTheme(); render(); break;
+    case 'digits':
+      if (S.settings.digits === v) break;
+      S.settings.digits = v; save();
+      location.reload(); // simplest way to redraw every number on the page
+      break;
     case 'geo': useLocation(); break;
     case 'notif': ensureNotifPermission(); break;
     case 'test-alarm':
@@ -1990,7 +2055,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm('سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         save(); render(); toast('حُذفت كل البيانات');
       }
       break;
@@ -2022,6 +2087,7 @@ document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'sort') { ui.sort = e.target.value; render(); }
   if (id === 'setSound') { S.settings.sound = e.target.checked; save(); }
+  if (id === 'setHijri') { S.settings.hijri = e.target.checked; save(); render(); }
   if (id === 'setCity') setCity(e.target.value);
   if (id === 'setMethod' && S.settings.prayer) { S.settings.prayer.method = e.target.value; save(); render(); }
   if (id === 'setAsr' && S.settings.prayer) { S.settings.prayer.asr = e.target.value; save(); render(); }
@@ -2086,6 +2152,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   if (VIEWS[hash]) ui.tab = hash;
   applyTheme();
   render();
+  localizeDigits(document.body);
+  document.documentElement.lang = 'ar';
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
   if (params.get('new')) openSheet(null, params.get('new') === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);

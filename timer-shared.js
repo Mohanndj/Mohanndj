@@ -31,8 +31,9 @@ const TimerShared = (() => {
     if (!tm.running) body = `متوقف عند ${clock(tm.mode === 'down' ? tm.planned - e : e)}`;
     else if (tm.mode === 'down') body = `متبقٍ ${clock(tm.planned - e)} · ينتهي ${at(now + tm.planned - e)}`;
     else body = `يعمل منذ ${at(now - e)}`;
-    return [`${kind}: ${taskTitle}`, {
-      body, tag: 'timer', renotify: false, silent: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
+    const ar = (x) => (tm.ar ? String(x).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]) : x);
+    return [ar(`${kind}: ${taskTitle}`), {
+      body: ar(body), tag: 'timer', renotify: false, silent: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
       timestamp: now - e, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
       data: { timer: tm, title: taskTitle },
       actions: [

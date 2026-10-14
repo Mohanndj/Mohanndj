@@ -264,7 +264,7 @@ dialog {
 }
 @media (min-width: 640px) { dialog { margin: auto; border-radius: 20px; } }
 dialog::backdrop { background: rgb(10 18 16 / .45); }
-#editor, #projForm {
+#editor, #projForm, #libForm {
   display: grid; gap: 14px; overflow-y: auto; max-height: 92dvh;
   padding-block: 16px calc(20px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -382,7 +382,7 @@ dialog::backdrop { background: rgb(10 18 16 / .45); }
 .add-row input { flex: 1; min-width: 0; }
 
 /* grid children must be allowed to shrink so scrolling rows stay inside the screen */
-.wrap > *, .smart > *, .section > *, .panel > *, #editor > *, #projForm > * { min-width: 0; }
+.wrap > *, .smart > *, .section > *, .panel > *, #editor > *, #projForm > *, #libForm > * { min-width: 0; }
 
 /* ---------- timer ---------- */
 body[data-view="timer"] .fab, body[data-view="settings"] .fab { display: none; }
@@ -500,3 +500,45 @@ body.has-timer .alarm, body.has-timer .toast { bottom: calc(var(--tabbar-h) + 64
 .cal-day .marks i.m.m-done, .cal-legend i.m.m-done { opacity: .3; }
 .cal-legend { align-items: center; }
 .cal-legend .chip { margin-inline-start: auto; }
+
+/* ================= v8: more page, notes, books, benefits ================= */
+.more-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 560px) { .more-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.more-tile {
+  display: grid; justify-items: start; gap: 4px; text-align: start; min-width: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px;
+}
+.more-tile svg { width: 26px; height: 26px; color: var(--accent); }
+.more-tile b { font-family: var(--font-display); font-size: 1.2rem; }
+.more-tile small { color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.xls-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font-size: .9rem; }
+.xls-btn svg { width: 16px; height: 16px; color: #1d7a45; }
+.seg-wrap { flex-wrap: wrap; }
+.seg-wrap button { flex: 1 1 auto; }
+.seg button .num { opacity: .7; font-size: .85em; }
+
+.memo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.memo, .book-card, .benefit {
+  display: grid; gap: 6px; text-align: start; align-content: start; min-width: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+}
+.memo strong, .book-card strong, .benefit strong { font-size: 1.05rem; overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 4px; }
+.memo strong svg { width: 16px; height: 16px; color: var(--accent); }
+.memo p, .book-card p, .benefit p { margin: 0; color: var(--fg); opacity: .85; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .95rem; line-height: 1.6; }
+.memo small { color: var(--muted); font-size: .78rem; }
+.book-list { display: grid; gap: 8px; }
+.book-top { display: grid; gap: 0; }
+.book-top small { color: var(--muted); }
+.book-line { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .85rem; flex-wrap: wrap; }
+.book-line svg { width: 15px; height: 15px; flex: none; }
+.book-card { border-inline-start: 4px solid var(--line); }
+.book-card.s-reading { border-inline-start-color: var(--accent); }
+.book-card.s-read { border-inline-start-color: var(--low); }
+.book-card.s-want { border-inline-start-color: var(--task); }
+.book-card.s-stalled { border-inline-start-color: var(--mid); }
+.benefit { border-inline-start: 4px solid var(--goal); }
+
+/* calendar: Hijri day under the Gregorian one */
+.cal-day { grid-template-rows: auto auto 1fr; aspect-ratio: auto; min-height: 58px; }
+.cal-day .hd { font-size: .62rem; color: var(--muted); line-height: 1.1; }
+.cal-day.today .hd { color: var(--accent); font-weight: 700; }
