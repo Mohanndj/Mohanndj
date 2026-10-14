@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -19,6 +19,11 @@ const ACCENTS = {
   amber: { name: 'عنبري', light: '#a45a0a', dark: '#eda54a' },
   graphite: { name: 'رمادي', light: '#3b4656', dark: '#aab6c6' },
 };
+// project colours: readable on light and dark backgrounds, and distinct from the goal colour
+const PROJECT_COLORS = [
+  ['#2f6fdb', 'أزرق'], ['#d9480f', 'برتقالي'], ['#7c3aed', 'بنفسجي'], ['#0f8a5f', 'أخضر'],
+  ['#d6336c', 'وردي'], ['#0e8aa3', 'فيروزي'], ['#8a5a2b', 'بني'], ['#5c6b7a', 'رمادي'],
+];
 const ALARM_OPTIONS = [
   [0, 'في الموعد'], [5, 'قبل 5 د'], [10, 'قبل 10 د'], [15, 'قبل 15 د'], [30, 'قبل 30 د'],
   [60, 'قبل ساعة'], [120, 'قبل ساعتين'], [1440, 'قبل يوم'],
@@ -26,11 +31,9 @@ const ALARM_OPTIONS = [
 const SNOOZE_MIN = 10;
 const MISSED_WINDOW_MIN = 180; // alarms older than this when the app opens are skipped
 const SMART_EXAMPLES = [
-  'ذكرني أتصل بأبوي بكرة الساعة 5 العصر وقبلها بربع ساعة',
+  'ذكرني أتصل بأبوي بكرة الساعة 5 العصر',
   'اشرب 8 أكواب ماء كل يوم لمدة شهر',
   'قراءة القرآن بعد الفجر يومياً',
-  'اجتماع الفريق كل أحد وثلاثاء الساعة 9 الصبح #عمل',
-  'دفع الفاتورة يوم الخميس مهم',
 ];
 
 const ICONS = {
@@ -49,6 +52,10 @@ const ICONS = {
   prev: 'M9 18l6-6-6-6',
   next: 'M15 18l-6-6 6-6',
   pin: 'M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  plus: 'M12 5v14M5 12h14',
+  folder: 'M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  back: 'M9 18l6-6-6-6',
+  edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`;
 
@@ -81,12 +88,16 @@ const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >=
 const daysWord = (n) => (n === 0 ? '0 يوم' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
 const minsWord = (n) => (n === 15 ? 'ربع ساعة' : n === 30 ? 'نصف ساعة' : n % 1440 === 0 ? plural(n / 1440, 'يوم', 'يومين', 'أيام', 'يوماً')
   : n % 60 === 0 ? plural(n / 60, 'ساعة', 'ساعتين', 'ساعات', 'ساعة') : plural(n, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'));
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 // ---------- state ----------
 function normalize(t) {
   const target = Math.max(1, Math.min(999, Number(t.target) || 1));
+  const repeat = t.repeat && Array.isArray(t.repeat.days) ? t.repeat : null;
   return {
     id: t.id || uid(),
+    kind: t.kind === 'goal' || t.kind === 'task' ? t.kind : repeat ? 'goal' : 'task',
+    projectId: t.projectId || '',
     title: String(t.title || ''),
     priority: PRI[t.priority] ? t.priority : 'mid',
     category: t.category || '',
@@ -95,15 +106,28 @@ function normalize(t) {
     prayer: t.prayer && t.prayer.name ? { name: t.prayer.name, offset: Number(t.prayer.offset) || 0 } : null,
     alarms: Array.isArray(t.alarms) ? t.alarms.map(Number) : (t.remind && t.time ? [0] : []),
     notes: Array.isArray(t.notes) ? t.notes : [],
-    subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks.map((s) => ({ id: s.id || uid(), text: String(s.text || ''), done: !!s.done, doneAt: s.doneAt || (s.done ? Date.now() : null) })) : [],
     created: t.created || Date.now(),
     done: !!t.done,
     doneAt: t.doneAt || null,
-    repeat: t.repeat && Array.isArray(t.repeat.days) ? t.repeat : null,
+    repeat,
     completions: t.completions && typeof t.completions === 'object' ? t.completions : {},
     target,
     unit: t.unit || '',
     counts: t.counts && typeof t.counts === 'object' ? t.counts : {},
+    count: Number(t.count) || 0, // progress of a one-time counted goal
+  };
+}
+
+function normalizeProject(p) {
+  return {
+    id: p.id || uid(),
+    name: String(p.name || 'مشروع'),
+    color: p.color || PROJECT_COLORS[0][0],
+    desc: p.desc || '',
+    due: p.due || '',
+    created: p.created || Date.now(),
+    doneAt: p.doneAt || null,
   };
 }
 
@@ -118,6 +142,7 @@ function load() {
     } catch {}
   }
   s.tasks = (s.tasks || []).map(normalize);
+  s.projects = (Array.isArray(s.projects) ? s.projects : []).map(normalizeProject);
   s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', font: 'mix', sound: true, prayer: null, ...(s.settings || {}) };
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
@@ -128,13 +153,24 @@ function load() {
 }
 
 const S = load();
-const ui = { tab: 'today', filter: 'active', q: '', sort: 'smart', cat: '', calMonth: today().slice(0, 7), calSel: today(), smart: '', timerEnded: null };
+const ui = {
+  tab: 'today', project: '', filter: 'active', projFilter: 'active', q: '', sort: 'smart', cat: '',
+  calMonth: today().slice(0, 7), calSel: today(), smart: '', timerEnded: null,
+};
 
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
+const getProject = (id) => S.projects.find((p) => p.id === id);
+
+// ---------- kinds ----------
+const isGoal = (t) => t.kind === 'goal';
+const isRepeat = (t) => !!t.repeat;
+const isCounted = (t) => isGoal(t) && t.target > 1;
+const projectOf = (t) => (t.projectId ? getProject(t.projectId) : null);
+const tasksOf = (pid) => S.tasks.filter((t) => t.projectId === pid && !isGoal(t));
 
 // ---------- prayer times ----------
 const prayerMemo = new Map();
@@ -152,7 +188,6 @@ function prayerPhrase(p) {
   return `${p.offset < 0 ? 'قبل' : 'بعد'} ${name} ${/^\d/.test(w) ? 'بـ ' + w : 'ب' + w}`;
 }
 
-// minutes after midnight for the task on date d, or null
 function timeOn(t, d) {
   if (t.prayer) {
     const pt = prayerTimes(d);
@@ -167,16 +202,18 @@ function timeLabel(t, d) {
   return m != null ? fmtMin(m) : '';
 }
 
-// ---------- recurrence ----------
-const isRepeat = (t) => !!t.repeat;
+// ---------- recurrence and progress ----------
 function occursOn(t, d) {
   const r = t.repeat;
   if (!r || d < r.start || (r.until && d > r.until)) return false;
   return r.days.includes(parse(d).getDay());
 }
 const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done);
-const countOn = (t, d) => (t.completions[d] && !t.counts[d] ? t.target : t.counts[d] || 0);
-const goalEnded = (t) => isRepeat(t) && t.repeat.until && t.repeat.until < today();
+function countOn(t, d) {
+  if (!isRepeat(t)) return t.done && !t.count ? t.target : t.count;
+  return t.completions[d] && !t.counts[d] ? t.target : t.counts[d] || 0;
+}
+const goalEnded = (t) => isRepeat(t) ? !!(t.repeat.until && t.repeat.until < today()) : t.done;
 
 function repeatLabel(t) {
   const r = t.repeat;
@@ -200,12 +237,34 @@ function goalStats(t) {
     else if (d === t0) continue;
     else break;
   }
-  return { total, hit, rate: total ? Math.round((hit / total) * 100) : 0, streak };
+  return { total, hit, rate: pct(hit, total), streak };
+}
+
+// progress of a task counting its steps; a done task counts as complete
+function taskProgress(t) {
+  if (t.done) return 1;
+  if (!t.subtasks.length) return 0;
+  return t.subtasks.filter((s) => s.done).length / t.subtasks.length;
+}
+function projectStats(pid) {
+  const list = tasksOf(pid);
+  const steps = list.flatMap((t) => t.subtasks);
+  const done = list.filter((t) => t.done).length;
+  const progress = list.length ? Math.round((list.reduce((n, t) => n + taskProgress(t), 0) / list.length) * 100) : 0;
+  const late = list.filter((t) => !t.done && t.due && t.due < today()).length;
+  return { total: list.length, done, steps: steps.length, stepsDone: steps.filter((s) => s.done).length, progress, late };
 }
 
 // ---------- actions ----------
 function setCount(t, d, n) {
   n = Math.max(0, Math.min(t.target, n));
+  if (!isRepeat(t)) {
+    t.count = n;
+    const wasDone = t.done;
+    t.done = n >= t.target;
+    t.doneAt = t.done ? (wasDone ? t.doneAt : Date.now()) : null;
+    return;
+  }
   if (n) t.counts[d] = n; else delete t.counts[d];
   if (n >= t.target) t.completions[d] = t.completions[d] || Date.now();
   else delete t.completions[d];
@@ -214,12 +273,12 @@ function setCount(t, d, n) {
 function toggle(id, date) {
   const t = getTask(id);
   if (!t) return;
-  if (isRepeat(t)) {
-    const d = date || today();
-    if (t.target > 1) {
-      const c = countOn(t, d);
-      setCount(t, d, c >= t.target ? 0 : c + 1);
-    } else if (t.completions[d]) delete t.completions[d];
+  const d = date || today();
+  if (isCounted(t)) {
+    const c = countOn(t, d);
+    setCount(t, d, c >= t.target ? 0 : c + 1);
+  } else if (isRepeat(t)) {
+    if (t.completions[d]) delete t.completions[d];
     else t.completions[d] = Date.now();
   } else {
     t.done = !t.done;
@@ -227,6 +286,11 @@ function toggle(id, date) {
   }
   save();
   render();
+  const p = projectOf(t);
+  if (p && t.done) {
+    const st = projectStats(p.id);
+    if (st.total && st.done === st.total) toast(`أحسنت! أنجزت كل مهام مشروع «${p.name}»`);
+  }
 }
 
 function step(id, date, delta) {
@@ -248,21 +312,27 @@ function removeTask(id) {
 
 // ---------- rendering: items ----------
 function checkButton(t, d, done) {
-  const counted = isRepeat(t) && t.target > 1;
+  const counted = isCounted(t);
   const label = counted ? `${countOn(t, d)} من ${t.target}${t.unit ? ' ' + t.unit : ''}، اضغط للزيادة` : done ? 'إلغاء الإنجاز' : 'تمت';
   return `<button type="button" class="check${counted ? ' counted' : ''}" data-action="toggle" data-id="${t.id}" data-date="${d}" aria-pressed="${done}" aria-label="${esc(label)}">${icon('check')}${counted ? `<span class="cnt">${countOn(t, d)}</span>` : ''}</button>`;
 }
 
-function metaHTML(t, d) {
-  const meta = [`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`];
+const projectChip = (p) => `<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`;
+
+function metaHTML(t, d, opts = {}) {
+  const meta = [];
+  if (isGoal(t) && !opts.noKind) meta.push(`<span class="kind-goal">${isRepeat(t) ? 'هدف متكرر' : 'هدف'}</span>`);
+  const p = projectOf(t);
+  if (p && !opts.noProject) meta.push(projectChip(p));
+  if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
   if (t.category) meta.push(`<span class="cat">${esc(t.category)}</span>`);
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
-  else if (t.due) {
+  else if (t.due && !opts.noDue) {
     const late = !t.done && t.due < today();
     meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة · ' : ''}${esc(relDate(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
-  if (isRepeat(t) && t.target > 1) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
+  if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
   if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}${t.subtasks.filter((x) => x.done).length}/${t.subtasks.length}</span>`);
   if (t.notes.length) meta.push(`<span class="num">${icon('note')}${t.notes.length}</span>`);
   const tracked = trackedMs(t.id);
@@ -270,28 +340,27 @@ function metaHTML(t, d) {
   return meta.join('');
 }
 
-function itemHTML(t, date) {
+function itemHTML(t, date, opts) {
   const d = date || today();
   const done = doneOn(t, d);
-  return `<li class="task p-${t.priority}${done ? ' done' : ''}">
+  const p = projectOf(t);
+  const steps = !t.done && t.subtasks.length ? `<span class="mini-progress" aria-hidden="true"><i style="width:${taskProgress(t) * 100}%"></i></span>` : '';
+  return `<li class="task p-${t.priority}${done ? ' done' : ''}${isGoal(t) ? ' is-goal' : ''}"${p ? ` style="--pc:${p.color}"` : ''}>
     ${checkButton(t, d, done)}
     <button type="button" class="t-main" data-action="open" data-id="${t.id}">
       <span class="t-title">${esc(t.title)}</span>
-      <span class="meta">${metaHTML(t, d)}</span>
+      <span class="meta">${metaHTML(t, d, opts)}</span>
+      ${steps}
     </button>
   </li>`;
 }
 
 const emptyHTML = (title, text, action) =>
   `<div class="empty"><strong>${title}</strong><span>${text}</span>${action || ''}</div>`;
+const addBtn = (action, label, extra = '') => `<button type="button" class="add-btn" data-action="${action}"${extra}>${icon('plus')}${label}</button>`;
 
 function itemsOn(d) {
-  const items = [];
-  for (const t of S.tasks) {
-    if (isRepeat(t)) { if (occursOn(t, d)) items.push(t); }
-    else if (t.due === d) items.push(t);
-  }
-  return items;
+  return S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, d) : t.due === d));
 }
 
 const byTime = (d) => (a, b) =>
@@ -299,12 +368,16 @@ const byTime = (d) => (a, b) =>
   (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999) ||
   PRI[b.priority] - PRI[a.priority];
 
+function categories() {
+  return [...new Set(S.tasks.map((t) => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+}
+
 // ---------- view: today ----------
 function prayerStripHTML() {
   const d = today();
   const pt = prayerTimes(d);
   if (!pt) {
-    return `<div class="prayer-cta"><span>${icon('moon')} أضف مدينتك لتظهر أوقات الصلاة وتربط مهامك بها</span><button type="button" class="ghost" data-tab="settings">إعداد</button></div>`;
+    return `<div class="prayer-cta"><span>${icon('moon')} أضف مدينتك لتظهر أوقات الصلاة</span><button type="button" class="ghost" data-tab="settings">إعداد</button></div>`;
   }
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -315,9 +388,9 @@ function prayerStripHTML() {
 
 function smartHTML() {
   return `<form class="smart" id="smartForm" autocomplete="off">
-    <label class="smart-label" for="smartIn">${icon('spark')} اكتب بكلامك وسأفهم الموعد والتكرار</label>
+    <label class="smart-label" for="smartIn">${icon('spark')} أضف بسرعة بكلامك</label>
     <div class="smart-row">
-      <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="مثال: ذكرني أتصل بأبوي بكرة الساعة 5 العصر" enterkeyhint="done">
+      <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="مثال: اتصل بأبي بكرة الساعة 5 العصر" enterkeyhint="done">
       <button type="submit" class="primary">إضافة</button>
     </div>
     <div id="smartPreview">${smartPreviewHTML()}</div>
@@ -326,8 +399,10 @@ function smartHTML() {
 
 function smartToTask(r) {
   const t0 = today();
+  const proj = r.category ? S.projects.find((p) => p.name === r.category) : null;
   const t = normalize({
-    id: uid(), title: r.title, priority: r.priority, category: r.category,
+    id: uid(), kind: r.kind === 'repeat' ? 'goal' : 'task', title: r.title, priority: r.priority,
+    category: proj ? '' : r.category, projectId: proj ? proj.id : '',
     time: r.prayer ? '' : r.time, prayer: r.prayer,
     alarms: (r.time || r.prayer) ? [0, ...r.before.filter((b) => b > 0)] : [],
     created: Date.now(),
@@ -339,7 +414,6 @@ function smartToTask(r) {
     t.unit = r.target > 1 ? r.unit : '';
   } else {
     t.due = r.due || '';
-    // "الساعة 5" said after 5 o'clock means tomorrow
     if (r.autoDue && t.due === t0) {
       const m = timeOn(t, t0);
       const now = new Date();
@@ -359,6 +433,9 @@ function smartPreviewHTML() {
   const t = smartToTask(r);
   const d = isRepeat(t) ? t.repeat.start : t.due || today();
   const tags = [`<span class="tag title">${esc(t.title)}</span>`];
+  tags.push(`<span class="tag">${isGoal(t) ? 'هدف متكرر' : 'مهمة'}</span>`);
+  const p = projectOf(t);
+  if (p) tags.push(`<span class="tag">${icon('folder')}${esc(p.name)}</span>`);
   if (isRepeat(t)) tags.push(`<span class="tag">${icon('repeat')}${esc(repeatLabel(t))}</span>`);
   else if (t.due) tags.push(`<span class="tag">${icon('cal')}${esc(relDate(t.due))}</span>`);
   if (hasTime(t)) tags.push(`<span class="tag">${icon(t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d))}</span>`);
@@ -380,75 +457,135 @@ function viewToday() {
   });
   items.sort(byTime(d));
   const done = items.filter((t) => doneOn(t, d)).length;
-  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  const p = pct(done, items.length);
   const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
   const open = items.length - done;
-  const undated = S.tasks.filter((t) => !isRepeat(t) && !t.done && !t.due).length;
-  const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل مهام اليوم') : 'لا شيء مجدول لليوم';
+  const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   return `
   ${smartHTML()}
   <div class="today-card">
-    <div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
+    <div class="ring" style="--p:${p}"><span>${p}%</span></div>
     <div class="txt">
       <b>${summary}</b>
-      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${undated ? `${undated} بلا تاريخ في «المهام»` : esc(fmtHijri(d))}</span>
+      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
     </div>
   </div>
   ${prayerStripHTML()}
   <section class="section">
-    <div class="section-head"><h2>مهام اليوم وأهدافه</h2><small>${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}</small></div>
+    <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
     ${items.length
       ? `<ul class="list">${items.map((t) => itemHTML(t, d)).join('')}</ul>`
-      : emptyHTML('يومك فارغ', 'اكتب في المربع أعلاه أو اضغط زر الإضافة.')}
+      : emptyHTML('يومك فارغ', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا.')}
   </section>`;
 }
 
-// ---------- view: tasks ----------
-function categories() {
-  return [...new Set(S.tasks.map((t) => t.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+// ---------- view: tasks & projects ----------
+function projectCardHTML(p) {
+  const st = projectStats(p.id);
+  const sub = st.total ? `${st.done}/${st.total} مهام${st.steps ? ` · ${st.stepsDone}/${st.steps} خطوات` : ''}` : 'لا مهام بعد';
+  return `<button type="button" class="pcard" data-action="open-project" data-v="${p.id}" style="--pc:${p.color}">
+    <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
+    <span class="pbar"><i style="width:${st.progress}%"></i></span>
+    <span class="psub"><span class="num">${st.progress}%</span><span>${sub}</span></span>
+    ${st.late ? `<span class="late psub">${st.late} متأخرة</span>` : ''}
+  </button>`;
 }
 
-function viewTasks() {
-  const q = ui.q.trim().toLowerCase();
-  const t0 = today();
-  const list = S.tasks.filter((t) => !isRepeat(t) &&
-    (ui.filter === 'all' || (ui.filter === 'done') === t.done) &&
-    (!ui.cat || t.category === ui.cat) &&
-    (!q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) ||
-      t.notes.some((n) => n.text.toLowerCase().includes(q)) || t.subtasks.some((n) => n.text.toLowerCase().includes(q))));
-  list.sort((a, b) => {
-    if (ui.filter === 'done') return (b.doneAt || 0) - (a.doneAt || 0);
-    if (ui.sort === 'created') return b.created - a.created;
-    if (ui.sort === 'due') return (a.due || '9999').localeCompare(b.due || '9999') || (timeOn(a, a.due) ?? 9999) - (timeOn(b, b.due) ?? 9999);
-    const lateA = a.due && a.due < t0, lateB = b.due && b.due < t0;
-    return lateB - lateA || PRI[b.priority] - PRI[a.priority] || (a.due || '9999').localeCompare(b.due || '9999');
-  });
-  const cats = categories();
+function taskToolbar(filterKey, withSearch) {
+  const cur = ui[filterKey];
   const seg = [['active', 'الحالية'], ['done', 'المنجزة'], ['all', 'الكل']]
-    .map(([v, l]) => `<button type="button" data-action="filter" data-v="${v}" aria-pressed="${ui.filter === v}">${l}</button>`).join('');
-  const hasAny = S.tasks.some((t) => !isRepeat(t));
-  return `
-  <div class="toolbar">
-    <input type="search" id="search" placeholder="بحث في المهام والخطوات والملاحظات" aria-label="بحث" value="${esc(ui.q)}">
+    .map(([v, l]) => `<button type="button" data-action="filter" data-k="${filterKey}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('');
+  return `<div class="toolbar">
+    ${withSearch ? `<input type="search" id="search" placeholder="ابحث في كل المهام" aria-label="بحث" value="${esc(ui.q)}">` : ''}
     <div class="seg" role="group" aria-label="عرض">${seg}</div>
     <select id="sort" aria-label="الترتيب">
       <option value="smart"${ui.sort === 'smart' ? ' selected' : ''}>الأهم أولاً</option>
       <option value="due"${ui.sort === 'due' ? ' selected' : ''}>حسب التاريخ</option>
       <option value="created"${ui.sort === 'created' ? ' selected' : ''}>الأحدث</option>
     </select>
-  </div>
-  ${cats.length ? `<div class="chips" role="group" aria-label="التصنيف">
-    <button type="button" class="chip" data-action="cat" data-v="" aria-pressed="${!ui.cat}">كل التصنيفات</button>
-    ${cats.map((c) => `<button type="button" class="chip" data-action="cat" data-v="${esc(c)}" aria-pressed="${ui.cat === c}">${esc(c)}</button>`).join('')}
-  </div>` : ''}
-  ${list.length
-    ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || t0)).join('')}</ul>`
-    : hasAny
-      ? emptyHTML(q ? 'لا نتائج' : ui.filter === 'done' ? 'لا مهام منجزة بعد' : 'لا مهام حالية', q ? 'جرّب كلمة بحث أخرى.' : 'كل شيء مُنجز هنا.')
-      : emptyHTML('لا مهام بعد', 'اضغط زر + لإضافة أول مهمة.', '<button type="button" class="ghost" data-action="new">إضافة مهمة</button>')}`;
+  </div>`;
+}
+
+function sortTasks(list, filter) {
+  const t0 = today();
+  return list.sort((a, b) => {
+    if (filter === 'done') return (b.doneAt || 0) - (a.doneAt || 0);
+    if (ui.sort === 'created') return b.created - a.created;
+    if (ui.sort === 'due') return (a.due || '9999').localeCompare(b.due || '9999') || (timeOn(a, a.due) ?? 9999) - (timeOn(b, b.due) ?? 9999);
+    const lateA = a.due && a.due < t0, lateB = b.due && b.due < t0;
+    return a.done - b.done || lateB - lateA || PRI[b.priority] - PRI[a.priority] || (a.due || '9999').localeCompare(b.due || '9999');
+  });
+}
+const matchFilter = (t, f) => f === 'all' || (f === 'done') === t.done;
+
+function viewTasks() {
+  if (ui.project && getProject(ui.project)) return viewProject(getProject(ui.project));
+  ui.project = '';
+  const q = ui.q.trim().toLowerCase();
+  if (q) {
+    const hits = S.tasks.filter((t) => t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) ||
+      t.notes.some((n) => n.text.toLowerCase().includes(q)) || t.subtasks.some((n) => n.text.toLowerCase().includes(q)) ||
+      ((projectOf(t) || {}).name || '').toLowerCase().includes(q));
+    return `${taskToolbar('filter', true)}
+      <section class="section"><div class="section-head"><h2>نتائج البحث</h2><small>${hits.length}</small></div>
+      ${hits.length ? `<ul class="list">${sortTasks(hits, 'all').map((t) => itemHTML(t, t.due || today())).join('')}</ul>` : emptyHTML('لا نتائج', 'جرّب كلمة أخرى.')}</section>`;
+  }
+  const projects = S.projects.slice().sort((a, b) => (!!a.doneAt - !!b.doneAt) || a.created - b.created);
+  const general = sortTasks(S.tasks.filter((t) => !isGoal(t) && !t.projectId && matchFilter(t, ui.filter)), ui.filter);
+  const anyGeneral = S.tasks.some((t) => !isGoal(t) && !t.projectId);
+  return `
+  <section class="section">
+    <div class="section-head"><h2>المشاريع</h2>${addBtn('new-project', 'مشروع')}</div>
+    ${projects.length
+      ? `<div class="pgrid">${projects.map(projectCardHTML).join('')}</div>`
+      : emptyHTML('لا مشاريع بعد', 'المشروع يجمع مهام لهدف واحد، مثل «تجهيز السفر» أو «مشروع التخرج». ولكل مهمة خطوات.', addBtn('new-project', 'أنشئ أول مشروع'))}
+  </section>
+  <section class="section">
+    <div class="section-head"><h2>مهام عامة</h2>${addBtn('new', 'مهمة')}</div>
+    ${anyGeneral ? taskToolbar('filter', true) : ''}
+    ${general.length
+      ? `<ul class="list">${general.map((t) => itemHTML(t, t.due || today())).join('')}</ul>`
+      : anyGeneral ? emptyHTML(ui.filter === 'done' ? 'لا مهام منجزة بعد' : 'لا مهام حالية', 'كل شيء مُنجز هنا.')
+        : emptyHTML('لا مهام عامة', 'المهام التي لا تتبع مشروعاً تظهر هنا.')}
+  </section>`;
+}
+
+function viewProject(p) {
+  const st = projectStats(p.id);
+  const list = sortTasks(tasksOf(p.id).filter((t) => matchFilter(t, ui.projFilter)), ui.projFilter);
+  return `
+  <div class="crumbs"><button type="button" class="back" data-action="close-project">${icon('back')} كل المشاريع</button></div>
+  <section class="phead" style="--pc:${p.color}">
+    <div class="row-between">
+      <h2><i class="pdot"></i>${esc(p.name)}</h2>
+      <button type="button" class="ghost" data-action="edit-project" data-v="${p.id}">${icon('edit')} تعديل</button>
+    </div>
+    ${p.desc ? `<p class="note-text">${esc(p.desc)}</p>` : ''}
+    <div class="pbar big"><i style="width:${st.progress}%"></i></div>
+    <div class="pstats">
+      <span><b class="num">${st.progress}%</b> الإنجاز</span>
+      <span><b class="num">${st.done}/${st.total}</b> مهام</span>
+      <span><b class="num">${st.stepsDone}/${st.steps}</b> خطوات</span>
+      ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDate(p.due))}</span>` : ''}
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-head"><h2>مهام المشروع</h2>${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div>
+    ${st.total ? taskToolbar('projFilter', false) : ''}
+    ${list.length
+      ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || today(), { noProject: true })).join('')}</ul>`
+      : st.total ? emptyHTML('لا شيء هنا', ui.projFilter === 'done' ? 'لم تنجز مهام بعد.' : 'أنجزت كل مهام المشروع.')
+        : emptyHTML('المشروع فارغ', 'أضف أول مهمة، ثم افتحها لتضيف لها خطوات.', addBtn('new-in-project', 'أضف مهمة', ` data-v="${p.id}"`))}
+  </section>`;
 }
 
 // ---------- view: calendar ----------
+function markOf(t, d) {
+  const p = projectOf(t);
+  const cls = ['m', isGoal(t) ? 'm-goal' : p ? 'm-proj' : 'm-task', doneOn(t, d) ? 'm-done' : ''].join(' ');
+  return `<i class="${cls}"${p ? ` style="--pc:${p.color}"` : ''}></i>`;
+}
+
 function viewCalendar() {
   const [y, m] = ui.calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
@@ -457,12 +594,13 @@ function viewCalendar() {
   const total = Math.ceil((lead + daysIn) / 7) * 7;
   const t0 = today();
   const cells = [];
+  const projectsShown = new Set();
   for (let i = 0; i < total; i++) {
     const d = iso(new Date(y, m - 1, 1 - lead + i));
     const out = d.slice(0, 7) !== ui.calMonth;
     const items = itemsOn(d);
-    const marks = items.slice(0, 4).map((t) => `<i class="${doneOn(t, d) ? 'done' : 'p-' + t.priority}"></i>`).join('') +
-      (items.length > 4 ? `<span class="more">+${items.length - 4}</span>` : '');
+    if (!out) for (const t of items) if (t.projectId) projectsShown.add(t.projectId);
+    const marks = items.slice(0, 4).map((t) => markOf(t, d)).join('') + (items.length > 4 ? `<span class="more">+${items.length - 4}</span>` : '');
     const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${items.length ? `، ${items.length} عنصر` : ''}`;
     cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${parse(d).getDate()}</span><span class="marks">${marks}</span></button>`);
   }
@@ -473,13 +611,12 @@ function viewCalendar() {
   const hijri = h1 === h2 ? h1 : `${fmtHijri(iso(first), { month: 'long' })} – ${h2}`;
   const sel = ui.calSel;
   const selItems = itemsOn(sel).sort(byTime(sel));
+  const legendProjects = [...projectsShown].map(getProject).filter(Boolean);
   return `
   <div class="cal-head">
     <div class="nav"><button type="button" data-action="cal-move" data-v="-1" aria-label="الشهر السابق">${icon('prev')}</button></div>
     <div class="titles"><h2>${esc(monthName)}</h2><small>${esc(hijri)}</small></div>
-    <div class="nav">
-      <button type="button" data-action="cal-move" data-v="1" aria-label="الشهر التالي">${icon('next')}</button>
-    </div>
+    <div class="nav"><button type="button" data-action="cal-move" data-v="1" aria-label="الشهر التالي">${icon('next')}</button></div>
   </div>
   <div class="cal">
     <div class="cal-grid">
@@ -487,23 +624,37 @@ function viewCalendar() {
       ${cells.join('')}
     </div>
     <div class="cal-legend">
-      <span><i style="background:var(--high)"></i>عالية</span><span><i style="background:var(--mid)"></i>متوسطة</span>
-      <span><i style="background:var(--low)"></i>منخفضة</span><span><i style="background:var(--line)"></i>منجزة</span>
-      ${ui.calMonth !== t0.slice(0, 7) || sel !== t0 ? '<button type="button" class="chip" data-action="cal-today" style="margin-inline-start:auto">اليوم</button>' : ''}
+      <span><i class="m m-task"></i>مهمة</span>
+      <span><i class="m m-goal"></i>هدف</span>
+      ${legendProjects.map((p) => `<span><i class="m m-proj" style="--pc:${p.color}"></i>${esc(p.name)}</span>`).join('')}
+      <span><i class="m m-task m-done"></i>منجز</span>
+      ${ui.calMonth !== t0.slice(0, 7) || sel !== t0 ? '<button type="button" class="chip" data-action="cal-today">اليوم</button>' : ''}
     </div>
   </div>
   <section class="section">
     <div class="section-head">
       <h2>${esc(fmtDate(sel, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
-      <button type="button" class="ghost" data-action="new-on" data-v="${sel}">إضافة لهذا اليوم</button>
+      <div class="btn-row">${addBtn('new-on', 'مهمة', ` data-v="${sel}"`)}${addBtn('new-goal-on', 'هدف', ` data-v="${sel}"`)}</div>
     </div>
     <small class="hint">${esc(fmtHijri(sel))}</small>
-    ${selItems.length ? `<ul class="list">${selItems.map((t) => itemHTML(t, sel)).join('')}</ul>` : emptyHTML('لا شيء في هذا اليوم', 'اضغط «إضافة لهذا اليوم» لتضيف مهمة بتاريخه.')}
+    ${selItems.length ? `<ul class="list">${selItems.map((t) => itemHTML(t, sel)).join('')}</ul>` : emptyHTML('لا شيء في هذا اليوم', 'أضف مهمة أو هدفاً بتاريخ هذا اليوم.')}
   </section>`;
 }
 
 // ---------- view: goals ----------
-function goalHTML(t) {
+function stepperHTML(t, d) {
+  const c = countOn(t, d);
+  return `<div class="stepper-row">
+    <div class="stepper">
+      <button type="button" data-action="step" data-id="${t.id}" data-date="${d}" data-v="-1" aria-label="إنقاص">−</button>
+      <span class="val">${c} / ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>
+      <button type="button" data-action="step" data-id="${t.id}" data-date="${d}" data-v="1" aria-label="زيادة">+</button>
+    </div>
+    <div class="progress-line"><i style="width:${pct(c, t.target)}%"></i></div>
+  </div>`;
+}
+
+function recurringGoalHTML(t) {
   const t0 = today();
   const occursToday = occursOn(t, t0);
   const done = occursToday && !!t.completions[t0];
@@ -516,59 +667,72 @@ function goalHTML(t) {
     dots.push(`<span class="dot ${cls}${d === t0 ? ' today' : ''}" title="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'short' }))}"><i></i>${DAY_SHORT[parse(d).getDay()].slice(0, 2)}</span>`);
   }
   const notStarted = t.repeat.start > t0;
-  const counted = t.target > 1;
-  const c = countOn(t, t0);
-  const counter = counted && occursToday ? `
-    <div class="row-between">
-      <div class="stepper">
-        <button type="button" data-action="step" data-id="${t.id}" data-v="-1" aria-label="إنقاص">−</button>
-        <span class="val">${c} / ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>
-        <button type="button" data-action="step" data-id="${t.id}" data-v="1" aria-label="زيادة">+</button>
-      </div>
-    </div>
-    <div class="progress-line"><i style="width:${(c / t.target) * 100}%"></i></div>` : '';
   return `<li class="goal${done ? ' done' : ''}">
     <div class="goal-top">
       ${occursToday ? checkButton(t, t0, done) : `<button type="button" class="check" disabled aria-label="ليس مجدولاً اليوم">${icon('check')}</button>`}
       <button type="button" class="t-main" data-action="open" data-id="${t.id}">
         <span class="t-title">${esc(t.title)}</span>
-        <span class="meta">${metaHTML(t, t0).replace(/<span class="pri[^>]*>[^<]*<\/span>/, '')}</span>
+        <span class="meta">${metaHTML(t, t0, { noPriority: true, noKind: true })}</span>
       </button>
     </div>
-    ${counter}
+    ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
     ${notStarted ? `<p class="note-text">يبدأ ${esc(relDate(t.repeat.start))}</p>` : `
     <div class="goal-stats">
       <span>السلسلة الحالية: <b>${daysWord(st.streak)}</b></span>
-      <span>نسبة الالتزام: <b>${st.rate}%</b> (${st.hit}/${st.total})</span>
+      <span>الالتزام: <b>${st.rate}%</b> (${st.hit}/${st.total})</span>
     </div>
     <div class="dots" aria-label="آخر 7 أيام">${dots.join('')}</div>`}
   </li>`;
 }
 
-function viewGoals() {
-  const goals = S.tasks.filter(isRepeat);
-  if (!goals.length) {
-    return `<section class="section"><h2>الأهداف المتكررة</h2>${emptyHTML('لا أهداف بعد',
-      'الهدف المتكرر يظهر في يومك تلقائياً، يومياً أو في أيام تختارها، إلى تاريخ محدد أو بلا نهاية. ويمكن أن يكون بعدد، مثل 8 أكواب ماء.',
-      '<button type="button" class="ghost" data-action="new-goal">إضافة هدف</button>')}</section>`;
-  }
+function onceGoalHTML(t) {
   const t0 = today();
-  const active = goals.filter((t) => !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
-  const ended = goals.filter(goalEnded);
+  const left = t.due && !t.done ? Math.round((parse(t.due) - parse(t0)) / 86400000) : null;
+  const deadline = t.due ? (t.done ? `أُنجز ${t.doneAt ? esc(relDate(iso(new Date(t.doneAt)))) : ''}`
+    : left < 0 ? `<span class="late">تأخر ${daysWord(-left)}</span>` : left === 0 ? 'الموعد اليوم' : `باقٍ ${daysWord(left)} (${esc(fmtDate(t.due))})`) : (t.done ? 'أُنجز' : 'بلا موعد نهائي');
+  return `<li class="goal${t.done ? ' done' : ''}">
+    <div class="goal-top">
+      ${checkButton(t, t0, t.done)}
+      <button type="button" class="t-main" data-action="open" data-id="${t.id}">
+        <span class="t-title">${esc(t.title)}</span>
+        <span class="meta">${metaHTML(t, t0, { noPriority: true, noKind: true, noDue: true })}</span>
+      </button>
+    </div>
+    ${isCounted(t) && !t.done ? stepperHTML(t, t0) : ''}
+    <div class="goal-stats"><span>${icon('flag')} ${deadline}</span></div>
+  </li>`;
+}
+
+function viewGoals() {
+  const goals = S.tasks.filter(isGoal);
+  const t0 = today();
+  const recurring = goals.filter((t) => isRepeat(t) && !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
+  const once = goals.filter((t) => !isRepeat(t) && !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  const finished = goals.filter(goalEnded);
   return `
   <section class="section">
-    <div class="section-head"><h2>الأهداف المتكررة</h2><button type="button" class="ghost" data-action="new-goal">هدف جديد</button></div>
-    ${active.length ? `<ul class="list">${active.map(goalHTML).join('')}</ul>` : emptyHTML('لا أهداف جارية', 'كل أهدافك انتهت مدتها.')}
+    <div class="section-head"><h2>أهداف متكررة</h2>${addBtn('new-goal', 'هدف متكرر')}</div>
+    ${recurring.length ? `<ul class="list">${recurring.map(recurringGoalHTML).join('')}</ul>`
+      : emptyHTML('لا أهداف متكررة', 'عادة تتكرر يومياً أو في أيام تختارها، إلى تاريخ محدد أو بلا نهاية. مثل «8 أكواب ماء يومياً».')}
   </section>
-  ${ended.length ? `<section class="section"><h2>أهداف انتهت مدتها</h2><ul class="list">${ended.map(goalHTML).join('')}</ul></section>` : ''}`;
+  <section class="section">
+    <div class="section-head"><h2>أهداف لمرة واحدة</h2>${addBtn('new-goal-once', 'هدف')}</div>
+    ${once.length ? `<ul class="list">${once.map(onceGoalHTML).join('')}</ul>`
+      : emptyHTML('لا أهداف لمرة واحدة', 'هدف تحققه مرة حتى موعد تحدده، مثل «قراءة 12 كتاباً قبل نهاية السنة».')}
+  </section>
+  ${finished.length ? `<section class="section"><div class="section-head"><h2>أهداف مكتملة أو منتهية</h2><small>${finished.length}</small></div>
+    <ul class="list">${finished.map((t) => (isRepeat(t) ? recurringGoalHTML(t) : onceGoalHTML(t))).join('')}</ul></section>` : ''}`;
 }
 
 // ---------- view: stats ----------
+// every completed thing with its day: tasks, goals (each day of a recurring goal) and steps
 function completionEvents() {
   const ev = [];
   for (const t of S.tasks) {
-    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat: t.category || 'بلا تصنيف' });
-    else if (t.done && t.doneAt) ev.push({ d: iso(new Date(t.doneAt)), cat: t.category || 'بلا تصنيف' });
+    const cat = t.category || 'بلا تصنيف';
+    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal' });
+    else if (t.done && t.doneAt) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
+    for (const s of t.subtasks) if (s.done && s.doneAt) ev.push({ d: iso(new Date(s.doneAt)), type: 'step', projectId: t.projectId });
   }
   return ev;
 }
@@ -620,11 +784,14 @@ function chartSVG(byDay) {
   return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في آخر 14 يوماً">${parts.join('')}</svg>`;
 }
 
+const hbar = (name, value, width, color) =>
+  `<li class="hbar"><span class="name">${name}</span><span class="track"><span class="fill" style="width:${width}%;${color ? ` background:${color};` : ''} display:block"></span></span><span class="v">${value}</span></li>`;
+
 function focusPanelHTML() {
+  if (!S.sessions.length) return '';
   const t0 = today();
   const weekStart = addDays(t0, -6);
   const week = S.sessions.filter((x) => sessionDay(x) >= weekStart);
-  if (!S.sessions.length) return '';
   const todayMs = week.filter((x) => sessionDay(x) === t0).reduce((n, x) => n + x.ms, 0);
   const weekMs = week.reduce((n, x) => n + x.ms, 0);
   const by = {};
@@ -634,48 +801,62 @@ function focusPanelHTML() {
   return `<section class="panel">
     <h2>وقت التركيز</h2>
     <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> · آخر 7 أيام <b>${fmtDur(weekMs)}</b></p>
-    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => `<li class="hbar"><span class="name">${esc((getTask(id) || {}).title || 'مهمة محذوفة')}</span><span class="track"><span class="fill" style="width:${(ms / max) * 100}%; display:block"></span></span><span class="v">${fmtDur(ms)}</span></li>`).join('')}</ul>` : ''}
+    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>` : ''}
   </section>`;
 }
 
 function viewStats() {
   const ev = completionEvents();
+  const main = ev.filter((e) => e.type !== 'step');
   const byDay = {};
-  for (const e of ev) byDay[e.d] = (byDay[e.d] || 0) + 1;
+  for (const e of main) byDay[e.d] = (byDay[e.d] || 0) + 1;
   const t0 = today();
-  const week = Array.from({ length: 7 }, (_, i) => byDay[addDays(t0, -i)] || 0).reduce((a, b) => a + b, 0);
+  const weekStart = addDays(t0, -6);
+  const week = main.filter((e) => e.d >= weekStart).length;
+  const stepsWeek = ev.filter((e) => e.type === 'step' && e.d >= weekStart).length;
   const { cur, best } = streaks(byDay);
   const byCat = {};
-  for (const e of ev) byCat[e.cat] = (byCat[e.cat] || 0) + 1;
+  for (const e of main) byCat[e.cat] = (byCat[e.cat] || 0) + 1;
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const catMax = cats.length ? cats[0][1] : 1;
-  const goals = S.tasks.filter((t) => isRepeat(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
-  const openCount = S.tasks.filter((t) => !isRepeat(t) && !t.done).length;
-  const subsDone = S.tasks.reduce((n, t) => n + t.subtasks.filter((x) => x.done).length, 0);
+  const recurring = S.tasks.filter((t) => isRepeat(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
+  const once = S.tasks.filter((t) => isGoal(t) && !isRepeat(t));
+  const tasks = S.tasks.filter((t) => !isGoal(t));
+  const projects = S.projects.map((p) => ({ p, st: projectStats(p.id) })).filter((x) => x.st.total);
+
   return `
   <div class="tiles">
     <div class="tile"><b>${byDay[t0] || 0}</b><span>أنجزت اليوم</span></div>
     <div class="tile"><b>${week}</b><span>آخر 7 أيام</span></div>
-    <div class="tile"><b>${ev.length}</b><span>إجمالي الإنجازات</span></div>
+    <div class="tile"><b>${stepsWeek}</b><span>خطوات في 7 أيام</span></div>
     <div class="tile"><b>${cur}</b><span>أيام متتالية · الأفضل ${best}</span></div>
   </div>
   <section class="panel chart">
-    <h2>الإنجازات في آخر 14 يوماً</h2>
+    <h2>المهام والأهداف المنجزة في آخر 14 يوماً</h2>
     <div class="readout" id="readout">المس عموداً لترى تفاصيل اليوم.</div>
     ${chartSVG(byDay)}
+  </section>
+  <section class="panel">
+    <h2>المشاريع</h2>
+    ${projects.length ? `<ul class="hbars">${projects.map(({ p, st }) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${st.progress}%`, st.progress, p.color)).join('')}</ul>
+      <p class="note-text">النسبة تحسب المهام المنجزة وخطوات المهام التي لم تكتمل بعد.</p>`
+      : '<p class="note-text">أنشئ مشروعاً وأضف له مهاماً لترى تقدّمه هنا.</p>'}
+  </section>
+  <section class="panel">
+    <h2>الأهداف</h2>
+    ${recurring.length || once.length ? `<ul class="hbars">
+      ${recurring.map(({ t, st }) => hbar(esc(t.title), `${st.rate}%`, st.rate)).join('')}
+      ${once.map((t) => { const v = pct(countOn(t, t0), t.target); return hbar(esc(t.title), t.done ? 'تحقق' : `${v}%`, t.done ? 100 : v); }).join('')}
+    </ul><p class="note-text">المتكرر: نسبة الأيام التي التزمت فيها. لمرة واحدة: مقدار ما تحقق.</p>`
+      : '<p class="note-text">أضف هدفاً لتتابع التزامك به.</p>'}
   </section>
   ${focusPanelHTML()}
   <section class="panel">
     <h2>حسب التصنيف</h2>
-    ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => `<li class="hbar"><span class="name">${esc(c)}</span><span class="track"><span class="fill" style="width:${(n / catMax) * 100}%; display:block"></span></span><span class="v">${n}</span></li>`).join('')}</ul>`
+    ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => hbar(esc(c), n, (n / catMax) * 100)).join('')}</ul>`
       : '<p class="note-text">ستظهر هنا بعد أن تنجز أول مهمة.</p>'}
   </section>
-  <section class="panel">
-    <h2>الالتزام بالأهداف</h2>
-    ${goals.length ? `<ul class="hbars">${goals.map(({ t, st }) => `<li class="hbar"><span class="name" title="${esc(t.title)}">${esc(t.title)}</span><span class="track"><span class="fill" style="width:${st.rate}%; display:block"></span></span><span class="v">${st.rate}%</span></li>`).join('')}</ul>`
-      : '<p class="note-text">أضف هدفاً متكرراً لتتابع نسبة التزامك به.</p>'}
-  </section>
-  <p class="note-text">لديك ${openCount} ${openCount === 1 ? 'مهمة مفتوحة' : 'مهام مفتوحة'} الآن${subsDone ? `، وأنجزت ${subsDone} خطوة داخل مهامك` : ''}.</p>`;
+  <p class="note-text">لديك ${tasks.filter((t) => !t.done).length} مهام مفتوحة من أصل ${tasks.length}، و${S.projects.length} ${S.projects.length === 1 ? 'مشروع' : 'مشاريع'}.</p>`;
 }
 
 // ---------- view: settings ----------
@@ -710,7 +891,7 @@ function prayerSettingsHTML() {
         <select id="setAsr"><option value="standard"${cfg.asr !== 'hanafi' ? ' selected' : ''}>الجمهور</option><option value="hanafi"${cfg.asr === 'hanafi' ? ' selected' : ''}>الحنفي</option></select>
       </label>
     </div>
-    <div class="prayers">${['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].filter((p) => p !== 'sunrise').map((p) => `<div>${Prayer.NAMES[p]}<b>${esc(fmtMin(pt[p]))}</b></div>`).join('')}</div>
+    <div class="prayers">${Prayer.PRAYERS.map((p) => `<div>${Prayer.NAMES[p]}<b>${esc(fmtMin(pt[p]))}</b></div>`).join('')}</div>
     <p class="note-text">الشروق ${esc(fmtMin(pt.sunrise))}. تُحسب بتوقيت جوالك، فاختر مدينة في نفس منطقتك الزمنية.</p>` : ''}
   </section>`;
 }
@@ -754,7 +935,7 @@ function viewSettings() {
       <button type="button" class="ghost" data-action="test-alarm">تجربة المنبه</button>
     </div>
     <label class="switch"><input type="checkbox" id="setSound"${st.sound ? ' checked' : ''}><span>صوت التنبيه داخل التطبيق</span></label>
-    <p class="note-text">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال» ليرن من تقويم جوالك حتى لو كان التطبيق مغلقاً.</p>
+    <p class="note-text">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
   <section class="panel">
     <h2>نسخة احتياطية</h2>
@@ -773,7 +954,7 @@ function viewSettings() {
   <section class="panel">
     <h2>البيانات</h2>
     <div class="row-between">
-      <span class="note-text">${S.tasks.length} عنصر محفوظ</span>
+      <span class="note-text">${S.tasks.length} عنصر و${S.projects.length} مشروع</span>
       <button type="button" class="danger" data-action="wipe">حذف كل البيانات</button>
     </div>
   </section>
@@ -795,7 +976,7 @@ function render() {
     if (b.closest('#view')) continue;
     if (b.dataset.tab === ui.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
-  document.body.dataset.tab = ui.tab;
+  document.body.dataset.view = ui.tab;
   tickTimer();
   renderGreeting();
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
@@ -805,6 +986,14 @@ function renderGreeting() {
   const name = S.settings.name.trim();
   const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
   $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(today(), { weekday: 'long', day: 'numeric', month: 'long' })}`;
+}
+
+function go(tab, project) {
+  ui.tab = tab;
+  if (project !== undefined) ui.project = project;
+  render();
+  window.scrollTo({ top: 0 });
+  history.replaceState(null, '', '#' + tab);
 }
 
 // ---------- theme ----------
@@ -832,7 +1021,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
 }
 
-// ---------- editor sheet ----------
+// ---------- task / goal editor ----------
 const sheet = $('sheet');
 let draft = null;
 let draftIsNew = true;
@@ -843,8 +1032,23 @@ function armReset(fn) { clearTimeout(armTimer); armTimer = setTimeout(fn, 3000);
 function setKind(kind) {
   draft.kind = kind;
   for (const b of $('fKind').children) b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
-  $('onceFields').hidden = kind !== 'once';
-  $('repeatFields').hidden = kind !== 'repeat';
+  const goal = kind === 'goal';
+  $('taskFields').hidden = goal;
+  $('goalFields').hidden = !goal;
+  $('subsSec').hidden = goal;
+  setRepeat(draft.repeat);
+  $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
+}
+
+function setRepeat(on) {
+  draft.repeat = on;
+  for (const b of $('fRepeatMode').children) b.setAttribute('aria-pressed', String((b.dataset.rep === 'on') === on));
+  const goal = draft.kind === 'goal';
+  $('repeatFields').hidden = !goal || !on;
+  $('onceGoalFields').hidden = !goal || on;
+  $('targetHint').textContent = on ? 'مثال: 8 أكواب ماء يومياً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.' : 'مثال: قراءة 12 كتاباً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.';
+  $('targetLabel').textContent = on ? 'العدد المطلوب يومياً' : 'العدد المطلوب';
+  updatePrayerHint();
 }
 
 function setTimeMode(mode) {
@@ -861,10 +1065,15 @@ function setTimeMode(mode) {
   updatePrayerHint();
 }
 
+function draftDate() {
+  if (draft.kind === 'goal') return draft.repeat ? ($('fStart').value || today()) : ($('fGoalDue').value || today());
+  return $('fDue').value || today();
+}
+
 function updatePrayerHint() {
   if (!draft || draft.timeMode !== 'prayer') return;
   $('fPrMin').hidden = $('fPrRel').value === 'at';
-  const d = draft.kind === 'repeat' ? ($('fStart').value || today()) : ($('fDue').value || today());
+  const d = draftDate();
   const pt = prayerTimes(d);
   if (!pt) { $('prayerHint').innerHTML = 'لم تحدد مدينتك بعد. <button type="button" class="ghost" data-tab="settings" data-close="1">حدّدها الآن</button>'; return; }
   const p = readPrayer();
@@ -909,15 +1118,22 @@ function renderSubs() {
     </li>`).join('');
 }
 
+function renderProjectSelect(selected) {
+  $('fProject').innerHTML = `<option value="">بلا مشروع (مهام عامة)</option>` +
+    S.projects.map((p) => `<option value="${p.id}"${p.id === selected ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+}
+
+// opts: { kind: 'task'|'goal', repeat: bool, due, projectId, prefill }
 function openSheet(id, opts = {}) {
   const existing = id ? getTask(id) : null;
   const t = existing || opts.prefill || null;
   draftIsNew = !existing;
   const t0 = today();
-  const kind = t ? (isRepeat(t) ? 'repeat' : 'once') : opts.kind || 'once';
+  const kind = t ? t.kind : opts.kind || 'task';
   draft = {
     id: t ? t.id : uid(),
     kind,
+    repeat: t ? isRepeat(t) : kind === 'goal' && opts.repeat !== false,
     days: t && t.repeat ? [...t.repeat.days] : [...DAY_ORDER],
     notes: t ? t.notes.map((n) => ({ ...n })) : [],
     subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
@@ -925,11 +1141,12 @@ function openSheet(id, opts = {}) {
     autoAlarm: !t || !t.alarms.length,
     timeMode: t && t.prayer ? 'prayer' : t && t.time ? 'clock' : 'none',
   };
-  $('sheetTitle').textContent = existing ? (isRepeat(existing) ? 'تعديل الهدف' : 'تعديل المهمة') : (kind === 'repeat' ? 'هدف جديد' : 'مهمة جديدة');
   $('fTitle').value = t ? t.title : '';
   $('fPriority').value = t ? t.priority : 'mid';
-  $('fCategory').value = t ? t.category : (ui.tab === 'tasks' && ui.cat) || '';
-  $('fDue').value = t ? t.due : opts.due || (ui.tab === 'today' ? t0 : '');
+  $('fCategory').value = t ? t.category : '';
+  renderProjectSelect(t ? t.projectId : opts.projectId || '');
+  $('fDue').value = t && !isGoal(t) ? t.due : opts.due || (ui.tab === 'today' ? t0 : '');
+  $('fGoalDue').value = t && isGoal(t) && !isRepeat(t) ? t.due : (kind === 'goal' && opts.due) || '';
   $('fStart').value = t && t.repeat ? t.repeat.start : opts.due || t0;
   $('fUntil').value = t && t.repeat ? t.repeat.until || '' : '';
   $('fTarget').value = t ? t.target : 1;
@@ -943,14 +1160,14 @@ function openSheet(id, opts = {}) {
   $('fNote').value = '';
   $('fSub').value = '';
   $('delBtn').hidden = !existing;
+  $('delBtn').classList.remove('armed');
+  $('delBtn').textContent = 'حذف';
   $('timerSec').hidden = !existing;
   if (existing) {
     const ms = trackedMs(existing.id);
     const n = sessionsOf(existing.id).length;
-    $('timerTotal').textContent = ms ? `سجّلت ${fmtDur(ms)} في ${n} ${n === 1 ? 'جلسة' : n === 2 ? 'جلستين' : 'جلسات'}` : 'لم تسجّل وقتاً لهذه المهمة بعد.';
+    $('timerTotal').textContent = ms ? `سجّلت ${fmtDur(ms)} في ${n} ${n === 1 ? 'جلسة' : n === 2 ? 'جلستين' : 'جلسات'}` : 'لم تسجّل وقتاً بعد.';
   }
-  $('delBtn').classList.remove('armed');
-  $('delBtn').textContent = 'حذف';
   armed = null;
   setKind(kind);
   setTimeMode(draft.timeMode);
@@ -959,7 +1176,8 @@ function openSheet(id, opts = {}) {
   renderSubs();
   if (typeof sheet.showModal === 'function') { if (!sheet.open) sheet.showModal(); } else sheet.setAttribute('open', '');
   $('editor').scrollTop = 0;
-  setTimeout(() => { if (!t) $('fTitle').focus(); }, 50);
+  // focus the title for new items, unless the user already moved to another field
+  setTimeout(() => { const a = document.activeElement; if (!t && sheet.open && !(a && a.closest && a.closest('#editor input, #editor textarea, #editor select'))) $('fTitle').focus(); }, 50);
 }
 
 function closeSheet() {
@@ -974,27 +1192,38 @@ function readDraft() {
   const base = existing || normalize({ id: draft.id, created: Date.now() });
   const t = {
     ...base,
+    kind: draft.kind,
     title,
     priority: $('fPriority').value,
     category: $('fCategory').value.trim(),
     notes: draft.notes,
-    subtasks: draft.subtasks,
     time: draft.timeMode === 'clock' ? $('fTime').value : '',
     prayer: draft.timeMode === 'prayer' ? readPrayer() : null,
   };
   t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
-  if (draft.kind === 'repeat') {
-    const start = $('fStart').value || today();
-    let until = $('fUntil').value || null;
-    if (until && until < start) until = start;
-    t.repeat = { days: (draft.days.length ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+  if (draft.kind === 'goal') {
+    t.projectId = '';
     t.target = Math.max(1, Math.min(999, parseInt($('fTarget').value, 10) || 1));
     t.unit = t.target > 1 ? $('fUnit').value.trim() : '';
-    t.due = '';
-    t.done = false;
-    t.doneAt = null;
+    if (draft.repeat) {
+      const start = $('fStart').value || today();
+      let until = $('fUntil').value || null;
+      if (until && until < start) until = start;
+      t.repeat = { days: (draft.days.length ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+      t.due = '';
+      t.done = false;
+      t.doneAt = null;
+    } else {
+      t.repeat = null;
+      t.due = $('fGoalDue').value || '';
+      if (t.target > 1) { t.count = Math.min(t.count, t.target); t.done = t.count >= t.target; t.doneAt = t.done ? (base.doneAt || Date.now()) : null; }
+    }
   } else {
     t.repeat = null;
+    t.target = 1;
+    t.unit = '';
+    t.projectId = $('fProject').value;
+    t.subtasks = draft.subtasks;
     t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
   return t;
@@ -1027,7 +1256,7 @@ function addNote() {
 function addSub() {
   const text = $('fSub').value.trim();
   if (!text) return;
-  draft.subtasks.push({ id: uid(), text, done: false });
+  draft.subtasks.push({ id: uid(), text, done: false, doneAt: null });
   $('fSub').value = '';
   persistDraftList('subtasks');
   renderSubs();
@@ -1043,13 +1272,57 @@ $('editor').addEventListener('submit', (e) => {
   closeSheet();
   if (t.alarms.length) ensureNotifPermission();
   render();
-  toast(wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+  const p = projectOf(t);
+  toast(wasNew ? `أُضيفت${p ? ` إلى «${p.name}»` : ''}` : 'حُفظت التعديلات');
 });
 sheet.addEventListener('close', () => { draft = null; });
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 $('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
 $('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
-for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart']) $(id).addEventListener('change', updatePrayerHint);
+for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue']) $(id).addEventListener('change', updatePrayerHint);
+
+// ---------- project editor ----------
+const psheet = $('projSheet');
+let pdraft = null;
+
+function openProjectSheet(id) {
+  const p = id ? getProject(id) : null;
+  const used = new Set(S.projects.map((x) => x.color));
+  const color = p ? p.color : (PROJECT_COLORS.find(([c]) => !used.has(c)) || PROJECT_COLORS[0])[0];
+  pdraft = { id: p ? p.id : uid(), color, isNew: !p };
+  $('projTitle').textContent = p ? 'تعديل المشروع' : 'مشروع جديد';
+  $('pName').value = p ? p.name : '';
+  $('pDesc').value = p ? p.desc : '';
+  $('pDue').value = p ? p.due : '';
+  $('pDel').hidden = !p;
+  $('pDel').classList.remove('armed');
+  $('pDel').textContent = 'حذف المشروع';
+  renderProjectColors();
+  if (typeof psheet.showModal === 'function') { if (!psheet.open) psheet.showModal(); } else psheet.setAttribute('open', '');
+  setTimeout(() => { const a = document.activeElement; if (!p && psheet.open && !(a && a.closest && a.closest('#projForm input, #projForm textarea'))) $('pName').focus(); }, 50);
+}
+function renderProjectColors() {
+  $('pColors').innerHTML = PROJECT_COLORS.map(([c, n]) =>
+    `<button type="button" class="swatch" data-action="p-color" data-v="${c}" aria-pressed="${pdraft.color === c}" aria-label="${n}" title="${n}" style="background:${c}"></button>`).join('');
+}
+function closeProjectSheet() {
+  if (typeof psheet.close === 'function') { if (psheet.open) psheet.close(); } else psheet.removeAttribute('open');
+  pdraft = null;
+}
+$('projForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('pName').value.trim();
+  if (!name) { $('pName').focus(); toast('اكتب اسماً للمشروع.'); return; }
+  const existing = getProject(pdraft.id);
+  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value });
+  if (existing) Object.assign(existing, p); else S.projects.push(p);
+  save();
+  const isNew = pdraft.isNew;
+  closeProjectSheet();
+  if (isNew) go('tasks', p.id); else render();
+  toast(isNew ? 'أُنشئ المشروع. أضف له مهاماً الآن.' : 'حُفظ المشروع');
+});
+psheet.addEventListener('click', (e) => { if (e.target === psheet) closeProjectSheet(); });
 
 // ---------- calendar export (.ics) ----------
 function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
@@ -1065,8 +1338,10 @@ function buildICS(t) {
     `UID:${t.id}@mahami`, `DTSTAMP:${stamp}`];
   if (m != null) lines.push(`DTSTART:${icsDate(date)}T${hmOf(m).replace(':', '')}00`, 'DURATION:PT15M');
   else lines.push(`DTSTART;VALUE=DATE:${icsDate(date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(date, 1))}`);
+  const p = projectOf(t);
   lines.push(`SUMMARY:${icsEscape(t.title)}`);
   const desc = [];
+  if (p) desc.push(`المشروع: ${p.name}`);
   if (t.prayer) desc.push(`${prayerPhrase(t.prayer)} (وقت التقويم ثابت ولا يتغير مع مواعيد الصلاة)`);
   if (t.subtasks.length) desc.push(t.subtasks.map((s) => `${s.done ? '✓' : '○'} ${s.text}`).join('\n'));
   if (t.notes.length) desc.push(t.notes.map((n) => n.text).join('\n—\n'));
@@ -1147,10 +1422,13 @@ async function systemNotify(title, body, key, id) {
 }
 
 const alarmQueue = [];
+function minutesLeft(t, d) {
+  const m = timeOn(t, d);
+  return m == null ? 0 : Math.round((parse(d).getTime() + m * 60000 - Date.now()) / 60000);
+}
 function alarmBody(t, d, off) {
   const when = timeLabel(t, d);
-  const m = timeOn(t, d);
-  const left = m == null ? 0 : Math.round((parse(d).getTime() + m * 60000 - Date.now()) / 60000);
+  const left = minutesLeft(t, d);
   return off && left > 0 ? `بعد ${minsWord(left)} · ${when}` : `الآن · ${when}`;
 }
 function ring(t, key, d, off) {
@@ -1175,8 +1453,7 @@ function showAlarm() {
   }
   const t = getTask(cur.id);
   if (!t) { alarmQueue.shift(); showAlarm(); return; }
-  const m = timeOn(t, cur.d);
-  const left = m == null ? 0 : Math.round((parse(cur.d).getTime() + m * 60000 - Date.now()) / 60000);
+  const left = minutesLeft(t, cur.d);
   $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق · بعد ${minsWord(left)}` : 'منبه';
   $('alarmTitle').textContent = `${t.title} · ${timeLabel(t, cur.d)}`;
   $('alarm').hidden = false;
@@ -1186,7 +1463,7 @@ function alarmAction(action, id, key) {
   const t = getTask(id);
   const date = key && key.includes('|') ? key.split('|')[1] : today();
   if (t && action === 'done') {
-    if (isRepeat(t) && t.target > 1) { setCount(t, date, t.target); save(); render(); }
+    if (isCounted(t)) { setCount(t, date, t.target); save(); render(); }
     else if (!doneOn(t, date)) toggle(id, date);
   }
   if (t && action === 'snooze') {
@@ -1228,7 +1505,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: 3, exported: new Date().toISOString(), tasks: S.tasks, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1239,6 +1516,8 @@ function importData(file) {
       if (!data || !Array.isArray(data.tasks)) throw new Error('bad');
       if (!confirm(`سيستبدل هذا بياناتك الحالية بـ ${data.tasks.length} عنصر من الملف. متابعة؟`)) return;
       S.tasks = data.tasks.map(normalize);
+      S.projects = (Array.isArray(data.projects) ? data.projects : []).map(normalizeProject);
+      if (Array.isArray(data.sessions)) S.sessions = data.sessions;
       if (data.settings) Object.assign(S.settings, data.settings);
       save();
       applyTheme();
@@ -1268,7 +1547,6 @@ function useLocation() {
   navigator.geolocation.getCurrentPosition((pos) => {
     const prev = S.settings.prayer;
     const { latitude: lat, longitude: lng } = pos.coords;
-    // nearest listed city gives a sensible default calculation method
     const near = Prayer.CITIES.reduce((a, c) => ((c.lat - lat) ** 2 + (c.lng - lng) ** 2 < (a.lat - lat) ** 2 + (a.lng - lng) ** 2 ? c : a));
     S.settings.prayer = { city: 'here', label: 'موقعي الحالي', lat, lng, method: prev ? prev.method : near.method, asr: prev ? prev.asr : 'standard' };
     save();
@@ -1381,6 +1659,7 @@ async function countdownEnded(tm, endTs) {
 function tickTimer() {
   const tm = S.timer;
   const bar = $('timerBar');
+  document.body.classList.toggle('has-timer', !!tm && ui.tab !== 'timer');
   if (!tm) { bar.hidden = true; return; }
   const e = TimerShared.elapsed(tm);
   if (tm.mode === 'down' && e >= tm.planned) { countdownEnded(tm, tm.start + (tm.planned - tm.acc)); return; }
@@ -1413,11 +1692,12 @@ async function applyPendingTimerActions() {
 function timerTaskOptions(selected) {
   const t0 = today();
   const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : !t.done && t.due && t.due <= t0));
-  const others = S.tasks.filter((t) => !isRepeat(t) && !t.done && !todays.includes(t));
-  const goals = S.tasks.filter((t) => isRepeat(t) && !todays.includes(t) && !goalEnded(t));
   const opt = (t) => `<option value="${t.id}"${t.id === selected ? ' selected' : ''}>${esc(t.title)}</option>`;
-  return [['اليوم', todays], ['مهام أخرى', others], ['أهداف', goals]]
-    .filter(([, l]) => l.length).map(([g, l]) => `<optgroup label="${g}">${l.map(opt).join('')}</optgroup>`).join('');
+  const groups = [['اليوم', todays]];
+  for (const p of S.projects) groups.push([`مشروع: ${p.name}`, tasksOf(p.id).filter((t) => !t.done && !todays.includes(t))]);
+  groups.push(['مهام عامة', S.tasks.filter((t) => !isGoal(t) && !t.projectId && !t.done && !todays.includes(t))]);
+  groups.push(['أهداف', S.tasks.filter((t) => isGoal(t) && !todays.includes(t) && !goalEnded(t))]);
+  return groups.filter(([, l]) => l.length).map(([g, l]) => `<optgroup label="${esc(g)}">${l.map(opt).join('')}</optgroup>`).join('');
 }
 
 function viewTimer() {
@@ -1469,7 +1749,7 @@ function viewTimer() {
         <div class="field"><span>الاستراحة بعدها</span><div class="chips wrap">${[5, 10, 15].map((m) => chip('timer-brk', m, cfg.brk, `${m} د`)).join('')}</div></div>` : ''}
         <label class="switch"><input type="checkbox" id="tAwake"${cfg.awake ? ' checked' : ''}><span>إبقاء الشاشة مضاءة أثناء المؤقت</span></label>
         <button type="button" class="primary t-start" data-action="timer-start">ابدأ</button>
-      </div>` : emptyHTML('لا مهام بعد', 'أضف مهمة أولاً ثم شغّل لها المؤقت.', '<button type="button" class="ghost" data-action="new">إضافة مهمة</button>')}
+      </div>` : emptyHTML('لا مهام بعد', 'أضف مهمة أولاً ثم شغّل لها المؤقت.', addBtn('new', 'مهمة'))}
     </section>`;
   }
   const t0 = today();
@@ -1483,7 +1763,7 @@ function viewTimer() {
   return `${card}
   <section class="panel">
     <div class="section-head"><h2>وقتك اليوم</h2><b class="num">${todayMs ? fmtDur(todayMs) : '0 د'}</b></div>
-    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => `<li class="hbar"><span class="name">${esc((getTask(id) || {}).title || 'مهمة محذوفة')}</span><span class="track"><span class="fill" style="width:${(ms / max) * 100}%; display:block"></span></span><span class="v">${fmtDur(ms)}</span></li>`).join('')}</ul>`
+    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
       : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
   </section>
   ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} · ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} · ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
@@ -1523,7 +1803,7 @@ document.addEventListener('click', (e) => {
       const en = ui.timerEnded;
       ui.timerEnded = null;
       const t = getTask(en.taskId);
-      if (t && isRepeat(t) && t.target > 1) { setCount(t, today(), t.target); save(); render(); }
+      if (t && isCounted(t)) { setCount(t, today(), t.target); save(); render(); }
       else if (t && !doneOn(t, today())) toggle(t.id, today());
       else render();
       break;
@@ -1548,26 +1828,53 @@ document.addEventListener('change', (e) => {
 });
 
 // ---------- events ----------
+let projArmed = false;
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action], [data-tab]');
-  if (!el) return;
+  if (!el || el === document.body) return;
   if (el.dataset.tab) {
     if (el.dataset.close) closeSheet();
-    ui.tab = el.dataset.tab;
-    render();
-    window.scrollTo({ top: 0 });
-    history.replaceState(null, '', '#' + ui.tab);
+    // tapping «المهام» again returns from a project to the list
+    go(el.dataset.tab, el.dataset.tab === 'tasks' && ui.tab === 'tasks' ? '' : undefined);
     return;
   }
   const { action, id, v } = el.dataset;
   switch (action) {
-    case 'new': openSheet(null, { kind: 'once', due: ui.tab === 'calendar' ? ui.calSel : undefined }); break;
-    case 'new-goal': openSheet(null, { kind: 'repeat' }); break;
-    case 'new-on': openSheet(null, { kind: 'once', due: v }); break;
+    case 'new': openSheet(null, { kind: 'task', due: ui.tab === 'calendar' ? ui.calSel : undefined, projectId: ui.tab === 'tasks' ? ui.project : '' }); break;
+    case 'new-in-project': openSheet(null, { kind: 'task', projectId: v }); break;
+    case 'new-goal': openSheet(null, { kind: 'goal', repeat: true }); break;
+    case 'new-goal-once': openSheet(null, { kind: 'goal', repeat: false }); break;
+    case 'new-on': openSheet(null, { kind: 'task', due: v }); break;
+    case 'new-goal-on': openSheet(null, { kind: 'goal', repeat: false, due: v }); break;
+    case 'new-project': openProjectSheet(null); break;
+    case 'edit-project': openProjectSheet(v); break;
+    case 'open-project': go('tasks', v); break;
+    case 'close-project': go('tasks', ''); break;
+    case 'p-color': pdraft.color = v; renderProjectColors(); break;
+    case 'close-project-sheet': closeProjectSheet(); break;
+    case 'delete-project': {
+      const btn = $('pDel');
+      if (!projArmed) {
+        projArmed = true;
+        btn.classList.add('armed');
+        btn.textContent = 'تأكيد: تنتقل مهامه إلى «مهام عامة»';
+        setTimeout(() => { projArmed = false; if (btn.isConnected) { btn.classList.remove('armed'); btn.textContent = 'حذف المشروع'; } }, 3500);
+        break;
+      }
+      projArmed = false;
+      const pid = pdraft.id;
+      for (const t of S.tasks) if (t.projectId === pid) t.projectId = '';
+      S.projects = S.projects.filter((p) => p.id !== pid);
+      save();
+      closeProjectSheet();
+      go('tasks', '');
+      toast('حُذف المشروع، ومهامه الآن في «مهام عامة»');
+      break;
+    }
     case 'open': openSheet(id); break;
     case 'toggle': toggle(id, el.dataset.date); break;
-    case 'step': step(id, today(), Number(v)); break;
-    case 'filter': ui.filter = v; render(); break;
+    case 'step': step(id, el.dataset.date || today(), Number(v)); break;
+    case 'filter': ui[el.dataset.k || 'filter'] = v; render(); break;
     case 'cat': ui.cat = v; render(); break;
     case 'example': ui.smart = v; render(); $('smartIn').focus(); break;
     case 'smart-edit': {
@@ -1610,7 +1917,7 @@ document.addEventListener('click', (e) => {
     case 'add-sub': addSub(); $('fSub').focus(); break;
     case 'toggle-sub': {
       const s = draft.subtasks.find((x) => x.id === v);
-      if (s) { s.done = el.checked; persistDraftList('subtasks'); renderSubs(); }
+      if (s) { s.done = el.checked; s.doneAt = s.done ? Date.now() : null; persistDraftList('subtasks'); renderSubs(); }
       break;
     }
     case 'del-note':
@@ -1683,7 +1990,8 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm('سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.fired = {}; S.snoozed = {}; save(); render(); toast('حُذفت كل البيانات');
+        S.tasks = []; S.projects = []; S.sessions = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        save(); render(); toast('حُذفت كل البيانات');
       }
       break;
   }
@@ -1693,7 +2001,7 @@ document.addEventListener('submit', (e) => {
   if (e.target.id !== 'smartForm') return;
   e.preventDefault();
   const r = SmartParse.parse(ui.smart);
-  if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبوي بكرة الساعة 5'); return; }
+  if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبي بكرة الساعة 5'); return; }
   const t = smartToTask(r);
   S.tasks.push(t);
   save();
@@ -1721,10 +2029,11 @@ document.addEventListener('change', (e) => {
   if (id === 'fTime' && e.target.value && draft && !draft.alarms.length) { draft.alarms = [0]; renderAlarms(); }
 });
 document.addEventListener('click', (e) => {
-  const b = e.target.closest('#fKind button, #fTimeMode button');
+  const b = e.target.closest('#fKind button, #fTimeMode button, #fRepeatMode button');
   if (!b || !draft) return;
   if (b.dataset.kind) { setKind(b.dataset.kind); updatePrayerHint(); }
   if (b.dataset.mode) setTimeMode(b.dataset.mode);
+  if (b.dataset.rep) setRepeat(b.dataset.rep === 'on');
 });
 
 // chart readout (hover / touch)
@@ -1759,7 +2068,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   // a new version took over: reload once so every file comes from it
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloading || sheet.open) return;
+    if (!hadController || reloading || sheet.open || psheet.open) return;
     reloading = true;
     location.reload();
   });
@@ -1778,7 +2087,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   applyTheme();
   render();
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
-  if (params.get('new')) openSheet(null, { kind: params.get('new') === 'goal' ? 'repeat' : 'once' });
+  if (params.get('new')) openSheet(null, params.get('new') === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
   checkAlarms();
   setInterval(checkAlarms, 15000);
@@ -1787,8 +2096,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   updateWakeLock();
   document.addEventListener('visibilitychange', () => {
     updateWakeLock();
-    if (document.visibilityState === 'visible') { applyPendingTimerActions(); checkAlarms(); if (!sheet.open) render(); }
+    if (document.visibilityState === 'visible') { applyPendingTimerActions(); checkAlarms(); if (!sheet.open && !psheet.open) render(); }
   });
   let lastDay = today();
-  setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open) render(); } }, 60000);
+  setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open && !psheet.open) render(); } }, 60000);
 })();

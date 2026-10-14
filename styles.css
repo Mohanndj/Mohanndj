@@ -11,6 +11,8 @@
   --high: #c8372d;
   --mid: #a8670f;
   --low: #3f7a52;
+  --goal: #b7791f;
+  --task: #7b8794;
   --shadow: 0 1px 2px rgb(16 33 30 / .06), 0 8px 24px rgb(16 33 30 / .08);
   --font-display: "Aref Ruqaa", "Amiri", "Traditional Arabic", serif;
   --font-body: "Amiri", "Traditional Arabic", serif;
@@ -22,7 +24,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0e1513; --card: #161f1d; --fg: #e3ebe8; --muted: #93a39e; --line: #25312e;
     --accent-fg: #0b1513;
-    --high: #f07a70; --mid: #e3a94b; --low: #7fc092;
+    --high: #f07a70; --mid: #e3a94b; --low: #7fc092; --goal: #e3a94b; --task: #8f9aa6;
     --shadow: 0 1px 2px rgb(0 0 0 / .35);
     color-scheme: dark;
   }
@@ -30,7 +32,7 @@
 :root[data-theme="dark"] {
   --bg: #0e1513; --card: #161f1d; --fg: #e3ebe8; --muted: #93a39e; --line: #25312e;
   --accent-fg: #0b1513;
-  --high: #f07a70; --mid: #e3a94b; --low: #7fc092;
+  --high: #f07a70; --mid: #e3a94b; --low: #7fc092; --goal: #e3a94b; --task: #8f9aa6;
   --shadow: 0 1px 2px rgb(0 0 0 / .35);
   color-scheme: dark;
 }
@@ -223,7 +225,7 @@ textarea { resize: vertical; line-height: 1.6; }
 }
 .fab svg { width: 28px; height: 28px; stroke-width: 2.5; }
 .tabbar {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 6;
+  position: relative;
   background: var(--card); border-top: 1px solid var(--line);
   display: flex; justify-content: center;
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -262,7 +264,7 @@ dialog {
 }
 @media (min-width: 640px) { dialog { margin: auto; border-radius: 20px; } }
 dialog::backdrop { background: rgb(10 18 16 / .45); }
-#editor {
+#editor, #projForm {
   display: grid; gap: 14px; overflow-y: auto; max-height: 92dvh;
   padding-block: 16px calc(20px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -380,10 +382,10 @@ dialog::backdrop { background: rgb(10 18 16 / .45); }
 .add-row input { flex: 1; min-width: 0; }
 
 /* grid children must be allowed to shrink so scrolling rows stay inside the screen */
-.wrap > *, .smart > *, .section > *, .panel > *, #editor > * { min-width: 0; }
+.wrap > *, .smart > *, .section > *, .panel > *, #editor > *, #projForm > * { min-width: 0; }
 
 /* ---------- timer ---------- */
-body[data-tab="timer"] .fab, body[data-tab="settings"] .fab { display: none; }
+body[data-view="timer"] .fab, body[data-view="settings"] .fab { display: none; }
 .timer-card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px 16px; display: grid; gap: 16px; justify-items: center; text-align: center; }
 .t-task { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; overflow-wrap: anywhere; max-width: 100%; }
 .t-ring {
@@ -416,3 +418,85 @@ body[data-tab="timer"] .fab, body[data-tab="settings"] .fab { display: none; }
 .timer-bar b { font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; direction: ltr; }
 .timer-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: .85rem; }
 .timer-bar.paused { opacity: .75; }
+
+/* ================= v7: projects, goals, clearer layout ================= */
+.bottom { position: fixed; inset-inline: 0; bottom: 0; z-index: 6; }
+.wrap { padding-block: 8px calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom, 0px)); }
+body.has-timer .wrap { padding-bottom: calc(var(--tabbar-h) + 88px + env(safe-area-inset-bottom, 0px)); }
+.alarm, .toast { bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); }
+body.has-timer .alarm, body.has-timer .toast { bottom: calc(var(--tabbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
+.fab { display: none !important; }
+
+/* timer strip sits on top of the tab bar, full width, never over the content */
+.timer-bar {
+  position: static; display: flex; width: 100%; max-width: none; border-radius: 0; box-shadow: none;
+  align-items: center; gap: 10px; min-height: 52px;
+  background: var(--fg); color: var(--bg);
+  padding-block: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.timer-bar small { margin-inline-start: auto; opacity: .7; font-size: .78rem; white-space: nowrap; }
+
+/* header buttons with labels */
+.head-btn { display: grid; justify-items: center; gap: 0; padding: 4px 8px; color: var(--muted); font-size: .7rem; }
+.head-btn svg { width: 22px; height: 22px; }
+.head-btn[aria-current="page"] { color: var(--accent); }
+.tabbar button span { font-size: .7rem; line-height: 1.2; text-align: center; }
+
+/* section add buttons replace the floating button */
+.section-head { flex-wrap: wrap; align-items: center; }
+.add-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: .9rem; white-space: nowrap;
+}
+.add-btn svg { width: 16px; height: 16px; stroke-width: 2.6; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* project cards */
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pcard {
+  display: grid; gap: 8px; text-align: start; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 12px 14px; min-width: 0;
+}
+.pcard-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pcard .pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdot { width: 12px; height: 12px; border-radius: 50%; background: var(--pc); flex: none; display: inline-block; }
+.pbar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; display: block; }
+.pbar i { display: block; height: 100%; background: var(--pc, var(--accent)); border-radius: 99px; }
+.pbar.big { height: 10px; }
+.psub { display: flex; justify-content: space-between; gap: 6px; font-size: .8rem; color: var(--muted); }
+.psub.late { color: var(--high); justify-content: flex-start; }
+
+/* project page */
+.crumbs { display: flex; }
+.back { display: inline-flex; align-items: center; gap: 4px; padding: 6px 4px; color: var(--accent); font-weight: 700; }
+.back svg { width: 18px; height: 18px; }
+.phead { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; }
+.phead h2 { display: flex; align-items: center; gap: 8px; font-size: 1.4rem; }
+.phead .ghost { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; }
+.phead .ghost svg { width: 16px; height: 16px; }
+.pstats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .9rem; color: var(--muted); }
+.pstats b { color: var(--fg); }
+.pstats span { display: inline-flex; align-items: center; gap: 4px; }
+.pstats svg { width: 15px; height: 15px; }
+
+/* chips inside task rows */
+.proj { display: inline-flex; align-items: center; gap: 5px; color: var(--fg); font-weight: 500; }
+.proj i { width: 9px; height: 9px; border-radius: 50%; background: var(--pc); display: inline-block; flex: none; }
+.kind-goal { color: var(--goal); font-weight: 700; }
+.task[style*="--pc"] { border-inline-start: 4px solid var(--pc); }
+.task.is-goal { border-inline-start: 4px dashed var(--goal); }
+.mini-progress { display: block; height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; max-width: 160px; }
+.mini-progress i { display: block; height: 100%; background: var(--pc, var(--accent)); }
+.stepper-row { display: grid; gap: 8px; }
+
+/* calendar marks: task = grey dot, project task = project colour, goal = ring */
+.cal-day .marks i.m, .cal-legend i.m { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--task); flex: none; }
+.cal-legend i.m { width: 9px; height: 9px; }
+.cal-day .marks i.m.m-proj, .cal-legend i.m.m-proj { background: var(--pc); }
+.cal-day .marks i.m.m-goal, .cal-legend i.m.m-goal { background: transparent; border: 1.6px solid var(--goal); box-sizing: border-box; }
+.cal-day .marks i.m.m-goal { width: 7px; height: 7px; }
+.cal-day .marks i.m.m-done, .cal-legend i.m.m-done { opacity: .3; }
+.cal-legend { align-items: center; }
+.cal-legend .chip { margin-inline-start: auto; }
