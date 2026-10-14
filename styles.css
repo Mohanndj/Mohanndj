@@ -640,3 +640,60 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 /* v10: justified paragraphs in notes */
 .me-body [style*="text-align:justify"], .me-body [style*="text-align: justify"],
 .memo-preview [style*="text-align:justify"] { text-align: justify; text-justify: inter-word; }
+
+/* ================= v11: AI, sync, reading progress, benefit review, monthly report ================= */
+.ai-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: .9rem; white-space: nowrap;
+  color: #fff; background: linear-gradient(135deg, #7c3aed, var(--accent));
+}
+.ai-btn svg { width: 16px; height: 16px; }
+.ai-btn[disabled] { opacity: .75; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-inline-end-color: transparent; display: inline-block; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.smart-ai { align-items: center; }
+.ai-sheet { display: grid; gap: 12px; overflow-y: auto; max-height: 92dvh;
+  padding-block: 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.ai-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ai-item { display: flex; gap: 10px; align-items: flex-start; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+.ai-item input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--accent); flex: none; }
+.ai-item > span { display: grid; gap: 2px; min-width: 0; }
+.ai-item small { color: var(--muted); font-size: .8rem; }
+.ai-steps { margin: 4px 0 0; padding-inline-start: 1.2em; font-size: .88rem; color: var(--fg); }
+.ai-pal { align-items: center; }
+.ai-pal button { padding: 6px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: .88rem; }
+.ai-tool svg { color: #7c3aed; }
+.ai-summary h2 { display: inline-flex; align-items: center; gap: 6px; }
+.ai-summary h2 svg { width: 18px; height: 18px; color: #7c3aed; }
+.ai-text { line-height: 1.9; white-space: normal; }
+.howto { background: var(--bg); border-radius: 12px; padding: 8px 12px; font-size: .9rem; }
+.howto summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.howto ol { margin: 8px 0 0; padding-inline-start: 1.3em; display: grid; gap: 4px; }
+.howto a { color: var(--accent); }
+.howto code { background: var(--card); padding: 0 4px; border-radius: 4px; }
+
+.review-card { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--goal); border-radius: 16px; padding: 12px 14px; }
+.review-card small { display: inline-flex; align-items: center; gap: 4px; color: var(--goal); font-weight: 700; font-size: .8rem; }
+.review-card small svg, .book-line.ok svg { width: 15px; height: 15px; }
+.review-card strong { font-size: 1.1rem; }
+.review-card p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-card.done span { color: var(--muted); font-size: .9rem; }
+.book-line.ok { color: var(--low); }
+
+.reading-goal, .goal-cta { display: grid; gap: 6px; text-align: start; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.goal-cta { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 700; border-style: dashed; }
+.goal-cta svg { width: 18px; height: 18px; }
+.reading-goal small { color: var(--muted); }
+.book-card .pbar { --pc: var(--accent); }
+
+.report { display: grid; gap: 14px; }
+.report-actions { justify-content: center; }
+.cal-head .nav button[disabled] { opacity: .35; }
+@media print {
+  body.printing-report > *:not(main) { display: none !important; }
+  body.printing-report main.wrap { padding: 0; max-width: none; }
+  body.printing-report #view > *:not(#report):not(.cal-head) { display: none !important; }
+  body.printing-report .cal-head .nav { display: none; }
+  body.printing-report .panel, body.printing-report .tile { break-inside: avoid; }
+  body.printing-report .ai-btn { display: none; }
+}

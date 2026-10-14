@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <header class="top">
@@ -209,7 +209,7 @@
     </div>
 
     <section class="subsec" id="subsSec" aria-labelledby="subsHead">
-      <h3 id="subsHead">الخطوات <span class="count" id="subsCount"></span></h3>
+      <div class="row-between"><h3 id="subsHead">الخطوات <span class="count" id="subsCount"></span></h3><span id="aiStepsSlot"></span></div>
       <ul id="subsList" class="subs"></ul>
       <div class="add-row">
         <input type="text" id="fSub" autocomplete="off" placeholder="أضف خطوة… (مثال: حجز التذاكر)" aria-label="خطوة جديدة">
@@ -320,12 +320,19 @@
       <button type="button" data-cmd="justifyFull" aria-label="ضبط من الجانبين"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <button type="button" data-cmd="insertHorizontalRule" aria-label="خط فاصل">―</button>
       <span class="sep"></span>
+      <button type="button" data-cmd="palAI" id="meAI" class="ai-tool" aria-label="الذكاء الاصطناعي" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></button>
       <button type="button" data-cmd="removeFormat" aria-label="إزالة التنسيق">إزالة</button>
       <button type="button" data-cmd="undo" aria-label="تراجع"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
       <button type="button" data-cmd="redo" aria-label="إعادة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
     </div>
     <div class="me-pal" id="mePalColor" hidden></div>
     <div class="me-pal" id="mePalHi" hidden></div>
+    <div class="me-pal ai-pal" id="mePalAI" hidden>
+      <button type="button" data-action="ai-note" data-v="summary">لخّص الملاحظة</button>
+      <button type="button" data-action="ai-note" data-v="improve">حسّن الصياغة</button>
+      <button type="button" data-action="ai-note" data-v="fix">صحّح الأخطاء</button>
+      <small class="hint">إذا حددت جزءاً من النص يُطبَّق عليه فقط</small>
+    </div>
     <div id="meBody" class="me-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="نص الملاحظة" data-placeholder="اكتب ملاحظتك هنا…"></div>
     <div class="me-foot"><small id="meStatus"></small></div>
   </div>
@@ -344,28 +351,42 @@
   </div>
 </dialog>
 
+<!-- AI suggestions preview -->
+<dialog id="aiSheet" aria-labelledby="aiTitle">
+  <div class="editor ai-sheet">
+    <div class="sheet-head"><h2 id="aiTitle">اقتراحات</h2>
+      <button type="button" class="icon-btn" data-action="ai-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="note-text" id="aiIntro"></p>
+    <ul class="ai-list" id="aiList"></ul>
+    <div class="sheet-actions"><button type="button" class="primary" data-action="ai-add">إضافة المحدد</button><button type="button" class="ghost" data-action="ai-close">إلغاء</button></div>
+  </div>
+</dialog>
+
 <!-- notes / books / benefits editor -->
 <dialog id="libSheet" aria-label="محرر">
   <form id="libForm" novalidate></form>
 </dialog>
 
-<script src="timer-shared.js?v=10"></script>
-<script src="prayer.js?v=10"></script>
-<script src="nlp.js?v=10"></script>
-<script src="xlsx.js?v=10"></script>
-<script src="library.js?v=10"></script>
-<script src="notes.js?v=10"></script>
-<script src="inspire.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="timer-shared.js?v=11"></script>
+<script src="prayer.js?v=11"></script>
+<script src="nlp.js?v=11"></script>
+<script src="xlsx.js?v=11"></script>
+<script src="library.js?v=11"></script>
+<script src="notes.js?v=11"></script>
+<script src="inspire.js?v=11"></script>
+<script src="sync.js?v=11"></script>
+<script src="ai.js?v=11"></script>
+<script src="report.js?v=11"></script>
+<script src="app.js?v=11"></script>
 <script>
   // Self-repair: if the page and its scripts come from different versions (an old offline copy),
   // clear the offline copy and reload once.
   (function () {
-    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 10 && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 11 && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
     var tried = false;
-    try { tried = sessionStorage.getItem('mahami-repair') === '10'; } catch (e) {}
+    try { tried = sessionStorage.getItem('mahami-repair') === '11'; } catch (e) {}
     if (ok || tried) return;
-    try { sessionStorage.setItem('mahami-repair', '10'); } catch (e) {}
+    try { sessionStorage.setItem('mahami-repair', '11'); } catch (e) {}
     var regs = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
     regs.then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
       .then(function () { return window.caches ? caches.keys() : []; })

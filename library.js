@@ -20,14 +20,79 @@ function normalizeBook(b) {
     id: b.id || uid(), title: String(b.title || ''), author: String(b.author || ''),
     status: BOOK_STATUS[b.status] ? b.status : 'want', start: b.start || '', end: b.end || '',
     summary: String(b.summary || ''), created: b.created || Date.now(),
+    pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
+    log: Array.isArray(b.log) ? b.log.filter((e) => e && e.d && Number.isFinite(e.p)) : [],
   };
+}
+
+// reading speed (pages/day) from recent progress, and days left at that pace
+function bookPace(b) {
+  if (!b.pages || !b.page) return null;
+  const t0 = today();
+  const log = b.log.slice().sort((a, c) => a.d.localeCompare(c.d));
+  const from = log.find((e) => e.d >= addDays(t0, -14)) || null;
+  let rate = 0;
+  if (from && log.length > 1) {
+    const days = Math.max(1, daysBetween(from.d, t0));
+    const before = log.filter((e) => e.d < from.d).pop();
+    rate = (b.page - (before ? before.p : 0)) / Math.max(days, 1);
+  }
+  if (rate <= 0 && b.start) rate = b.page / Math.max(1, daysBetween(b.start, t0) + 1);
+  const left = Math.max(0, b.pages - b.page);
+  return { pct: Math.min(100, Math.round((b.page / b.pages) * 100)), left, rate, eta: rate > 0 ? Math.ceil(left / rate) : null };
+}
+
+// yearly reading goal progress
+function readingGoalState() {
+  const goal = Number(S.settings.readingGoal) || 0;
+  if (!goal) return null;
+  const y = today().slice(0, 4);
+  const done = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === y).length;
+  const dayOfYear = daysBetween(`${y}-01-01`, today()) + 1;
+  const yearDays = daysBetween(`${y}-01-01`, `${y}-12-31`) + 1;
+  const expected = (goal * dayOfYear) / yearDays;
+  const diff = Math.round(done - expected);
+  return { goal, done, y, diff, pct: pct(done, goal) };
 }
 function normalizeBenefit(f) {
   const page = parseInt(f.page, 10);
   return {
     id: f.id || uid(), bookId: f.bookId || '', book: String(f.book || ''), page: Number.isFinite(page) ? page : '',
     title: String(f.title || ''), lesson: String(f.lesson || ''), created: f.created || Date.now(),
+    actionId: f.actionId || '', lastReview: f.lastReview || '', reviews: Number(f.reviews) || 0,
   };
+}
+
+// ---------- benefit of the day (spaced review) ----------
+function reviewPick() {
+  const t0 = today();
+  if (S.reviewPick && S.reviewPick.d === t0 && getBenefit(S.reviewPick.id)) return getBenefit(S.reviewPick.id);
+  const pool = S.benefits.filter((f) => (f.title || f.lesson) && f.lastReview !== t0);
+  if (!pool.length) return null;
+  // the one not reviewed for the longest time (never reviewed first)
+  pool.sort((a, b) => (a.lastReview || '').localeCompare(b.lastReview || '') || a.created - b.created);
+  S.reviewPick = { d: t0, id: pool[0].id };
+  save();
+  return pool[0];
+}
+function dailyBenefitHTML() {
+  const f = reviewPick();
+  if (!f) return '';
+  const t0 = today();
+  if (f.lastReview === t0) {
+    return `<div class="review-card done"><small>${icon('bulb')} فائدة للمراجعة</small><span>أحسنت، راجعت فائدة اليوم «${esc(f.title || 'فائدة')}».</span></div>`;
+  }
+  const action = f.actionId && getTask(f.actionId);
+  return `<div class="review-card">
+    <small>${icon('bulb')} فائدة للمراجعة</small>
+    <strong>${esc(f.title || 'فائدة')}</strong>
+    <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` · ص ${f.page}` : ''}</span>
+    ${f.lesson ? `<p>${esc(excerpt(f.lesson, 240))}</p>` : ''}
+    <div class="btn-row">
+      <button type="button" class="primary" data-action="lib-reviewed" data-v="${f.id}">${icon('check')} راجعتها</button>
+      ${action ? `<button type="button" class="ghost" data-action="open" data-id="${action.id}">عرض العمل المرتبط</button>` : `<button type="button" class="ghost" data-action="lib-to-action" data-v="${f.id}">حوّلها إلى عمل</button>`}
+    </div>
+  </div>`;
 }
 
 const getMemo = (id) => S.memos.find((m) => m.id === id);
@@ -57,6 +122,7 @@ function viewMore() {
     ['books', 'book', 'الكتب', S.books.length ? `${S.books.length} كتاب · قرأت ${readThisYear} هذا العام` : 'سجّل قراءاتك'],
     ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `${S.inspire.length} عبارة وصورة` : 'عبارات تحفيزية وتوكيدية وصور'],
+    ['report', 'sheet', 'التقرير الشهري', 'خلاصة شهرك، صورة أو PDF'],
     ['stats', 'chart', 'الإحصائيات', 'إنجازك ومشاريعك وأهدافك وقراءتك'],
   ];
   return `
@@ -115,9 +181,13 @@ function bookLine(b) {
 
 function bookCard(b) {
   const n = benefitsOf(b.id).length;
+  const pace = b.status === 'reading' ? bookPace(b) : null;
   return `<button type="button" class="book-card s-${b.status}" data-action="lib-open-book" data-v="${b.id}">
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
+    ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
+      <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null ? ` · بمعدّلك تنهيه بعد ${daysWord(pace.eta)}` : ''}</span>` : ''}
+    ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
     ${b.summary ? `<p>${esc(excerpt(b.summary, 160))}</p>` : ''}
     ${n ? `<span class="book-line">${icon('bulb')}${n} ${n === 1 ? 'فائدة' : n === 2 ? 'فائدتان' : 'فوائد'}</span>` : ''}
   </button>`;
@@ -139,11 +209,23 @@ function viewBooks() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>الكتب</h2><div class="btn-row">${S.books.length ? xlsBtn('books') : ''}${addBtn('lib-new-book', 'كتاب')}</div></div>
+    ${readingGoalHTML()}
     <div class="seg seg-wrap" role="group" aria-label="حالة الكتب">${seg}</div>
     ${S.books.length > 5 ? `<input type="search" id="bookSearch" placeholder="ابحث في كل الكتب" aria-label="بحث" value="${esc(libUi.bookQ)}">` : ''}
     ${list.length ? `<div class="book-list">${list.map(bookCard).join('')}</div>`
       : q ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى.') : emptyHTML(empties[st][0], empties[st][1], addBtn('lib-new-book', 'أضف كتاباً'))}
   </section>`;
+}
+
+function readingGoalHTML() {
+  const g = readingGoalState();
+  if (!g) return `<button type="button" class="goal-cta" data-action="lib-set-goal">${icon('target')} ضع هدفاً لعدد الكتب هذا العام</button>`;
+  const status = g.diff > 0 ? `متقدّم بـ ${g.diff} ${g.diff === 1 ? 'كتاب' : 'كتب'} عن خطتك` : g.diff < 0 ? `متأخر بـ ${-g.diff} ${g.diff === -1 ? 'كتاب' : 'كتب'} عن خطتك` : 'على المسار تماماً';
+  return `<button type="button" class="reading-goal" data-action="lib-set-goal">
+    <span class="row-between"><b>هدف ${g.y}: ${g.done} من ${g.goal} كتاباً</b><small>${g.pct}%</small></span>
+    <span class="pbar"><i style="width:${Math.min(100, g.pct)}%"></i></span>
+    <small class="${g.diff < 0 ? 'late' : ''}">${status}</small>
+  </button>`;
 }
 
 // ---------- benefits ----------
@@ -152,6 +234,7 @@ function benefitCard(f) {
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` · ص ${f.page}` : ''}</span>
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 260))}</p>` : ''}
+    ${f.actionId && getTask(f.actionId) ? `<span class="book-line ok">${icon('check')}تحوّلت إلى عمل: ${esc(getTask(f.actionId).title)}</span>` : ''}
   </button>`;
 }
 
@@ -186,6 +269,7 @@ function readingPanelHTML() {
   const max = Math.max(1, ...counts.map(([, n]) => n));
   return `<section class="panel">
     <h2>القراءة</h2>
+    ${(() => { const g = readingGoalState(); return g ? `<p class="note-text">هدف العام: <b>${g.done} من ${g.goal}</b> (${g.pct}%)</p>` : ''; })()}
     <p class="note-text">قرأت <b>${readYear.length}</b> ${readYear.length === 1 ? 'كتاباً' : 'كتب'} هذا العام${avg ? ` · متوسط الكتاب ${daysWord(avg)}` : ''} · سجّلت <b>${S.benefits.length}</b> فائدة</p>
     <ul class="hbars">${counts.map(([s, n]) => hbar(BOOK_STATUS_PLURAL[s], n, (n / max) * 100)).join('')}</ul>
   </section>`;
@@ -220,6 +304,11 @@ function openLib(kind, id, preset = {}) {
         <label class="field"><span>تاريخ البدء</span><input type="date" id="lStart" value="${b.start}"><small class="hint" id="lStartH">${esc(b.start ? fmtHijri(b.start) : '')}</small></label>
         <label class="field" id="lEndWrap"><span>تاريخ الانتهاء</span><input type="date" id="lEnd" value="${b.end}"><small class="hint" id="lEndH">${esc(b.end ? fmtHijri(b.end) : '')}</small></label>
       </div>
+      <div class="grid2">
+        <label class="field"><span>عدد صفحات الكتاب</span><input type="number" id="lPages" min="1" inputmode="numeric" value="${b.pages}" placeholder="مثال: 320"></label>
+        <label class="field"><span>وصلت إلى صفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${b.page || ''}" placeholder="مثال: 45"></label>
+      </div>
+      ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.eta != null ? ` · بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه بعد ${daysWord(pc.eta)}` : ''}</p>` : ''; })()}
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>` : ''}`;
   } else {
@@ -230,7 +319,10 @@ function openLib(kind, id, preset = {}) {
       <datalist id="bookTitles">${S.books.map((b) => `<option value="${esc(b.title)}">`).join('')}</datalist>
       <label class="field"><span>رقم الصفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${fx.page}" placeholder="مثال: 45"></label>
       <label class="field"><span>عنوان الفائدة</span><input type="text" id="lTitle" value="${esc(fx.title)}" autocomplete="off" placeholder="مثال: أثر العادة في النجاح"></label>
-      <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="6" placeholder="اكتب الفائدة وكيف تطبّقها">${esc(fx.lesson)}</textarea></label>`;
+      <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="6" placeholder="اكتب الفائدة وكيف تطبّقها">${esc(fx.lesson)}</textarea></label>
+      ${id ? (fx.actionId && getTask(fx.actionId)
+        ? `<div class="row-between"><span class="note-text">${icon('check')} تحوّلت إلى عمل: ${esc(getTask(fx.actionId).title)}</span><button type="button" class="ghost" data-action="open" data-id="${fx.actionId}">عرضه</button></div>`
+        : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">حوّلها إلى عمل</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
   }
   const titles = { memo: ['ملاحظة جديدة', 'تعديل الملاحظة'], book: ['كتاب جديد', 'تعديل الكتاب'], benefit: ['فائدة جديدة', 'تعديل الفائدة'] };
   f.innerHTML = `
@@ -282,7 +374,15 @@ function saveLib() {
     if (ldraft.status === 'reading' && !start) start = today();
     if (start && end && end < start) { toast('تاريخ الانتهاء قبل تاريخ البدء.'); return false; }
     const old = getBook(id);
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status: ldraft.status, start, end, summary: $('lSummary').value.trim() });
+    const pages = parseInt(v('lPages'), 10) || '';
+    let page = Math.max(0, parseInt(v('lPage'), 10) || 0);
+    if (pages && page > pages) page = pages;
+    const log = old ? [...(old.log || [])] : [];
+    if (page !== (old ? old.page : 0)) { const t0 = today(); const i = log.findIndex((e) => e.d === t0); if (i >= 0) log[i].p = page; else log.push({ d: t0, p: page }); }
+    // finishing the last page completes the book
+    let status = ldraft.status;
+    if (pages && page >= pages && status === 'reading') { status = 'read'; end = end || today(); setTimeout(() => toast(`أحسنت! أنهيت «${title}»`), 300); }
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
@@ -370,11 +470,11 @@ function excelSheets(kind) {
     add('الكتب', [
       { title: 'الكتاب', width: 30 }, { title: 'المؤلف', width: 20 }, { title: 'الحالة', width: 13 },
       { title: 'تاريخ البدء', width: 13 }, { title: 'البدء هجري', width: 22 }, { title: 'تاريخ الانتهاء أو التوقف', width: 13 },
-      { title: 'الانتهاء هجري', width: 22 }, { title: 'مدة القراءة (يوم)', width: 11 }, { title: 'فكرة موجزة', width: 60, wrap: true },
+      { title: 'الانتهاء هجري', width: 22 }, { title: 'مدة القراءة (يوم)', width: 11 }, { title: 'عدد الصفحات', width: 10 }, { title: 'الصفحة الحالية', width: 10 }, { title: 'فكرة موجزة', width: 60, wrap: true },
       { title: 'عدد الفوائد', width: 10 },
     ], BOOK_ORDER.flatMap((s) => S.books.filter((b) => b.status === s)).map((b) => [
       b.title, b.author, BOOK_STATUS[b.status], b.start, hijriOf(b.start), b.end, hijriOf(b.end),
-      b.start && b.end ? daysBetween(b.start, b.end) + 1 : '', b.summary, benefitsOf(b.id).length,
+      b.start && b.end ? daysBetween(b.start, b.end) + 1 : '', b.pages, b.page || '', b.summary, benefitsOf(b.id).length,
     ]));
   }
   if (kind === 'all' || kind === 'benefits') {
@@ -449,6 +549,24 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'lib-xls': exportExcel(v); break;
+    case 'lib-reviewed': {
+      const f = getBenefit(v);
+      if (f) { f.lastReview = today(); f.reviews = (f.reviews || 0) + 1; save(); render(); toast('أحسنت! ستظهر لك فائدة أخرى غداً'); }
+      break;
+    }
+    case 'lib-to-action': benefitToAction(v); break;
+    case 'lib-set-goal': {
+      const f = $('libForm');
+      ldraft = { kind: 'rgoal', id: 'goal', isNew: false };
+      f.innerHTML = `<div class="sheet-head"><h2>هدف القراءة لعام ${today().slice(0, 4)}</h2>
+        <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <label class="field"><span>كم كتاباً تريد أن تقرأ هذا العام؟</span><input type="number" id="lGoal" min="0" max="500" inputmode="numeric" value="${S.settings.readingGoal || ''}" placeholder="مثال: 24"></label>
+        <p class="note-text">نقارن ما أنهيته بما يُفترض أن تكون وصلت إليه حتى اليوم، لتعرف هل أنت متقدّم أو متأخر. اكتب ٠ لإلغاء الهدف.</p>
+        <div class="sheet-actions"><button type="submit" class="primary">حفظ</button></div>`;
+      const d = lsheet();
+      if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+      break;
+    }
   }
 });
 
@@ -456,6 +574,11 @@ document.addEventListener('submit', (e) => {
   if (e.target.id !== 'libForm') return;
   e.preventDefault();
   const wasNew = ldraft.isNew;
+  if (ldraft.kind === 'rgoal') {
+    S.settings.readingGoal = Math.max(0, parseInt($('lGoal').value, 10) || 0);
+    save(); closeLib(); render(); toast(S.settings.readingGoal ? 'حُفظ هدف القراءة' : 'أُلغي هدف القراءة');
+    return;
+  }
   if (!(ldraft.kind === 'quote' ? saveQuote() : saveLib())) return;
   closeLib();
   render();

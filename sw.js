@@ -3,7 +3,7 @@
 // same version; the cache is only used when there is no connection.
 importScripts('timer-shared.js');
 
-const VERSION = 10;
+const VERSION = 11;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -16,6 +16,10 @@ const ASSETS = [
   './library.js',
   './notes.js',
   './inspire.js',
+  './sync.js',
+  './ai.js',
+  './report.js',
+  './vendor/anthropic-sdk.mjs',
   './app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
@@ -63,7 +67,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // fonts and other third-party files: cache first
+  // only web fonts are cached from other sites; API calls (GitHub, Claude) always go to the network
+  if (!/^https:\/\/fonts\.(googleapis|gstatic)\.com$/.test(url.origin)) return;
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req);

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -178,6 +178,7 @@ const ui = {
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
+  if (typeof Sync !== 'undefined') Sync.schedule();
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
 const getProject = (id) => S.projects.find((p) => p.id === id);
@@ -410,6 +411,7 @@ function smartHTML() {
       <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="مثال: اتصل بأبي بكرة الساعة 5 العصر" enterkeyhint="done">
       <button type="submit" class="primary">إضافة</button>
     </div>
+    ${AI.on() ? `<div class="btn-row smart-ai">${aiBtn('ai-smart', 'افهمها بالذكاء الاصطناعي')}<small class="hint">لجملة طويلة أو عدة مهام في فقرة واحدة</small></div>` : ''}
     <div id="smartPreview">${smartPreviewHTML()}</div>
   </form>`;
 }
@@ -489,6 +491,7 @@ function viewToday() {
   </div>
   ${prayerStripHTML()}
   ${dailyQuoteHTML()}
+  ${dailyBenefitHTML()}
   <section class="section">
     <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
     ${items.length
@@ -588,7 +591,7 @@ function viewProject(p) {
     </div>
   </section>
   <section class="section">
-    <div class="section-head"><h2>مهام المشروع</h2>${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div>
+    <div class="section-head"><h2>مهام المشروع</h2><div class="btn-row">${aiBtn('ai-plan', 'خطّط المشروع', ` data-v="${p.id}"`)}${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div></div>
     ${st.total ? taskToolbar('projFilter', false) : ''}
     ${list.length
       ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || today(), { noProject: true })).join('')}</ul>`
@@ -949,6 +952,8 @@ function viewSettings() {
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
     </div>
   </section>
+  ${Sync.settingsHTML()}
+  ${aiSettingsHTML()}
   ${prayerSettingsHTML()}
   <section class="panel">
     <h2>المنبهات</h2>
@@ -988,7 +993,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'stats'];
+const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1201,7 +1206,9 @@ function openSheet(id, opts = {}) {
     alarms: t ? [...t.alarms] : [],
     autoAlarm: !t || !t.alarms.length,
     timeMode: t && t.prayer ? 'prayer' : t && t.time ? 'clock' : 'none',
+    fromBenefit: opts.fromBenefit || '',
   };
+  $('aiStepsSlot').innerHTML = aiBtn('ai-steps', 'اقترح خطوات');
   $('fTitle').value = t ? t.title : '';
   $('fPriority').value = t ? t.priority : 'mid';
   $('fCategory').value = t ? t.category : '';
@@ -1327,8 +1334,10 @@ $('editor').addEventListener('submit', (e) => {
   e.preventDefault();
   if ($('fNote').value.trim()) addNote();
   if ($('fSub').value.trim()) addSub();
+  const fromBenefit = draft.fromBenefit;
   const t = commitDraft();
   if (!t) return;
+  if (fromBenefit && getBenefit(fromBenefit)) { getBenefit(fromBenefit).actionId = t.id; save(); }
   const wasNew = draftIsNew;
   closeSheet();
   if (t.alarms.length) ensureNotifPermission();
@@ -2069,7 +2078,7 @@ document.addEventListener('click', (e) => {
     case 'export': exportData(); break;
     case 'import': $('importFile').click(); break;
     case 'wipe':
-      if (confirm('سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
+      if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
@@ -2181,6 +2190,7 @@ function stayInApp() {
 function closeTopLayer() {
   if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
+  if ($('aiSheet').open) { closeAIPreview(); return true; }
   if ($('libSheet').open) { closeLib(); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }
@@ -2228,6 +2238,7 @@ $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
   checkAlarms();
   setInterval(checkAlarms, 15000);
   applyPendingTimerActions();
+  Sync.start();
   setInterval(tickTimer, 1000);
   updateWakeLock();
   document.addEventListener('visibilitychange', () => {

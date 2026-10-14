@@ -81,6 +81,7 @@ function openMemo(id) {
   $('meDel').classList.remove('armed');
   $('meDel').textContent = 'حذف';
   setMemoStatus(m ? memoStamp(m) : 'ملاحظة جديدة');
+  $('meAI').hidden = !AI.on();
   closePalettes();
   const d = medit();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -128,7 +129,7 @@ function closeMemo() {
   render();
 }
 
-function closePalettes() { for (const id of ['mePalColor', 'mePalHi']) $(id).hidden = true; }
+function closePalettes() { for (const id of ['mePalColor', 'mePalHi', 'mePalAI']) $(id).hidden = true; }
 
 function exec(cmd, val) {
   $('meBody').focus();
@@ -165,8 +166,8 @@ document.addEventListener('click', (e) => {
   if (!t) return;
   if (t.dataset.cmd) {
     const { cmd, val } = t.dataset;
-    if (cmd === 'palColor' || cmd === 'palHi') {
-      const id = cmd === 'palColor' ? 'mePalColor' : 'mePalHi';
+    if (cmd === 'palColor' || cmd === 'palHi' || cmd === 'palAI') {
+      const id = { palColor: 'mePalColor', palHi: 'mePalHi', palAI: 'mePalAI' }[cmd];
       const show = $(id).hidden;
       closePalettes();
       $(id).hidden = !show;
