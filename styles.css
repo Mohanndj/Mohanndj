@@ -636,3 +636,7 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 }
 .exit-bar .alarm-actions button:not(.primary) { background: color-mix(in srgb, var(--bg) 15%, transparent); color: var(--bg); }
 .warn-box { display: grid; gap: 8px; justify-items: start; background: color-mix(in srgb, var(--mid) 14%, var(--card)); border: 1px solid color-mix(in srgb, var(--mid) 40%, transparent); color: var(--fg); border-radius: 12px; padding: 10px 12px; font-size: .9rem; text-align: start; margin: 0; }
+
+/* v10: justified paragraphs in notes */
+.me-body [style*="text-align:justify"], .me-body [style*="text-align: justify"],
+.memo-preview [style*="text-align:justify"] { text-align: justify; text-justify: inter-word; }

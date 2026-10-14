@@ -141,7 +141,7 @@ function exec(cmd, val) {
 function updateToolbarState() {
   for (const b of document.querySelectorAll('#meTools [data-cmd]')) {
     const c = b.dataset.cmd;
-    if (['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList'].includes(c)) {
+    if (['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList', 'justifyRight', 'justifyCenter', 'justifyLeft', 'justifyFull'].includes(c)) {
       let on = false;
       try { on = document.queryCommandState(c); } catch {}
       b.setAttribute('aria-pressed', String(on));
