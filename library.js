@@ -13,6 +13,7 @@ function normalizeMemo(m) {
   return {
     id: m.id || uid(), title: String(m.title || ''), html, body: typeof m.html === 'string' ? String(m.body || noteText(html)) : String(m.body || ''),
     pinned: !!m.pinned, created: m.created || Date.now(), updated: m.updated || m.created || Date.now(),
+    audios: Array.isArray(m.audios) ? m.audios.filter((a) => a && a.mediaId) : [],
   };
 }
 function normalizeBook(b) {
@@ -121,6 +122,7 @@ function viewMore() {
     ['notes', 'note', 'الملاحظات', S.memos.length ? `${S.memos.length} ملاحظة` : 'لا ملاحظات بعد'],
     ['books', 'book', 'الكتب', S.books.length ? `${S.books.length} كتاب · قرأت ${readThisYear} هذا العام` : 'سجّل قراءاتك'],
     ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
+    ['archive', 'archive', 'الأرشيف', S.archive.length ? `${S.archive.filter((a) => !a.revisitedAt).length} تنتظر رجوعك` : 'ما تجده وتريد العودة إليه'],
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `${S.inspire.length} عبارة وصورة` : 'عبارات تحفيزية وتوكيدية وصور'],
     ['report', 'sheet', 'التقرير الشهري', 'خلاصة شهرك، صورة أو PDF'],
     ['stats', 'chart', 'الإحصائيات', 'إنجازك ومشاريعك وأهدافك وقراءتك'],
@@ -146,6 +148,7 @@ function memoCard(m) {
   return `<button type="button" class="memo" data-action="lib-open-memo" data-v="${m.id}">
     <strong>${m.pinned ? `${icon('pin2')} ` : ''}${esc(m.title || excerpt(m.body.split('\n')[0] || 'بلا عنوان', 40))}</strong>
     ${m.body ? `<div class="memo-preview">${m.html}</div>` : ''}
+    ${m.audios.length ? `<span class="book-line">${icon('micro')}${m.audios.length === 1 ? 'تسجيل صوتي' : `${m.audios.length} تسجيلات`} · ${fmtClock(m.audios.reduce((n, a) => n + a.dur, 0))}</span>` : ''}
     <small>${esc(m.updated > m.created + 60000 ? `عُدّلت ${relDate(iso(new Date(m.updated)))}` : relDate(iso(new Date(m.created))))} · ${esc(fmtTime(hmOf(new Date(m.updated).getHours() * 60 + new Date(m.updated).getMinutes())))}</small>
   </button>`;
 }
@@ -156,7 +159,7 @@ function viewNotes() {
     .sort((a, b) => b.pinned - a.pinned || b.updated - a.updated);
   return `${moreCrumb()}
   <section class="section">
-    <div class="section-head"><h2>الملاحظات</h2><div class="btn-row">${S.memos.length ? xlsBtn('memos') : ''}${addBtn('lib-new-memo', 'ملاحظة')}</div></div>
+    <div class="section-head"><h2>الملاحظات</h2><div class="btn-row">${S.memos.length ? xlsBtn('memos') : ''}${addBtn('lib-voice-memo', 'صوتية')}${addBtn('lib-new-memo', 'ملاحظة')}</div></div>
     ${S.memos.length ? `<input type="search" id="memoSearch" placeholder="ابحث في الملاحظات" aria-label="بحث" value="${esc(libUi.memoQ)}">` : ''}
     ${list.length ? `<div class="memo-grid">${list.map(memoCard).join('')}</div>`
       : S.memos.length ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى.')
@@ -411,6 +414,7 @@ function deleteLib() {
   }
   if (kind === 'benefit') S.benefits = S.benefits.filter((f) => f.id !== id);
   if (kind === 'quote') S.inspire = S.inspire.filter((x) => x.id !== id);
+  if (kind === 'arch') S.archive = S.archive.filter((x) => x.id !== id);
   save();
 }
 
@@ -463,8 +467,8 @@ function excelSheets(kind) {
   if (kind === 'all' || kind === 'memos') {
     add('الملاحظات', [
       { title: 'العنوان', width: 28 }, { title: 'النص', width: 70, wrap: true }, { title: 'مثبتة', width: 8 },
-      { title: 'تاريخ الإنشاء', width: 13 }, { title: 'آخر تعديل', width: 13 },
-    ], S.memos.slice().sort((a, b) => b.updated - a.updated).map((m) => [m.title, m.body, yesNo(m.pinned), stampDate(m.created), stampDate(m.updated)]));
+      { title: 'تاريخ الإنشاء', width: 13 }, { title: 'آخر تعديل', width: 13 }, { title: 'تسجيلات صوتية', width: 12 },
+    ], S.memos.slice().sort((a, b) => b.updated - a.updated).map((m) => [m.title, m.body, yesNo(m.pinned), stampDate(m.created), stampDate(m.updated), m.audios.length || '']));
   }
   if (kind === 'all' || kind === 'books') {
     add('الكتب', [
@@ -484,6 +488,13 @@ function excelSheets(kind) {
     ], S.benefits.slice().sort((a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page))
       .map((f) => [benefitBookTitle(f), f.page, f.title, f.lesson, stampDate(f.created)]));
   }
+  if (kind === 'all' || kind === 'archive') {
+    add('الأرشيف', [
+      { title: 'العنوان', width: 36, wrap: true }, { title: 'الرابط', width: 40 }, { title: 'النص', width: 50, wrap: true },
+      { title: 'التصنيف', width: 14 }, { title: 'لماذا أحتفظ به', width: 30, wrap: true }, { title: 'رجعت إليه', width: 10 },
+      { title: 'حُوّل إلى', width: 10 }, { title: 'تاريخ الحفظ', width: 13 },
+    ], S.archive.slice().sort((a, b) => b.created - a.created).map((a) => [a.title, a.url, a.text, a.tag, a.note, yesNo(a.revisitedAt), a.convertedTo, stampDate(a.created)]));
+  }
   if (kind === 'all' || kind === 'inspire') {
     add('العبارات', [
       { title: 'العبارة', width: 60, wrap: true }, { title: 'النوع', width: 16 }, { title: 'القائل أو المصدر', width: 24 },
@@ -493,7 +504,7 @@ function excelSheets(kind) {
   return sheets;
 }
 
-const XLS_NAMES = { inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
+const XLS_NAMES = { archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
 function exportExcel(kind) {
   const blob = Xlsx.build(excelSheets(kind));
   const url = URL.createObjectURL(blob);
@@ -514,6 +525,7 @@ document.addEventListener('click', (e) => {
   const { action, v } = el.dataset;
   switch (action) {
     case 'lib-new-memo': openMemo(null); break;
+    case 'lib-voice-memo': openMemo(null); setTimeout(startRecording, 150); break;
     case 'lib-new-book': openLib('book'); break;
     case 'lib-new-benefit': openLib('benefit'); break;
     case 'lib-open-memo': openMemo(v); break;
@@ -579,7 +591,7 @@ document.addEventListener('submit', (e) => {
     save(); closeLib(); render(); toast(S.settings.readingGoal ? 'حُفظ هدف القراءة' : 'أُلغي هدف القراءة');
     return;
   }
-  if (!(ldraft.kind === 'quote' ? saveQuote() : saveLib())) return;
+  if (!(ldraft.kind === 'quote' ? saveQuote() : ldraft.kind === 'arch' ? saveArch() : saveLib())) return;
   closeLib();
   render();
   toast(wasNew ? 'أُضيفت' : 'حُفظت التعديلات');

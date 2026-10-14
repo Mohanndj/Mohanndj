@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -57,6 +57,9 @@ const ICONS = {
   back: 'M9 18l6-6-6-6',
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
+  archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
+  link: 'M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
+  micro: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3',
   star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
   pin2: 'M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z',
   book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
@@ -162,6 +165,7 @@ function load() {
   s.books = (Array.isArray(s.books) ? s.books : []).map(normalizeBook);
   s.benefits = (Array.isArray(s.benefits) ? s.benefits : []).map(normalizeBenefit);
   s.inspire = (Array.isArray(s.inspire) ? s.inspire : []).map(normalizeInspire);
+  s.archive = (Array.isArray(s.archive) ? s.archive : []).map(normalizeArchive);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -1000,7 +1004,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'report', 'stats'];
+const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1043,14 +1047,15 @@ function go(tab, project) {
 // Every number shown on screen is converted (text only: input values, attributes and stored data
 // keep Western digits so dates, sorting and Excel stay correct).
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
-const toArabicDigits = (s) => s.replace(/[0-9]/g, (d) => AR_DIGITS[d]).replace(/([٠-٩])\s?%/g, '$1٪');
+// links and e-mail addresses keep their digits
+const toArabicDigits = (s) => s.replace(/(https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+)|[0-9]/g, (m, keep) => keep || AR_DIGITS[m]).replace(/([٠-٩])\s?%/g, '$1٪');
 const digitsOut = (s) => (S.settings.digits === 'arab' ? toArabicDigits(String(s)) : String(s));
 const SKIP_DIGITS = new Set(['TEXTAREA', 'SCRIPT', 'STYLE', 'TITLE']);
 const inEditable = (n) => { const el = n.nodeType === 1 ? n : n.parentNode; return !!(el && el.closest && el.closest('[contenteditable]')); };
 function localizeDigits(root) {
   if (S.settings.digits !== 'arab' || !root) return;
   if (root.nodeType === 3) {
-    if (/[0-9]/.test(root.nodeValue) && !(root.parentNode && SKIP_DIGITS.has(root.parentNode.nodeName)) && !inEditable(root)) root.nodeValue = toArabicDigits(root.nodeValue);
+    if (/[0-9]/.test(root.nodeValue) && !(root.parentNode && SKIP_DIGITS.has(root.parentNode.nodeName)) && !inEditable(root)) setDigits(root);
     return;
   }
   if (root.nodeType !== 1 || SKIP_DIGITS.has(root.nodeName) || inEditable(root)) return;
@@ -1059,8 +1064,10 @@ function localizeDigits(root) {
   });
   const nodes = [];
   while (w.nextNode()) nodes.push(w.currentNode);
-  for (const n of nodes) n.nodeValue = toArabicDigits(n.nodeValue);
+  for (const n of nodes) setDigits(n);
 }
+// only write when something changed: rewriting a link's digits as-is would re-fire the observer forever
+function setDigits(n) { const v = toArabicDigits(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
 new MutationObserver((muts) => {
   if (S.settings.digits !== 'arab') return;
   for (const m of muts) {
@@ -1110,33 +1117,41 @@ function setKind(kind) {
   $('goalFields').hidden = !goal;
   $('subsSec').hidden = goal;
   $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
-  setRepeat(draft.repeat); // may rename the sheet to «عادة جديدة»
+  setGoalMode(draft.mode); // may rename the sheet to «عادة جديدة»
 }
 
-function setRepeat(on) {
-  draft.repeat = on;
-  for (const b of $('fRepeatMode').children) b.setAttribute('aria-pressed', String((b.dataset.rep === 'on') === on));
+// goal types: recurring, one-time, or a habit (with its own fields)
+function setGoalMode(mode) {
+  const others = activeHabits(draft.id).length;
+  const habitFull = others >= HABIT_MAX && mode !== 'habit';
+  draft.mode = mode;
+  draft.repeat = mode !== 'once';
+  for (const b of $('fRepeatMode').children) {
+    b.setAttribute('aria-pressed', String(b.dataset.rep === mode));
+    if (b.dataset.rep === 'habit') b.disabled = habitFull;
+  }
   const goal = draft.kind === 'goal';
-  $('repeatFields').hidden = !goal || !on;
-  updateHabitBox();
-  $('onceGoalFields').hidden = !goal || on;
-  $('targetHint').textContent = on ? 'مثال: 8 أكواب ماء يومياً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.' : 'مثال: قراءة 12 كتاباً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.';
-  $('targetLabel').textContent = on ? 'العدد المطلوب يومياً' : 'العدد المطلوب';
+  $('repeatFields').hidden = !goal || mode !== 'repeat';
+  $('onceGoalFields').hidden = !goal || mode !== 'once';
+  $('targetBox').hidden = !goal || mode === 'habit';
+  $('habitSection').hidden = !goal || mode !== 'habit';
+  $('targetHint').textContent = mode === 'repeat' ? 'مثال: 8 أكواب ماء يومياً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.' : 'مثال: قراءة 12 كتاباً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.';
+  $('targetLabel').textContent = mode === 'repeat' ? 'العدد المطلوب يومياً' : 'العدد المطلوب';
+  $('habitSlots').textContent = habitFull
+    ? `لديك ${HABIT_MAX} عادات قيد البناء، أكمل إحداها لتضيف غيرها.`
+    : `عاداتك قيد البناء: ${others + (mode === 'habit' ? 1 : 0)} من ${HABIT_MAX}`;
+  if (goal) {
+    const label = mode === 'habit' ? 'العادة' : 'الهدف';
+    $('sheetTitle').textContent = draftIsNew ? (mode === 'habit' ? 'عادة جديدة' : 'هدف جديد') : `تعديل ${label}`;
+  }
   updatePrayerHint();
 }
 
-// the «عادة» switch: only for recurring goals, and only while fewer than 3 habits are being built
-function updateHabitBox() {
-  if (!draft) return;
-  const show = draft.kind === 'goal' && draft.repeat;
-  $('habitBox').hidden = !show;
-  const others = activeHabits(draft.id).length;
-  const cb = $('fHabit');
-  const full = others >= HABIT_MAX && !cb.checked;
-  cb.disabled = full;
-  $('habitSlots').textContent = full ? `لديك ${HABIT_MAX} عادات قيد البناء، أكمل إحداها أولاً` : `(${others} من ${HABIT_MAX} قيد البناء)`;
-  $('habitFields').hidden = !cb.checked || !show;
-  if (draftIsNew) $('sheetTitle').textContent = cb.checked && show ? 'عادة جديدة' : draft.kind === 'goal' ? 'هدف جديد' : 'مهمة جديدة';
+function renderHabitDays() {
+  $('hDays').innerHTML =
+    `<button type="button" data-action="hall-days" aria-pressed="${draft.hdays.length === 7}">كل يوم</button>` +
+    `<button type="button" data-action="hwork-days" aria-pressed="${draft.hdays.length === 5 && [0, 1, 2, 3, 4].every((d) => draft.hdays.includes(d))}">أيام الدوام</button>` +
+    DAY_ORDER.map((d) => `<button type="button" data-action="hday" data-v="${d}" aria-pressed="${draft.hdays.includes(d)}">${DAY_SHORT[d]}</button>`).join('');
 }
 
 function setTimeMode(mode) {
@@ -1154,7 +1169,7 @@ function setTimeMode(mode) {
 }
 
 function draftDate() {
-  if (draft.kind === 'goal') return draft.repeat ? ($('fStart').value || today()) : ($('fGoalDue').value || today());
+  if (draft.kind === 'goal') return draft.mode === 'habit' ? ($('hStart').value || today()) : draft.mode === 'repeat' ? ($('fStart').value || today()) : ($('fGoalDue').value || today());
   return $('fDue').value || today();
 }
 
@@ -1230,9 +1245,13 @@ function openSheet(id, opts = {}) {
     timeMode: t && t.prayer ? 'prayer' : t && t.time ? 'clock' : 'none',
     fromBenefit: opts.fromBenefit || '',
   };
+  draft.mode = t ? (isHabit(t) ? 'habit' : isRepeat(t) ? 'repeat' : 'once') : opts.habit ? 'habit' : draft.repeat ? 'repeat' : 'once';
+  draft.hdays = t && isHabit(t) ? [...t.repeat.days] : [...DAY_ORDER];
   $('aiStepsSlot').innerHTML = aiBtn('ai-steps', 'اقترح خطوات');
   const hb = t && t.habit ? t.habit : null;
-  $('fHabit').checked = !!hb || (!t && !!opts.habit);
+  $('hStart').value = t && isHabit(t) ? t.repeat.start : t0;
+  $('hTarget').value = t && isHabit(t) ? t.target : 1;
+  $('hUnit').value = t && isHabit(t) ? t.unit : '';
   $('fIdentity').value = hb ? hb.identity : '';
   $('fCue').value = hb ? hb.cue : '';
   $('fTiny').value = hb ? hb.tiny : '';
@@ -1267,9 +1286,9 @@ function openSheet(id, opts = {}) {
   }
   armed = null;
   setKind(kind);
-  if (existing && isHabit(existing)) $('sheetTitle').textContent = 'تعديل العادة';
   setTimeMode(draft.timeMode);
   renderDays();
+  renderHabitDays();
   renderNotes();
   renderSubs();
   if (typeof sheet.showModal === 'function') { if (!sheet.open) sheet.showModal(); } else sheet.setAttribute('open', '');
@@ -1303,7 +1322,19 @@ function readDraft() {
     t.projectId = '';
     t.target = Math.max(1, Math.min(999, parseInt($('fTarget').value, 10) || 1));
     t.unit = t.target > 1 ? $('fUnit').value.trim() : '';
-    if (draft.repeat) {
+    if (draft.mode === 'habit') {
+      // a habit keeps its own days, start, amount and build plan; it runs until it is established
+      t.repeat = { days: (draft.hdays.length ? [...draft.hdays] : [...DAY_ORDER]).sort(), start: $('hStart').value || today(), until: null };
+      t.target = Math.max(1, Math.min(999, parseInt($('hTarget').value, 10) || 1));
+      t.unit = t.target > 1 ? $('hUnit').value.trim() : '';
+      t.due = '';
+      t.done = false;
+      t.doneAt = null;
+      t.habit = normalizeHabit({
+        ...(base.habit || {}), identity: $('fIdentity').value.trim(), cue: $('fCue').value.trim(),
+        tiny: $('fTiny').value.trim(), reward: $('fReward').value.trim(), days: $('fHabitDays').value,
+      });
+    } else if (draft.repeat) {
       const start = $('fStart').value || today();
       let until = $('fUntil').value || null;
       if (until && until < start) until = start;
@@ -1311,10 +1342,7 @@ function readDraft() {
       t.due = '';
       t.done = false;
       t.doneAt = null;
-      t.habit = $('fHabit').checked ? normalizeHabit({
-        ...(base.habit || {}), identity: $('fIdentity').value.trim(), cue: $('fCue').value.trim(),
-        tiny: $('fTiny').value.trim(), reward: $('fReward').value.trim(), days: $('fHabitDays').value,
-      }) : null;
+      t.habit = null;
     } else {
       t.repeat = null;
       t.habit = null;
@@ -1390,7 +1418,7 @@ sheet.addEventListener('close', () => { draft = null; });
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 $('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
 $('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
-for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue']) $(id).addEventListener('change', updatePrayerHint);
+for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue', 'hStart']) $(id).addEventListener('change', updatePrayerHint);
 
 // ---------- project editor ----------
 const psheet = $('projSheet');
@@ -1617,7 +1645,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1633,6 +1661,7 @@ function importData(file) {
       S.memos = (Array.isArray(data.memos) ? data.memos : []).map(normalizeMemo);
       S.books = (Array.isArray(data.books) ? data.books : []).map(normalizeBook);
       S.benefits = (Array.isArray(data.benefits) ? data.benefits : []).map(normalizeBenefit);
+      S.archive = (Array.isArray(data.archive) ? data.archive : []).map(normalizeArchive);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2029,6 +2058,14 @@ document.addEventListener('click', (e) => {
     case 'close-sheet': closeSheet(); break;
     case 'all-days': draft.days = draft.days.length === 7 ? [] : [...DAY_ORDER]; renderDays(); break;
     case 'work-days': draft.days = [0, 1, 2, 3, 4]; renderDays(); break;
+    case 'hall-days': draft.hdays = draft.hdays.length === 7 ? [] : [...DAY_ORDER]; renderHabitDays(); break;
+    case 'hwork-days': draft.hdays = [0, 1, 2, 3, 4]; renderHabitDays(); break;
+    case 'hday': {
+      const d = Number(v);
+      draft.hdays = draft.hdays.includes(d) ? draft.hdays.filter((x) => x !== d) : [...draft.hdays, d];
+      renderHabitDays();
+      break;
+    }
     case 'day': {
       const d = Number(v);
       draft.days = draft.days.includes(d) ? draft.days.filter((x) => x !== d) : [...draft.days, d];
@@ -2124,7 +2161,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
@@ -2163,14 +2200,13 @@ document.addEventListener('change', (e) => {
   if (id === 'setAsr' && S.settings.prayer) { S.settings.prayer.asr = e.target.value; save(); render(); }
   if (id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
   if (id === 'fTime' && e.target.value && draft && !draft.alarms.length) { draft.alarms = [0]; renderAlarms(); }
-  if (id === 'fHabit' && draft) updateHabitBox();
 });
 document.addEventListener('click', (e) => {
   const b = e.target.closest('#fKind button, #fTimeMode button, #fRepeatMode button');
   if (!b || !draft) return;
   if (b.dataset.kind) { setKind(b.dataset.kind); updatePrayerHint(); }
   if (b.dataset.mode) setTimeMode(b.dataset.mode);
-  if (b.dataset.rep) setRepeat(b.dataset.rep === 'on');
+  if (b.dataset.rep && !b.disabled) setGoalMode(b.dataset.rep);
 });
 
 // chart readout (hover / touch)
@@ -2278,6 +2314,7 @@ $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
   render();
   localizeDigits(document.body);
   document.documentElement.lang = 'ar';
+  handleShareLaunch(params);
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
   if (params.get('new')) openSheet(null, params.get('new') === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);

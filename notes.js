@@ -83,6 +83,8 @@ function openMemo(id) {
   setMemoStatus(m ? memoStamp(m) : 'ملاحظة جديدة');
   $('meAI').hidden = !AI.on();
   closePalettes();
+  $('meRecBar').hidden = true;
+  renderMemoAudios();
   const d = medit();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   try { document.execCommand('styleWithCSS', false, true); } catch {}
@@ -103,7 +105,7 @@ function saveMemoNow() {
   const html = cleanNoteHTML($('meBody').innerHTML);
   const text = noteText(html);
   const old = getMemo(mstate.id);
-  if (!old && !title && !text) return; // nothing written yet
+  if (!old && !title && !text) return; // nothing written yet (recordings save the note themselves)
   const m = normalizeMemo({ ...(old || {}), id: mstate.id, title, html, body: text, pinned: $('mePin').getAttribute('aria-pressed') === 'true', updated: Date.now() });
   if (old) Object.assign(old, m); else S.memos.push(m);
   mstate.isNew = false;
@@ -123,6 +125,7 @@ function scheduleMemoSave() {
 
 function closeMemo() {
   if (!mstate) return;
+  if (recState) stopRecording(); // keep what was recorded
   saveMemoNow();
   mstate = null;
   const d = medit();
@@ -204,6 +207,8 @@ document.addEventListener('click', (e) => {
       return;
     }
     const id = mstate.id;
+    if (recState) stopRecording(true);
+    for (const clip of (getMemo(id) || {}).audios || []) Media.del(clip.mediaId).catch(() => {});
     S.memos = S.memos.filter((m) => m.id !== id);
     save();
     mstate = null;
@@ -240,3 +245,125 @@ window.addEventListener('pagehide', () => { if (mstate && mstate.dirty) saveMemo
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && mstate && mstate.dirty) saveMemoNow(); });
 document.addEventListener('DOMContentLoaded', buildPalettes);
 if (document.readyState !== 'loading') setTimeout(buildPalettes, 0);
+
+// ---------- voice notes: record your voice and keep it with the note ----------
+// Audio is stored on this device (IndexedDB, same store as photos); notes list its clips.
+let recState = null; // { rec, chunks, started, timer, stream, cancelled }
+
+function pickAudioType() {
+  if (typeof MediaRecorder === 'undefined') return null;
+  for (const t of ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm']) {
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+// a note that only has recordings still needs to exist
+function ensureMemoSaved() {
+  if (getMemo(mstate.id)) return getMemo(mstate.id);
+  const title = $('meTitle').value.trim() || `ملاحظة صوتية · ${fmtDate(today(), { day: 'numeric', month: 'long' })}`;
+  $('meTitle').value = title;
+  const html = cleanNoteHTML($('meBody').innerHTML);
+  const m = normalizeMemo({ id: mstate.id, title, html, body: noteText(html) });
+  S.memos.push(m);
+  mstate.isNew = false;
+  $('meDel').hidden = false;
+  save();
+  return m;
+}
+
+async function startRecording() {
+  if (recState) return;
+  const type = pickAudioType();
+  if (type === null || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('جهازك لا يدعم التسجيل الصوتي من المتصفح.'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch (e) { toast(e && e.name === 'NotAllowedError' ? 'اسمح للتطبيق باستخدام الميكروفون من إعدادات الجوال.' : 'تعذّر الوصول إلى الميكروفون.'); return; }
+  const rec = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+  recState = { rec, chunks: [], started: Date.now(), stream, cancelled: false, type: rec.mimeType || type || 'audio/webm' };
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) recState.chunks.push(e.data); };
+  rec.onstop = finishRecording;
+  rec.start(1000);
+  $('meRecBar').hidden = false;
+  $('meRec').classList.add('rec');
+  const tick = () => {
+    const s = (Date.now() - recState.started) / 1000;
+    $('meRecTime').textContent = fmtClock(s);
+    if (s >= 30 * 60) stopRecording(); // 30-minute cap per clip
+  };
+  tick();
+  recState.timer = setInterval(tick, 500);
+  try { if (navigator.vibrate) navigator.vibrate(30); } catch {}
+}
+
+function stopRecording(cancel) {
+  if (!recState) return;
+  recState.cancelled = !!cancel;
+  clearInterval(recState.timer);
+  try { recState.rec.stop(); } catch { finishRecording(); }
+}
+
+async function finishRecording() {
+  const st = recState;
+  recState = null;
+  if (!st) return;
+  st.stream.getTracks().forEach((t) => t.stop());
+  $('meRecBar').hidden = true;
+  $('meRec').classList.remove('rec');
+  const dur = Math.round((Date.now() - st.started) / 1000);
+  if (st.cancelled || !st.chunks.length || dur < 1) { if (!st.cancelled) toast('التسجيل قصير جداً.'); return; }
+  const blob = new Blob(st.chunks, { type: st.type });
+  const mediaId = 'aud-' + uid();
+  try { await Media.put(mediaId, blob); } catch { toast('تعذّر حفظ التسجيل على الجهاز.'); return; }
+  if (!mstate) return;
+  const m = ensureMemoSaved();
+  m.audios = [...(m.audios || []), { id: uid(), mediaId, dur, created: Date.now() }];
+  m.updated = Date.now();
+  save();
+  renderMemoAudios();
+  toast(`حُفظ تسجيل مدته ${fmtClock(dur)}`);
+}
+
+async function renderMemoAudios() {
+  const box = $('meAudios');
+  const m = mstate && getMemo(mstate.id);
+  const list = m ? m.audios || [] : [];
+  box.hidden = !list.length;
+  box.innerHTML = list.map((a) => `<div class="me-audio" data-aid="${a.id}">
+      <span class="me-audio-meta">${icon('micro')}<b>${fmtClock(a.dur)}</b><small>${esc(relDate(iso(new Date(a.created))))} ${esc(fmtTime(hmOf(new Date(a.created).getHours() * 60 + new Date(a.created).getMinutes())))}</small></span>
+      <audio controls preload="metadata" data-media="${a.mediaId}"></audio>
+      <button type="button" class="danger" data-maction="del-audio" data-v="${a.id}">حذف</button>
+    </div>`).join('');
+  for (const el of box.querySelectorAll('audio[data-media]')) {
+    try {
+      const u = await Media.url(el.dataset.media);
+      if (u) el.src = u;
+      else el.replaceWith(Object.assign(document.createElement('small'), { className: 'hint', textContent: 'هذا التسجيل محفوظ على جهاز آخر.' }));
+    } catch {}
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-maction="rec"], [data-maction="rec-stop"], [data-maction="rec-cancel"], [data-maction="del-audio"]');
+  if (!t || !mstate) return;
+  const a = t.dataset.maction;
+  if (a === 'rec') { if (recState) stopRecording(); else startRecording(); }
+  if (a === 'rec-stop') stopRecording();
+  if (a === 'rec-cancel') { stopRecording(true); toast('أُلغي التسجيل'); }
+  if (a === 'del-audio') {
+    if (t.dataset.armed !== '1') {
+      t.dataset.armed = '1'; t.textContent = 'تأكيد'; t.classList.add('armed');
+      setTimeout(() => { if (t.isConnected) { t.dataset.armed = ''; t.textContent = 'حذف'; t.classList.remove('armed'); } }, 3000);
+      return;
+    }
+    const m = getMemo(mstate.id);
+    const clip = m && (m.audios || []).find((x) => x.id === t.dataset.v);
+    if (clip) {
+      Media.del(clip.mediaId).catch(() => {});
+      m.audios = m.audios.filter((x) => x !== clip);
+      save();
+      renderMemoAudios();
+    }
+  }
+});

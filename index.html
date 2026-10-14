@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <header class="top">
@@ -106,9 +106,12 @@
     <!-- goal only -->
     <div id="goalFields" class="stack" hidden>
       <div class="seg" id="fRepeatMode" role="group" aria-label="نوع الهدف">
-        <button type="button" data-rep="on">متكرر</button>
-        <button type="button" data-rep="off">لمرة واحدة</button>
+        <button type="button" data-rep="repeat">متكرر</button>
+        <button type="button" data-rep="once">لمرة واحدة</button>
+        <button type="button" data-rep="habit">عادة</button>
       </div>
+
+      <!-- recurring goal -->
       <div id="repeatFields" class="stack">
         <div class="field">
           <span>أيام التكرار</span>
@@ -125,27 +128,9 @@
             <small class="hint">اتركه فارغاً ليستمر بلا نهاية</small>
           </label>
         </div>
-        <div id="habitBox" class="habit-box">
-          <label class="switch"><input type="checkbox" id="fHabit"><span>عادة أبنيها <small class="hint" id="habitSlots"></small></span></label>
-          <div id="habitFields" class="stack" hidden>
-            <label class="field"><span>من تريد أن تكون؟</span><input type="text" id="fIdentity" autocomplete="off" placeholder="مثال: أنا قارئ يقرأ كل يوم"></label>
-            <div class="grid2">
-              <label class="field"><span>المحفّز: متى وأين؟</span><input type="text" id="fCue" autocomplete="off" placeholder="بعد صلاة الفجر في مكتبي"></label>
-              <label class="field"><span>النسخة المصغرة</span><input type="text" id="fTiny" autocomplete="off" placeholder="أقرأ صفحة واحدة"></label>
-            </div>
-            <label class="field"><span>المكافأة</span><input type="text" id="fReward" autocomplete="off" placeholder="كوب قهوتي المفضّلة"></label>
-            <label class="field"><span>مدة البناء</span>
-              <select id="fHabitDays">
-                <option value="21">21 يوماً</option>
-                <option value="30">30 يوماً</option>
-                <option value="66">66 يوماً (المتوسط في الدراسات)</option>
-                <option value="90">90 يوماً</option>
-              </select>
-            </label>
-            <small class="hint">النسخة المصغرة نسخة لا تتجاوز دقيقتين تفعلها في الأيام الصعبة حتى لا تنقطع.</small>
-          </div>
-        </div>
       </div>
+
+      <!-- one-time goal -->
       <div id="onceGoalFields">
         <label class="field">
           <span>الموعد النهائي</span>
@@ -153,17 +138,52 @@
           <small class="hint">اختياري. يظهر الهدف في التقويم في هذا اليوم.</small>
         </label>
       </div>
-      <div class="grid2">
-        <label class="field">
-          <span id="targetLabel">العدد المطلوب يومياً</span>
-          <input type="number" id="fTarget" min="1" max="999" inputmode="numeric" value="1">
-        </label>
-        <label class="field">
-          <span>الوحدة</span>
-          <input type="text" id="fUnit" autocomplete="off" placeholder="أكواب، صفحات، كتب…">
-        </label>
+
+      <!-- count for recurring and one-time goals -->
+      <div id="targetBox" class="stack">
+        <div class="grid2">
+          <label class="field">
+            <span id="targetLabel">العدد المطلوب يومياً</span>
+            <input type="number" id="fTarget" min="1" max="999" inputmode="numeric" value="1">
+          </label>
+          <label class="field">
+            <span>الوحدة</span>
+            <input type="text" id="fUnit" autocomplete="off" placeholder="أكواب، صفحات، كتب…">
+          </label>
+        </div>
+        <small class="hint" id="targetHint"></small>
       </div>
-      <small class="hint" id="targetHint"></small>
+
+      <!-- habit: its own fields -->
+      <div id="habitSection" class="stack habit-box" hidden>
+        <p class="hint" id="habitSlots"></p>
+        <label class="field"><span>من تريد أن تكون؟</span><input type="text" id="fIdentity" autocomplete="off" placeholder="مثال: أنا قارئ يقرأ كل يوم"></label>
+        <div class="field">
+          <span>أيام العادة</span>
+          <div class="days" id="hDays"></div>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>تبدأ من</span><input type="date" id="hStart"></label>
+          <label class="field"><span>مدة البناء</span>
+            <select id="fHabitDays">
+              <option value="21">21 يوماً</option>
+              <option value="30">30 يوماً</option>
+              <option value="66">66 يوماً (المتوسط في الدراسات)</option>
+              <option value="90">90 يوماً</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>المحفّز: متى وأين؟</span><input type="text" id="fCue" autocomplete="off" placeholder="بعد صلاة الفجر في مكتبي"></label>
+          <label class="field"><span>النسخة المصغرة</span><input type="text" id="fTiny" autocomplete="off" placeholder="أقرأ صفحة واحدة"></label>
+        </div>
+        <label class="field"><span>المكافأة</span><input type="text" id="fReward" autocomplete="off" placeholder="كوب قهوتي المفضّلة"></label>
+        <div class="grid2">
+          <label class="field"><span>المقدار اليومي</span><input type="number" id="hTarget" min="1" max="999" inputmode="numeric" value="1"></label>
+          <label class="field"><span>الوحدة</span><input type="text" id="hUnit" autocomplete="off" placeholder="صفحات، دقائق…"></label>
+        </div>
+        <small class="hint">النسخة المصغرة نسخة لا تتجاوز دقيقتين تفعلها في الأيام الصعبة حتى لا تنقطع. اترك المقدار ١ لعادة تُنجز بضغطة واحدة.</small>
+      </div>
     </div>
 
     <div class="grid2">
@@ -312,6 +332,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
       </button>
       <input type="text" id="meTitle" placeholder="العنوان" autocomplete="off" aria-label="عنوان الملاحظة">
+      <button type="button" class="icon-btn" id="meRec" data-maction="rec" aria-label="تسجيل صوتي">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3"/></svg>
+      </button>
       <button type="button" class="icon-btn" id="mePin" data-maction="pin" aria-pressed="false" aria-label="تثبيت">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>
       </button>
@@ -353,6 +376,12 @@
       <button type="button" data-action="ai-note" data-v="fix">صحّح الأخطاء</button>
       <small class="hint">إذا حددت جزءاً من النص يُطبَّق عليه فقط</small>
     </div>
+    <div class="me-recbar" id="meRecBar" hidden>
+      <span class="rec-dot" aria-hidden="true"></span><b id="meRecTime">0:00</b><span>جارٍ التسجيل…</span>
+      <button type="button" class="primary" data-maction="rec-stop">إيقاف وحفظ</button>
+      <button type="button" data-maction="rec-cancel">إلغاء</button>
+    </div>
+    <div class="me-audios" id="meAudios" hidden></div>
     <div id="meBody" class="me-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="نص الملاحظة" data-placeholder="اكتب ملاحظتك هنا…"></div>
     <div class="me-foot"><small id="meStatus"></small></div>
   </div>
@@ -387,28 +416,29 @@
   <form id="libForm" novalidate></form>
 </dialog>
 
-<script src="timer-shared.js?v=13"></script>
-<script src="prayer.js?v=13"></script>
-<script src="nlp.js?v=13"></script>
-<script src="xlsx.js?v=13"></script>
-<script src="library.js?v=13"></script>
-<script src="notes.js?v=13"></script>
-<script src="inspire.js?v=13"></script>
-<script src="sync.js?v=13"></script>
-<script src="ai.js?v=13"></script>
-<script src="habits.js?v=13"></script>
-<script src="report.js?v=13"></script>
-<script src="voice.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="timer-shared.js?v=14"></script>
+<script src="prayer.js?v=14"></script>
+<script src="nlp.js?v=14"></script>
+<script src="xlsx.js?v=14"></script>
+<script src="library.js?v=14"></script>
+<script src="notes.js?v=14"></script>
+<script src="inspire.js?v=14"></script>
+<script src="archive.js?v=14"></script>
+<script src="sync.js?v=14"></script>
+<script src="ai.js?v=14"></script>
+<script src="habits.js?v=14"></script>
+<script src="report.js?v=14"></script>
+<script src="voice.js?v=14"></script>
+<script src="app.js?v=14"></script>
 <script>
   // Self-repair: if the page and its scripts come from different versions (an old offline copy),
   // clear the offline copy and reload once.
   (function () {
-    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 13 && typeof Voice !== 'undefined' && typeof todayHabitsHTML !== 'undefined' && typeof habitStats !== 'undefined' && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 14 && typeof viewArchive !== 'undefined' && typeof Voice !== 'undefined' && typeof todayHabitsHTML !== 'undefined' && typeof habitStats !== 'undefined' && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
     var tried = false;
-    try { tried = sessionStorage.getItem('mahami-repair') === '13'; } catch (e) {}
+    try { tried = sessionStorage.getItem('mahami-repair') === '14'; } catch (e) {}
     if (ok || tried) return;
-    try { sessionStorage.setItem('mahami-repair', '13'); } catch (e) {}
+    try { sessionStorage.setItem('mahami-repair', '14'); } catch (e) {}
     var regs = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
     regs.then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
       .then(function () { return window.caches ? caches.keys() : []; })
