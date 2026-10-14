@@ -12,8 +12,8 @@
   --mid: #a8670f;
   --low: #3f7a52;
   --shadow: 0 1px 2px rgb(16 33 30 / .06), 0 8px 24px rgb(16 33 30 / .08);
-  --font-display: "Sakkal Majalla", "Noto Naskh Arabic", "Traditional Arabic", serif;
-  --font-body: "Sakkal Majalla", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  --font-display: "Aref Ruqaa", "Amiri", "Traditional Arabic", serif;
+  --font-body: "Amiri", "Traditional Arabic", serif;
   --fs: 18px;
   --tabbar-h: 64px;
   color-scheme: light;
@@ -35,6 +35,14 @@
   color-scheme: dark;
 }
 :root[data-size="big"] { --fs: 21px; }
+/* font choices (settings) */
+:root[data-font="naskh"] { --font-display: "Amiri", "Traditional Arabic", serif; }
+:root[data-font="ruqaa"] { --font-body: "Aref Ruqaa", "Amiri", "Traditional Arabic", serif; }
+.font-pick { display: grid; gap: 8px; }
+.font-pick button { display: grid; gap: 2px; text-align: start; border: 1px solid var(--line); background: var(--bg); padding: 10px 14px; border-radius: 12px; }
+.font-pick button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.font-pick .big { font-size: 1.35rem; line-height: 1.3; }
+.font-pick small { color: var(--muted); }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -45,7 +53,7 @@ body {
   color: var(--fg);
   font-family: var(--font-body);
   font-size: var(--fs);
-  line-height: 1.55;
+  line-height: 1.65;
   -webkit-tap-highlight-color: transparent;
 }
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }

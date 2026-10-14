@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 5;
+const APP_VERSION = 6;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -118,7 +118,7 @@ function load() {
     } catch {}
   }
   s.tasks = (s.tasks || []).map(normalize);
-  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', sound: true, prayer: null, ...(s.settings || {}) };
+  s.settings = { name: '', accent: 'teal', theme: 'system', size: 'normal', font: 'mix', sound: true, prayer: null, ...(s.settings || {}) };
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -732,6 +732,15 @@ function viewSettings() {
     <div class="field"><span>الوضع</span>
       <div class="seg">${segBtn('theme', 'system', 'تلقائي', st.theme)}${segBtn('theme', 'light', 'فاتح', st.theme)}${segBtn('theme', 'dark', 'داكن', st.theme)}</div>
     </div>
+    <div class="field"><span>الخط</span>
+      <div class="font-pick">${[
+        ['mix', 'رقعة ونسخ', 'العناوين بالرقعة والنصوص بالنسخ', '"Aref Ruqaa"', '"Amiri"'],
+        ['naskh', 'نسخ', 'خط النسخ في كل التطبيق', '"Amiri"', '"Amiri"'],
+        ['ruqaa', 'رقعة', 'خط الرقعة في كل التطبيق', '"Aref Ruqaa"', '"Aref Ruqaa"'],
+      ].map(([v, name, desc, fd, fb]) => `<button type="button" data-action="font" data-v="${v}" aria-pressed="${(st.font || 'mix') === v}">
+        <span class="big" style="font-family:${esc(fd)}, serif">${name}: مهامي اليوم</span>
+        <small style="font-family:${esc(fb)}, serif">${desc} · اتصل بأبي الساعة 5 العصر</small></button>`).join('')}</div>
+    </div>
     <div class="field"><span>حجم الخط</span>
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
     </div>
@@ -805,6 +814,7 @@ function applyTheme() {
   const root = document.documentElement;
   if (S.settings.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', S.settings.theme);
   root.setAttribute('data-size', S.settings.size);
+  root.setAttribute('data-font', S.settings.font || 'mix');
   const a = ACCENTS[S.settings.accent] || ACCENTS.teal;
   root.style.setProperty('--accent', isDark() ? a.dark : a.light);
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -1641,6 +1651,7 @@ document.addEventListener('click', (e) => {
     case 'accent': S.settings.accent = v; save(); applyTheme(); render(); break;
     case 'theme': S.settings.theme = v; save(); applyTheme(); render(); break;
     case 'size': S.settings.size = v; save(); applyTheme(); render(); break;
+    case 'font': S.settings.font = v; save(); applyTheme(); render(); break;
     case 'geo': useLocation(); break;
     case 'notif': ensureNotifPermission(); break;
     case 'test-alarm':
