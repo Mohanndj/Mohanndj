@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 8;
+const APP_VERSION = 9;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -57,6 +57,7 @@ const ICONS = {
   back: 'M9 18l6-6-6-6',
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
+  star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
   pin2: 'M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z',
   book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
   bulb: 'M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z',
@@ -159,6 +160,7 @@ function load() {
   s.memos = (Array.isArray(s.memos) ? s.memos : []).map(normalizeMemo);
   s.books = (Array.isArray(s.books) ? s.books : []).map(normalizeBook);
   s.benefits = (Array.isArray(s.benefits) ? s.benefits : []).map(normalizeBenefit);
+  s.inspire = (Array.isArray(s.inspire) ? s.inspire : []).map(normalizeInspire);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -486,6 +488,7 @@ function viewToday() {
     </div>
   </div>
   ${prayerStripHTML()}
+  ${dailyQuoteHTML()}
   <section class="section">
     <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
     ${items.length
@@ -974,7 +977,7 @@ function viewSettings() {
   <section class="panel">
     <h2>البيانات</h2>
     <div class="row-between">
-      <span class="note-text">${S.tasks.length} مهمة وهدف، ${S.projects.length} مشروع، ${S.memos.length} ملاحظة، ${S.books.length} كتاب، ${S.benefits.length} فائدة</span>
+      <span class="note-text">${S.tasks.length} مهمة وهدف، ${S.projects.length} مشروع، ${S.memos.length} ملاحظة، ${S.books.length} كتاب، ${S.benefits.length} فائدة، ${S.inspire.length} عبارة وصورة</span>
       <button type="button" class="danger" data-action="wipe">حذف كل البيانات</button>
     </div>
   </section>
@@ -985,13 +988,14 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'stats'];
+const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'stats'];
 
 function render() {
   const view = $('view');
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
   view.innerHTML = VIEWS[ui.tab]();
+  hydrateImages(view);
   if (active && $(active)) {
     $(active).focus();
     try { if (caret != null) $(active).setSelectionRange(caret, caret); } catch {}
@@ -1020,7 +1024,7 @@ function go(tab, project) {
   if (project !== undefined) ui.project = project;
   render();
   window.scrollTo({ top: 0 });
-  history.replaceState(null, '', '#' + tab);
+  history.replaceState(history.state, '', '#' + tab);
 }
 
 // ---------- Arabic-Indic numerals ----------
@@ -1030,15 +1034,16 @@ const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const toArabicDigits = (s) => s.replace(/[0-9]/g, (d) => AR_DIGITS[d]).replace(/([٠-٩])\s?%/g, '$1٪');
 const digitsOut = (s) => (S.settings.digits === 'arab' ? toArabicDigits(String(s)) : String(s));
 const SKIP_DIGITS = new Set(['TEXTAREA', 'SCRIPT', 'STYLE', 'TITLE']);
+const inEditable = (n) => { const el = n.nodeType === 1 ? n : n.parentNode; return !!(el && el.closest && el.closest('[contenteditable]')); };
 function localizeDigits(root) {
   if (S.settings.digits !== 'arab' || !root) return;
   if (root.nodeType === 3) {
-    if (/[0-9]/.test(root.nodeValue) && !(root.parentNode && SKIP_DIGITS.has(root.parentNode.nodeName))) root.nodeValue = toArabicDigits(root.nodeValue);
+    if (/[0-9]/.test(root.nodeValue) && !(root.parentNode && SKIP_DIGITS.has(root.parentNode.nodeName)) && !inEditable(root)) root.nodeValue = toArabicDigits(root.nodeValue);
     return;
   }
-  if (root.nodeType !== 1 || SKIP_DIGITS.has(root.nodeName)) return;
+  if (root.nodeType !== 1 || SKIP_DIGITS.has(root.nodeName) || inEditable(root)) return;
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => (/[0-9]/.test(n.nodeValue) && !SKIP_DIGITS.has(n.parentNode.nodeName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+    acceptNode: (n) => (/[0-9]/.test(n.nodeValue) && !SKIP_DIGITS.has(n.parentNode.nodeName) && !inEditable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
   });
   const nodes = [];
   while (w.nextNode()) nodes.push(w.currentNode);
@@ -1562,7 +1567,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1578,6 +1583,8 @@ function importData(file) {
       S.memos = (Array.isArray(data.memos) ? data.memos : []).map(normalizeMemo);
       S.books = (Array.isArray(data.books) ? data.books : []).map(normalizeBook);
       S.benefits = (Array.isArray(data.benefits) ? data.benefits : []).map(normalizeBenefit);
+      // photos stay on this device; imported phrases are added to them
+      S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
       save();
       applyTheme();
@@ -1749,6 +1756,13 @@ async function applyPendingTimerActions() {
   } catch {}
 }
 
+function timerNotifNote() {
+  if (!('Notification' in window)) return '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
+  if (Notification.permission === 'granted') return '<p class="note-text">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
+  if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← مهامي (أو Chrome) ← الإشعارات.</p>';
+  return '<div class="warn-box"><span>ليبقى المؤقت ظاهراً في شريط الإشعارات بعد خروجك من التطبيق، فعّل الإشعارات.</span><button type="button" class="primary" data-action="notif-timer">تفعيل الإشعارات</button></div>';
+}
+
 function timerTaskOptions(selected) {
   const t0 = today();
   const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : !t.done && t.due && t.due <= t0));
@@ -1779,7 +1793,7 @@ function viewTimer() {
         <button type="button" class="${tm.running ? 'primary' : 'ghost'}" data-action="timer-stop">${tm.phase === 'break' ? 'إنهاء الاستراحة' : 'إنهاء وحفظ'}</button>
         <button type="button" class="danger" data-action="timer-cancel" id="tCancel">إلغاء</button>
       </div>
-      <p class="note-text">يظهر المؤقت في إشعار على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>
+      ${timerNotifNote()}
     </section>`;
   } else if (ui.timerEnded) {
     const en = ui.timerEnded;
@@ -1875,7 +1889,7 @@ document.addEventListener('click', (e) => {
       closeSheet();
       ui.tab = 'timer';
       startTimer(id, cfg.mode, cfg.minutes);
-      history.replaceState(null, '', '#timer');
+      history.replaceState(history.state, '', '#timer');
       break;
     }
   }
@@ -2026,6 +2040,7 @@ document.addEventListener('click', (e) => {
       break;
     case 'geo': useLocation(); break;
     case 'notif': ensureNotifPermission(); break;
+    case 'notif-timer': ensureNotifPermission().then(() => { timerNotify(); render(); }); break;
     case 'test-alarm':
       unlockAudio();
       alarmQueue.unshift({ id: '__test', key: '__test' });
@@ -2055,7 +2070,8 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm('سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
       break;
@@ -2145,6 +2161,58 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 
+// ---------- back button & exit confirmation ----------
+// The back button first closes what is open, then returns to «اليوم»; on «اليوم» it asks before leaving.
+let leaving = false;
+function armBack() {
+  if (!(history.state && history.state.mahamiGuard)) history.pushState({ mahamiGuard: 1 }, '', location.href);
+}
+let exitTimer = null;
+function askExit() {
+  $('exitBar').hidden = false;
+  clearTimeout(exitTimer);
+  exitTimer = setTimeout(() => { if (!$('exitBar').hidden) stayInApp(); }, 8000);
+}
+function stayInApp() {
+  $('exitBar').hidden = true;
+  clearTimeout(exitTimer);
+  armBack();
+}
+function closeTopLayer() {
+  if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
+  if ($('viewer').open) { closeViewer(); return true; }
+  if ($('libSheet').open) { closeLib(); return true; }
+  if (psheet.open) { closeProjectSheet(); return true; }
+  if (sheet.open) { closeSheet(); return true; }
+  return false;
+}
+window.addEventListener('popstate', () => {
+  if (leaving) return;
+  if (!$('exitBar').hidden) { $('exitBar').hidden = true; } // second back while asking: let it go
+  if (closeTopLayer()) { armBack(); return; }
+  if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }
+  if (MORE_TABS.includes(ui.tab) && ui.tab !== 'more') { go('more'); armBack(); return; }
+  if (ui.tab !== 'today') { go('today'); armBack(); return; }
+  askExit(); // not re-armed: pressing back again leaves the app
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-exit]');
+  if (!b) return;
+  if (b.dataset.exit === 'stay') { stayInApp(); return; }
+  leaving = true;
+  $('exitBar').hidden = true;
+  if (S.timer) timerNotify();
+  try { window.close(); } catch {}
+  // a web app can't always close itself; the guard is already gone, so one more back leaves
+  setTimeout(() => { leaving = false; if (!document.hidden) toast('اضغط زر الرجوع مرة أخرى للخروج'); }, 300);
+});
+// a history entry only counts once the user has interacted with the page
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { if ($('exitBar').hidden && !leaving) armBack(); }, { passive: true });
+
+// dialogs closed by the system back gesture still save their work
+$('memoEditor').addEventListener('close', () => { if (mstate) { saveMemoNow(); mstate = null; render(); } });
+$('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
+
 // ---------- boot ----------
 (function boot() {
   const params = new URLSearchParams(location.search);
@@ -2164,6 +2232,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   updateWakeLock();
   document.addEventListener('visibilitychange', () => {
     updateWakeLock();
+    // leaving the app: refresh the timer's notification bar so it stays visible outside
+    if (document.visibilityState === 'hidden' && S.timer) timerNotify();
     if (document.visibilityState === 'visible') { applyPendingTimerActions(); checkAlarms(); if (!sheet.open && !psheet.open) render(); }
   });
   let lastDay = today();

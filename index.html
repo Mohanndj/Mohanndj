@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 <header class="top">
@@ -275,26 +275,96 @@
   </form>
 </dialog>
 
+<!-- exit confirmation (non-blocking: pressing back again leaves) -->
+<div class="exit-bar" id="exitBar" role="alertdialog" aria-live="assertive" hidden>
+  <strong>هل تريد الخروج من التطبيق؟</strong>
+  <div class="alarm-actions">
+    <button type="button" class="primary" data-exit="leave">خروج</button>
+    <button type="button" data-exit="stay">البقاء</button>
+  </div>
+</div>
+
+<!-- full-screen note editor -->
+<dialog id="memoEditor" class="fullscreen" aria-label="محرر الملاحظة">
+  <div class="me-wrap">
+    <div class="me-head">
+      <button type="button" class="icon-btn" data-maction="close" aria-label="رجوع وحفظ">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <input type="text" id="meTitle" placeholder="العنوان" autocomplete="off" aria-label="عنوان الملاحظة">
+      <button type="button" class="icon-btn" id="mePin" data-maction="pin" aria-pressed="false" aria-label="تثبيت">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>
+      </button>
+      <button type="button" class="danger" id="meDel" data-maction="delete">حذف</button>
+    </div>
+    <div class="me-tools" id="meTools" role="toolbar" aria-label="أدوات التنسيق">
+      <button type="button" data-cmd="bold" aria-label="غامق"><b>غ</b></button>
+      <button type="button" data-cmd="italic" aria-label="مائل"><i>م</i></button>
+      <button type="button" data-cmd="underline" aria-label="تسطير"><u>س</u></button>
+      <button type="button" data-cmd="strikeThrough" aria-label="شطب"><s>ش</s></button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="palColor" aria-label="لون النص"><span class="tool-color">أ</span></button>
+      <button type="button" data-cmd="palHi" aria-label="تظليل"><span class="tool-hi">ظ</span></button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="formatBlock" data-val="h2" aria-label="عنوان">عنوان</button>
+      <button type="button" data-cmd="formatBlock" data-val="h3" aria-label="عنوان فرعي">فرعي</button>
+      <button type="button" data-cmd="formatBlock" data-val="p" aria-label="نص عادي">نص</button>
+      <button type="button" data-cmd="formatBlock" data-val="blockquote" aria-label="اقتباس">❝</button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="insertUnorderedList" aria-label="قائمة نقطية"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+      <button type="button" data-cmd="insertOrderedList" aria-label="قائمة مرقمة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M4 4v4M3 8h2M3 14h2l-2 3h2"/></svg></button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="justifyRight" aria-label="محاذاة لليمين"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M6 18h14"/></svg></button>
+      <button type="button" data-cmd="justifyCenter" aria-label="توسيط"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+      <button type="button" data-cmd="justifyLeft" aria-label="محاذاة لليسار"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h12M4 18h14"/></svg></button>
+      <button type="button" data-cmd="insertHorizontalRule" aria-label="خط فاصل">―</button>
+      <span class="sep"></span>
+      <button type="button" data-cmd="removeFormat" aria-label="إزالة التنسيق">إزالة</button>
+      <button type="button" data-cmd="undo" aria-label="تراجع"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+      <button type="button" data-cmd="redo" aria-label="إعادة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+    </div>
+    <div class="me-pal" id="mePalColor" hidden></div>
+    <div class="me-pal" id="mePalHi" hidden></div>
+    <div id="meBody" class="me-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="نص الملاحظة" data-placeholder="اكتب ملاحظتك هنا…"></div>
+    <div class="me-foot"><small id="meStatus"></small></div>
+  </div>
+</dialog>
+
+<!-- photo viewer -->
+<dialog id="viewer" class="fullscreen dark" aria-label="عرض الصورة">
+  <div class="v-wrap">
+    <div class="v-head">
+      <button type="button" class="icon-btn" data-vaction="close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button type="button" class="icon-btn" id="vFav" data-vaction="fav" aria-pressed="false" aria-label="مفضّلة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg></button>
+      <button type="button" class="danger" id="vDel" data-vaction="delete">حذف</button>
+    </div>
+    <img id="vImg" alt="">
+    <input type="text" id="vCaption" placeholder="أضف تعليقاً على الصورة…" autocomplete="off" aria-label="تعليق">
+  </div>
+</dialog>
+
 <!-- notes / books / benefits editor -->
 <dialog id="libSheet" aria-label="محرر">
   <form id="libForm" novalidate></form>
 </dialog>
 
-<script src="timer-shared.js?v=8"></script>
-<script src="prayer.js?v=8"></script>
-<script src="nlp.js?v=8"></script>
-<script src="xlsx.js?v=8"></script>
-<script src="library.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="timer-shared.js?v=9"></script>
+<script src="prayer.js?v=9"></script>
+<script src="nlp.js?v=9"></script>
+<script src="xlsx.js?v=9"></script>
+<script src="library.js?v=9"></script>
+<script src="notes.js?v=9"></script>
+<script src="inspire.js?v=9"></script>
+<script src="app.js?v=9"></script>
 <script>
   // Self-repair: if the page and its scripts come from different versions (an old offline copy),
   // clear the offline copy and reload once.
   (function () {
-    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 8 && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 9 && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
     var tried = false;
-    try { tried = sessionStorage.getItem('mahami-repair') === '8'; } catch (e) {}
+    try { tried = sessionStorage.getItem('mahami-repair') === '9'; } catch (e) {}
     if (ok || tried) return;
-    try { sessionStorage.setItem('mahami-repair', '8'); } catch (e) {}
+    try { sessionStorage.setItem('mahami-repair', '9'); } catch (e) {}
     var regs = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
     regs.then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
       .then(function () { return window.caches ? caches.keys() : []; })
