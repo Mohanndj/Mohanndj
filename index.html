@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <header class="top">
@@ -220,9 +220,25 @@
   </form>
 </dialog>
 
-<script src="timer-shared.js"></script>
-<script src="prayer.js"></script>
-<script src="nlp.js"></script>
-<script src="app.js"></script>
+<script src="timer-shared.js?v=5"></script>
+<script src="prayer.js?v=5"></script>
+<script src="nlp.js?v=5"></script>
+<script src="app.js?v=5"></script>
+<script>
+  // Self-repair: if the page and its scripts come from different versions (an old offline copy),
+  // clear the offline copy and reload once.
+  (function () {
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 5 && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined';
+    var tried = false;
+    try { tried = sessionStorage.getItem('mahami-repair') === '5'; } catch (e) {}
+    if (ok || tried) return;
+    try { sessionStorage.setItem('mahami-repair', '5'); } catch (e) {}
+    var regs = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
+    regs.then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+      .then(function () { return window.caches ? caches.keys() : []; })
+      .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== 'mahami-actions'; }).map(function (k) { return caches.delete(k); })); })
+      .finally(function () { location.reload(); });
+  })();
+</script>
 </body>
 </html>

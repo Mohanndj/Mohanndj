@@ -1,5 +1,7 @@
 'use strict';
 
+const APP_VERSION = 5;
+
 // ---------- constants ----------
 const KEY = 'mahami-v2';
 const OLD_KEY = 'my-tasks-v1';
@@ -753,6 +755,11 @@ function viewSettings() {
       <button type="button" class="ghost" data-action="import">استيراد من ملف</button>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
+  </section>
+  <section class="panel">
+    <h2>تحديث التطبيق</h2>
+    <p class="note-text">إذا لم يعمل زر أو قسم، اضغط هنا ليُحمَّل التطبيق من جديد. مهامك لن تُحذف.</p>
+    <div class="row-between"><button type="button" class="ghost" data-action="hard-refresh">تحديث التطبيق الآن</button><span class="note-text">الإصدار ${APP_VERSION}</span></div>
   </section>
   <section class="panel">
     <h2>البيانات</h2>
@@ -1652,6 +1659,15 @@ document.addEventListener('click', (e) => {
       alarmAction(action === 'alarm-done' ? 'done' : action === 'alarm-snooze' ? 'snooze' : 'dismiss', cur.id, cur.key);
       break;
     }
+    case 'hard-refresh':
+      (async () => {
+        try {
+          if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+          if (window.caches) for (const k of await caches.keys()) if (k !== 'mahami-actions') await caches.delete(k);
+        } catch {}
+        location.reload();
+      })();
+      break;
     case 'export': exportData(); break;
     case 'import': $('importFile').click(); break;
     case 'wipe':
@@ -1727,7 +1743,15 @@ window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; t
 
 // ---------- service worker ----------
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => reg.update()).catch(() => {});
+  // a new version took over: reload once so every file comes from it
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading || sheet.open) return;
+    reloading = true;
+    location.reload();
+  });
   navigator.serviceWorker.addEventListener('message', (e) => {
     const m = e.data || {};
     if (m.type === 'alarm-action') alarmAction(m.action, m.id, m.key);

@@ -1,6 +1,10 @@
-// Offline cache + notification actions for «مهامي»
+// Offline support + notification actions for «مهامي»
+// App files are fetched from the network first so the page and its scripts always come from the
+// same version; the cache is only used when there is no connection.
 importScripts('timer-shared.js');
-const CACHE = 'mahami-v4.0.0';
+
+const VERSION = 5;
+const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
   './index.html',
@@ -18,33 +22,56 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache so every file is from this version
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'mahami-actions').map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-// Stale-while-revalidate: open instantly from cache, refresh in the background
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  e.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
-      const network = fetch(req)
-        .then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
-  );
+  const url = new URL(req.url);
+
+  if (url.origin === self.location.origin) {
+    // network first, cache as offline fallback
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const res = await fetch(req, { cache: 'no-cache' });
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      } catch {
+        return (await cache.match(req, { ignoreSearch: true })) ||
+          (req.mode === 'navigate' ? (await cache.match('./index.html')) || Response.error() : Response.error());
+      }
+    })());
+    return;
+  }
+
+  // fonts and other third-party files: cache first
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req);
+    if (cached) return cached;
+    try {
+      const res = await fetch(req);
+      if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+      return res;
+    } catch {
+      return Response.error();
+    }
+  })());
 });
 
 // Timer buttons (pressed on the phone or on a paired watch): record the press, refresh the
