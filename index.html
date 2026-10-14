@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مهامي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --text: #1f2330;
+    --muted: #6b7185;
+    --border: #e3e5ee;
+    --accent: #4f6bed;
+    --accent-soft: #e8ecfd;
+    --high: #e5484d;
+    --mid: #f5a524;
+    --low: #30a46c;
+    --shadow: 0 1px 3px rgba(20, 24, 40, .06), 0 4px 16px rgba(20, 24, 40, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141b;
+      --card: #1b1e28;
+      --text: #e8eaf2;
+      --muted: #9097ad;
+      --border: #2b2f3d;
+      --accent: #7b8ff5;
+      --accent-soft: #252b47;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Tajawal", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 1.8rem; }
+  header p { margin: 0 0 20px; color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 1.5rem; }
+  .stat span { color: var(--muted); font-size: .9rem; }
+  .progress { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 20px; }
+  .progress div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+
+  form.add { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: grid; gap: 10px; margin-bottom: 18px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], input[type=date], select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0;
+  }
+  input[type=text] { flex: 1; }
+  .row > * { flex: 1 1 140px; }
+  button { cursor: pointer; border: none; border-radius: 10px; padding: 10px 16px; }
+  .primary { background: var(--accent); color: #fff; font-weight: 700; }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1 1 180px; }
+  .tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+  .tabs button { background: transparent; padding: 6px 12px; color: var(--muted); }
+  .tabs button.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  li.task {
+    display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--border);
+    border-inline-start: 4px solid var(--low); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  li.task.p-high { border-inline-start-color: var(--high); }
+  li.task.p-mid { border-inline-start-color: var(--mid); }
+  li.task input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+  .body { flex: 1; min-width: 0; }
+  .title { overflow-wrap: anywhere; }
+  .done .title { text-decoration: line-through; color: var(--muted); }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin-top: 2px; }
+  .tag { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 0 8px; }
+  .overdue { color: var(--high); font-weight: 700; }
+  .actions { display: flex; gap: 4px; }
+  .actions button { background: transparent; color: var(--muted); padding: 6px 8px; }
+  .actions button:hover { background: var(--bg); color: var(--text); }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; color: var(--muted); font-size: .9rem; }
+  .link { background: transparent; color: var(--muted); padding: 4px 8px; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>مهامي</h1>
+    <p>كل مهامك في مكان واحد</p>
+  </header>
+
+  <section class="stats">
+    <div class="stat"><b id="sTotal">0</b><span>كل المهام</span></div>
+    <div class="stat"><b id="sActive">0</b><span>قيد التنفيذ</span></div>
+    <div class="stat"><b id="sDone">0</b><span>منجزة</span></div>
+  </section>
+  <div class="progress"><div id="bar"></div></div>
+
+  <form class="add" id="addForm">
+    <input type="text" id="title" placeholder="ما المهمة الجديدة؟" required autocomplete="off">
+    <div class="row">
+      <select id="priority" aria-label="الأولوية">
+        <option value="low">أولوية منخفضة</option>
+        <option value="mid" selected>أولوية متوسطة</option>
+        <option value="high">أولوية عالية</option>
+      </select>
+      <input type="text" id="category" placeholder="التصنيف (عمل، شخصي…)" list="cats" autocomplete="off">
+      <datalist id="cats"></datalist>
+      <input type="date" id="due" aria-label="تاريخ الاستحقاق">
+      <button class="primary" type="submit">إضافة</button>
+    </div>
+  </form>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="بحث…">
+    <div class="tabs" id="tabs">
+      <button data-f="all" class="on">الكل</button>
+      <button data-f="active">الحالية</button>
+      <button data-f="done">المنجزة</button>
+    </div>
+    <select id="sort" aria-label="الترتيب">
+      <option value="created">الأحدث</option>
+      <option value="due">حسب التاريخ</option>
+      <option value="priority">حسب الأولوية</option>
+    </select>
+  </div>
+
+  <ul id="list"></ul>
+
+  <div class="footer">
+    <span id="left"></span>
+    <button class="link" id="clearDone">حذف المنجزة</button>
+  </div>
+</div>
+
+<script>
+  const KEY = "my-tasks-v1";
+  const PRI = { high: 3, mid: 2, low: 1 };
+  const PRI_LABEL = { high: "عالية", mid: "متوسطة", low: "منخفضة" };
+  let tasks = load();
+  let filter = "all";
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch {}
+  }
+  const $ = (id) => document.getElementById(id);
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  function render() {
+    const q = $("search").value.trim().toLowerCase();
+    let view = tasks.filter((t) =>
+      (filter === "all" || (filter === "done") === t.done) &&
+      (!q || t.title.toLowerCase().includes(q) || (t.category || "").toLowerCase().includes(q))
+    );
+    const sort = $("sort").value;
+    view.sort((a, b) => {
+      if (sort === "due") return (a.due || "9999") .localeCompare(b.due || "9999");
+      if (sort === "priority") return PRI[b.priority] - PRI[a.priority];
+      return b.created - a.created;
+    });
+
+    const list = $("list");
+    list.innerHTML = "";
+    if (!view.length) {
+      list.innerHTML = `<li class="empty">${tasks.length ? "لا توجد مهام مطابقة" : "لا توجد مهام بعد — أضف أول مهمة!"}</li>`;
+    }
+    for (const t of view) {
+      const li = document.createElement("li");
+      li.className = `task p-${t.priority}${t.done ? " done" : ""}`;
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = t.done;
+      cb.setAttribute("aria-label", "إنجاز");
+      cb.onchange = () => { t.done = cb.checked; save(); render(); };
+
+      const body = document.createElement("div");
+      body.className = "body";
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = t.title;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.append(span(`الأولوية: ${PRI_LABEL[t.priority]}`));
+      if (t.category) meta.append(span(t.category, "tag"));
+      if (t.due) meta.append(span(`📅 ${t.due}`, !t.done && t.due < today() ? "overdue" : ""));
+      body.append(title, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      actions.append(
+        btn("✏️", "تعديل", () => {
+          const v = prompt("تعديل المهمة:", t.title);
+          if (v && v.trim()) { t.title = v.trim(); save(); render(); }
+        }),
+        btn("🗑️", "حذف", () => {
+          if (confirm("حذف هذه المهمة؟")) { tasks = tasks.filter((x) => x.id !== t.id); save(); render(); }
+        })
+      );
+      li.append(cb, body, actions);
+      list.append(li);
+    }
+
+    const done = tasks.filter((t) => t.done).length;
+    $("sTotal").textContent = tasks.length;
+    $("sActive").textContent = tasks.length - done;
+    $("sDone").textContent = done;
+    $("bar").style.width = tasks.length ? `${(done / tasks.length) * 100}%` : "0";
+    $("left").textContent = `${tasks.length - done} مهمة متبقية`;
+    $("cats").innerHTML = [...new Set(tasks.map((t) => t.category).filter(Boolean))]
+      .map((c) => `<option value="${c.replace(/"/g, "&quot;")}">`).join("");
+  }
+
+  function span(text, cls = "") {
+    const s = document.createElement("span");
+    s.textContent = text;
+    if (cls) s.className = cls;
+    return s;
+  }
+  function btn(icon, label, onClick) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = icon;
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.onclick = onClick;
+    return b;
+  }
+
+  $("addForm").onsubmit = (e) => {
+    e.preventDefault();
+    const title = $("title").value.trim();
+    if (!title) return;
+    tasks.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+      title,
+      priority: $("priority").value,
+      category: $("category").value.trim(),
+      due: $("due").value,
+      done: false,
+      created: Date.now(),
+    });
+    save();
+    $("title").value = "";
+    $("due").value = "";
+    $("title").focus();
+    render();
+  };
+  $("tabs").onclick = (e) => {
+    const f = e.target.dataset.f;
+    if (!f) return;
+    filter = f;
+    for (const b of $("tabs").children) b.classList.toggle("on", b.dataset.f === f);
+    render();
+  };
+  $("search").oninput = render;
+  $("sort").onchange = render;
+  $("clearDone").onclick = () => {
+    if (!tasks.some((t) => t.done)) return;
+    if (confirm("حذف كل المهام المنجزة؟")) { tasks = tasks.filter((t) => !t.done); save(); render(); }
+  };
+
+  render();
+</script>
+</body>
+</html>
