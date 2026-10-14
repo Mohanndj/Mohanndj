@@ -697,3 +697,39 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
   body.printing-report .panel, body.printing-report .tile { break-inside: avoid; }
   body.printing-report .ai-btn { display: none; }
 }
+
+/* ================= v12: habits ================= */
+.section-head h2 small { font-family: var(--font-body); font-size: .85rem; color: var(--muted); font-weight: 400; }
+.habit-box { display: grid; gap: 10px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+.habit-box .switch { padding: 0; align-self: auto; }
+.habit-card { list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
+.habit-card.graduated { border-color: color-mix(in srgb, var(--low) 50%, var(--line)); }
+.habit-top { display: flex; align-items: center; gap: 14px; }
+.habit-top .check { padding: 0; width: 40px; height: 40px; }
+.habit-card.done .check::before { background: var(--accent); border-color: var(--accent); }
+.habit-card.done .check svg { opacity: 1; }
+.habit-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.habit-main .t-main { padding: 0; }
+.habit-main .t-title { font-size: 1.15rem; font-weight: 700; }
+.habit-identity { color: var(--muted); font-size: .9rem; }
+.habit-stage { justify-self: start; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: .78rem; border-radius: 99px; padding: 2px 10px; }
+.habit-card.graduated .habit-stage { background: color-mix(in srgb, var(--low) 15%, var(--card)); color: var(--low); }
+.habit-ring { --p: 0; width: 76px; height: 76px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--line) 0); }
+.habit-card.graduated .habit-ring { background: conic-gradient(var(--low) calc(var(--p) * 1%), var(--line) 0); }
+.habit-ring > span { width: 60px; height: 60px; border-radius: 50%; background: var(--card); display: grid; place-content: center; text-align: center; line-height: 1.1; }
+.habit-ring b { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.habit-ring small { font-size: .62rem; color: var(--muted); }
+.habit-journey { display: grid; gap: 6px; }
+.habit-journey small { color: var(--muted); font-size: .8rem; }
+.habit-dots { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; }
+.habit-dots i { aspect-ratio: 1; max-width: 100%; border-radius: 4px; background: var(--line); }
+.habit-dots i.hit { background: var(--accent); }
+.habit-dots i.miss { background: color-mix(in srgb, var(--high) 35%, var(--line)); }
+.habit-dots i.off { background: transparent; border: 1px dashed var(--line); }
+.habit-dots i.today { outline: 2px solid var(--fg); outline-offset: 1px; }
+.habit-plan { margin: 0; display: grid; gap: 4px; background: var(--bg); border-radius: 12px; padding: 8px 12px; font-size: .88rem; }
+.habit-plan div { display: flex; gap: 8px; }
+.habit-plan dt { color: var(--muted); min-width: 7.5em; }
+.habit-plan dd { margin: 0; overflow-wrap: anywhere; }
+.habit-done summary { cursor: pointer; color: var(--low); font-weight: 700; padding: 6px 0; }

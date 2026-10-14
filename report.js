@@ -30,7 +30,7 @@ function monthStats(m) {
       if (t.completions[d]) { hit++; bump(d); }
     }
     goalDays += hit;
-    if (total) goals.push({ title: t.title, total, hit, rate: pct(hit, total) });
+    if (total && !isHabit(t)) goals.push({ title: t.title, total, hit, rate: pct(hit, total) }); // habits have their own section
   }
   const goalsAchieved = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && t.done && inM(dayOf(t.doneAt)));
   goalsAchieved.forEach((t) => bump(dayOf(t.doneAt)));
@@ -104,6 +104,7 @@ function viewReport() {
     ${st.goals.length || st.goalsAchieved.length ? `<section class="panel"><h2>الأهداف</h2>
       ${st.goals.length ? `<ul class="hbars">${st.goals.map((g) => hbar(esc(g.title), `${g.rate}%`, g.rate)).join('')}</ul>` : ''}
       ${st.goalsAchieved.length ? `<p class="note-text">حققت: ${st.goalsAchieved.map(esc).join('، ')}</p>` : ''}</section>` : ''}
+    ${habitsReportHTML(repUi.month)}
     ${st.booksRead.length || st.pages || st.benefits ? `<section class="panel"><h2>القراءة</h2>
       <p class="note-text">${st.booksRead.length ? `أنهيت: ${st.booksRead.map((t) => `«${esc(t)}»`).join('، ')}.` : 'لم تُنهِ كتاباً هذا الشهر.'} ${st.pages ? `قرأت ${st.pages} صفحة.` : ''} ${st.benefits ? `سجّلت ${st.benefits} فائدة${st.topBenefit ? `، منها «${esc(st.topBenefit)}»` : ''}.` : ''}</p></section>` : ''}
     ${st.focusTop.length ? `<section class="panel"><h2>أكثر ما ركّزت عليه</h2><ul class="hbars">${st.focusTop.map((x) => hbar(esc(x.title), fmtDur(x.ms), (x.ms / st.focusTop[0].ms) * 100)).join('')}</ul></section>` : ''}
@@ -127,6 +128,7 @@ async function reportAI(btn) {
     `Tasks completed: ${st.tasksDone}; steps completed: ${st.steps}; active days: ${st.activeDays}`,
     st.goals.length ? `Recurring goals adherence: ${st.goals.map((g) => `${g.title} ${g.rate}% (${g.hit}/${g.total})`).join('; ')}` : 'No recurring goals.',
     st.goalsAchieved.length ? `One-time goals achieved: ${st.goalsAchieved.join('; ')}` : '',
+    habitsMonthStats(repUi.month).length ? `Habits being built (max 3): ${habitsMonthStats(repUi.month).map((h) => `${h.title}: done ${h.hit}/${h.total} days this month, strength ${h.strength}%, stage ${h.stage}`).join('; ')}` : '',
     st.projects.length ? `Projects progress: ${st.projects.map((p) => `${p.name} ${p.progress}% (+${p.doneIn} tasks this month)`).join('; ')}` : '',
     `Focus time: ${Math.round(st.focusMs / 60000)} minutes${st.focusTop.length ? ` (top: ${st.focusTop.map((x) => x.title).join(', ')})` : ''}`,
     `Books finished: ${st.booksRead.join('; ') || 'none'}; pages read: ${st.pages}; benefits recorded: ${st.benefits}`,
@@ -193,6 +195,8 @@ async function reportImage() {
     y += 62;
   };
   if (st.projects.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('المشاريع', W - P, y); y += 60; st.projects.slice(0, 3).forEach((p) => line(p.name, p.progress, p.color)); }
+  const hs = habitsMonthStats(repUi.month);
+  if (hs.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('العادات (القوة)', W - P, y); y += 60; hs.forEach((h) => line(h.title, h.strength)); }
   if (st.goals.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('الأهداف', W - P, y); y += 60; st.goals.slice(0, 3).forEach((g) => line(g.title, g.rate)); }
   if (st.booksRead.length && y < H - 160) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('أنهيت قراءة', W - P, y); y += 56; x.fillStyle = '#16211e'; x.font = '400 34px "Amiri", serif'; x.fillText(D(st.booksRead.slice(0, 3).map((t) => `«${t}»`).join('، ')), W - P, y); }
   x.fillStyle = '#5b6a66'; x.font = '400 26px "Amiri", serif'; x.textAlign = 'center';

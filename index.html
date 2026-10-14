@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
 <header class="top">
@@ -124,6 +124,26 @@
             <input type="date" id="fUntil">
             <small class="hint">اتركه فارغاً ليستمر بلا نهاية</small>
           </label>
+        </div>
+        <div id="habitBox" class="habit-box">
+          <label class="switch"><input type="checkbox" id="fHabit"><span>عادة أبنيها <small class="hint" id="habitSlots"></small></span></label>
+          <div id="habitFields" class="stack" hidden>
+            <label class="field"><span>من تريد أن تكون؟</span><input type="text" id="fIdentity" autocomplete="off" placeholder="مثال: أنا قارئ يقرأ كل يوم"></label>
+            <div class="grid2">
+              <label class="field"><span>المحفّز: متى وأين؟</span><input type="text" id="fCue" autocomplete="off" placeholder="بعد صلاة الفجر في مكتبي"></label>
+              <label class="field"><span>النسخة المصغرة</span><input type="text" id="fTiny" autocomplete="off" placeholder="أقرأ صفحة واحدة"></label>
+            </div>
+            <label class="field"><span>المكافأة</span><input type="text" id="fReward" autocomplete="off" placeholder="كوب قهوتي المفضّلة"></label>
+            <label class="field"><span>مدة البناء</span>
+              <select id="fHabitDays">
+                <option value="21">21 يوماً</option>
+                <option value="30">30 يوماً</option>
+                <option value="66">66 يوماً (المتوسط في الدراسات)</option>
+                <option value="90">90 يوماً</option>
+              </select>
+            </label>
+            <small class="hint">النسخة المصغرة نسخة لا تتجاوز دقيقتين تفعلها في الأيام الصعبة حتى لا تنقطع.</small>
+          </div>
         </div>
       </div>
       <div id="onceGoalFields">
@@ -367,26 +387,27 @@
   <form id="libForm" novalidate></form>
 </dialog>
 
-<script src="timer-shared.js?v=11"></script>
-<script src="prayer.js?v=11"></script>
-<script src="nlp.js?v=11"></script>
-<script src="xlsx.js?v=11"></script>
-<script src="library.js?v=11"></script>
-<script src="notes.js?v=11"></script>
-<script src="inspire.js?v=11"></script>
-<script src="sync.js?v=11"></script>
-<script src="ai.js?v=11"></script>
-<script src="report.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="timer-shared.js?v=12"></script>
+<script src="prayer.js?v=12"></script>
+<script src="nlp.js?v=12"></script>
+<script src="xlsx.js?v=12"></script>
+<script src="library.js?v=12"></script>
+<script src="notes.js?v=12"></script>
+<script src="inspire.js?v=12"></script>
+<script src="sync.js?v=12"></script>
+<script src="ai.js?v=12"></script>
+<script src="habits.js?v=12"></script>
+<script src="report.js?v=12"></script>
+<script src="app.js?v=12"></script>
 <script>
   // Self-repair: if the page and its scripts come from different versions (an old offline copy),
   // clear the offline copy and reload once.
   (function () {
-    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 11 && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 12 && typeof habitStats !== 'undefined' && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
     var tried = false;
-    try { tried = sessionStorage.getItem('mahami-repair') === '11'; } catch (e) {}
+    try { tried = sessionStorage.getItem('mahami-repair') === '12'; } catch (e) {}
     if (ok || tried) return;
-    try { sessionStorage.setItem('mahami-repair', '11'); } catch (e) {}
+    try { sessionStorage.setItem('mahami-repair', '12'); } catch (e) {}
     var regs = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
     regs.then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
       .then(function () { return window.caches ? caches.keys() : []; })

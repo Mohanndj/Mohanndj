@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 11;
+const APP_VERSION = 12;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -129,6 +129,7 @@ function normalize(t) {
     unit: t.unit || '',
     counts: t.counts && typeof t.counts === 'object' ? t.counts : {},
     count: Number(t.count) || 0, // progress of a one-time counted goal
+    habit: repeat ? normalizeHabit(t.habit) : null,
   };
 }
 
@@ -303,6 +304,7 @@ function toggle(id, date) {
     t.doneAt = t.done ? Date.now() : null;
   }
   save();
+  checkGraduation(t);
   render();
   const p = projectOf(t);
   if (p && t.done) {
@@ -316,6 +318,7 @@ function step(id, date, delta) {
   if (!t) return;
   setCount(t, date, countOn(t, date) + delta);
   save();
+  checkGraduation(t);
   render();
 }
 
@@ -339,7 +342,7 @@ const projectChip = (p) => `<span class="proj" style="--pc:${p.color}"><i></i>${
 
 function metaHTML(t, d, opts = {}) {
   const meta = [];
-  if (isGoal(t) && !opts.noKind) meta.push(`<span class="kind-goal">${isRepeat(t) ? 'هدف متكرر' : 'هدف'}</span>`);
+  if (isGoal(t) && !opts.noKind) meta.push(`<span class="kind-goal">${isHabit(t) ? 'عادة' : isRepeat(t) ? 'هدف متكرر' : 'هدف'}</span>`);
   const p = projectOf(t);
   if (p && !opts.noProject) meta.push(projectChip(p));
   if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
@@ -727,10 +730,11 @@ function onceGoalHTML(t) {
 function viewGoals() {
   const goals = S.tasks.filter(isGoal);
   const t0 = today();
-  const recurring = goals.filter((t) => isRepeat(t) && !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
+  const recurring = goals.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
   const once = goals.filter((t) => !isRepeat(t) && !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
-  const finished = goals.filter(goalEnded);
+  const finished = goals.filter((t) => goalEnded(t) && !(isHabit(t) && habitStats(t).graduated));
   return `
+  ${habitsSectionHTML()}
   <section class="section">
     <div class="section-head"><h2>أهداف متكررة</h2>${addBtn('new-goal', 'هدف متكرر')}</div>
     ${recurring.length ? `<ul class="list">${recurring.map(recurringGoalHTML).join('')}</ul>`
@@ -840,7 +844,7 @@ function viewStats() {
   for (const e of main) byCat[e.cat] = (byCat[e.cat] || 0) + 1;
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const catMax = cats.length ? cats[0][1] : 1;
-  const recurring = S.tasks.filter((t) => isRepeat(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
+  const recurring = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
   const once = S.tasks.filter((t) => isGoal(t) && !isRepeat(t));
   const tasks = S.tasks.filter((t) => !isGoal(t));
   const projects = S.projects.map((p) => ({ p, st: projectStats(p.id) })).filter((x) => x.st.total);
@@ -871,6 +875,7 @@ function viewStats() {
     </ul><p class="note-text">المتكرر: نسبة الأيام التي التزمت فيها. لمرة واحدة: مقدار ما تحقق.</p>`
       : '<p class="note-text">أضف هدفاً لتتابع التزامك به.</p>'}
   </section>
+  ${habitsPanelHTML()}
   ${focusPanelHTML()}
   ${readingPanelHTML()}
   <section class="panel">
@@ -1102,8 +1107,8 @@ function setKind(kind) {
   $('taskFields').hidden = goal;
   $('goalFields').hidden = !goal;
   $('subsSec').hidden = goal;
-  setRepeat(draft.repeat);
   $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
+  setRepeat(draft.repeat); // may rename the sheet to «عادة جديدة»
 }
 
 function setRepeat(on) {
@@ -1111,10 +1116,25 @@ function setRepeat(on) {
   for (const b of $('fRepeatMode').children) b.setAttribute('aria-pressed', String((b.dataset.rep === 'on') === on));
   const goal = draft.kind === 'goal';
   $('repeatFields').hidden = !goal || !on;
+  updateHabitBox();
   $('onceGoalFields').hidden = !goal || on;
   $('targetHint').textContent = on ? 'مثال: 8 أكواب ماء يومياً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.' : 'مثال: قراءة 12 كتاباً. اترك العدد 1 لهدف يُنجز بضغطة واحدة.';
   $('targetLabel').textContent = on ? 'العدد المطلوب يومياً' : 'العدد المطلوب';
   updatePrayerHint();
+}
+
+// the «عادة» switch: only for recurring goals, and only while fewer than 3 habits are being built
+function updateHabitBox() {
+  if (!draft) return;
+  const show = draft.kind === 'goal' && draft.repeat;
+  $('habitBox').hidden = !show;
+  const others = activeHabits(draft.id).length;
+  const cb = $('fHabit');
+  const full = others >= HABIT_MAX && !cb.checked;
+  cb.disabled = full;
+  $('habitSlots').textContent = full ? `لديك ${HABIT_MAX} عادات قيد البناء، أكمل إحداها أولاً` : `(${others} من ${HABIT_MAX} قيد البناء)`;
+  $('habitFields').hidden = !cb.checked || !show;
+  if (draftIsNew) $('sheetTitle').textContent = cb.checked && show ? 'عادة جديدة' : draft.kind === 'goal' ? 'هدف جديد' : 'مهمة جديدة';
 }
 
 function setTimeMode(mode) {
@@ -1209,6 +1229,13 @@ function openSheet(id, opts = {}) {
     fromBenefit: opts.fromBenefit || '',
   };
   $('aiStepsSlot').innerHTML = aiBtn('ai-steps', 'اقترح خطوات');
+  const hb = t && t.habit ? t.habit : null;
+  $('fHabit').checked = !!hb || (!t && !!opts.habit);
+  $('fIdentity').value = hb ? hb.identity : '';
+  $('fCue').value = hb ? hb.cue : '';
+  $('fTiny').value = hb ? hb.tiny : '';
+  $('fReward').value = hb ? hb.reward : '';
+  $('fHabitDays').value = String(hb ? hb.days : 66);
   $('fTitle').value = t ? t.title : '';
   $('fPriority').value = t ? t.priority : 'mid';
   $('fCategory').value = t ? t.category : '';
@@ -1238,6 +1265,7 @@ function openSheet(id, opts = {}) {
   }
   armed = null;
   setKind(kind);
+  if (existing && isHabit(existing)) $('sheetTitle').textContent = 'تعديل العادة';
   setTimeMode(draft.timeMode);
   renderDays();
   renderNotes();
@@ -1281,13 +1309,19 @@ function readDraft() {
       t.due = '';
       t.done = false;
       t.doneAt = null;
+      t.habit = $('fHabit').checked ? normalizeHabit({
+        ...(base.habit || {}), identity: $('fIdentity').value.trim(), cue: $('fCue').value.trim(),
+        tiny: $('fTiny').value.trim(), reward: $('fReward').value.trim(), days: $('fHabitDays').value,
+      }) : null;
     } else {
       t.repeat = null;
+      t.habit = null;
       t.due = $('fGoalDue').value || '';
       if (t.target > 1) { t.count = Math.min(t.count, t.target); t.done = t.count >= t.target; t.doneAt = t.done ? (base.doneAt || Date.now()) : null; }
     }
   } else {
     t.repeat = null;
+    t.habit = null;
     t.target = 1;
     t.unit = '';
     t.projectId = $('fProject').value;
@@ -1300,6 +1334,11 @@ function readDraft() {
 function commitDraft() {
   const t = readDraft();
   if (!t) { $('fTitle').focus(); toast('اكتب عنواناً أولاً.'); return null; }
+  const was = getTask(t.id);
+  if (isHabit(t) && !(was && isHabit(was)) && activeHabits(t.id).length >= HABIT_MAX) {
+    toast(`لا يمكن بناء أكثر من ${HABIT_MAX} عادات في وقت واحد. أكمل إحداها أولاً.`);
+    return null;
+  }
   const i = S.tasks.findIndex((x) => x.id === t.id);
   if (i === -1) S.tasks.push(t); else S.tasks[i] = t;
   for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k]; // new time may ring again
@@ -1926,6 +1965,10 @@ document.addEventListener('click', (e) => {
     case 'new': openSheet(null, { kind: 'task', due: ui.tab === 'calendar' ? ui.calSel : undefined, projectId: ui.tab === 'tasks' ? ui.project : '' }); break;
     case 'new-in-project': openSheet(null, { kind: 'task', projectId: v }); break;
     case 'new-goal': openSheet(null, { kind: 'goal', repeat: true }); break;
+    case 'new-habit':
+      if (activeHabits().length >= HABIT_MAX) { toast(`لديك ${HABIT_MAX} عادات قيد البناء. أكمل إحداها لتضيف غيرها.`); break; }
+      openSheet(null, { kind: 'goal', repeat: true, habit: true });
+      break;
     case 'new-goal-once': openSheet(null, { kind: 'goal', repeat: false }); break;
     case 'new-on': openSheet(null, { kind: 'task', due: v }); break;
     case 'new-goal-on': openSheet(null, { kind: 'goal', repeat: false, due: v }); break;
@@ -2118,6 +2161,7 @@ document.addEventListener('change', (e) => {
   if (id === 'setAsr' && S.settings.prayer) { S.settings.prayer.asr = e.target.value; save(); render(); }
   if (id === 'importFile' && e.target.files[0]) importData(e.target.files[0]);
   if (id === 'fTime' && e.target.value && draft && !draft.alarms.length) { draft.alarms = [0]; renderAlarms(); }
+  if (id === 'fHabit' && draft) updateHabitBox();
 });
 document.addEventListener('click', (e) => {
   const b = e.target.closest('#fKind button, #fTimeMode button, #fRepeatMode button');

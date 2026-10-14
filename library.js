@@ -448,16 +448,16 @@ function excelSheets(kind) {
       { title: 'الهدف', width: 32, wrap: true }, { title: 'النوع', width: 12 }, { title: 'الأيام', width: 22 },
       { title: 'البداية', width: 13 }, { title: 'النهاية / الموعد', width: 13 }, { title: 'الموعد الهجري', width: 22 },
       { title: 'العدد المطلوب', width: 10 }, { title: 'الوحدة', width: 10 }, { title: 'الإنجاز', width: 12 },
-      { title: 'نسبة الالتزام %', width: 12 }, { title: 'السلسلة الحالية (يوم)', width: 12 }, { title: 'الملاحظات', width: 36, wrap: true },
+      { title: 'نسبة الالتزام %', width: 12 }, { title: 'السلسلة الحالية (يوم)', width: 12 }, { title: 'عادة', width: 8 }, { title: 'قوة العادة %', width: 11 }, { title: 'مرحلة العادة', width: 18 }, { title: 'الملاحظات', width: 36, wrap: true },
     ], S.tasks.filter(isGoal).map((t) => {
       if (isRepeat(t)) {
         const st = goalStats(t);
         const days = t.repeat.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => t.repeat.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
         return [t.title, 'متكرر', days, t.repeat.start, t.repeat.until || 'بلا نهاية', hijriOf(t.repeat.until), t.target, t.unit,
-          `${st.hit} من ${st.total} يوم`, st.rate, st.streak, t.notes.map((n) => n.text).join('\n—\n')];
+          `${st.hit} من ${st.total} يوم`, st.rate, st.streak, yesNo(isHabit(t)), isHabit(t) ? habitStats(t).strength : '', isHabit(t) ? habitStats(t).stage[0] : '', t.notes.map((n) => n.text).join('\n—\n')];
       }
       return [t.title, 'لمرة واحدة', '', stampDate(t.created), t.due, hijriOf(t.due), t.target, t.unit,
-        t.done ? 'تحقق' : `${countOn(t, today())} من ${t.target}`, pct(countOn(t, today()), t.target), '', t.notes.map((n) => n.text).join('\n—\n')];
+        t.done ? 'تحقق' : `${countOn(t, today())} من ${t.target}`, pct(countOn(t, today()), t.target), '', 'لا', '', '', t.notes.map((n) => n.text).join('\n—\n')];
     }));
   }
   if (kind === 'all' || kind === 'memos') {
