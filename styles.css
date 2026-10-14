@@ -733,3 +733,38 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .habit-plan dt { color: var(--muted); min-width: 7.5em; }
 .habit-plan dd { margin: 0; overflow-wrap: anywhere; }
 .habit-done summary { cursor: pointer; color: var(--low); font-weight: 700; padding: 6px 0; }
+
+/* ================= v13: dictation + today's habits ================= */
+.mic-btn {
+  position: fixed; z-index: 40; width: 38px; height: 38px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; background: var(--accent); color: var(--accent-fg);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.mic-btn svg { width: 20px; height: 20px; }
+.mic-btn.rec { background: var(--high); color: #fff; animation: micpulse 1.2s ease-in-out infinite; }
+@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--high) 55%, transparent); } 50% { box-shadow: 0 0 0 10px transparent; } }
+.mic-bubble {
+  position: fixed; z-index: 40; max-width: min(280px, calc(100vw - 16px)); padding: 8px 12px; border-radius: 12px;
+  background: var(--fg); color: var(--bg); font-size: .9rem; line-height: 1.5; box-shadow: var(--shadow); overflow-wrap: anywhere;
+  transform: translateY(-100%); pointer-events: none; max-height: 40vh; overflow: hidden;
+}
+input.has-mic, textarea.has-mic { padding-left: 50px; }
+
+.habits-today { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px; }
+.habits-today h2 { font-size: 1.15rem; }
+.habits-today > .row-between small { color: var(--muted); }
+.habits-today ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ht-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.ht-row:first-child { border-top: 0; }
+.ht-row .t-main { padding: 2px 0; }
+.ht-row .check { padding: 0; width: 40px; height: 40px; }
+.ht-row.done .check::before { background: var(--accent); border-color: var(--accent); }
+.ht-row.done .check svg { opacity: 1; }
+.ht-row.done .t-title { color: var(--muted); }
+.habit-ring.small { width: 46px; height: 46px; }
+.habit-ring.small > span { width: 36px; height: 36px; }
+.habit-ring.small b { font-size: .72rem; }
+.empty-cta { display: flex; align-items: center; gap: 10px; text-align: start; border-style: dashed; color: var(--accent); }
+.empty-cta svg { width: 26px; height: 26px; flex: none; }
+.empty-cta span { display: grid; }
+.empty-cta small { color: var(--muted); }

@@ -86,7 +86,8 @@ function openMemo(id) {
   const d = medit();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   try { document.execCommand('styleWithCSS', false, true); } catch {}
-  setTimeout(() => (m ? $('meBody') : $('meTitle')).focus(), 60);
+  // focus the title (new) or the text (existing), unless the user already tapped into the editor
+  setTimeout(() => { const a = document.activeElement; if (mstate && !(a && a.closest && a.closest('#memoEditor .me-head input, #meBody'))) (m ? $('meBody') : $('meTitle')).focus(); }, 60);
 }
 
 function memoStamp(m) {

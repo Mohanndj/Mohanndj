@@ -162,3 +162,31 @@ function habitsReportHTML(m) {
     <p class="note-text">${hs.map((h) => `${esc(h.title)}: التزمت ${h.hit} من ${h.total} يوماً هذا الشهر · ${esc(h.stage)}`).join('<br>')}</p>
   </section>`;
 }
+
+// ---------- «اليوم»: today's habits box ----------
+function todayHabitsHTML() {
+  const t0 = today();
+  const habits = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && occursOn(t, t0))
+    .sort((a, b) => habitStats(a).graduated - habitStats(b).graduated || (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
+  const building = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && !habitStats(t).graduated).length;
+  if (!habits.length) {
+    if (building) return '';
+    return `<button type="button" class="habits-today empty-cta" data-tab="goals">${icon('target')}<span><b>ابنِ عادة جديدة</b><small>حتى ${HABIT_MAX} عادات في وقت واحد، مع مقياس لقوتها</small></span></button>`;
+  }
+  const done = habits.filter((t) => t.completions[t0]).length;
+  return `<section class="habits-today" aria-label="عاداتي اليوم">
+    <div class="row-between"><h2>عاداتي اليوم</h2><small class="num">${done} من ${habits.length}</small></div>
+    <ul>${habits.map((t) => {
+      const st = habitStats(t);
+      const isDone = !!t.completions[t0];
+      return `<li class="ht-row${isDone ? ' done' : ''}">
+        <div class="habit-ring small" style="--p:${st.strength}"><span><b>${st.strength}%</b></span></div>
+        <button type="button" class="t-main" data-action="open" data-id="${t.id}">
+          <span class="t-title">${esc(t.title)}</span>
+          <span class="meta"><span>${esc(st.graduated ? 'راسخة' : st.stage[0])}</span><span class="num">يوم ${Math.min(st.hit, t.habit.days)} من ${t.habit.days}</span>${st.streak ? `<span class="num">سلسلة ${st.streak}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, t0))}</span>` : ''}${!isDone && t.habit.tiny ? `<span>الأصغر: ${esc(t.habit.tiny)}</span>` : ''}</span>
+        </button>
+        ${checkButton(t, t0, isDone)}
+      </li>`;
+    }).join('')}</ul>
+  </section>`;
+}

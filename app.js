@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -492,14 +492,15 @@ function viewToday() {
       <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
     </div>
   </div>
+  ${todayHabitsHTML()}
   ${prayerStripHTML()}
   ${dailyQuoteHTML()}
   ${dailyBenefitHTML()}
   <section class="section">
     <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
-    ${items.length
-      ? `<ul class="list">${items.map((t) => itemHTML(t, d)).join('')}</ul>`
-      : emptyHTML('يومك فارغ', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا.')}
+    ${items.some((t) => !isHabit(t))
+      ? `<ul class="list">${items.filter((t) => !isHabit(t)).map((t) => itemHTML(t, d)).join('')}</ul>`
+      : emptyHTML('لا مهام لليوم', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا، وعاداتك في مربعها أعلاه.')}
   </section>`;
 }
 
@@ -959,6 +960,7 @@ function viewSettings() {
   </section>
   ${Sync.settingsHTML()}
   ${aiSettingsHTML()}
+  ${Voice.settingsHTML()}
   ${prayerSettingsHTML()}
   <section class="panel">
     <h2>المنبهات</h2>

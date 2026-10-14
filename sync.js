@@ -9,7 +9,7 @@ const Sync = (() => {
   const DESC = 'Mahami app data — بيانات تطبيق مهامي (لا تعدّل هذا الملف يدوياً)';
   const API = 'https://api.github.com';
   const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire'];
-  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal'];
+  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice'];
 
   let cfg = load();
   let busy = false;
