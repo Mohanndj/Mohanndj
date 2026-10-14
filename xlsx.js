@@ -147,5 +147,5 @@ ${named.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openx
     return new Blob([zip(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
-  return { build };
+  return { build, zip };
 })();

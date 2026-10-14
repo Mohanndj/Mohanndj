@@ -42,16 +42,16 @@
   ],
   "shortcuts": [
     {
+      "name": "فكرة جديدة",
+      "url": "./?new=idea#ideas"
+    },
+    {
+      "name": "يومية جديدة",
+      "url": "./?new=journal#journal"
+    },
+    {
       "name": "مهمة جديدة",
       "url": "./?new=task#today"
-    },
-    {
-      "name": "هدف جديد",
-      "url": "./?new=goal#goals"
-    },
-    {
-      "name": "الإحصائيات",
-      "url": "./#stats"
     },
     {
       "name": "الأرشيف",

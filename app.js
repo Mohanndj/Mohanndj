@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -58,6 +58,7 @@ const ICONS = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
   archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
+  journal: 'M5 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM9 3v18M12 8h4M12 12h4',
   link: 'M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
   micro: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3',
   star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
@@ -166,6 +167,9 @@ function load() {
   s.benefits = (Array.isArray(s.benefits) ? s.benefits : []).map(normalizeBenefit);
   s.inspire = (Array.isArray(s.inspire) ? s.inspire : []).map(normalizeInspire);
   s.archive = (Array.isArray(s.archive) ? s.archive : []).map(normalizeArchive);
+  s.ideas = (Array.isArray(s.ideas) ? s.ideas : []).map(normalizeIdea);
+  s.journal = (Array.isArray(s.journal) ? s.journal : []).map(normalizeJournal);
+  s.jtemplates = (Array.isArray(s.jtemplates) ? s.jtemplates : DEFAULT_TEMPLATES).map(normalizeJTemplate);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -497,6 +501,7 @@ function viewToday() {
     </div>
   </div>
   ${todayHabitsHTML()}
+  ${journalTodayHTML()}
   ${prayerStripHTML()}
   ${dailyQuoteHTML()}
   ${dailyBenefitHTML()}
@@ -1004,7 +1009,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'ideas', 'journal', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1645,7 +1650,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1662,6 +1667,9 @@ function importData(file) {
       S.books = (Array.isArray(data.books) ? data.books : []).map(normalizeBook);
       S.benefits = (Array.isArray(data.benefits) ? data.benefits : []).map(normalizeBenefit);
       S.archive = (Array.isArray(data.archive) ? data.archive : []).map(normalizeArchive);
+      S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
+      S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
+      if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2161,7 +2169,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
@@ -2271,6 +2279,7 @@ function stayInApp() {
 }
 function closeTopLayer() {
   if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
+  if (typeof jstate !== 'undefined' && jstate) { closeJournal(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
   if ($('aiSheet').open) { closeAIPreview(); return true; }
   if ($('libSheet').open) { closeLib(); return true; }
@@ -2304,6 +2313,7 @@ for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () =>
 // dialogs closed by the system back gesture still save their work
 $('memoEditor').addEventListener('close', () => { if (mstate) { saveMemoNow(); mstate = null; render(); } });
 $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
+$('jEditor').addEventListener('close', () => { if (jstate) { saveJNow(); jstate = null; render(); } });
 
 // ---------- boot ----------
 (function boot() {
@@ -2316,7 +2326,10 @@ $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
   document.documentElement.lang = 'ar';
   handleShareLaunch(params);
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
-  if (params.get('new')) openSheet(null, params.get('new') === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
+  const nw = params.get('new');
+  if (nw === 'idea') { ui.tab = 'ideas'; render(); openIdea(null, { quick: true }); }
+  else if (nw === 'journal') { ui.tab = 'journal'; render(); openJournal(null, (suggestedTpl() || {}).id); }
+  else if (nw) openSheet(null, nw === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
   checkAlarms();
   setInterval(checkAlarms, 15000);

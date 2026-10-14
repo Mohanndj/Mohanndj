@@ -119,6 +119,8 @@ const xlsBtn = (kind) => `<button type="button" class="xls-btn" data-action="lib
 function viewMore() {
   const readThisYear = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === today().slice(0, 4)).length;
   const tiles = [
+    ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
+    ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
     ['notes', 'note', 'الملاحظات', S.memos.length ? `${S.memos.length} ملاحظة` : 'لا ملاحظات بعد'],
     ['books', 'book', 'الكتب', S.books.length ? `${S.books.length} كتاب · قرأت ${readThisYear} هذا العام` : 'سجّل قراءاتك'],
     ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
@@ -134,7 +136,7 @@ function viewMore() {
   </section>
   <section class="panel">
     <h2>تصدير إلى إكسل</h2>
-    <p class="note-text">ملف إكسل واحد فيه صفحة لكل قسم: المهام والمشاريع والأهداف والملاحظات والكتب والفوائد والعبارات. يفتح في Excel وGoogle Sheets.</p>
+    <p class="note-text">ملف إكسل واحد فيه صفحة لكل قسم: المهام والمشاريع والأهداف والأفكار واليوميات والملاحظات والكتب والفوائد والأرشيف والعبارات. يفتح في Excel وGoogle Sheets.</p>
     <div class="btn-row">
       <button type="button" class="primary" data-action="lib-xls" data-v="all">${icon('sheet')} تصدير الكل</button>
       <button type="button" class="ghost" data-action="lib-xls" data-v="tasks">المهام والمشاريع</button>
@@ -415,6 +417,8 @@ function deleteLib() {
   if (kind === 'benefit') S.benefits = S.benefits.filter((f) => f.id !== id);
   if (kind === 'quote') S.inspire = S.inspire.filter((x) => x.id !== id);
   if (kind === 'arch') S.archive = S.archive.filter((x) => x.id !== id);
+  if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);
+  if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
   save();
 }
 
@@ -495,6 +499,19 @@ function excelSheets(kind) {
       { title: 'حُوّل إلى', width: 10 }, { title: 'تاريخ الحفظ', width: 13 },
     ], S.archive.slice().sort((a, b) => b.created - a.created).map((a) => [a.title, a.url, a.text, a.tag, a.note, yesNo(a.revisitedAt), a.convertedTo, stampDate(a.created)]));
   }
+  if (kind === 'all' || kind === 'ideas') {
+    add('الأفكار', [
+      { title: 'الفكرة', width: 50, wrap: true }, { title: 'تطويرها', width: 60, wrap: true }, { title: 'الوسم', width: 14 },
+      { title: 'الحالة', width: 11 }, { title: 'مميزة', width: 8 }, { title: 'حُوّلت إلى', width: 10 }, { title: 'تاريخ التسجيل', width: 13 },
+    ], S.ideas.slice().sort((a, b) => b.created - a.created).map((x) => [x.text, x.details, x.tag, IDEA_STATUS[x.status], yesNo(x.star), x.convertedTo, stampDate(x.created)]));
+  }
+  if (kind === 'all' || kind === 'journal') {
+    add('اليوميات', [
+      { title: 'التاريخ', width: 12 }, { title: 'الهجري', width: 22 }, { title: 'اليوم', width: 10 }, { title: 'القالب', width: 16 },
+      { title: 'المزاج', width: 9 }, { title: 'النص', width: 90, wrap: true }, { title: 'عدد الكلمات', width: 10 },
+    ], S.journal.filter((j) => !jEmpty(j)).sort((a, b) => b.date.localeCompare(a.date)).map((j) => [j.date, hijriOf(j.date), AR_DAYS[parse(j.date).getDay()], j.tplName, j.mood ? MOODS[j.mood - 1][1] : '',
+      [...j.answers.filter((a) => a.a.trim()).map((a) => `${a.q}\n${a.a.trim()}`), j.body.trim()].filter(Boolean).join('\n\n'), wordCount(jText(j))]));
+  }
   if (kind === 'all' || kind === 'inspire') {
     add('العبارات', [
       { title: 'العبارة', width: 60, wrap: true }, { title: 'النوع', width: 16 }, { title: 'القائل أو المصدر', width: 24 },
@@ -504,7 +521,7 @@ function excelSheets(kind) {
   return sheets;
 }
 
-const XLS_NAMES = { archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
+const XLS_NAMES = { ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
 function exportExcel(kind) {
   const blob = Xlsx.build(excelSheets(kind));
   const url = URL.createObjectURL(blob);
@@ -591,10 +608,13 @@ document.addEventListener('submit', (e) => {
     save(); closeLib(); render(); toast(S.settings.readingGoal ? 'حُفظ هدف القراءة' : 'أُلغي هدف القراءة');
     return;
   }
-  if (!(ldraft.kind === 'quote' ? saveQuote() : ldraft.kind === 'arch' ? saveArch() : saveLib())) return;
+  if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
+  const kind = ldraft.kind, quick = ldraft.quick;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl }[kind] || saveLib;
+  if (!saver()) return;
   closeLib();
   render();
-  toast(wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+  toast(kind === 'idea' && wasNew ? (quick ? 'حُفظت الفكرة في «الأفكار»' : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
 });
 
 document.addEventListener('input', (e) => {
