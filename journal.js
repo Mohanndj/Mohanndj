@@ -1,5 +1,5 @@
 'use strict';
-// «يومياتي»: one entry per writing session, built from a template the user can customise.
+// «يومياتي وتأملاتي»: one entry per writing session, built from a template the user can customise.
 // Smart parts: the template suggested for the time of day, live placeholders in the questions
 // ({اليوم} {التاريخ} {الهجري} {الاسم}), a snapshot of the day from the app (what was done, habits,
 // focus time, the day's plan) and, with AI on, a reflection question drawn from that day.
@@ -150,7 +150,7 @@ function viewJournal() {
   const thisMonth = S.journal.filter((j) => monthKey(j.date) === monthKey(t0)).length;
   return `${moreCrumb()}
   <section class="section">
-    <div class="section-head"><h2>يومياتي</h2><div class="btn-row">${S.journal.length ? `<button type="button" class="xls-btn word-btn" data-action="j-export">${icon('note')}وورد</button>${xlsBtn('journal')}` : ''}</div></div>
+    <div class="section-head"><h2>يومياتي وتأملاتي</h2><div class="btn-row">${S.journal.length ? `<button type="button" class="xls-btn word-btn" data-action="j-export">${icon('note')}وورد</button>${xlsBtn('journal')}` : ''}</div></div>
     ${S.journal.length ? `<div class="j-stats"><span><b>${S.journal.length}</b> ${S.journal.length >= 3 && S.journal.length <= 10 ? 'يوميات' : 'يومية'}</span><span><b>${thisMonth}</b> هذا الشهر</span><span><b>${streak}</b> ${streak >= 3 && streak <= 10 ? 'أيام متتالية' : 'يوم متتالٍ'}</span></div>` : ''}
     <div class="j-start">
       <div class="row-between"><h3>${jUi.manage ? 'قوالبي' : todays.length ? 'يومية أخرى لليوم؟' : 'اكتب يومية اليوم'}</h3>
@@ -166,13 +166,23 @@ function viewJournal() {
 }
 
 // «اليوم»: a small invitation to write, or a link to today's entry
+// «اليوم»: only how steady the writing is: the last 30 days as a strip (a filled cell for each day
+// written), a percentage and the streak. Nothing of what was written is shown here.
 function journalTodayHTML() {
+  if (!S.journal.some((j) => !jEmpty(j))) return '';
   const t0 = today();
-  const j = S.journal.filter((x) => x.date === t0 && !jEmpty(x)).sort((a, b) => b.updated - a.updated)[0];
-  if (j) return `<button type="button" class="j-today done" data-action="j-open" data-v="${j.id}"><span>${j.mood ? MOODS[j.mood - 1][0] : '📖'}</span><span><b>كتبت يومية اليوم</b><small>${esc(excerpt(jText(j) || j.tplName, 60))}</small></span></button>`;
-  const t = suggestedTpl(t0);
-  if (!t || !S.journal.length) return ''; // an invitation only for someone who keeps a journal
-  return `<button type="button" class="j-today" data-action="j-new" data-v="${t.id}"><span>${esc(t.emoji)}</span><span><b>يومياتي: ${esc(t.name)}</b><small>${esc(t.questions[0] ? fillPlaceholders(t.questions[0], t0) : 'دقيقتان من الكتابة تكفي')}</small></span></button>`;
+  const written = new Set(S.journal.filter((j) => !jEmpty(j)).map((j) => j.date));
+  const first = [...written].sort()[0];
+  const days = [];
+  for (let i = 29; i >= 0; i--) { const d = addDays(t0, -i); if (d >= first) days.push(d); }
+  const n = days.filter((d) => written.has(d)).length;
+  const pctW = Math.round((n / days.length) * 100);
+  const streak = jStreak();
+  return `<button type="button" class="j-commit" data-tab="journal" aria-label="التزامك بالكتابة ${pctW}٪">
+    <span class="row-between"><b>${written.has(t0) ? 'كتبت اليوم ✓' : 'لم تكتب اليوم بعد'}</b><b class="num">${pctW}٪</b></span>
+    <span class="j-strip" style="--n:${days.length}">${days.map((d) => `<i class="${written.has(d) ? 'on' : ''}${d === t0 ? ' now' : ''}"></i>`).join('')}</span>
+    <small>كتبت في ${plural(n, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} من آخر ${plural(days.length, 'يوم', 'يومين', 'أيام', 'يوماً')}${streak > 1 ? ` · سلسلة ${plural(streak, 'يوم', 'يومين', 'أيام', 'يوماً')} متتالية` : ''}</small>
+  </button>`;
 }
 
 // ---------- editor (full screen) ----------
@@ -426,7 +436,7 @@ function runJExport() {
   save();
   const list = S.journal.filter((j) => !jEmpty(j) && (range === 'all' || (range === 'custom' ? j.date >= o.from && j.date <= o.to : monthKey(j.date) === range)));
   if (!list.length) { toast('لا يوميات في هذه الفترة.'); return false; }
-  exportWord(list, o, range === 'all' ? 'يومياتي' : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي · ${monthLabel(range)}`);
+  exportWord(list, o, range === 'all' ? 'يومياتي وتأملاتي' : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي · ${monthLabel(range)}`);
   return true;
 }
 
@@ -455,7 +465,7 @@ function exportWord(list, opts = null, title = '') {
       text(parts.flatMap((p) => lines(p.a)));
     }
   });
-  const blob = Docx.build(P.filter(Boolean), { title: title || 'يومياتي' });
+  const blob = Docx.build(P.filter(Boolean), { title: title || 'يومياتي وتأملاتي' });
   const name = entries.length === 1 ? `yawmiyat-${entries[0].date}` : `yawmiyat-${entries[0].date}_${entries[entries.length - 1].date}`;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

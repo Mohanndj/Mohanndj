@@ -49,7 +49,7 @@ function awareStats(m) {
   const jFrom = S.journal.length ? S.journal.reduce((a, j) => (j.date < a ? j.date : a), last) : last;
   const jSpan = days.filter((d) => d >= jFrom).length;
   const moods = S.journal.filter((j) => inM(j.date) && j.mood).map((j) => j.mood);
-  add('journal', '📔', 'يومياتي', 'journal', S.journal.length ? pctOf(jDays.size, jSpan) : null, [
+  add('journal', '📔', 'يومياتي وتأملاتي', 'journal', S.journal.length ? pctOf(jDays.size, jSpan) : null, [
     jDays.size && `كتبت في ${plural(jDays.size, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} من ${jSpan}`,
     moods.length && `متوسط مزاجك: ${MOODS[Math.round(moods.reduce((a, b) => a + b, 0) / moods.length) - 1].join(' ')}`,
   ]);

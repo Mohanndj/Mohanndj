@@ -51,21 +51,23 @@ function itemRow(x, compact) {
       <span class="shop-box" aria-hidden="true">${x.need ? '' : '✓'}</span><span class="shop-name">${esc(x.name)}${x.qty ? ` <small>${esc(x.qty)}</small>` : ''}</span>
     </button>${compact ? '' : `<button type="button" class="fin-del" data-action="shop-del" data-v="${x.id}" aria-label="حذف نهائي">✕</button>`}</li>`;
 }
-const addForm = (l, select) => `<form class="idea-quick shop-add" data-shop-form autocomplete="off">
-    ${select && S.lists.length > 1 ? `<select name="list" aria-label="القائمة">${S.lists.map((x) => `<option value="${x.id}"${x.id === l.id ? ' selected' : ''}>${x.icon} ${esc(x.name)}</option>`).join('')}</select>` : ''}
+const addForm = (l) => `<form class="idea-quick shop-add" data-shop-form autocomplete="off">
     <input type="text" name="what" placeholder="أضف إلى «${esc(l.name)}»، مثل: حليب، شاحن" aria-label="أضف بنداً">
     <button type="submit" class="primary">${icon('plus')}</button>
   </form>`;
 
-// «اليوم»: every list that still has something left, with what was ticked today kept struck through
+// «اليوم»: one list at a time behind its button, so lists never mix. Each button shows what is
+// left unticked in it; the first list with something left opens until you pick another.
 function shopTodayHTML() {
   if (!S.lists.length) return '';
   adoptOrphans();
-  const groups = S.lists.map((l) => ({ l, items: listItems(l.id).filter((x) => x.need || t0Done(x)).sort((a, b) => b.need - a.need || b.updated - a.updated) })).filter((g) => g.items.length);
+  if (!shopUi.picked || !getList(shopUi.cat)) { const first = S.lists.find((l) => listLeft(l.id)); shopUi.cat = (first || S.lists[0]).id; }
   const l = curList();
-  return todayBlock('القوائم', 'shop', `${groups.map((g) => `<div class="list-group">${S.lists.length > 1 ? `<h4>${g.l.icon} ${esc(g.l.name)} <small class="num">${listLeft(g.l.id)}</small></h4>` : ''}<ul class="shop-list">${g.items.map((x) => itemRow(x, true)).join('')}</ul></div>`).join('')}
-    ${groups.some((g) => g.items.some((x) => x.need)) ? '' : '<p class="note-text">لا شيء باقٍ في قوائمك ✓</p>'}
-    ${addForm(l, true)}`);
+  const items = listItems(l.id).filter((x) => x.need || t0Done(x)).sort((a, b) => b.need - a.need || b.updated - a.updated);
+  const btns = S.lists.length > 1 ? `<div class="seg seg-wrap shop-cats" role="group" aria-label="القوائم">${S.lists.map((x) => `<button type="button" data-action="shop-cat" data-v="${x.id}" aria-pressed="${x.id === l.id}">${x.icon} ${esc(x.name)}${listLeft(x.id) ? ` <span class="num">${listLeft(x.id)}</span>` : ''}</button>`).join('')}</div>` : '';
+  return todayBlock('القوائم', 'shop', `${btns}
+    ${addForm(l)}
+    ${items.length ? `<ul class="shop-list">${items.map((x) => itemRow(x, true)).join('')}</ul>` : `<p class="note-text">لا شيء باقٍ في «${esc(l.name)}» ✓</p>`}`);
 }
 
 function viewShop() {
@@ -82,7 +84,7 @@ function viewShop() {
     <p class="note-text">ما تشطبه لا يُحذف: يبقى في «تم» لتعيده بضغطة حين تحتاجه مرة أخرى. وكل ما بقي دون شطب يظهر لك في «اليوم».</p>
     <div class="chips list-chips" role="group" aria-label="القوائم">${S.lists.map((x) => `<button type="button" class="chip" data-action="shop-cat" data-v="${x.id}" aria-pressed="${x.id === l.id}">${x.icon} ${esc(x.name)}${listLeft(x.id) ? ` <span class="num">${listLeft(x.id)}</span>` : ''}</button>`).join('')}<button type="button" class="chip" data-action="shop-list-new">${icon('plus')} قائمة</button></div>
     <div class="section-head"><h3>${l.icon} ${esc(l.name)}</h3><button type="button" class="ghost sm" data-action="shop-list-edit" data-v="${l.id}">${icon('edit')} تعديل</button></div>
-    ${addForm(l, false)}
+    ${addForm(l)}
     ${need.length || doneToday.length ? `<ul class="shop-list">${need.map((x) => itemRow(x)).join('')}${doneToday.map((x) => itemRow(x)).join('')}</ul>` : `<p class="note-text">${items.length ? 'شطبت كل ما فيها ✓' : 'القائمة فارغة. أضف ما تتذكره قبل أن تنساه.'}</p>`}
     ${done.length ? `<details class="shop-done"><summary>تم (${done.length}) · اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
     ${allDone.length > 1 ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
@@ -123,7 +125,7 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="shop-"]');
   if (!el) return;
   const { action, v } = el.dataset;
-  if (action === 'shop-cat') { shopUi.cat = v; render(); return; }
+  if (action === 'shop-cat') { shopUi.cat = v; shopUi.picked = true; render(); return; }
   if (action === 'shop-list-new') { openListEditor(null); return; }
   if (action === 'shop-list-edit') { openListEditor(v); return; }
   if (action === 'shop-icon') { ldraft.icon = v; for (const b of el.parentElement.children) b.setAttribute('aria-pressed', String(b === el)); return; }
@@ -145,8 +147,8 @@ document.addEventListener('submit', (e) => {
   if (!e.target.matches('[data-shop-form]')) return;
   e.preventDefault();
   const f = e.target.elements;
-  const cat = f.list ? f.list.value : (curList() || {}).id;
-  if (f.list) shopUi.cat = cat;
+  const cat = (curList() || {}).id;
+  shopUi.picked = true;
   const names = f.what.value.split(/[،,\n]+/);
   const n = addToShop(names, cat);
   render();

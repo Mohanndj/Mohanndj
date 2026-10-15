@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 27;
+const APP_VERSION = 28;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -517,34 +517,38 @@ function viewToday() {
   const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
-  return `
-  ${dailyQuoteHTML()}
-  ${smartHTML()}
-  <div class="today-card">
+  const parts = {
+    quote: dailyQuoteHTML,
+    smart: smartHTML,
+    summary: () => `<div class="today-card">
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
     <div class="txt">
       <b>${summary}</b>
       <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
     </div>
-  </div>
-  ${todayBlock('أوقات الصلاة', '', prayerStripHTML())}
-  ${hifzTodayHTML()}
-  ${todayHabitsHTML()}
-  ${healthTodayHTML()}
-  ${booksTodayHTML()}
-  ${todayBlock('الفوائد', 'benefits', dailyBenefitHTML())}
-  ${decisionsTodayHTML()}
-  ${peopleTodayHTML()}
-  ${billsTodayHTML()}
-  ${laterTodayHTML()}
-  ${todayBlock('يومياتي', 'journal', journalTodayHTML())}
-  ${shopTodayHTML()}
-  <section class="section">
+  </div>`,
+    prayer: () => todayBlock('أوقات الصلاة', '', prayerStripHTML()),
+    hifz: hifzTodayHTML,
+    habits: todayHabitsHTML,
+    health: healthTodayHTML,
+    books: booksTodayHTML,
+    benefits: () => todayBlock('الفوائد', 'benefits', dailyBenefitHTML()),
+    decisions: decisionsTodayHTML,
+    people: peopleTodayHTML,
+    bills: billsTodayHTML,
+    later: laterTodayHTML,
+    journal: () => todayBlock('يومياتي وتأملاتي', 'journal', journalTodayHTML()),
+    lists: shopTodayHTML,
+    tasks: () => `<section class="section">
     <div class="section-head"><h2>المهام والأهداف</h2>${addBtn('new', 'مهمة')}</div>
     ${items.some((t) => !isHabit(t))
       ? `<ul class="list">${items.filter((t) => !isHabit(t)).map((t) => itemHTML(t, d)).join('')}</ul>`
       : emptyHTML('لا مهام لليوم', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا، وعاداتك في «بناء العادات» أعلاه.')}
-  </section>`;
+  </section>`,
+  };
+  const hidden = todayHidden();
+  return `${todayOrder().filter((k) => !hidden.includes(k)).map((k) => parts[k]()).join('\n')}
+  <div class="lay-open"><button type="button" class="ghost sm" data-action="lay-open" data-v="today">${icon('gear')} رتّب صفحة اليوم</button></div>`;
 }
 
 // ---------- view: tasks & projects ----------

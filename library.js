@@ -127,11 +127,11 @@ const moreCrumb = () => `<div class="crumbs"><button type="button" class="back" 
 const xlsBtn = (kind) => `<button type="button" class="xls-btn" data-action="lib-xls" data-v="${kind}">${icon('sheet')}إكسل</button>`;
 
 // ---------- «المزيد» page ----------
-function viewMore() {
+function moreTiles() {
   const readThisYear = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === today().slice(0, 4)).length;
-  const tiles = [
+  return [
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
-    ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
+    ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
     ['week', 'cal', 'التخطيط الأسبوعي', 'أسبوعك يوماً يوماً، بلا ازدحام'],
     ['health', 'leaf', 'الصحة', S.meals.length ? `خطة طعام · ${dayTotals(mealsOf(parse(today()).getDay())).kcal} سعرة اليوم` : 'طعام أسبوعي متنوع بقيمه الغذائية'],
     ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `${S.shop.filter((x) => x.need).length} باقٍ لم يُشطب` : 'الشراء والسفر وكل ما لا تريد نسيانه'],
@@ -148,9 +148,13 @@ function viewMore() {
     ['report', 'sheet', 'التقرير الشهري', 'خلاصة شهرك، صورة أو PDF'],
     ['stats', 'chart', 'الإحصائيات', 'إنجازك ومشاريعك وأهدافك وقراءتك'],
   ];
+}
+function viewMore() {
+  const all = moreTiles();
+  const tiles = orderOf(all.map(([k]) => k), S.settings.moreOrder).map((k) => all.find((t) => t[0] === k));
   return `
   <section class="section">
-    <h2>المزيد</h2>
+    <div class="section-head"><h2>المزيد</h2><button type="button" class="ghost sm" data-action="lay-open" data-v="more">${icon('gear')} رتّب الصفحات</button></div>
     <div class="more-grid">${tiles.map(([tab, ic, name, sub]) => `<button type="button" class="more-tile${tab === 'stats' ? ' wide' : ''}" data-tab="${tab}">${icon(ic)}<b>${name}</b><small>${esc(sub)}</small></button>`).join('')}</div>
   </section>
   <section class="panel">
@@ -731,8 +735,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, list: saveList, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, layout: saveLayout, list: saveList, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();

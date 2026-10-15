@@ -1326,3 +1326,20 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .list-group h4 small { color: var(--muted); font-weight: 400; }
 .shop-add select { flex: 0 1 auto; max-width: 42%; min-width: 0; }
 .lg-seg button small { display: block; font-size: .72rem; color: var(--muted); }
+
+/* ================= v28: arranging Today and More, journal strip ================= */
+.lay-open { display: flex; justify-content: center; padding: 4px 0 8px; }
+.lay-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lay-list li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--bg); border-radius: 10px; }
+.lay-list li.off .lay-name { color: var(--muted); text-decoration: line-through; }
+.lay-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lay-show { display: flex; align-items: center; gap: 4px; font-size: .8rem; color: var(--muted); }
+.lay-mv { width: 34px; height: 34px; font-size: .8rem; }
+.lay-mv:disabled { opacity: .25; }
+.j-commit { display: grid; gap: 6px; width: 100%; text-align: start; padding: 2px 0; }
+.j-commit small { color: var(--muted); }
+.j-strip { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 2px; height: 14px; }
+.j-strip i { background: var(--line); border-radius: 3px; }
+.j-strip i.on { background: var(--accent); }
+.j-strip i.now { outline: 2px solid var(--accent); outline-offset: 1px; }
+.shop-cats button { flex: 1 1 40%; padding: 6px 8px; font-size: .88rem; white-space: normal; }
