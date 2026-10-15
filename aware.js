@@ -132,6 +132,7 @@ function awareStats(m) {
     rightGot && `استلمت من حقوقك ${money(rightGot)}`,
     subsPaid && `دفعت ${subsPaid} ${subsPaid === 1 ? 'اشتراكاً أو فاتورة' : 'اشتراكات وفواتير'}`,
     saved && `وفّرت بالشراء المؤجّل ${money(saved)}`,
+    (() => { const n = S.fines.flatMap((f) => f.payments).filter((p) => inM(p.d)); return n.length ? `سدّدت مخالفات مرورية بـ ${money(sum(n))}` : ''; })(),
     savingProject() && `نقدك المدخر ${money(saveCalc(savingProject()).cash)}`,
   ]);
 

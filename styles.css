@@ -1406,3 +1406,22 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .td-hint.late { color: var(--high); }
 #rnText { width: 100%; }
 .fin-meta input[type=month] { width: auto; flex: 0 1 auto; }
+
+/* ================= v38: day close, calendar projects, fines ================= */
+.close-card { display: grid; gap: 10px; }
+.close-sec { display: grid; gap: 6px; }
+.close-sec > b { font-size: .95rem; }
+.close-sec > b small { color: var(--high); }
+.close-sec.ok { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: var(--muted); }
+.close-sec.ok > b { color: var(--low); font-weight: 600; }
+.close-sec ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.close-item { display: grid; gap: 4px; padding: 6px 8px; background: var(--bg); border-radius: 10px; }
+.ci-t { min-width: 0; overflow-wrap: anywhere; }
+.ci-t small { color: var(--muted); }
+.ci-b { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.close-quits li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.close-done-all { width: 100%; }
+.cal-projs { display: grid; gap: 6px; }
+.cal-proj { display: flex; align-items: center; gap: 8px; text-align: start; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--pc); border-radius: 12px; padding: 10px 12px; }
+.cal-proj b { flex: 1; min-width: 0; }
+.cal-proj small { color: var(--muted); }

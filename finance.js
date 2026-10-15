@@ -8,7 +8,14 @@
 const finUi = { tab: 'plans', plan: '', proj: '', month: '', lg: 'debt' };
 const EVERY_M = [1, 2, 3, 4, 6, 12, 24];
 const money = (n) => `${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US')} ${S.settings.currency || 'ريال'}`;
-const num = (v) => { const n = Number(String(v).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[,٬\s]/g, '')); return Number.isFinite(n) ? n : 0; };
+// amounts as typed on any keyboard: Arabic or Latin digits; «٫» or «.» as the decimal mark; «,» as the
+// decimal mark when it is the only separator followed by one or two digits (58,5), else thousands (1,250)
+const num = (v) => {
+  let s = String(v ?? '').trim().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g, '.').replace(/[٬\s]/g, '');
+  if (!s.includes('.') && /^-?\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.');
+  const n = Number(s.replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+};
 const sum = (arr, f = (x) => x.amount) => arr.reduce((n, x) => n + (Number(f(x)) || 0), 0);
 const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num(o.amount), ...(o.every != null ? { every: Math.max(1, num(o.every) || 12) } : {}), ...(o.balance != null ? { balance: num(o.balance) } : {}), ...(o.done != null ? { done: !!o.done } : {}), ...(o.link ? { link: String(o.link) } : {}) });
 
@@ -158,12 +165,12 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
 // ---------- page ----------
 function viewFinance() {
   syncAllPlans();
-  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['ledger', 'الديون والحقوق'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
+  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['ledger', 'الديون والحقوق'], ['fines', 'المخالفات'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
   const ap = activePlan();
   const c = ap ? planCalc(ap) : null;
   if (finUi.tab === 'debts' || finUi.tab === 'rights') { finUi.lg = finUi.tab === 'debts' ? 'debt' : 'right'; finUi.tab = 'ledger'; }
   const mini = Object.keys(LEDGERS).filter((k) => lgTotal(k));
-  const body = ({ plans: finPlansHTML, spend: finSpendHTML, bills: finBillsHTML, ledger: finLedgerHTML, projects: finProjectsHTML, later: finLaterHTML }[finUi.tab] || finPlansHTML)();
+  const body = ({ plans: finPlansHTML, spend: finSpendHTML, bills: finBillsHTML, ledger: finLedgerHTML, fines: finFinesHTML, projects: finProjectsHTML, later: finLaterHTML }[finUi.tab] || finPlansHTML)();
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>

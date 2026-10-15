@@ -9,7 +9,7 @@ const curMonth = () => today().slice(0, 7);
 const inMonth = (list, m) => list.filter((x) => x.d.slice(0, 7) === m);
 function linkSrc(key) {
   const [kind, id] = String(key || '').split(':');
-  const src = kind === 'sub' ? S.subs.find((s) => s.id === id) : kind === 'debt' ? S.finDebts.find((d) => d.id === id) : null;
+  const src = kind === 'sub' ? S.subs.find((s) => s.id === id) : kind === 'debt' ? S.finDebts.find((d) => d.id === id) : kind === 'fine' ? S.fines.find((f) => f.id === id) : null;
   return src ? { kind, src, pays: kind === 'sub' ? src.paid : src.payments } : null;
 }
 // what should be in the plan of month m
@@ -19,6 +19,11 @@ function linkSources(m) {
   for (const d of S.finDebts) {
     const paidIn = sum(inMonth(d.payments, m));
     if (d.monthly && (debtLeft(d) > 0 || paidIn)) out.push({ key: `debt:${d.id}`, name: `قسط ${d.name}`, match: d.name, amount: Math.min(d.monthly, debtLeft(d) + paidIn), every: 1 });
+  }
+  // a traffic violation stays in the plan until it is paid
+  for (const f of S.fines) {
+    const paidIn = sum(inMonth(f.payments, m));
+    if (fineLeft(f) > 0 || paidIn) out.push({ key: `fine:${f.id}`, name: fineName(f), amount: fineLeft(f) + paidIn, every: 1 });
   }
   return out;
 }
@@ -54,7 +59,7 @@ function syncAllPlans() {
   if (changed) save();
 }
 const rowOfLink = (key, m) => { const p = monthPlan(m); return p ? [...p.fixed, ...p.periodic].find((x) => x.link === key) : null; };
-const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : `دَين «${l.src.name}»`) : ''; };
+const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : l.kind === 'fine' ? 'المخالفات المرورية' : `دَين «${l.src.name}»`) : ''; };
 
 // one payment, recorded in its source and as one spending entry
 function payLink(key, amount, d, tx) {

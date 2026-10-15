@@ -4,8 +4,7 @@
 //    «دفعت ١٥٠ بنزين» → a payment, added to its item in this month's plan when the name matches;
 //    «اشتر حليب وخبز» → the house list (or «… لقائمة السفر»); «فكرة: …» → the ideas page;
 //    anything else stays a task as before.
-// 2) «إغلاق اليوم»: in the evening, a short card: today's unfinished tasks to move to tomorrow, whether
-//    the day's spending was recorded, whether the journal was written, and «أغلقت يومي».
+// 2) «إغلاق اليوم»: in the evening, one short card to review the day (see below).
 
 const enDigits = (s) => String(s).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٫/g, '.');
 const smartAll = () => S.settings.smartMode === 'all';
@@ -76,24 +75,54 @@ function smartSettingsHTML() {
 }
 
 // ---------- «إغلاق اليوم» ----------
+// One card in the evening, in sections that stay short: what is still open in tasks and goals (each
+// with its own choice: done, tomorrow, or set aside; nothing moves by itself), habits being built,
+// habits being left, memorisation if today has any, and the journal. A finished section is one line.
 const closedDays = () => (Array.isArray(S.settings.closed) ? S.settings.closed : []);
+const closeSkips = () => (S.settings.closeSkip && S.settings.closeSkip.d === today() ? S.settings.closeSkip.ids : []);
 function closeTodayHTML() {
   const at = S.settings.closeAt ?? 20;
   const t0 = today();
   if (!at || new Date().getHours() < at || closedDays().includes(t0)) return '';
-  const open = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due === t0);
-  const late = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due < t0).length;
-  const spent = S.finTx.filter((t) => t.d === t0 && t.kind === 'out');
-  const noSpend = (S.settings.noSpend || '') === t0;
+  const skip = closeSkips();
+  const btn = (action, id, label, cls = 'ghost sm') => `<button type="button" class="${cls}" data-action="${action}" data-v="${id}">${label}</button>`;
+  const row = (title, sub, btns) => `<li class="close-item"><span class="ci-t">${esc(title)}${sub ? ` <small>${esc(sub)}</small>` : ''}</span><span class="ci-b">${btns}</span></li>`;
+  const section = (title, doneLine, pending, total) => {
+    if (!total) return '';
+    if (!pending.length) return `<div class="close-sec ok"><b>✓ ${title}</b><small>${doneLine}</small></div>`;
+    return `<div class="close-sec"><b>${title} <small class="num">${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
+  };
+  // tasks and goals (habits have their own section)
+  const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0 && !skip.includes(t.id));
+  const onceGoals = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && !t.done && t.due && t.due <= t0 && !skip.includes(t.id));
+  const repGoals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t) && occursOn(t, t0));
+  const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
+  const tg = [
+    ...tasks.map((t) => row(t.title, t.due < t0 ? lateDays(daysBetween(t.due, t0)) : '', btn('close-done', t.id, 'أتممت') + btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد'))),
+    ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد'))),
+    ...repOpen.map((t) => row(t.title, isCounted(t) ? `${countOn(t, t0)} من ${t.target}` : 'هدف متكرر', btn('close-done', t.id, 'أتممت') + btn('close-skip', t.id, 'لم أفعله'))),
+  ];
+  const doneToday = S.tasks.filter((t) => (!isGoal(t) || !isRepeat(t)) && t.done && t.doneAt && iso(new Date(t.doneAt)) === t0).length + repGoals.filter((t) => t.completions[t0]).length;
+  // habits being built
+  const habits = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && occursOn(t, t0));
+  const habOpen = habits.filter((t) => !t.completions[t0] && !skip.includes(t.id));
+  // habits being left: one line each; only a slip asks for anything
+  const quits = S.quits.filter((q) => !q.doneAt);
+  const slippedToday = (q) => q.slips.some((x) => iso(new Date(x.at)) === t0);
+  // memorisation, only on its days
+  const plans = S.hplans.filter((p) => planToday(p));
+  const hzOpen = plans.filter((p) => !p.log[t0] && planNext(p).a < planNext(p).total);
+  const reviews = hzDue().length;
   const wrote = S.journal.some((j) => j.date === t0 && !jEmpty(j));
-  const line = (ok, text, btns = '') => `<li class="${ok ? 'ok' : ''}"><span>${ok ? '✓' : '•'}</span><span>${text}</span>${btns}</li>`;
-  return todayBlock('إغلاق اليوم', '', `<ul class="close-list">
-    ${line(!open.length, open.length ? `${plural(open.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')} لم تُنجز اليوم` : 'أنجزت مهام اليوم', open.length ? '<button type="button" class="ghost sm" data-action="close-move">انقلها إلى الغد</button>' : '')}
-    ${late ? line(false, `${plural(late, 'مهمة متأخرة', 'مهمتان متأخرتان', 'مهام متأخرة', 'مهمة متأخرة')} من أيام سابقة`, '<button type="button" class="ghost sm" data-tab="week">رتّبها</button>') : ''}
-    ${line(spent.length || noSpend, spent.length ? `سجّلت مصروف اليوم: ${money(sum(spent))}` : noSpend ? 'لم تصرف شيئاً اليوم' : 'لم تسجّل مصروفاً اليوم', spent.length || noSpend ? '' : '<button type="button" class="ghost sm" data-action="close-spend">سجّل</button><button type="button" class="ghost sm" data-action="close-nospend">لم أصرف</button>')}
-    ${S.journal.length ? line(wrote, wrote ? 'كتبت يومياتك' : 'لم تكتب يومياتك اليوم', wrote ? '' : '<button type="button" class="ghost sm" data-action="j-new" data-v="">اكتب الآن</button>') : ''}
-  </ul>
-  <button type="button" class="primary close-done" data-action="close-day">أغلقت يومي ✓</button>`);
+  return todayBlock('إغلاق اليوم', '', `<div class="close-card">
+    ${section('المهام والأهداف', doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', tg, tg.length + doneToday || 1)}
+    ${section('بناء العادات', `${habits.length - habOpen.length} من ${habits.length}`, habOpen.map((t) => row(t.title, '', btn('close-done', t.id, 'فعلتها') + btn('close-skip', t.id, 'لم أفعلها'))), habits.length)}
+    ${quits.length ? `<div class="close-sec${quits.some(slippedToday) ? '' : ' ok'}"><b>${quits.some(slippedToday) ? '' : '✓ '}عادات أتركها</b><ul class="close-quits">${quits.map((q) => `<li><span>${esc(q.title)}: ${slippedToday(q) ? 'زللت اليوم' : `${daysWord(quitStats(q).days)} بلا زلّة`}</span>${slippedToday(q) ? '' : btn('quit-slip', q.id, 'زللت')}</li>`).join('')}</ul></div>` : ''}
+    ${section('الحفظ', 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
+    ${section('يومياتي وتأملاتي', 'كتبت يوميتك', wrote ? [] : [row('لم تكتب اليوم', '', btn('j-new', '', 'اكتب الآن', 'ghost sm'))], 1)}
+    <button type="button" class="primary close-done-all" data-action="close-day">أغلقت يومي ✓</button>
+    <small class="note-text">ما لم تختر له شيئاً يبقى كما هو.</small>
+  </div>`);
 }
 
 document.addEventListener('click', (e) => {
@@ -102,16 +131,18 @@ document.addEventListener('click', (e) => {
   const { action, v } = el.dataset;
   if (action === 'set-smart') { S.settings.smartMode = v; save(); render(); toast(v === 'all' ? 'صارت خانة الإضافة السريعة لكل شيء' : 'صارت للمهام والأهداف فقط'); return; }
   const t0 = today();
-  if (action === 'close-move') {
-    const tm = addDays(t0, 1);
-    const list = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due === t0);
-    for (const t of list) t.due = tm;
-    save(); render(); toast(`نُقلت ${plural(list.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')} إلى الغد`);
+  const t = v && getTask(v);
+  if (action === 'close-done' && t) {
+    if (isCounted(t)) { setCount(t, t0, t.target); save(); render(); } else toggle(t.id, t0);
+    return;
   }
-  if (action === 'close-nospend') { S.settings.noSpend = t0; save(); render(); }
-  if (action === 'close-spend') {
-    const box = $('tdAmt');
-    if (box) { box.scrollIntoView({ block: 'center' }); box.focus(); } else { finUi.tab = 'spend'; go('finance'); }
+  if (action === 'close-tomorrow' && t) { t.due = addDays(t0, 1); save(); render(); toast(`«${t.title}» للغد`); return; }
+  if (action === 'close-skip' && t) {
+    // a task set aside loses its date (it waits in «بلا موعد»); a goal is just left for today
+    if (!isRepeat(t)) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
+    S.settings.closeSkip = { d: t0, ids: [...closeSkips(), t.id] };
+    save(); render();
+    return;
   }
   if (action === 'close-day') {
     S.settings.closed = [...closedDays().filter((d) => d >= addDays(t0, -400)), t0];
