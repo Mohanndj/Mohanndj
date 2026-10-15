@@ -132,7 +132,7 @@ function viewMore() {
   const tiles = [
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
     ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
-    ['hifz', 'book', 'الحفظ', S.hifz.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم · ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
+    ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم · ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
     ['people', 'heart', 'الأحبّة', S.people.length ? `${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'} حان التواصل معه` : 'صلة الرحم والأصدقاء'],
     ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `${decDue().length} للمراجعة · ` : ''}${S.decisions.length} قرار` : 'قرّر، ثم راجع: هل أصبت؟'],
     ['notes', 'note', 'الملاحظات', S.memos.length ? `${S.memos.length} ملاحظة` : 'لا ملاحظات بعد'],
@@ -446,6 +446,7 @@ function deleteLib() {
   if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);
   if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
   if (kind === 'hifz') S.hifz = S.hifz.filter((x) => x.id !== id);
+  if (kind === 'hplan') { S.hplans = S.hplans.filter((x) => x.id !== id); for (const h of S.hifz) if (h.planId === id) h.planId = ''; }
   if (kind === 'person') S.people = S.people.filter((x) => x.id !== id);
   if (kind === 'decision') S.decisions = S.decisions.filter((x) => x.id !== id);
   if (kind === 'quit') S.quits = S.quits.filter((x) => x.id !== id);
@@ -699,7 +700,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz'].includes(kind);
   if (!saver()) return;
   closeLib();

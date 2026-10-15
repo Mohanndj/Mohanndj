@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -177,6 +177,7 @@ function load() {
   s.journal = (Array.isArray(s.journal) ? s.journal : []).map(normalizeJournal);
   s.jtemplates = (Array.isArray(s.jtemplates) ? s.jtemplates : DEFAULT_TEMPLATES).map(normalizeJTemplate);
   s.hifz = (Array.isArray(s.hifz) ? s.hifz : []).map(normalizeHifz);
+  s.hplans = (Array.isArray(s.hplans) ? s.hplans : []).map(normalizeHPlan);
   s.people = (Array.isArray(s.people) ? s.people : []).map(normalizePerson);
   s.decisions = (Array.isArray(s.decisions) ? s.decisions : []).map(normalizeDecision);
   s.quits = (Array.isArray(s.quits) ? s.quits : []).map(normalizeQuit);
@@ -502,6 +503,7 @@ function viewToday() {
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   return `
+  ${dailyQuoteHTML()}
   ${smartHTML()}
   <div class="today-card">
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
@@ -514,7 +516,6 @@ function viewToday() {
   ${todayHabitsHTML()}
   ${journalTodayHTML()}
   ${prayerStripHTML()}
-  ${dailyQuoteHTML()}
   ${dailyBenefitHTML()}
   <section class="section">
     <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
@@ -1662,7 +1663,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1682,7 +1683,7 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2182,7 +2183,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }

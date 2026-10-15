@@ -87,7 +87,7 @@ h1 { font-family: var(--font-display); font-size: 1.9rem; line-height: 1.1; marg
 .sub { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
 .install { background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: .9rem; padding: 8px 14px; border-radius: 99px; }
 
-.wrap {
+main.wrap {
   max-width: 720px; margin: 0 auto; display: grid; gap: 18px; outline: none;
   padding-block: 8px calc(var(--tabbar-h) + 96px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -382,7 +382,7 @@ dialog::backdrop { background: rgb(10 18 16 / .45); }
 .add-row input { flex: 1; min-width: 0; }
 
 /* grid children must be allowed to shrink so scrolling rows stay inside the screen */
-.wrap > *, .smart > *, .section > *, .panel > *, #editor > *, #projForm > *, #libForm > * { min-width: 0; }
+main.wrap > *, .smart > *, .section > *, .panel > *, #editor > *, #projForm > *, #libForm > * { min-width: 0; }
 
 /* ---------- timer ---------- */
 body[data-view="timer"] .fab, body[data-view="settings"] .fab { display: none; }
@@ -421,8 +421,8 @@ body[data-view="timer"] .fab, body[data-view="settings"] .fab { display: none; }
 
 /* ================= v7: projects, goals, clearer layout ================= */
 .bottom { position: fixed; inset-inline: 0; bottom: 0; z-index: 6; }
-.wrap { padding-block: 8px calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom, 0px)); }
-body.has-timer .wrap { padding-bottom: calc(var(--tabbar-h) + 88px + env(safe-area-inset-bottom, 0px)); }
+main.wrap { padding-block: 8px calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom, 0px)); }
+body.has-timer main.wrap { padding-bottom: calc(var(--tabbar-h) + 88px + env(safe-area-inset-bottom, 0px)); }
 .alarm, .toast { bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); }
 body.has-timer .alarm, body.has-timer .toast { bottom: calc(var(--tabbar-h) + 64px + env(safe-area-inset-bottom, 0px)); }
 .fab { display: none !important; }
@@ -1013,3 +1013,21 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .brv-show h3 { margin: 6px 0 0; font-size: 1rem; color: var(--accent); }
 .brv-show ul { margin: 0; padding-inline-start: 1.3em; display: grid; gap: 6px; line-height: 1.7; }
 .brv-show p { margin: 0; white-space: pre-wrap; line-height: 1.7; }
+
+/* v19: memorisation plans */
+.plan-card { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--goal); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+.plan-card.today { border-color: var(--accent); border-inline-start-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.plan-card .hz-main { text-align: start; padding: 0; }
+.plan-card small { color: var(--muted); }
+.plan-card .row-between { gap: 8px; flex-wrap: wrap; }
+.plan-card .primary { padding: 7px 14px; border-radius: 10px; font-size: .92rem; }
+.hz-method { display: grid; gap: 8px; background: var(--bg); border-radius: 12px; padding: 10px; }
+.hz-method .seg button { white-space: normal; }
+.pl-unit { align-self: center; padding-top: 8px; }
+.pl-days .chip { padding: 6px 12px; }
+.hz-ctx { opacity: .55; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.hz-ctx small { color: var(--muted); }
+.hz-ctx .hz-text, .hz-ctx .hz-poem { font-size: 1.05rem; line-height: 1.9; }
+.pl-row { display: flex; align-items: center; gap: 10px; }
+.pl-row input { width: 90px; flex: none; text-align: center; }
+.pl-row b { font-size: 1.05rem; }

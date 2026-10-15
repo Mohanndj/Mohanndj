@@ -15,6 +15,7 @@ function normalizeHifz(h) {
     source: String(h.source || ''), surah: Number(h.surah) || 0, from: Number(h.from) || 0, to: Number(h.to) || 0,
     state: h.state === 'review' ? 'review' : 'learn', interval: Number(h.interval) || 0, ease: Number(h.ease) || 2.5,
     due: h.due || '', reps: Number(h.reps) || 0, lapses: Number(h.lapses) || 0, last: h.last || '', learnedAt: h.learnedAt || '',
+    planId: String(h.planId || ''), ctx: String(h.ctx || ''), num: Number(h.num) || 1,
     created: h.created || Date.now(),
   };
 }
@@ -82,11 +83,138 @@ function hzTextHTML(h, mode) {
       return words(s);
     };
     return `<div class="hz-poem">${parsePoem(h.text).map(([a, b], i) => `<div class="hz-bayt${b ? '' : ' single'}">
-      <button type="button" class="hz-n" data-hz="bayt" aria-label="أظهر البيت ${i + 1}">${i + 1}</button>
+      <button type="button" class="hz-n" data-hz="bayt" aria-label="أظهر البيت ${(h.num || 1) + i}">${(h.num || 1) + i}</button>
       <span class="hz-s1">${shatr(a, false)}</span>${b ? `<span class="hz-s2">${shatr(b, true)}</span>` : ''}
     </div>`).join('')}</div>`;
   }
   return `<div class="hz-text${h.type === 'quran' ? ' quran' : ''}">${lines.map((l) => `<p>${words(l)}</p>`).join('')}</div>`;
+}
+
+// ---------- memorisation plans: the whole text, a set amount per session, on chosen days ----------
+const WEEK_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday first
+const UNIT = { quran: ['آية', 'آيات', 'آيتان'], poem: ['بيت', 'أبيات', 'بيتان'], hadith: ['سطر', 'أسطر', 'سطران'], other: ['سطر', 'أسطر', 'سطران'] };
+const unitWord = (type, n) => { const u = UNIT[type]; return n === 1 ? `${u[0]} واحد${type === 'quran' ? 'ة' : ''}` : n === 2 ? u[2] : n <= 10 ? `${n} ${u[1]}` : `${n} ${type === 'quran' ? 'آيةً' : `${u[0]}اً`}`; };
+const etaText = (eta) => `تنتهي تقريباً ${daysBetween(today(), eta.end) <= 1 ? relDate(eta.end) : `في ${fmtDate(eta.end, { day: 'numeric', month: 'long' })}`}`;
+
+function normalizeHPlan(p) {
+  return {
+    id: p.id || uid(), type: HIFZ_TYPES[p.type] ? p.type : 'other', title: String(p.title || ''), source: String(p.source || ''), text: String(p.text || ''),
+    surah: Number(p.surah) || 0, from: Number(p.from) || 0, portion: Math.max(1, Number(p.portion) || 3),
+    days: Array.isArray(p.days) && p.days.length ? p.days.map(Number).filter((d) => d >= 0 && d <= 6) : [0, 1, 2, 3, 4, 5, 6],
+    pos: Math.max(0, Number(p.pos) || 0), log: p.log && typeof p.log === 'object' ? p.log : {}, doneAt: p.doneAt || '', created: p.created || Date.now(),
+  };
+}
+const getPlan = (id) => S.hplans.find((p) => p.id === id);
+// the units a plan is learnt by: abyat for poems, lines (ayat) otherwise
+const planUnits = (p) => (p.type === 'poem' ? parsePoem(p.text).map((b) => poemToText([b])) : p.text.split('\n').map((l) => l.trim()).filter(Boolean));
+const planPending = (p) => S.hifz.find((h) => h.planId === p.id && h.state === 'learn');
+const planToday = (p, d = today()) => !p.doneAt && p.days.includes(parse(d).getDay());
+function planNext(p) {
+  const units = planUnits(p);
+  const a = Math.min(p.pos, units.length), b = Math.min(units.length, a + p.portion);
+  return { units, a, b, total: units.length };
+}
+const planRange = (p, a, b) => (p.type === 'quran' && p.surah ? `${SURAHS[p.surah - 1]} ${p.from + a}${b - a > 1 ? `–${p.from + b - 1}` : ''}` : `${a + 1}${b - a > 1 ? `–${b}` : ''}`);
+// how many sessions are left and roughly when the plan ends
+function planEta(p) {
+  const { total, a } = planNext(p);
+  let left = Math.ceil((total - a) / p.portion);
+  if (!left || !p.days.length) return null;
+  const sessions = left;
+  let d = today();
+  if (p.log[d] || !p.days.includes(parse(d).getDay())) d = addDays(d, 1);
+  for (let i = 0; i < 3660; i++, d = addDays(d, 1)) if (p.days.includes(parse(d).getDay()) && --left === 0) break;
+  return { sessions, end: d };
+}
+
+// open today's portion: continue the one in progress, or cut the next one from the plan
+function startPlan(id) {
+  const p = getPlan(id);
+  if (!p) return;
+  const pending = planPending(p);
+  if (pending) { openStudy('learn', pending.id); return; }
+  const { units, a, b, total } = planNext(p);
+  if (a >= total) { toast('أتممت هذه الخطة. بارك الله فيك'); return; }
+  const card = normalizeHifz({
+    type: p.type, planId: p.id, source: p.source, text: units.slice(a, b).join('\n'), ctx: a ? units[a - 1] : '', num: a + 1,
+    title: p.type === 'quran' && p.surah ? '' : `${p.title} (${planRange(p, a, b)})`,
+    surah: p.surah, from: p.surah ? p.from + a : 0, to: p.surah ? p.from + b - 1 : 0,
+  });
+  S.hifz.push(card);
+  p.pos = b;
+  p.log[today()] = (p.log[today()] || 0) + (b - a);
+  save();
+  openStudy('learn', card.id);
+}
+
+function planCard(p) {
+  const { a, b, total } = planNext(p);
+  const pending = planPending(p);
+  const learned = Math.max(0, Math.min(p.pos, total) - (pending ? parsePoemLen(pending) : 0));
+  const pct = total ? Math.round((learned / total) * 100) : 0;
+  const eta = planEta(p);
+  const done = p.doneAt || (a >= total && !pending);
+  return `<article class="plan-card${planToday(p) && !p.log[today()] && !done ? ' today' : ''}">
+    <button type="button" class="hz-main" data-action="hz-plan-edit" data-v="${p.id}">
+      <b>${HIFZ_TYPES[p.type][1]} ${esc(p.title)}</b>
+      <small>${unitWord(p.type, p.portion)} في الجلسة · ${p.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => p.days.includes(d)).map((d) => AR_DAYS[d]).join('، ')}</small>
+    </button>
+    <div class="row-between"><small>حفظت ${learned} من ${unitWord(p.type, total)}</small><small>${pct}%</small></div>
+    <div class="progress-line"><i style="width:${pct}%"></i></div>
+    ${done ? '<p class="hz-done">✓ أتممت حفظها</p>' : `<div class="row-between">
+      <small>${pending ? `تحفظ الآن: ${esc(planRange(p, p.pos - parsePoemLen(pending), p.pos))}` : `التالي: ${esc(planRange(p, a, b))}`}${eta && !pending ? ` · ${esc(etaText(eta))}` : ''}</small>
+      <button type="button" class="primary" data-action="hz-plan-go" data-v="${p.id}">${pending ? 'أكمل الحفظ' : 'احفظ المقدار التالي'}</button>
+    </div>`}
+  </article>`;
+}
+const parsePoemLen = (h) => (h.type === 'poem' ? parsePoem(h.text).length : h.text.split('\n').filter((l) => l.trim()).length);
+
+// plan settings (shared library sheet)
+function openPlan(id) {
+  const p = getPlan(id);
+  ldraft = { kind: 'hplan', id, isNew: false, days: [...p.days], type: p.type };
+  const total = planUnits(p).length;
+  $('libForm').innerHTML = `
+    <div class="sheet-head"><h2>خطة الحفظ</h2>
+      <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <label class="field"><span>العنوان</span><input type="text" id="plTitle" value="${esc(p.title)}" autocomplete="off"></label>
+    ${planFieldsHTML(p.type, p.portion, p.days)}
+    <p class="note-text">حفظت ${Math.min(p.pos, total)} من ${unitWord(p.type, total)}.</p>
+    <div class="sheet-actions">
+      <button type="submit" class="primary">حفظ</button>
+      ${p.pos ? '<button type="button" class="ghost" data-action="hz-plan-back">تراجع مقداراً</button>' : ''}
+      <button type="button" class="danger" data-action="lib-delete">حذف الخطة</button>
+    </div>
+    <p class="note-text">حذف الخطة لا يحذف ما حفظته منها، فهو باقٍ في المراجعة.</p>`;
+  libArmed = false;
+  const d = lsheet();
+  if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+}
+function planFieldsHTML(type, portion, days) {
+  return `<div class="field"><label for="plPortion">المقدار في كل جلسة</label>
+      <div class="pl-row"><input type="number" id="plPortion" min="1" max="200" inputmode="numeric" value="${portion}"><b id="plUnit">${UNIT[type][1]}</b></div>
+    </div>
+    <div class="field"><span>أيام الحفظ</span><div class="chips wrap pl-days" id="plDays">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="hz-plan-day" data-v="${d}" aria-pressed="${days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>
+    <p class="note-text" id="plEta"></p>`;
+}
+function savePlan() {
+  const p = getPlan(ldraft.id);
+  if (!ldraft.days.length) { toast('اختر يوماً واحداً على الأقل.'); return false; }
+  Object.assign(p, { title: $('plTitle').value.trim() || p.title, portion: Math.max(1, parseInt($('plPortion').value, 10) || p.portion), days: [...ldraft.days].sort() });
+  save();
+  return true;
+}
+function updatePlanEta() {
+  const box = $('plEta');
+  if (!box || !ldraft) return;
+  const portion = Math.max(1, parseInt($('plPortion').value, 10) || 1);
+  let total = 0;
+  if (ldraft.kind === 'hplan') { const p = getPlan(ldraft.id); total = planUnits(p).length - Math.min(p.pos, planUnits(p).length); }
+  else if (ldraft.type === 'poem') total = parsePoem($('hText').value, ldraft.pmode || 'auto').length;
+  else total = $('hText').value.split('\n').filter((l) => l.trim()).length;
+  if (!total || !ldraft.days.length) { box.textContent = ldraft.days.length ? '' : 'اختر أيام الحفظ.'; return; }
+  const eta = planEta(normalizeHPlan({ text: 'x\n'.repeat(total), type: 'other', portion, days: ldraft.days }));
+  box.textContent = `${ldraft.kind === 'hplan' ? 'بقي ' : ''}${unitWord(ldraft.type || 'other', total)} ÷ ${portion} في الجلسة = ${plural(eta.sessions, 'جلسة واحدة', 'جلستان', 'جلسات', 'جلسة')}، ${etaText(eta)}.`;
 }
 
 // ---------- page ----------
@@ -115,7 +243,7 @@ function viewHifz() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>الحفظ</h2><div class="btn-row">${S.hifz.length ? xlsBtn('hifz') : ''}${addBtn('hz-new', 'نص')}</div></div>
-    ${S.hifz.length ? `<div class="j-stats">
+    ${S.hifz.length || S.hplans.length ? `<div class="j-stats">
       <span><b>${due.length}</b> للمراجعة اليوم</span>
       <span><b>${S.hifz.filter((h) => h.state === 'review').length}</b> محفوظ</span>
       <span><b>${S.hifz.filter(hzFirm).length}</b> ثابت</span>
@@ -123,18 +251,19 @@ function viewHifz() {
     <p class="note-text">${[ayat ? `${ayat} آية` : '', by('hadith') ? plural(by('hadith'), 'حديث واحد', 'حديثان', 'أحاديث', 'حديثاً') : '', by('poem') ? `${by('poem')} من القصائد والأبيات` : ''].filter(Boolean).join(' · ') || 'ابدأ بحفظ أول نص ثم أدخله المراجعة.'}</p>` : ''}
     ${due.length ? `<button type="button" class="primary hz-go" data-action="hz-review">${icon('repeat')} ابدأ مراجعة اليوم (${due.length})</button>`
       : S.hifz.some((h) => h.state === 'review') ? '<p class="hz-done">✓ لا مراجعة مستحقة اليوم. أحسنت!</p>' : ''}
+    ${S.hplans.length ? `<div class="hz-learning"><h3>خطط الحفظ</h3><div class="book-list">${S.hplans.slice().sort((a, b) => !!a.doneAt - !!b.doneAt || b.created - a.created).map(planCard).join('')}</div></div>` : ''}
     ${learning.length ? `<div class="hz-learning"><h3>أحفظها الآن</h3><div class="book-list">${learning.map(hzCard).join('')}</div></div>` : ''}
     ${S.hifz.length ? `<div class="seg seg-wrap" role="group" aria-label="النوع">${seg}</div>
       ${S.hifz.length > 6 ? `<input type="search" id="hzSearch" placeholder="ابحث في محفوظاتك" aria-label="بحث" value="${esc(hzUi.q)}">` : ''}
       ${list.filter((h) => h.state === 'review').length ? `<div class="book-list">${list.filter((h) => h.state === 'review').map(hzCard).join('')}</div>` : emptyHTML('لا شيء هنا بعد', 'النصوص التي تحفظها تنتقل إلى هنا لتراجعها في أوقات متباعدة.')}`
-      : emptyHTML('ابدأ الحفظ', 'أضف آيات (يجلب التطبيق نصها تلقائياً) أو حديثاً أو أبياتاً. احفظها بمساعدة إخفاء الكلمات وأوائل الحروف، ثم يذكّرك التطبيق بمراجعتها قبل أن تنساها: بعد يوم، ثم ثلاثة أيام، ثم أسابيع، ثم أشهر.', addBtn('hz-new', 'أول نص'))}
+      : S.hplans.length ? '' : emptyHTML('ابدأ الحفظ', 'أضف السورة أو القصيدة أو المتن كاملاً، واختر مقدار كل جلسة وأيام الحفظ في الأسبوع، فيعرض لك التطبيق مقدار اليوم في صفحة «اليوم». احفظه بمساعدة إخفاء الكلمات وأوائل الحروف، ثم يذكّرك بمراجعته قبل أن تنساه.', addBtn('hz-new', 'أول نص'))}
   </section>`;
 }
 
 // ---------- editor ----------
 function openHifz(id) {
   const h = id ? getHz(id) : normalizeHifz({ type: hzUi.type || 'quran' });
-  ldraft = { kind: 'hifz', id: h.id, isNew: !id, type: h.type };
+  ldraft = { kind: 'hifz', id: h.id, isNew: !id, type: h.type, method: 'plan', days: [0, 1, 2, 3, 4, 5, 6] };
   $('libForm').innerHTML = `
     <div class="sheet-head"><h2>${id ? 'تعديل النص' : 'نص جديد للحفظ'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -145,7 +274,7 @@ function openHifz(id) {
         <label class="field"><span>من آية</span><input type="number" id="hFrom" min="1" inputmode="numeric" value="${h.from || 1}"></label>
         <label class="field"><span>إلى آية</span><input type="number" id="hTo" min="1" inputmode="numeric" value="${h.to || ''}" placeholder="مثال: 5"></label>
       </div>
-      <button type="button" class="ghost" data-action="hz-fetch">${icon('book')} اجلب نص الآيات</button>
+      <div class="btn-row"><button type="button" class="ghost" data-action="hz-whole">السورة كاملة</button><button type="button" class="ghost" data-action="hz-fetch">${icon('book')} اجلب نص الآيات</button></div>
     </div>
     <label class="field"><span id="hTitleL">${h.type === 'quran' ? 'عنوان (اختياري)' : 'العنوان'}</span><input type="text" id="hTitle" value="${esc(h.title)}" autocomplete="off" placeholder="${{ quran: 'يُكتب تلقائياً من السورة والآيات', hadith: 'مثال: إنما الأعمال بالنيات', poem: 'مثال: لامية ابن الوردي', other: 'مثال: متن الآجرومية' }[h.type]}"></label>
     <label class="field"><span>النص</span><textarea id="hText" rows="7" placeholder="${h.type === 'poem' ? 'الصق القصيدة كما هي من أي موقع، وسيرتّبها التطبيق' : 'اكتب النص أو الصقه هنا'}">${esc(h.text)}</textarea></label>
@@ -156,9 +285,14 @@ function openHifz(id) {
         <button type="button" data-action="hz-pmode" data-v="sep" aria-pressed="false">كل سطر بيت</button>
       </div></div>
       <div class="hz-preview" id="hPoemPrev" aria-live="polite"></div>
-      ${id ? '' : `<label class="field"><span>قسّمها للحفظ</span><select id="hSplit"><option value="0">بطاقة واحدة</option><option value="4">كل ٤ أبيات بطاقة</option><option value="5" selected>كل ٥ أبيات بطاقة</option><option value="8">كل ٨ أبيات بطاقة</option><option value="10">كل ١٠ أبيات بطاقة</option></select></label>
-      <p class="note-text">القصيدة الطويلة تُحفظ أسهل مقطعاً مقطعاً، ولكل مقطع مراجعته الخاصة.</p>`}
     </div>
+    ${id ? '' : `<div class="hz-method">
+      <div class="field"><span>طريقة الحفظ</span><div class="seg" id="hMethod" role="group">
+        <button type="button" data-action="hz-method" data-v="plan" aria-pressed="true">خطة: مقدار في كل جلسة</button>
+        <button type="button" data-action="hz-method" data-v="once" aria-pressed="false">النص كله دفعة واحدة</button>
+      </div></div>
+      <div id="hPlanW">${planFieldsHTML(h.type, h.type === 'quran' ? 5 : 3, [0, 1, 2, 3, 4, 5, 6])}</div>
+    </div>`}
     <label class="field" id="hSourceW"${h.type === 'quran' ? ' hidden' : ''}><span>${h.type === 'poem' ? 'الشاعر' : h.type === 'hadith' ? 'الراوي والمصدر' : 'المصدر'}</span><input type="text" id="hSource" value="${esc(h.source)}" autocomplete="off" placeholder="${h.type === 'hadith' ? 'مثال: عن عمر رضي الله عنه، متفق عليه' : ''}"></label>
     ${id && h.state === 'review' ? `<p class="note-text">في المراجعة · المراجعة القادمة ${esc(dateBoth(h.due, true))} · روجع ${h.reps} ${h.reps === 1 ? 'مرة' : 'مرات'}</p>` : ''}
     <div class="sheet-actions">
@@ -170,6 +304,7 @@ function openHifz(id) {
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   poemPreview();
+  updatePlanEta();
 }
 
 function setHzType(type) {
@@ -181,7 +316,9 @@ function setHzType(type) {
   $('hTitleL').textContent = type === 'quran' ? 'عنوان (اختياري)' : 'العنوان';
   $('hText').placeholder = type === 'poem' ? 'الصق القصيدة كما هي من أي موقع، وسيرتّبها التطبيق' : 'اكتب النص أو الصقه هنا';
   $('hPoemTools').hidden = type !== 'poem';
+  if ($('plUnit')) $('plUnit').textContent = UNIT[type][1];
   poemPreview();
+  updatePlanEta();
 }
 
 // live preview of how the pasted poem was read
@@ -221,6 +358,7 @@ async function fetchAyat(btn) {
       return `${t} ﴿${num(a.numberInSurah)}﴾`;
     }).join('\n');
     $('hFrom').value = from; $('hTo').value = to;
+    updatePlanEta();
     toast(`جُلبت ${to - from + 1} ${to - from + 1 <= 10 && to - from + 1 >= 3 ? 'آيات' : 'آية'}`);
   } catch {
     toast('تعذّر جلب الآيات. تحقق من الإنترنت، أو الصق النص بنفسك.');
@@ -235,20 +373,18 @@ function saveHifz() {
   if (!text) { toast(type === 'quran' ? 'اجلب نص الآيات أو الصقه.' : 'اكتب النص.'); return false; }
   const q = type === 'quran' ? quranRange() : { s: 0, from: 0, to: 0 };
   const title = $('hTitle').value.trim(), source = type === 'quran' ? '' : $('hSource').value.trim();
-  if (type === 'poem') {
-    const ab = parsePoem(text, ldraft.pmode || 'auto');
-    const size = !old && $('hSplit') ? +$('hSplit').value : 0;
-    // a long poem becomes one card per part, each with its own review
-    if (size && ab.length > size) {
-      const parts = [];
-      for (let i = 0; i < ab.length; i += size) parts.push(normalizeHifz({ type, title: `${title || excerpt(ab[0][0], 30)} (${i + 1}–${Math.min(i + size, ab.length)})`, text: poemToText(ab.slice(i, i + size)), source }));
-      S.hifz.push(...parts);
-      save();
-      toast(`قُسّمت إلى ${parts.length} ${parts.length <= 10 ? 'مقاطع' : 'مقطعاً'}، ابدأ بالأول`);
-      setTimeout(() => openStudy('learn', parts[0].id), 50);
-      return true;
-    }
-    text = poemToText(ab);
+  if (type === 'poem') text = poemToText(parsePoem(text, ldraft.pmode || 'auto'));
+  // a plan: keep the whole text, and give a set amount per session on the chosen days
+  if (!old && ldraft.method === 'plan') {
+    const portion = Math.max(1, parseInt($('plPortion').value, 10) || 3);
+    if (!ldraft.days.length) { toast('اختر أيام الحفظ.'); return false; }
+    const p = normalizeHPlan({ type, title: title || (type === 'quran' ? `سورة ${SURAHS[q.s - 1]}${q.from > 1 || q.to < AYAT[q.s - 1] ? ` ${q.from}–${q.to}` : ''}` : excerpt(text.split('\n')[0], 30)), source, text, surah: q.s, from: q.from, portion, days: ldraft.days });
+    S.hplans.push(p);
+    save();
+    const go = planToday(p);
+    toast(go ? 'أُنشئت الخطة. هذا مقدار اليوم' : 'أُنشئت الخطة، وستظهر لك في صفحة «اليوم» في أيام الحفظ');
+    if (go) setTimeout(() => startPlan(p.id), 50);
+    return true;
   }
   const h = normalizeHifz({ ...(old || {}), id: ldraft.id, type, text, title, source, surah: q.s, from: q.from, to: q.to });
   if (old) Object.assign(old, h); else S.hifz.push(h);
@@ -287,6 +423,7 @@ function renderStudy() {
     <div class="seg seg-wrap hz-views" role="group" aria-label="طريقة العرض">${views.map(([v, l]) => `<button type="button" data-hz="view" data-v="${v}" aria-pressed="${hzs.view === v}">${l}</button>`).join('')}</div>
     <p class="note-text">${hzs.view === 'full' ? (h.type === 'poem' ? 'اقرأها بتمهّل بيتاً بيتاً، ثم جرّب «إخفاء العجز»: تقرأ الصدر وتكمل العجز من ذاكرتك، ثم «أوائل الأشطر» فـ«إخفاء الكل».' : 'اقرأه بتمهّل مرات، ثم جرّب «أوائل الكلمات» فـ«إخفاء الكل».')
       : `سمّع من ذاكرتك، واضغط على أي كلمة مخفية لتظهرها${h.type === 'poem' ? '، أو على رقم البيت ليظهر كله' : ''}.`}</p>
+    ${h.ctx && hzs.mode === 'learn' ? `<div class="hz-ctx"><small>ما قبله (للربط)</small>${hzTextHTML({ type: h.type, text: h.ctx, num: h.num - 1 }, 'full')}</div>` : ''}
     ${hzTextHTML(h, hzs.view)}`;
   $('hzFoot').innerHTML = hzs.mode === 'learn'
     ? `<button type="button" class="primary" data-hz="learned">✓ حفظته، أدخله المراجعة</button><button type="button" class="ghost" data-hz="edit">تعديل النص</button><button type="button" class="ghost" data-hz="close">لاحقاً</button>`
@@ -313,6 +450,10 @@ document.addEventListener('click', (e) => {
     case 'show': hzs.view = 'full'; hzs.shown = true; renderStudy(); break;
     case 'learned':
       Object.assign(h, { state: 'review', reps: 0, interval: 1, due: addDays(today(), 1), learnedAt: today(), last: today() });
+      {
+        const p = h.planId && getPlan(h.planId);
+        if (p && p.pos >= planUnits(p).length && !planPending(p)) { p.doneAt = today(); setTimeout(() => toast(`🎉 أتممت حفظ «${p.title}» كاملة! بارك الله فيك`), 400); }
+      }
       save();
       toast('أحسنت! ستراجعه غداً ثم في أوقات متباعدة');
       closeStudy();
@@ -350,6 +491,32 @@ document.addEventListener('click', (e) => {
       poemPreview();
       break;
     case 'hz-fetch': fetchAyat(el); break;
+    case 'hz-whole': { const s = +$('hSurah').value; $('hFrom').value = 1; $('hTo').value = AYAT[s - 1]; break; }
+    case 'hz-method':
+      ldraft.method = v;
+      for (const b of $('hMethod').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+      $('hPlanW').hidden = v !== 'plan';
+      break;
+    case 'hz-plan-day': {
+      const d = Number(v);
+      ldraft.days = ldraft.days.includes(d) ? ldraft.days.filter((x) => x !== d) : [...ldraft.days, d];
+      el.setAttribute('aria-pressed', String(ldraft.days.includes(d)));
+      updatePlanEta();
+      break;
+    }
+    case 'hz-plan-go': startPlan(v); break;
+    case 'hz-plan-edit': openPlan(v); setTimeout(updatePlanEta, 0); break;
+    case 'hz-plan-back': {
+      // undo the last portion (e.g. cut by mistake): its card goes back into the plan
+      const p = getPlan(ldraft.id);
+      const last = S.hifz.filter((h) => h.planId === p.id).sort((a, b) => b.created - a.created)[0];
+      const n = last ? parsePoemLen(last) : p.portion;
+      p.pos = Math.max(0, p.pos - n);
+      p.doneAt = '';
+      if (last) S.hifz = S.hifz.filter((h) => h !== last);
+      save(); closeLib(); render(); toast('أُعيد المقدار الأخير إلى الخطة');
+      break;
+    }
     case 'hz-review': openStudy('review'); break;
     case 'hz-relearn': {
       const h = getHz(ldraft.id);
@@ -360,7 +527,8 @@ document.addEventListener('click', (e) => {
   }
 });
 document.addEventListener('input', (e) => {
-  if (e.target.id === 'hText') poemPreview();
+  if (e.target.id === 'hText') { poemPreview(); updatePlanEta(); }
+  if (e.target.id === 'plPortion') updatePlanEta();
   if (e.target.id === 'hzSearch') { hzUi.q = e.target.value; render(); }
 });
 document.addEventListener('change', (e) => {

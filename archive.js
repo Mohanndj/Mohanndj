@@ -66,7 +66,11 @@ function viewArchive() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>الأرشيف</h2><div class="btn-row">${S.archive.length ? xlsBtn('archive') : ''}${addBtn('arch-new', 'عنصر')}</div></div>
-    <p class="note-text">احفظ ما تجده وتريد العودة إليه: من أي تطبيق اضغط «مشاركة» ثم اختر «مهامي».</p>
+    <form class="idea-quick" id="archQuick" autocomplete="off">
+      <textarea id="archQuickText" rows="2" placeholder="معلومة سريعة أو رابط… (‎#وسم للتصنيف)" aria-label="معلومة سريعة"></textarea>
+      <button type="submit" class="primary">${icon('plus')}احفظ</button>
+    </form>
+    <p class="note-text">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «مهامي».</p>
     ${S.archive.length ? `<input type="search" id="archSearch" placeholder="ابحث في الأرشيف" aria-label="بحث" value="${esc(archUi.q)}">
       <div class="seg" role="group" aria-label="عرض">${seg}</div>
       ${tags.length ? `<div class="chips" role="group" aria-label="التصنيف"><button type="button" class="chip" data-action="arch-tag" data-v="" aria-pressed="${!archUi.tag}">الكل</button>${tags.map((t) => `<button type="button" class="chip" data-action="arch-tag" data-v="${esc(t)}" aria-pressed="${archUi.tag === t}">${esc(t)}</button>`).join('')}</div>` : ''}` : ''}
@@ -192,6 +196,27 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('input', (e) => {
   if (e.target.id === 'archSearch') { archUi.q = e.target.value; render(); }
+});
+// quick capture: a fact or a link in one line; the first line becomes the title
+document.addEventListener('submit', (e) => {
+  if (e.target.id !== 'archQuick') return;
+  e.preventDefault();
+  const ta = $('archQuickText');
+  const { text, tag } = splitTag(ta.value.trim());
+  if (!text) { ta.focus(); return; }
+  const item = fromShare({ text });
+  item.tag = tag || archUi.tag || (item.url ? '' : 'معلومة');
+  S.archive.push(item);
+  save();
+  if (archUi.filter === 'done') archUi.filter = 'open';
+  render();
+  $('archQuickText').focus();
+  toast(item.tag ? `حُفظت في الأرشيف · ${item.tag}` : 'حُفظت في الأرشيف');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.id !== 'archQuickText' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  $('archQuick').requestSubmit();
 });
 // pasting a link into the URL field fills an empty title with the site name
 document.addEventListener('change', (e) => {

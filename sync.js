@@ -8,7 +8,7 @@ const Sync = (() => {
   const FILE = 'mahami.json';
   const DESC = 'Mahami app data — بيانات تطبيق مهامي (لا تعدّل هذا الملف يدوياً)';
   const API = 'https://api.github.com';
-  const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'people', 'decisions', 'quits'];
+  const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'hplans', 'people', 'decisions', 'quits'];
   const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice'];
 
   let cfg = load();
@@ -90,7 +90,7 @@ const Sync = (() => {
   function apply(data) {
     applying = true;
     try {
-      const norm = { tasks: normalize, projects: normalizeProject, memos: normalizeMemo, books: normalizeBook, benefits: normalizeBenefit, inspire: normalizeInspire, archive: normalizeArchive, ideas: normalizeIdea, journal: normalizeJournal, jtemplates: normalizeJTemplate, hifz: normalizeHifz, people: normalizePerson, decisions: normalizeDecision, quits: normalizeQuit };
+      const norm = { tasks: normalize, projects: normalizeProject, memos: normalizeMemo, books: normalizeBook, benefits: normalizeBenefit, inspire: normalizeInspire, archive: normalizeArchive, ideas: normalizeIdea, journal: normalizeJournal, jtemplates: normalizeJTemplate, hifz: normalizeHifz, hplans: normalizeHPlan, people: normalizePerson, decisions: normalizeDecision, quits: normalizeQuit };
       for (const c of COLLECTIONS) {
         const list = (data[c] || []).map((x) => (norm[c] ? norm[c](x) : x));
         if (c === 'inspire') S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...list];

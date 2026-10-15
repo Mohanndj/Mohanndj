@@ -4,6 +4,15 @@
 
 function remindersHTML() {
   const rows = [];
+  // memorisation plans scheduled today, or a portion still being learnt
+  for (const p of S.hplans) {
+    const pending = planPending(p);
+    if (pending) { rows.push(['🧠', `أكمل حفظ: ${p.title}`, planRange(p, p.pos - parsePoemLen(pending), p.pos), 'hz-plan-go', p.id]); continue; }
+    if (!planToday(p) || p.log[today()]) continue;
+    const { a, b, total } = planNext(p);
+    if (a >= total) continue;
+    rows.push(['🧠', `حفظ اليوم: ${p.title}`, `${unitWord(p.type, b - a)} (${planRange(p, a, b)})`, 'hz-plan-go', p.id]);
+  }
   const hz = hzDue();
   if (hz.length) rows.push(['📖', `مراجعة الحفظ: ${hz.length === 1 ? 'نص واحد' : hz.length === 2 ? 'نصّان' : `${hz.length} نصوص`}`, 'قبل أن تنساه', 'hz-review', '']);
   for (const b of booksDue().slice(0, 2)) rows.push(['🔁', `استذكار كتاب «${b.title}»`, 'ماذا تتذكر منه؟', 'lib-book-review', b.id]);

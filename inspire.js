@@ -108,11 +108,25 @@ function quoteOfDay() {
   return pool[n % pool.length];
 }
 
+// shown until the user adds phrases of their own
+const STARTER_QUOTES = [
+  { text: 'قليلٌ دائم خيرٌ من كثيرٍ منقطع.', source: '' },
+  { text: 'إنّ الله يحب إذا عمل أحدكم عملاً أن يتقنه.', source: 'حديث شريف' },
+  { text: 'ابدأ من حيث أنت، واستعمل ما لديك، وافعل ما تستطيع.', source: '' },
+  { text: 'أنا قادر على إنجاز ما خططت له اليوم، خطوةً خطوة.', source: '' },
+  { text: 'كل يوم أقترب من أهدافي بعمل صغير لا أتركه.', source: '' },
+  { text: 'من سار على الدرب وصل.', source: '' },
+  { text: 'النجاح مجموع جهود صغيرة تتكرر كل يوم.', source: '' },
+  { text: 'احرص على ما ينفعك، واستعن بالله ولا تعجز.', source: 'حديث شريف' },
+  { text: 'أنا أستحق الخير، وأسعى إليه بثقة وهدوء.', source: '' },
+  { text: 'ما لا يُدرك كلّه لا يُترك جُلّه.', source: '' },
+];
 function dailyQuoteHTML() {
-  const q = quoteOfDay();
-  if (!q) return '';
+  let q = quoteOfDay();
+  const starter = !q;
+  if (starter) q = STARTER_QUOTES[Math.floor(parse(today()).getTime() / 86400000) % STARTER_QUOTES.length];
   return `<button type="button" class="daily-quote" data-tab="inspire">
-    <small>${icon('spark')} عبارة اليوم</small>
+    <small>${icon('spark')} عبارة اليوم${starter ? ' · أضف عباراتك من صفحة الإلهام' : ''}</small>
     <q>${esc(q.text)}</q>
     ${q.source ? `<cite>${esc(q.source)}</cite>` : ''}
   </button>`;
