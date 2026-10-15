@@ -94,15 +94,39 @@ function readingSession(t, d) {
   if (!b || isRepeat(t) || !t.projectId || !scheduled(b)) return false;
   const day = d || today();
   if (t.completions[day]) { delete t.completions[day]; bookAdvance(b, -b.rpages); }
-  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); }
+  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); askReadingNote(b); }
   syncReading();
+  return true;
+}
+// after a reading session: one optional question, «ما أهم فكرة اليوم؟», saved to the book's benefits
+function askReadingNote(b) {
+  setTimeout(() => {
+    if (lsheet().open) return;
+    ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id };
+    $('libForm').innerHTML = `${sheetHead('ما أهم فكرة اليوم؟')}
+      <p class="note-text">من «${esc(b.title)}»${b.page ? ` · وصلت صفحة ${b.page}` : ''}. اكتب ما بقي في ذهنك، أو تخطَّ.</p>
+      <textarea id="rnText" rows="4" placeholder="فكرة أو فائدة أو سؤال خرجت به"></textarea>
+      <label class="field"><span>الصفحة</span><input type="number" id="rnPage" min="0" inputmode="numeric" value="${b.page || ''}"></label>
+      <div class="sheet-actions"><button type="submit" class="primary">احفظها في الفوائد</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
+    showLib();
+    setTimeout(() => { const t = $('rnText'); if (t) t.focus(); }, 60);
+  }, 250);
+}
+function saveReadNote() {
+  const text = $('rnText').value.trim();
+  if (!text) return true; // nothing written: same as skipping
+  const b = getBook(ldraft.bookId);
+  const first = text.split(/\n|[.؟!]/)[0].trim();
+  S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: $('rnPage').value, title: excerpt(first, 60), lesson: text }));
+  save();
+  toast(`حُفظت في فوائد «${b ? b.title : 'الكتاب'}»`);
   return true;
 }
 // called by toggle() for a task tied to a book
 function readingFromTask(t, d) {
   const b = getBook(t.bookId);
   if (!b) return;
-  if (isRepeat(t)) { if (d === today()) bookAdvance(b, t.completions[d] ? t.target : -t.target); }
+  if (isRepeat(t)) { if (d === today()) { bookAdvance(b, t.completions[d] ? t.target : -t.target); if (t.completions[d]) askReadingNote(b); } }
   else if (t.done && b.status !== 'read') { b.status = 'read'; b.end = b.end || today(); }
   else if (!t.done && b.status === 'read') { b.status = 'reading'; b.end = ''; }
 }

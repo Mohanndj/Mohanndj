@@ -40,7 +40,7 @@ function routeSmart(text) {
 }
 function routePreviewHTML(q) {
   const tag = (s, cls = '') => `<span class="tag ${cls}">${s}</span>`;
-  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}» في خطة الشهر`) : tag(monthPlan(curMonth()) ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
+  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(monthPlan(curMonth()), q.row.id, q.amount); return rm ? ` · ${remainAfter(rm)}` : ''; })()}`, (rowRemain(monthPlan(curMonth()), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(monthPlan(curMonth()) ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
     : q.type === 'shop' ? [tag(`${q.list.icon} ${esc(q.list.name)}`, 'title'), ...q.names.map((n) => tag(esc(n)))]
       : [tag('💡 فكرة', 'title'), tag(esc(excerpt(q.text, 50)))];
   return `<div class="parsed">${tags.join('')}</div>`;
@@ -51,7 +51,8 @@ function runRoute(q) {
     S.finTx.push(t);
     if (q.row) assignTx(t, q.row.id, monthPlan(curMonth()));
     save();
-    return `سُجّل ${money(q.amount)}${q.row ? ` في بند «${q.row.name}»` : ''}`;
+    const rm = q.row && rowRemain(monthPlan(curMonth()), q.row.id);
+    return `سُجّل ${money(q.amount)}${q.row ? ` في بند «${q.row.name}»` : ''}${rm ? `: ${rm.text}` : ''}`;
   }
   if (q.type === 'shop') { const n = addToShop(q.names, q.list.id); return n ? `أُضيف إلى «${q.list.name}»: ${q.names.join('، ')}` : 'موجود في القائمة'; }
   S.ideas.push(normalizeIdea({ text: q.text, created: Date.now() }));

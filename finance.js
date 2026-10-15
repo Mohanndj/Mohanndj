@@ -93,6 +93,16 @@ function assignTx(t, ref, p) {
   if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t); return; }
   if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && y.d.slice(0, 7) === p.month)); if (r.plan && got >= r.plan - 0.5) r.x.done = true; }
 }
+// what is left of a plan item this month, said plainly: «بقي ٢٥٠ من ٦٠٠ هذا الشهر» or an overrun
+function rowRemain(p, rowId, extra = 0) {
+  const r = p && rowId && rowId !== 'out' ? planActual(p).rows.find((y) => y.x.id === rowId) : null;
+  if (!r) return null;
+  const budget = r.list === 'periodic' ? r.x.amount : r.plan;
+  const left = budget - r.spent - extra;
+  return { name: r.x.name, budget, left, text: left > 0.5 ? `بقي ${money(left)} من ${money(budget)} هذا الشهر` : left > -0.5 ? `استنفدت ${money(budget)} كاملاً` : `⚠️ تجاوزت بـ ${money(-left)} (المخطط ${money(budget)})` };
+}
+// the same, before recording an amount: what it would leave
+const remainAfter = (rm) => (rm.left > 0.5 ? `بعده يبقى ${money(rm.left)} من ${money(rm.budget)}` : rm.left > -0.5 ? `به تستنفد ${money(rm.budget)} كاملاً` : `⚠️ به تتجاوز المخطط (${money(rm.budget)}) بـ ${money(-rm.left)}`);
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
@@ -103,6 +113,7 @@ function spendTodayHTML() {
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
       <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
       <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${refOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
+      <small class="td-hint" id="tdHint"></small>
     </form>
     ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
       <p class="note-text">دفعت اليوم ${money(sum(list))}</p>` : ''}`);
@@ -957,8 +968,22 @@ document.addEventListener('submit', (e) => {
   const ref = $('tdRef').value || (named ? named.x.id : '');
   if (ref) assignTx(t, ref, monthPlan(t.d.slice(0, 7)));
   save(); render();
-  toast(`سُجّل ${money(amount)}${ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
+  const rm = ref && rowRemain(p, ref);
+  toast(`سُجّل ${money(amount)}${rm ? ` · «${rm.name}»: ${rm.text}` : ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
 });
+// while choosing the item (or typing its name), say what is left of it before recording
+function tdHintUpdate() {
+  const el = $('tdHint');
+  if (!el) return;
+  const p = monthPlan(curMonth());
+  const why = ($('tdWhy').value || '').trim();
+  const named = !$('tdRef').value && p && why && planRows(p).find((r) => r.x.name && r.x.name === why);
+  const rm = rowRemain(p, $('tdRef').value || (named ? named.x.id : ''), num($('tdAmt').value));
+  el.textContent = rm ? `«${rm.name}»: ${num($('tdAmt').value) ? remainAfter(rm) : rm.text}` : '';
+  el.classList.toggle('late', !!rm && rm.left < -0.5);
+}
+document.addEventListener('input', (e) => { if (['tdAmt', 'tdWhy'].includes(e.target.id)) tdHintUpdate(); });
+document.addEventListener('change', (e) => { if (e.target.id === 'tdRef') tdHintUpdate(); });
 document.addEventListener('change', (e) => {
   const id = e.target.dataset && e.target.dataset.assign;
   if (!id || !e.target.value) return;
@@ -978,10 +1003,11 @@ document.addEventListener('submit', (e) => {
   const p = monthPlan(t.d.slice(0, 7));
   const r = t.kind === 'out' && p && planRows(p).find((y) => y.x.name && y.x.name === t.item);
   if (r) assignTx(t, r.x.id, p);
+  const rm = r && rowRemain(p, r.x.id);
   save();
   render();
   $('txAmount').focus();
-  toast('سُجّل');
+  toast(rm ? `سُجّل · «${rm.name}»: ${rm.text}` : 'سُجّل');
 });
 
 Object.assign(LibraryViews, { finance: viewFinance });

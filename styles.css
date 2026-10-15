@@ -151,7 +151,7 @@ h2 { font-family: var(--font-display); font-size: 1.25rem; margin: 0; text-wrap:
 /* ---------- toolbar ---------- */
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .toolbar input[type=search] { flex: 1 1 200px; }
-input[type=text], input[type=date], input[type=time], input[type=search], select, textarea {
+input[type=text], input[type=date], input[type=time], input[type=search], input[type=number], input[type=month], select, textarea {
   background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; min-width: 0;
 }
 textarea { resize: vertical; line-height: 1.6; }
@@ -1400,3 +1400,9 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .topic-chips { flex-wrap: wrap; }
 .topic-card { display: grid; gap: 8px; }
 .topic-tag { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 0 8px; font-size: .78rem; }
+
+/* ================= v37: remaining budget hint, reading note ================= */
+.td-hint { color: var(--muted); font-size: .82rem; min-height: 1em; }
+.td-hint.late { color: var(--high); }
+#rnText { width: 100%; }
+.fin-meta input[type=month] { width: auto; flex: 0 1 auto; }
