@@ -162,7 +162,7 @@ function spendTodayHTML() {
     </form>
     ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
       <p class="note-text">صرفت اليوم ${money(sum(list))}</p>` : ''}
-    ${paysToday.length ? `<p class="note-text">ومدفوعات لمرة واحدة اليوم: ${paysToday.map((t) => `${esc(t.item || 'بلا بند')} ${money(t.amount)}`).join('، ')}</p>` : ''}`);
+    ${paysToday.length ? `<p class="note-text">ومدفوعات لمرة واحدة اليوم: ${money(sum(paysToday))}</p>` : ''}`);
 }
 const paid = (d) => sum(d.payments);
 const debtLeft = (d) => Math.max(0, d.total - paid(d));
