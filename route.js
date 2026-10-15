@@ -90,9 +90,10 @@ function closeTodayHTML() {
   const skip = closeSkips();
   const btn = (action, id, label, cls = 'ghost sm') => `<button type="button" class="${cls}" data-action="${action}" data-v="${id}">${label}</button>`;
   const row = (title, sub, btns) => `<li class="close-item"><span class="ci-t">${esc(title)}${sub ? ` <small>${esc(sub)}</small>` : ''}</span><span class="ci-b">${btns}</span></li>`;
-  const section = (title, doneLine, pending, total) => {
+  // a section with nothing left to answer is one line: ✓ only when everything in it was really done
+  const section = (title, doneLine, pending, total, allDone = true) => {
     if (!total) return '';
-    if (!pending.length) return `<div class="close-sec ok"><b>✓ ${title}</b><small>${doneLine}</small></div>`;
+    if (!pending.length) return `<div class="close-sec${allDone ? ' ok' : ''}"><b>${allDone ? '✓ ' : ''}${title}</b><small>${doneLine}</small></div>`;
     return `<div class="close-sec"><b>${title} <small class="num">${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
   };
   // tasks and goals (habits have their own section)
@@ -109,6 +110,10 @@ function closeTodayHTML() {
   // habits being built
   const habits = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && occursOn(t, t0));
   const habOpen = habits.filter((t) => !t.completions[t0] && !skip.includes(t.id));
+  // «لم أفعلها» only hides the question for today; it is never counted as done
+  const habDone = habits.filter((t) => t.completions[t0]);
+  const habNot = habits.filter((t) => !t.completions[t0] && skip.includes(t.id));
+  const repNot = repGoals.filter((t) => !t.completions[t0] && skip.includes(t.id));
   // habits being left: one line each; only a slip asks for anything
   const quits = S.quits.filter((q) => !q.doneAt);
   const slippedToday = (q) => q.slips.some((x) => iso(new Date(x.at)) === t0);
@@ -118,8 +123,8 @@ function closeTodayHTML() {
   const reviews = hzDue().length;
   const wrote = S.journal.some((j) => j.date === t0 && !jEmpty(j));
   return todayBlock('إغلاق اليوم', '', `<div class="close-card">
-    ${section('المهام والأهداف', doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', tg, tg.length + doneToday || 1)}
-    ${section('بناء العادات', `${habits.length - habOpen.length} من ${habits.length}`, habOpen.map((t) => row(t.title, '', btn('close-done', t.id, 'فعلتها') + btn('close-skip', t.id, 'لم أفعلها'))), habits.length)}
+    ${section('المهام والأهداف', [doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', repNot.length ? `لم تفعل: ${repNot.map((t) => esc(t.title)).join('، ')}` : ''].filter(Boolean).join(' | '), tg, tg.length + doneToday || 1, !repNot.length)}
+    ${section('بناء العادات', `فعلت ${habDone.length} من ${habits.length}${habNot.length ? ` | لم تفعل: ${habNot.map((t) => esc(t.title)).join('، ')}` : ''}`, habOpen.map((t) => row(t.title, '', btn('close-done', t.id, 'فعلتها') + btn('close-skip', t.id, 'لم أفعلها'))), habits.length, !habNot.length)}
     ${quits.length ? `<div class="close-sec${quits.some(slippedToday) ? '' : ' ok'}"><b>${quits.some(slippedToday) ? '' : '✓ '}عادات أتركها</b><ul class="close-quits">${quits.map((q) => `<li><span>${esc(q.title)}: ${slippedToday(q) ? 'زللت اليوم' : `${daysWord(quitStats(q).days)} بلا زلّة`}</span>${slippedToday(q) ? '' : btn('quit-slip', q.id, 'زللت')}</li>`).join('')}</ul></div>` : ''}
     ${section('الحفظ', 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
     ${section('يومياتي وتأملاتي', 'كتبت يوميتك', wrote ? [] : [row('لم تكتب اليوم', '', btn('j-new', '', 'اكتب الآن', 'ghost sm'))], 1)}
