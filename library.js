@@ -134,7 +134,7 @@ function viewMore() {
     ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
     ['week', 'cal', 'التخطيط الأسبوعي', 'أسبوعك يوماً يوماً، بلا ازدحام'],
     ['health', 'leaf', 'الصحة', S.meals.length ? `خطة طعام · ${dayTotals(mealsOf(parse(today()).getDay())).kcal} سعرة اليوم` : 'طعام أسبوعي متنوع بقيمه الغذائية'],
-    ['shop', 'cart', 'قائمة الشراء', S.shop.filter((x) => x.need).length ? `${S.shop.filter((x) => x.need).length} تحتاجها` : 'ما يحتاجه البيت وما تحتاجه'],
+    ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `${S.shop.filter((x) => x.need).length} باقٍ لم يُشطب` : 'الشراء والسفر وكل ما لا تريد نسيانه'],
     ['finance', 'wallet', 'المالية', S.finPlans.length ? (() => { const p = activePlan(), c = p && planCalc(p); return c ? `المتبقي للادخار ${money(c.left)}` : `${S.finPlans.length} خطة`; })() : 'ميزانيتك وديونك وحقوقك'],
     ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : 'سيرة مرنة تصدّرها وورد وPDF'],
     ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم · ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
@@ -455,10 +455,11 @@ function deleteLib() {
   if (kind === 'sub') S.subs = S.subs.filter((x) => x.id !== id);
   if (kind === 'later') S.later = S.later.filter((x) => x.id !== id);
   if (kind === 'debt') S.finDebts = S.finDebts.filter((x) => x.id !== id);
-  if (kind === 'right') S.finRights = S.finRights.filter((x) => x.id !== id);
+  if (kind === 'right' || kind === 'owe') S.finRights = S.finRights.filter((x) => x.id !== id);
   if (kind === 'hplan') { S.hplans = S.hplans.filter((x) => x.id !== id); for (const h of S.hifz) if (h.planId === id) h.planId = ''; }
   if (kind === 'person') S.people = S.people.filter((x) => x.id !== id);
   if (kind === 'decision') S.decisions = S.decisions.filter((x) => x.id !== id);
+  if (kind === 'list') deleteList(id);
   if (kind === 'quit') S.quits = S.quits.filter((x) => x.id !== id);
   save();
 }
@@ -584,8 +585,10 @@ function excelSheets(kind) {
     add('الميزانيات', [{ title: 'الخطة', width: 26 }, { title: 'القسم', width: 18 }, { title: 'البند', width: 24 }, { title: 'كل كم شهر', width: 10 }, { title: 'المبلغ الشهري', width: 14 }], flat);
     add('الديون', [{ title: 'الدائن', width: 22 }, { title: 'الدَّين', width: 12 }, { title: 'المسدد', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'القسط', width: 10 }, { title: 'الانتهاء المتوقع', width: 14 }, { title: 'ملاحظة', width: 30 }],
       S.finDebts.map((d) => [d.name, d.total, paid(d), debtLeft(d), d.monthly, debtEnd(d), d.note]));
-    add('الحقوق', [{ title: 'عند', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'المستلم', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'ملاحظة', width: 30 }],
-      S.finRights.map((r) => [r.name, r.amount, paid(r), rightLeft(r), r.note]));
+    add('الحقوق', [{ title: 'لمن', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'المسدد', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'ملاحظة', width: 30 }],
+      LEDGERS.owe.list().map((r) => [r.name, r.amount, paid(r), rightLeft(r), r.note]));
+    add('حقوقي', [{ title: 'عند', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'المستلم', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'ملاحظة', width: 30 }],
+      LEDGERS.right.list().map((r) => [r.name, r.amount, paid(r), rightLeft(r), r.note]));
     add('المصروف', [{ title: 'التاريخ', width: 12 }, { title: 'النوع', width: 8 }, { title: 'البند', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'ملاحظة', width: 30 }],
       S.finTx.slice().sort((a, b) => b.d.localeCompare(a.d)).map((t) => [t.d, t.kind === 'in' ? 'دخل' : 'صرف', t.item, t.amount, t.note]));
   }
@@ -728,7 +731,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, debt: saveLedger, right: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, list: saveList, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp'].includes(kind);
   if (!saver()) return;
   closeLib();

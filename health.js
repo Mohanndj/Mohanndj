@@ -109,7 +109,7 @@ function viewHealth() {
     ${S.meals.length ? `${coverageHTML()}<div class="panel"><h3>الأسبوع كله</h3>
       <ul class="hbars">${weekRows.map((r) => hbar(AR_DAYS[r.w], r.n ? `${r.t.kcal} سعرة · ${r.t.protein} غ بروتين` : '—', prof.kcal ? Math.min(100, Math.round((r.t.kcal / prof.kcal) * 100)) : Math.min(100, Math.round((r.t.kcal / Math.max(1, ...weekRows.map((x) => x.t.kcal))) * 100)))).join('')}</ul>
       <p class="note-text">متوسط اليوم ${avg} سعرة · ${distinct} صنفاً مختلفاً في الأسبوع.</p>
-      <div class="btn-row"><button type="button" class="ghost" data-action="h-shop">${icon('plus')} أضف أصناف الأسبوع إلى قائمة الشراء</button><button type="button" class="ghost" data-action="h-clear">امسح الأسبوع</button></div>
+      <div class="btn-row"><button type="button" class="ghost" data-action="h-shop">${icon('plus')} أضف أصناف الأسبوع إلى مشتريات البيت</button><button type="button" class="ghost" data-action="h-clear">امسح الأسبوع</button></div>
     </div>` : ''}
   </section>`;
 }
@@ -371,7 +371,7 @@ document.addEventListener('click', (e) => {
       const items = [...new Set(S.meals.flatMap((m) => m.items.map((x) => x.name)).map((x) => x.trim()).filter(Boolean))];
       if (!items.length) { toast('لا أصناف في الخطة.'); break; }
       const n = addToShop(items, 'home');
-      toast(n ? `أُضيف ${n} إلى قائمة الشراء` : 'كلها موجودة في قائمة الشراء');
+      toast(n ? `أُضيف ${n} إلى «${(getList('home') || S.lists[0]).name}»` : 'كلها موجودة في القائمة');
       break;
     }
     case 'h-clear':

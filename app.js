@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 26;
+const APP_VERSION = 27;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -191,6 +191,7 @@ function load() {
   s.meals = (Array.isArray(s.meals) ? s.meals : []).map(normalizeMeal);
   s.mealDone = (Array.isArray(s.mealDone) ? s.mealDone : []).map(normalizeMealDone);
   s.shop = (Array.isArray(s.shop) ? s.shop : []).map(normalizeShop);
+  s.lists = (Array.isArray(s.lists) ? s.lists : DEFAULT_LISTS).map(normalizeList);
   s.subs = (Array.isArray(s.subs) ? s.subs : []).map(normalizeSub);
   s.later = (Array.isArray(s.later) ? s.later : []).map(normalizeLater);
   s.weeks = (Array.isArray(s.weeks) ? s.weeks : []).map(normalizeWeek);
@@ -1685,7 +1686,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1705,7 +1706,8 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      if (!Array.isArray(data.lists)) S.lists = DEFAULT_LISTS.map(normalizeList);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2205,7 +2207,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }

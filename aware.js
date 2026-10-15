@@ -115,12 +115,14 @@ function awareStats(m) {
   const spent = sum(S.finTx.filter((t) => t.kind === 'out' && inM(t.d)));
   const plannedExp = mp ? planCalc(mp).fixed + planCalc(mp).periodic : 0;
   const debtPaid = sum(S.finDebts.flatMap((d) => d.payments).filter((p) => inM(p.d)));
-  const rightGot = sum(S.finRights.flatMap((r) => r.payments).filter((p) => inM(p.d)));
+  const rightGot = sum(LEDGERS.right.list().flatMap((r) => r.payments).filter((p) => inM(p.d)));
+  const owePaid = sum(LEDGERS.owe.list().flatMap((r) => r.payments).filter((p) => inM(p.d)));
   const subsPaid = S.subs.reduce((n, s) => n + s.paid.filter((p) => inM(p.d)).length, 0);
   const saved = sum(S.later.filter((x) => x.decision === 'dropped' && inM(x.decidedAt)), (x) => x.price);
   add('finance', '💰', 'المالية', 'finance', plannedExp && spent ? Math.min(100, Math.round((plannedExp / spent) * 100)) : null, [
     spent && `صرفت ${money(spent)}${plannedExp ? ` من ${money(plannedExp)} مخطط` : ''}`,
     debtPaid && `سدّدت من الديون ${money(debtPaid)}`,
+    owePaid && `أدّيت من الحقوق التي عليك ${money(owePaid)}`,
     rightGot && `استلمت من حقوقك ${money(rightGot)}`,
     subsPaid && `دفعت ${subsPaid} ${subsPaid === 1 ? 'اشتراكاً أو فاتورة' : 'اشتراكات وفواتير'}`,
     saved && `وفّرت بالشراء المؤجّل ${money(saved)}`,
@@ -129,8 +131,8 @@ function awareStats(m) {
   // الأفكار وقائمة الشراء: حقائق بلا درجة
   const ideasNew = S.ideas.filter((x) => inM(dayOf(x.created)));
   add('ideas', '💡', 'الأفكار', 'ideas', null, [ideasNew.length && `سجّلت ${plural(ideasNew.length, 'فكرة واحدة', 'فكرتين', 'أفكار', 'فكرة')}، تحرّك منها ${ideasNew.filter((x) => x.status !== 'new').length}`]);
-  const bought = S.shop.filter((x) => inM(x.boughtAt)).length;
-  add('shop', '🛒', 'قائمة الشراء', 'shop', null, [bought && `اشتريت ${bought} مما احتجته`]);
+  const ticked = S.shop.filter((x) => inM(x.boughtAt)).length;
+  add('shop', '📝', 'القوائم', 'shop', null, [ticked && `شطبت ${plural(ticked, 'بنداً واحداً', 'بندين', 'بنود', 'بنداً')} من قوائمك`]);
 
   const scored = A.filter((a) => a.score != null);
   const overall = scored.length ? Math.round(scored.reduce((s, a) => s + a.score, 0) / scored.length) : null;

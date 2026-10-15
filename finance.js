@@ -2,10 +2,10 @@
 // «المالية»: personal finance laid out like the user's own workbook («الخطة الشخصية المالية»):
 // budget plans (a month or a «what if» scenario) with income, fixed monthly expenses, periodic
 // expenses spread per month, and what is left for savings and emergency accounts; actual spending
-// against the plan; debts I owe; money owed to me («الحقوق المالية»); cost projects (like a wedding).
+// against the plan; debts I owe; «الديون والحقوق»: what I borrowed, what I owe without a loan, and what is owed to me; cost projects (like a wedding).
 // The workbook can be imported straight from the phone; nothing is sent anywhere.
 
-const finUi = { tab: 'plans', plan: '', proj: '', month: '' };
+const finUi = { tab: 'plans', plan: '', proj: '', month: '', lg: 'debt' };
 const EVERY_M = [1, 2, 3, 4, 6, 12, 24];
 const money = (n) => `${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US')} ${S.settings.currency || 'ريال'}`;
 const num = (v) => { const n = Number(String(v).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[,٬\s]/g, '')); return Number.isFinite(n) ? n : 0; };
@@ -25,8 +25,17 @@ function normalizeDebt(d) {
   return { id: d.id || uid(), name: String(d.name || ''), total: num(d.total), monthly: num(d.monthly), end: d.end || '', note: String(d.note || ''), payments: payments(d.payments), created: d.created || Date.now() };
 }
 function normalizeRight(d) {
-  return { id: d.id || uid(), name: String(d.name || ''), amount: num(d.amount), note: String(d.note || ''), date: d.date || '', payments: payments(d.payments), created: d.created || Date.now() };
+  // dir 'in': «حقوقي», money others owe me. dir 'out': «الحقوق», what I owe others that was not a loan.
+  return { id: d.id || uid(), dir: d.dir === 'out' ? 'out' : 'in', name: String(d.name || ''), amount: num(d.amount), note: String(d.note || ''), date: d.date || '', payments: payments(d.payments), created: d.created || Date.now() };
 }
+// the three ledgers: «الديون» what I borrowed, «الحقوق» what I owe without a loan, «حقوقي» what is owed to me
+const LEDGERS = {
+  debt: { title: 'الديون', one: 'دَين', hint: 'ما استدنته: الدائن، والمبلغ، والقسط الشهري.', list: () => S.finDebts },
+  owe: { title: 'الحقوق', one: 'حق عليّ', hint: 'ما عليّ لغيري ولم يكن ديناً: أمانة، أو أجرة، أو نصيب، أو التزام.', list: () => S.finRights.filter((r) => r.dir === 'out') },
+  right: { title: 'حقوقي', one: 'حق لي', hint: 'ما لي عند غيري.', list: () => S.finRights.filter((r) => r.dir !== 'out') },
+};
+const lgLeft = (kind) => (kind === 'debt' ? debtLeft : rightLeft);
+const lgTotal = (kind) => sum(LEDGERS[kind].list(), lgLeft(kind));
 function normalizeFinProject(p) {
   return { id: p.id || uid(), name: String(p.name || 'مشروع'), items: (p.items || []).map((x) => row({ ...x, done: !!x.done })), funding: (p.funding || []).map(row), paidFrom: p.paidFrom === 'funding' ? 'funding' : 'outside', note: String(p.note || ''), created: p.created || Date.now() };
 }
@@ -88,11 +97,12 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
 
 // ---------- page ----------
 function viewFinance() {
-  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['debts', 'الديون'], ['rights', 'الحقوق'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
+  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['ledger', 'الديون والحقوق'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
   const ap = activePlan();
   const c = ap ? planCalc(ap) : null;
-  const debts = sum(S.finDebts, debtLeft), rights = sum(S.finRights, rightLeft);
-  const body = ({ plans: finPlansHTML, spend: finSpendHTML, bills: finBillsHTML, debts: finDebtsHTML, rights: finRightsHTML, projects: finProjectsHTML, later: finLaterHTML }[finUi.tab] || finPlansHTML)();
+  if (finUi.tab === 'debts' || finUi.tab === 'rights') { finUi.lg = finUi.tab === 'debts' ? 'debt' : 'right'; finUi.tab = 'ledger'; }
+  const mini = Object.keys(LEDGERS).filter((k) => lgTotal(k));
+  const body = ({ plans: finPlansHTML, spend: finSpendHTML, bills: finBillsHTML, ledger: finLedgerHTML, projects: finProjectsHTML, later: finLaterHTML }[finUi.tab] || finPlansHTML)();
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
@@ -100,7 +110,7 @@ function viewFinance() {
       <small>${esc(ap.name)}${ap.month ? ` · ${esc(monthName(ap.month))}` : ''}</small>
       <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
     </button>` : ''}
-    ${debts || rights ? `<div class="fin-mini">${debts ? `<button type="button" data-action="fin-tab" data-v="debts">عليّ ديون: <b>${money(debts)}</b></button>` : ''}${rights ? `<button type="button" data-action="fin-tab" data-v="rights">لي عند الناس: <b>${money(rights)}</b></button>` : ''}</div>` : ''}
+    ${mini.length ? `<div class="fin-mini">${mini.map((k) => `<button type="button" data-action="fin-lg" data-v="${k}">${{ debt: 'عليّ ديون', owe: 'عليّ حقوق', right: 'لي عند غيري' }[k]}: <b>${money(lgTotal(k))}</b></button>`).join('')}</div>` : ''}
     <div class="seg seg-wrap" role="group" aria-label="الأقسام">${tabs.map(([v, l]) => `<button type="button" data-action="fin-tab" data-v="${v}" aria-pressed="${finUi.tab === v}">${l}</button>`).join('')}</div>
   </section>
   ${body}`;
@@ -211,34 +221,31 @@ function finSpendHTML() {
 
 // --- debts and rights share one layout
 function ledgerCard(x, kind) {
-  const isDebt = kind === 'debt';
+  const isDebt = kind === 'debt', mine = kind === 'right';
   const total = isDebt ? x.total : x.amount;
   const left = isDebt ? debtLeft(x) : rightLeft(x);
   const pct = total ? Math.round(((total - left) / total) * 100) : 0;
   const end = isDebt ? debtEnd(x) : '';
   return `<article class="fin-card ledger${left ? '' : ' cleared'}">
     <button type="button" class="hz-main" data-action="${kind}-open" data-v="${x.id}">
-      <span class="row-between"><b>${esc(x.name)}</b><b class="${left ? (isDebt ? 'late' : '') : 'ok'}">${left ? money(left) : '✓ انتهى'}</b></span>
-      <small>${isDebt ? 'الدَّين' : 'المبلغ'} ${money(total)} · ${isDebt ? 'المسدد' : 'المستلم'} ${money(total - left)}${isDebt && x.monthly ? ` · القسط ${money(x.monthly)}` : ''}${end && left ? ` · ينتهي ${esc(fmtDate(end, { month: 'long', year: 'numeric' }))}` : ''}</small>
+      <span class="row-between"><b>${esc(x.name)}</b><b class="${left ? (mine ? '' : 'late') : 'ok'}">${left ? money(left) : '✓ انتهى'}</b></span>
+      <small>${isDebt ? 'الدَّين' : 'المبلغ'} ${money(total)} · ${mine ? 'المستلم' : 'المسدد'} ${money(total - left)}${!isDebt && x.date ? ` · ${esc(fmtDate(x.date, { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}${isDebt && x.monthly ? ` · القسط ${money(x.monthly)}` : ''}${end && left ? ` · ينتهي ${esc(fmtDate(end, { month: 'long', year: 'numeric' }))}` : ''}</small>
       ${x.note ? `<small>${esc(x.note)}</small>` : ''}
     </button>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
-    ${left ? `<div class="btn-row"><button type="button" class="ghost" data-action="${kind}-pay" data-v="${x.id}">${isDebt ? 'سدّدت دفعة' : 'استلمت دفعة'}</button></div>` : ''}
+    ${left ? `<div class="btn-row"><button type="button" class="ghost" data-action="${kind}-pay" data-v="${x.id}">${mine ? 'استلمت دفعة' : 'سدّدت دفعة'}</button></div>` : ''}
   </article>`;
 }
-function finDebtsHTML() {
-  const list = S.finDebts.slice().sort((a, b) => !debtLeft(a) - !debtLeft(b) || debtLeft(b) - debtLeft(a));
+function finLedgerHTML() {
+  const kind = LEDGERS[finUi.lg] ? finUi.lg : 'debt';
+  const L = LEDGERS[kind], left = lgLeft(kind);
+  const list = L.list().slice().sort((a, b) => !left(a) - !left(b) || left(b) - left(a));
+  const xls = { debt: 'debts', owe: 'owes', right: 'rights' }[kind];
   return `<section class="section">
-    <div class="section-head"><h2>الديون <small class="num">${money(sum(S.finDebts, debtLeft))}</small></h2><div class="btn-row">${S.finDebts.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="debts">${icon('sheet')}إكسل</button>` : ''}${addBtn('debt-new', 'دَين')}</div></div>
-    ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, 'debt')).join('')}</div>` : emptyHTML('لا ديون', 'سجّل ما عليك من ديون: الدائن، والمبلغ، والقسط الشهري، وسجّل كل دفعة تسددها لترى الباقي ومتى تنتهي.')}
-  </section>`;
-}
-function finRightsHTML() {
-  const list = S.finRights.slice().sort((a, b) => !rightLeft(a) - !rightLeft(b) || rightLeft(b) - rightLeft(a));
-  return `<section class="section">
-    <div class="section-head"><h2>الحقوق المالية <small class="num">${money(sum(S.finRights, rightLeft))}</small></h2><div class="btn-row">${S.finRights.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="rights">${icon('sheet')}إكسل</button>` : ''}${addBtn('right-new', 'حق')}</div></div>
-    <p class="note-text">المبالغ التي لك عند الآخرين.</p>
-    ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, 'right')).join('')}</div>` : emptyHTML('لا حقوق مسجلة', 'سجّل من استدان منك ومتى، وسجّل ما يرده لك.')}
+    <div class="seg lg-seg" role="group" aria-label="الديون والحقوق">${Object.entries(LEDGERS).map(([k, l]) => `<button type="button" data-action="fin-lg" data-v="${k}" aria-pressed="${k === kind}">${l.title}${lgTotal(k) ? ` <small class="num">${money(lgTotal(k))}</small>` : ''}</button>`).join('')}</div>
+    <div class="section-head"><h2>${L.title} <small class="num">${money(lgTotal(kind))}</small></h2><div class="btn-row">${list.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="${xls}">${icon('sheet')}إكسل</button>` : ''}${addBtn(`${kind}-new`, L.one)}</div></div>
+    <p class="note-text">${L.hint}</p>
+    ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, kind)).join('')}</div>` : emptyHTML(`لا شيء في «${L.title}»`, kind === 'debt' ? 'سجّل كل دَين، وسجّل كل دفعة تسددها لترى الباقي ومتى ينتهي.' : kind === 'owe' ? 'سجّل لمن عليك الحق ومبلغه، وسجّل ما تؤديه منه حتى يبرأ.' : 'سجّل عند من لك المال ومتى، وسجّل ما يرده لك.')}
   </section>`;
 }
 
@@ -276,14 +283,14 @@ function finProjectsHTML() {
 
 // ---------- ledger editor (debts and rights) ----------
 function openLedger(kind, id) {
-  const isDebt = kind === 'debt';
+  const isDebt = kind === 'debt', mine = kind === 'right';
   const list = isDebt ? S.finDebts : S.finRights;
-  const x = id ? list.find((d) => d.id === id) : (isDebt ? normalizeDebt({}) : normalizeRight({}));
+  const x = id ? list.find((d) => d.id === id) : (isDebt ? normalizeDebt({}) : normalizeRight({ dir: mine ? 'in' : 'out' }));
   ldraft = { kind, id: x.id, isNew: !id };
   $('libForm').innerHTML = `
-    <div class="sheet-head"><h2>${id ? esc(x.name) : isDebt ? 'دَين جديد' : 'حق جديد'}</h2>
+    <div class="sheet-head"><h2>${id ? esc(x.name) : isDebt ? 'دَين جديد' : mine ? 'حق لي عند غيري' : 'حق عليّ لغيري'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <label class="field"><span>${isDebt ? 'اسم الدائن' : 'عند من؟'}</span><input type="text" id="lgName" value="${esc(x.name)}" autocomplete="off"></label>
+    <label class="field"><span>${isDebt ? 'اسم الدائن' : mine ? 'عند من؟' : 'لمن؟'}</span><input type="text" id="lgName" value="${esc(x.name)}" autocomplete="off"></label>
     <div class="grid2">
       <label class="field"><span>${isDebt ? 'مبلغ الدَّين' : 'المبلغ'}</span><input type="text" inputmode="decimal" class="num-in" id="lgTotal" value="${(isDebt ? x.total : x.amount) || ''}" data-novoice></label>
       ${isDebt ? `<label class="field"><span>القسط الشهري</span><input type="text" inputmode="decimal" class="num-in" id="lgMonthly" value="${x.monthly || ''}" data-novoice></label>`
@@ -291,7 +298,7 @@ function openLedger(kind, id) {
     </div>
     ${isDebt ? `<label class="field"><span>تاريخ الانتهاء المتوقع (اختياري)</span><input type="date" id="lgEnd" value="${x.end}"><small class="hint">إن تركته فارغاً يُحسب من القسط الشهري</small></label>` : ''}
     <label class="field"><span>ملاحظة</span><input type="text" id="lgNote" value="${esc(x.note)}" autocomplete="off"></label>
-    ${id && x.payments.length ? `<div class="field"><span>${isDebt ? 'الدفعات المسددة' : 'الدفعات المستلمة'}</span><ul class="ppl-hist">${x.payments.slice().sort((a, b) => b.d.localeCompare(a.d)).map((p) => `<li><span>${money(p.amount)} · ${esc(dateBoth(p.d, true))}${p.note ? ` · ${esc(p.note)}` : ''}</span><button type="button" class="j-m-del" data-action="lg-pay-del" data-v="${p.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
+    ${id && x.payments.length ? `<div class="field"><span>${mine ? 'الدفعات المستلمة' : 'الدفعات المسددة'}</span><ul class="ppl-hist">${x.payments.slice().sort((a, b) => b.d.localeCompare(a.d)).map((p) => `<li><span>${money(p.amount)} · ${esc(dateBoth(p.d, true))}${p.note ? ` · ${esc(p.note)}` : ''}</span><button type="button" class="j-m-del" data-action="lg-pay-del" data-v="${p.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">حفظ</button>
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
@@ -308,18 +315,18 @@ function saveLedger() {
   const old = list.find((d) => d.id === ldraft.id);
   const x = isDebt
     ? normalizeDebt({ ...(old || {}), id: ldraft.id, name, total: num($('lgTotal').value), monthly: num($('lgMonthly').value), end: $('lgEnd').value, note: $('lgNote').value.trim() })
-    : normalizeRight({ ...(old || {}), id: ldraft.id, name, amount: num($('lgTotal').value), date: $('lgDate').value, note: $('lgNote').value.trim() });
+    : normalizeRight({ ...(old || {}), dir: ldraft.kind === 'owe' ? 'out' : 'in', id: ldraft.id, name, amount: num($('lgTotal').value), date: $('lgDate').value, note: $('lgNote').value.trim() });
   if (old) Object.assign(old, x); else list.push(x);
   save();
   return true;
 }
 function openPayment(kind, id) {
-  const isDebt = kind === 'debt';
+  const isDebt = kind === 'debt', mine = kind === 'right';
   const x = (isDebt ? S.finDebts : S.finRights).find((d) => d.id === id);
   ldraft = { kind: 'pay', id, isNew: true, of: kind };
   const left = isDebt ? debtLeft(x) : rightLeft(x);
   $('libForm').innerHTML = `
-    <div class="sheet-head"><h2>${isDebt ? 'دفعة لـ' : 'دفعة من '}${esc(x.name)}</h2>
+    <div class="sheet-head"><h2>${mine ? 'دفعة من ' : 'دفعة لـ'}${esc(x.name)}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="note-text">الباقي ${money(left)}</p>
     <div class="grid2">
@@ -339,7 +346,7 @@ function savePayment() {
   x.payments.push({ id: uid(), d: $('pyDate').value || today(), amount, note: $('pyNote').value.trim() });
   save();
   const left = isDebt ? debtLeft(x) : rightLeft(x);
-  toast(left ? `سُجّلت. الباقي ${money(left)}` : isDebt ? `🎉 سددت دَين ${x.name} كاملاً!` : `استلمت حقك من ${x.name} كاملاً`);
+  toast(left ? `سُجّلت. الباقي ${money(left)}` : isDebt ? `🎉 سددت دَين ${x.name} كاملاً!` : ldraft.of === 'owe' ? `🎉 أدّيت حق ${x.name} كاملاً` : `استلمت حقك من ${x.name} كاملاً`);
   return true;
 }
 
@@ -456,7 +463,7 @@ function finImportPreview(found) {
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="note-text">وجدت ${plural(found.length, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة')} في الملف. اختر ما تستورده؛ الملف يُقرأ على جوالك ولا يُرسل إلى أي مكان.</p>
     <ul class="fin-imp">${found.map((f, i) => `<li><label class="switch"><input type="checkbox" data-imp="${i}"${f.type === 'skip' ? ' disabled' : ' checked'}><span><b>${esc(f.name)}</b><small>${label[f.type]} · ${esc(detail(f))}</small></span></label></li>`).join('')}</ul>
-    ${rights.length ? `<label class="switch"><input type="checkbox" id="impRights" checked><span><b>الحقوق المالية</b><small>${plural(rights.length, 'اسم واحد', 'اسمان', 'أسماء', 'اسماً')} · ${money(sum(rights))} (تتكرر في كل صفحة فتُستورد مرة واحدة)</small></span></label>` : ''}
+    ${rights.length ? `<label class="switch"><input type="checkbox" id="impRights" checked><span><b>حقوقي (ما لي عند غيري)</b><small>${plural(rights.length, 'اسم واحد', 'اسمان', 'أسماء', 'اسماً')} · ${money(sum(rights))} (تتكرر في كل صفحة فتُستورد مرة واحدة)</small></span></label>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">استورد المحدد</button></div>`;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -479,7 +486,8 @@ function runFinImport() {
   }
   save();
   toast(`استُورد: ${[n.plan && `${n.plan} خطة`, n.debts && `${n.debts} دَين`, n.rights && `${n.rights} حق`, n.project && `${n.project} مشروع`].filter(Boolean).join('، ') || 'لا شيء'}`);
-  finUi.tab = n.plan ? 'plans' : n.debts ? 'debts' : n.project ? 'projects' : finUi.tab;
+  if (!n.plan && (n.debts || n.rights)) finUi.lg = n.debts ? 'debt' : 'right';
+  finUi.tab = n.plan ? 'plans' : n.debts || n.rights ? 'ledger' : n.project ? 'projects' : finUi.tab;
   return true;
 }
 
@@ -628,10 +636,11 @@ function planSheet(p) {
   return { name: p.kind === 'month' ? planTitle(p) : p.name, design: true, widths: [34, 16, 18, 18], rows: R };
 }
 function ledgerSheet(kind) {
-  const isDebt = kind === 'debts';
-  const list = isDebt ? S.finDebts : S.finRights;
-  const R = [[{ v: isDebt ? 'الديون' : 'الحقوق المالية', s: 'title', span: 8 }], [{ v: `${isDebt ? 'ما عليّ من ديون' : 'ما لي عند الآخرين'} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 8 }], []];
-  R.push([isDebt ? 'الدائن' : 'عند', isDebt ? 'الدَّين' : 'المبلغ', isDebt ? 'المسدد' : 'المستلم', 'الباقي', isDebt ? 'القسط الشهري' : 'التاريخ', isDebt ? 'الانتهاء المتوقع' : '', 'النسبة', 'ملاحظة'].map((v) => ({ v, s: 'head' })));
+  const isDebt = kind === 'debts', mine = kind === 'rights';
+  const lk = { debts: 'debt', owes: 'owe', rights: 'right' }[kind];
+  const list = LEDGERS[lk].list();
+  const R = [[{ v: LEDGERS[lk].title, s: 'title', span: 8 }], [{ v: `${{ debts: 'ما استدنته', owes: 'ما عليّ لغيري ولم يكن ديناً', rights: 'ما لي عند غيري' }[kind]} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 8 }], []];
+  R.push([isDebt ? 'الدائن' : mine ? 'عند' : 'لمن', isDebt ? 'الدَّين' : 'المبلغ', mine ? 'المستلم' : 'المسدد', 'الباقي', isDebt ? 'القسط الشهري' : 'التاريخ', isDebt ? 'الانتهاء المتوقع' : '', 'النسبة', 'ملاحظة'].map((v) => ({ v, s: 'head' })));
   const first = R.length + 1;
   for (const x of list) {
     const r = R.length + 1;
@@ -644,10 +653,10 @@ function ledgerSheet(kind) {
   R.push([{ v: 'المجموع', s: 'tot' }, tot('B', sum(list, (x) => (isDebt ? x.total : x.amount))), tot('C', sum(list, paid)), tot('D', sum(list, isDebt ? debtLeft : rightLeft)), { v: '', s: 'tot' }, { v: '', s: 'tot' }, { v: '', s: 'tot' }, { v: '', s: 'tot' }]);
   const pays = list.flatMap((x) => x.payments.map((p) => ({ ...p, who: x.name }))).sort((a, b) => a.d.localeCompare(b.d));
   if (pays.length) {
-    R.push([], [{ v: isDebt ? 'سجل الدفعات المسددة' : 'سجل الدفعات المستلمة', s: 'sec', span: 8 }], ['التاريخ', isDebt ? 'الدائن' : 'من', 'المبلغ', 'ملاحظة'].map((v, i) => ({ v, s: 'head', span: i === 3 ? 5 : 1 })));
+    R.push([], [{ v: mine ? 'سجل الدفعات المستلمة' : 'سجل الدفعات المسددة', s: 'sec', span: 8 }], ['التاريخ', isDebt ? 'الدائن' : mine ? 'من' : 'لمن', 'المبلغ', 'ملاحظة'].map((v, i) => ({ v, s: 'head', span: i === 3 ? 5 : 1 })));
     for (const p of pays) R.push([{ v: fmtDate(p.d, { day: 'numeric', month: 'short', year: 'numeric' }), s: 'txt' }, { v: p.who, s: 'txt' }, { v: p.amount, s: 'num' }, { v: p.note, s: 'txt', span: 5 }]);
   }
-  return { name: isDebt ? 'الديون' : 'الحقوق', design: true, widths: [22, 13, 13, 13, 14, 16, 10, 26], rows: R };
+  return { name: LEDGERS[lk].title, design: true, widths: [22, 13, 13, 13, 14, 16, 10, 26], rows: R };
 }
 function projectSheet(p) {
   const { cost, fund, bought, left, avail, gap } = projCalc(p);
@@ -683,9 +692,11 @@ function summarySheet(plans) {
     for (const p of plans) { const c = planCalc(p); R.push([{ v: p.kind === 'month' ? planTitle(p) : p.name, s: 'txt' }, { v: p.kind === 'month' ? 'شهرية' : 'معنونة', s: 'txt' }, { v: c.income, s: 'num' }, { v: c.fixed + c.periodic, s: 'num' }, { v: c.left, s: c.left < 0 ? 'bad' : 'good' }, { v: c.income ? c.left / c.income : 0, s: 'pct' }]); }
     R.push([]);
   }
-  R.push([{ v: 'الالتزامات والحقوق', s: 'sec', span: 6 }]);
-  R.push([{ v: 'الباقي من الديون', s: 'tot', span: 2 }, { v: sum(S.finDebts, debtLeft), s: 'bad', span: 2 }, { v: `${S.finDebts.filter(debtLeft).length} دَين`, s: 'txt', span: 2 }]);
-  R.push([{ v: 'الباقي من الحقوق (لي عند الناس)', s: 'tot', span: 2 }, { v: sum(S.finRights, rightLeft), s: 'good', span: 2 }, { v: `${S.finRights.filter(rightLeft).length} اسم`, s: 'txt', span: 2 }]);
+  R.push([{ v: 'الديون والحقوق', s: 'sec', span: 6 }]);
+  for (const [k, label, st] of [['debt', 'الباقي من الديون (ما استدنته)', 'bad'], ['owe', 'الباقي من الحقوق (ما عليّ لغيري)', 'bad'], ['right', 'الباقي من حقوقي (ما لي عند غيري)', 'good']]) {
+    const l = LEDGERS[k].list();
+    R.push([{ v: label, s: 'tot', span: 2 }, { v: lgTotal(k), s: st, span: 2 }, { v: `${l.filter(lgLeft(k)).length} اسم`, s: 'txt', span: 2 }]);
+  }
   return { name: 'الملخص', design: true, widths: [30, 12, 15, 15, 15, 13], rows: R };
 }
 // what: { summary, plans: [ids], debts, rights, projects: [ids], spend }
@@ -695,6 +706,7 @@ function finWorkbook(what) {
   if (what.summary) sheets.push(summarySheet(plans));
   for (const p of plans) sheets.push(planSheet(p));
   if (what.debts) sheets.push(ledgerSheet('debts'));
+  if (what.owes) sheets.push(ledgerSheet('owes'));
   if (what.rights) sheets.push(ledgerSheet('rights'));
   for (const id of what.projects || []) { const p = S.finProjects.find((x) => x.id === id); if (p) sheets.push(projectSheet(p)); }
   if (what.subs && S.subs.length) sheets.push(subsSheet());
@@ -721,12 +733,11 @@ function openFinExport() {
     <p class="note-text">كل خطة في صفحة مستقلة منسّقة بأقسامها ومجاميعها (بمعادلات تعمل إن عدّلت الأرقام في الإكسل).</p>
     <div class="btn-row"><button type="button" class="ghost" data-action="fin-exp-all" data-v="1">تحديد الكل</button><button type="button" class="ghost" data-action="fin-exp-all" data-v="0">إلغاء التحديد</button></div>
     <div class="fin-exp">
-      ${box('summary', 'الملخص المالي', 'الخطط المختارة والديون والحقوق في صفحة واحدة')}
+      ${box('summary', 'الملخص المالي', 'الخطط المختارة والديون والحقوق وحقوقي في صفحة واحدة')}
       ${months.length ? `<h4>الخطط الشهرية</h4>${months.map((p) => box(`plan:${p.id}`, esc(planTitle(p)), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
       ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
       <h4>غيرها</h4>
-      ${S.finDebts.length ? box('debts', 'الديون', `${S.finDebts.length} · الباقي ${money(sum(S.finDebts, debtLeft))}`) : ''}
-      ${S.finRights.length ? box('rights', 'الحقوق المالية', `${S.finRights.length} · الباقي ${money(sum(S.finRights, rightLeft))}`) : ''}
+      ${[['debts', 'debt'], ['owes', 'owe'], ['rights', 'right']].map(([key, k]) => (LEDGERS[k].list().length ? box(key, LEDGERS[k].title, `${LEDGERS[k].list().length} · الباقي ${money(lgTotal(k))}`) : '')).join('')}
       ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), 'مشروع مالي')).join('')}
       ${S.subs.length ? box('subs', 'الاشتراكات والفواتير', `${money(sum(S.subs.filter((s) => s.active), subMonthly))} شهرياً`) : ''}
       ${S.later.length ? box('later', 'الشراء المؤجّل', `${S.later.length} · وفّرت ${money(sum(S.later.filter((x) => x.decision === 'dropped'), (x) => x.price))}`) : ''}
@@ -763,7 +774,7 @@ document.addEventListener('change', (e) => {
   render();
 });
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action^="fin-"], [data-action^="debt-"], [data-action^="right-"], [data-action^="proj-"], [data-action="lg-pay-del"]');
+  const el = e.target.closest('[data-action^="fin-"], [data-action^="debt-"], [data-action^="right-"], [data-action^="owe-"], [data-action^="proj-"], [data-action="lg-pay-del"]');
   if (!el) return;
   const { action, v } = el.dataset;
   const armed = () => {
@@ -815,6 +826,10 @@ document.addEventListener('click', (e) => {
     case 'right-new': openLedger('right', null); break;
     case 'right-open': openLedger('right', v); break;
     case 'right-pay': openPayment('right', v); break;
+    case 'owe-new': openLedger('owe', null); break;
+    case 'owe-open': openLedger('owe', v); break;
+    case 'owe-pay': openPayment('owe', v); break;
+    case 'fin-lg': finUi.tab = 'ledger'; finUi.lg = v; render(); break;
     case 'lg-pay-del': {
       const x = (ldraft.kind === 'debt' ? S.finDebts : S.finRights).find((d) => d.id === ldraft.id);
       x.payments = x.payments.filter((p) => p.id !== v); save(); openLedger(ldraft.kind, x.id); render();
