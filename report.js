@@ -44,12 +44,13 @@ function viewReport() {
   const prevStats = awareStats(prevP);
   const note = reportNote(P.id) || normalizeReport({ id: P.id });
   const prevNote = reportNote(prevP.id);
-  const tile = (v, l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
+  // a lone «٠» in a big font looks like a dot, so zero is written as a word
+  const tile = (v, l) => `<div class="tile"><b>${v === 0 || v === '0' || v === '٠' ? 'صفر' : v}</b><span>${l}</span></div>`;
   return `${moreCrumb()}
   <div class="seg rep-types" role="group" aria-label="نوع التقرير">${[['week', 'أسبوعي'], ['month', 'شهري'], ['year', 'سنوي']].map(([v, l]) => `<button type="button" data-action="rep-type" data-v="${v}" aria-pressed="${P.type === v}">${l}</button>`).join('')}</div>
   <div class="cal-head">
     <div class="nav"><button type="button" data-action="rep-move" data-v="${P.prev}" aria-label="السابق">${icon('prev')}</button></div>
-    <div class="titles"><h2>${esc(P.title)}</h2><small>${esc(P.sub)}${P.current ? ` · حتى اليوم` : ''}</small></div>
+    <div class="titles"><h2>${esc(P.title)}</h2><small>${esc(P.sub)}${P.current ? ` | حتى اليوم` : ''}</small></div>
     <div class="nav"><button type="button" data-action="rep-move" data-v="${P.next}" aria-label="التالي"${P.current ? ' disabled' : ''}>${icon('next')}</button></div>
   </div>
   <div class="report" id="report">
@@ -59,7 +60,7 @@ function viewReport() {
     </div>
     ${awareReportHTML(P, prevStats)}
     ${st.best && st.best[1] > 1 ? `<p class="note-text">أنشط أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
-    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%${p.doneIn ? ` · +${p.doneIn}` : ''}`, p.progress, p.color)).join('')}</ul></section>` : ''}
+    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%${p.doneIn ? ` | +${p.doneIn}` : ''}`, p.progress, p.color)).join('')}</ul></section>` : ''}
     ${prevNote && prevNote.solutions.trim() ? `<section class="panel rep-prev"><h2>حلول اتفقت عليها في ${esc(prevP.title)}</h2><div class="ai-text">${esc(prevNote.solutions).replace(/\n/g, '<br>')}</div><p class="note-text">قارنها بدرجات هذا ${P.word}: هل نفعت؟</p></section>` : ''}
     <section class="panel rep-notes">
       <h2>${icon('spark')} خلاصاتي لهذا ${P.word}</h2>
@@ -159,7 +160,7 @@ async function reportImage() {
   x.textAlign = 'right'; x.fillStyle = '#ffffff';
   x.font = '700 64px "Aref Ruqaa", "Amiri", serif'; x.fillText(D(`تقرير ${P.title}`), W - Pd, 140);
   x.font = '400 36px "Amiri", serif'; x.fillText(D(P.sub), W - Pd, 205);
-  x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · الوعي الشخصي` : 'الوعي الشخصي', W - Pd, 260); x.globalAlpha = 1;
+  x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} | الوعي الشخصي` : 'الوعي الشخصي', W - Pd, 260); x.globalAlpha = 1;
   const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'التقدم الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
   const cols = 3, gw = (W - Pd * 2 - 40) / cols, gh = 170;
   tiles.forEach(([v, l], i) => {

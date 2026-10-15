@@ -43,7 +43,7 @@ function archCard(a) {
     <button type="button" class="arch-main" data-action="arch-open" data-v="${a.id}">
       <strong>${esc(a.title)}</strong>
       ${a.text ? `<p>${esc(excerpt(a.text, 200))}</p>` : ''}
-      <span class="book-line">${host ? `${icon('link')}<span dir="ltr">${esc(host)}</span> · ` : ''}${esc(relDate(iso(new Date(a.created))))}${a.tag ? ` · <span class="cat">${esc(a.tag)}</span>` : ''}${a.convertedTo ? ` · ${icon('check')}${esc(a.convertedTo)}` : ''}</span>
+      <span class="book-line">${host ? `${icon('link')}<span dir="ltr">${esc(host)}</span> | ` : ''}${esc(relDate(iso(new Date(a.created))))}${a.tag ? ` | <span class="cat">${esc(a.tag)}</span>` : ''}${a.convertedTo ? ` | ${icon('check')}${esc(a.convertedTo)}` : ''}</span>
     </button>
     <div class="arch-actions">
       ${a.url ? `<a class="ghost" href="${esc(a.url)}" target="_blank" rel="noopener" data-action="arch-visit" data-v="${a.id}">فتح</a>` : ''}
@@ -211,7 +211,7 @@ document.addEventListener('submit', (e) => {
   if (archUi.filter === 'done') archUi.filter = 'open';
   render();
   $('archQuickText').focus();
-  toast(item.tag ? `حُفظت في الأرشيف · ${item.tag}` : 'حُفظت في الأرشيف');
+  toast(item.tag ? `حُفظت في الأرشيف | ${item.tag}` : 'حُفظت في الأرشيف');
 });
 document.addEventListener('keydown', (e) => {
   if (e.target.id !== 'archQuickText' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;

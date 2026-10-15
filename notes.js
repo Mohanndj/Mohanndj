@@ -262,7 +262,7 @@ const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padS
 // a note that only has recordings still needs to exist
 function ensureMemoSaved() {
   if (getMemo(mstate.id)) return getMemo(mstate.id);
-  const title = $('meTitle').value.trim() || `ملاحظة صوتية · ${fmtDate(today(), { day: 'numeric', month: 'long' })}`;
+  const title = $('meTitle').value.trim() || `ملاحظة صوتية | ${fmtDate(today(), { day: 'numeric', month: 'long' })}`;
   $('meTitle').value = title;
   const html = cleanNoteHTML($('meBody').innerHTML);
   const m = normalizeMemo({ id: mstate.id, title, html, body: noteText(html) });

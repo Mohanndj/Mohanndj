@@ -27,9 +27,9 @@ function fineShort(f) {
   for (const w of words) { if ((out ? `${out} ${w}` : w).length > 30) break; out = out ? `${out} ${w}` : w; }
   return `${out || words[0]}…`;
 }
-const fineName = (f) => `مخالفة${f.kind ? ` ${fineShort(f)}` : ''}${f.place ? ` · ${f.place}` : ''}`;
+const fineName = (f) => `مخالفة${f.kind ? ` ${fineShort(f)}` : ''}${f.place ? ` | ${f.place}` : ''}`;
 const discLine = (f) => (!fineLeft(f) || !f.disc || !f.discUntil ? '' : discOn(f)
-  ? `مخفّضة حتى ${fmtDate(f.discUntil, { day: 'numeric', month: 'long' })} (${daysBetween(today(), f.discUntil) ? `بقي ${daysWord(daysBetween(today(), f.discUntil))}` : 'آخر يوم'}) · بعدها ${money(f.amount)}`
+  ? `مخفّضة حتى ${fmtDate(f.discUntil, { day: 'numeric', month: 'long' })} (${daysBetween(today(), f.discUntil) ? `بقي ${daysWord(daysBetween(today(), f.discUntil))}` : 'آخر يوم'}) | بعدها ${money(f.amount)}`
   : `انتهى التخفيض في ${fmtDate(f.discUntil, { day: 'numeric', month: 'long' })}`);
 
 // read the violation text message (Absher / Efaa) and pull out what matters
@@ -63,7 +63,7 @@ function finFinesHTML() {
   const card = (f) => `<article class="fin-card ledger${fineLeft(f) ? '' : ' cleared'}">
     <button type="button" class="hz-main" data-action="fine-open" data-v="${f.id}">
       <span class="row-between"><b>🚦 ${esc(fineShort(f) || 'مخالفة مرورية')}</b><b class="${fineLeft(f) ? 'late' : 'ok'}">${fineLeft(f) ? money(fineLeft(f)) : '✓ سُدّدت'}</b></span>
-      <small>${esc(dateBoth(f.date, true))}${f.time ? ` · ${esc(f.time)}` : ''}${f.place ? ` · ${esc(f.place)}` : ''}${f.car ? ` · ${esc(f.car)}` : ''}</small>
+      <small>${esc(dateBoth(f.date, true))}${f.time ? ` | ${esc(f.time)}` : ''}${f.place ? ` | ${esc(f.place)}` : ''}${f.car ? ` | ${esc(f.car)}` : ''}</small>
       ${discLine(f) ? `<small class="${discOn(f) ? 'ok' : 'late'}">${esc(discLine(f))}</small>` : ''}
       ${f.note ? `<small>${esc(f.note)}</small>` : ''}
     </button>
@@ -73,7 +73,7 @@ function finFinesHTML() {
     <div class="section-head"><h2>المخالفات المرورية <small class="num">${money(sum(open, fineLeft))}</small></h2>${addBtn('fine-new', 'مخالفة')}</div>
     <p class="note-text explain">كل مخالفة لم تُسدَّد تظهر بنداً في خطة هذا الشهر حتى تسددها.</p>
     ${open.length ? `<div class="book-list">${open.map(card).join('')}</div>` : emptyHTML('لا مخالفات عليك', 'سجّل المخالفة بقيمتها وتاريخها ومكانها، فتدخل خطتك الشهرية حتى تسددها.')}
-    ${paid.length ? `<details class="shop-done"><summary>المسدّدة (${paid.length}) · ${money(sum(paid, (f) => sum(f.payments)))}</summary><div class="book-list">${paid.map(card).join('')}</div></details>` : ''}
+    ${paid.length ? `<details class="shop-done"><summary>المسدّدة (${paid.length}) | ${money(sum(paid, (f) => sum(f.payments)))}</summary><div class="book-list">${paid.map(card).join('')}</div></details>` : ''}
   </section>`;
 }
 
@@ -98,7 +98,7 @@ function openFine(id) {
     </div>
     <label class="field"><span>رقم المخالفة</span><input type="text" id="fnNumber" value="${esc(f.number)}" inputmode="numeric" autocomplete="off" data-novoice></label>
     <label class="field"><span>ملاحظة</span><input type="text" id="fnNote" value="${esc(f.note)}" autocomplete="off"></label>
-    ${id && f.payments.length ? `<p class="note-text">سُدّد منها ${money(sum(f.payments))} · ${esc(f.payments.map((p) => dateBoth(p.d, true)).join('، '))}</p>` : ''}
+    ${id && f.payments.length ? `<p class="note-text">سُدّد منها ${money(sum(f.payments))} | ${esc(f.payments.map((p) => dateBoth(p.d, true)).join('، '))}</p>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button>${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}</div>`;
   libArmed = false;
   showLib();
@@ -121,7 +121,7 @@ document.addEventListener('input', (e) => {
   const set = (id, v) => { if (v != null && v !== '' && $(id)) $(id).value = v; };
   set('fnKind', r.kind); set('fnAmount', r.amount); set('fnDisc', r.disc); set('fnUntil', r.discUntil); set('fnDate', r.date); set('fnTime', r.time); set('fnPlace', r.place); set('fnCar', r.car); set('fnNumber', r.number);
   const n = Object.keys(r).length;
-  if (n) toast(`قُرئت الرسالة: ${n} معلومات${r.disc ? ` · المخفّضة ${money(r.disc)} حتى ${fmtDate(r.discUntil, { day: 'numeric', month: 'long' })}` : ''}`);
+  if (n) toast(`قُرئت الرسالة: ${n} معلومات${r.disc ? ` | المخفّضة ${money(r.disc)} حتى ${fmtDate(r.discUntil, { day: 'numeric', month: 'long' })}` : ''}`);
 });
 function deleteFine(id) {
   S.finTx = S.finTx.filter((t) => !(t.src && t.src.startsWith(`fine:${id}:`)));

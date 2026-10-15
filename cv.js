@@ -107,7 +107,7 @@ function sectionEditor(cv, s, i, n) {
   const count = s.type === 'text' ? (s.text.trim() ? '✓' : '') : visible(s.items).length || '';
   return `<div class="cv-sec-ed${s.hidden ? ' off' : ''}${open ? ' open' : ''}">
     <div class="cv-sec-h">
-      <button type="button" class="cv-toggle" data-action="cv-open" data-v="${s.id}" aria-expanded="${open}"><b>${esc(s.title || '—')}</b><small>${CV_TYPES[s.type]}${count ? ` · ${count}` : ''}${s.hidden ? ' · مخفي' : ''}</small></button>
+      <button type="button" class="cv-toggle" data-action="cv-open" data-v="${s.id}" aria-expanded="${open}"><b>${esc(s.title || '—')}</b><small>${CV_TYPES[s.type]}${count ? ` | ${count}` : ''}${s.hidden ? ' | مخفي' : ''}</small></button>
       ${ctlBtns('cvs', `data-v="${s.id}"`, i, n, s.hidden)}
     </div>
     ${open ? `<div class="cv-sec-b">
@@ -141,7 +141,7 @@ function viewCV() {
       <button type="button" class="chip" data-action="cv-dup">${icon('plus')} نسخة منها</button></div>
     <div class="seg" role="group"><button type="button" data-action="cv-mode" data-v="edit" aria-pressed="${cvUi.mode === 'edit'}">تحرير</button><button type="button" data-action="cv-mode" data-v="preview" aria-pressed="${cvUi.mode === 'preview'}">معاينة</button></div>
     ${cvUi.mode === 'preview' ? `<div class="cv-frame">${cvDocHTML(cv)}</div>` : `
-    <details class="panel cv-style" id="cvStyle"${cvUi.styleOpen ? ' open' : ''}><summary><b>اسم النسخة والشكل</b><small>${esc(cv.name)} · ${CV_THEMES[cv.theme]} · ${en ? 'English' : 'العربية'}</small></summary>
+    <details class="panel cv-style" id="cvStyle"${cvUi.styleOpen ? ' open' : ''}><summary><b>اسم النسخة والشكل</b><small>${esc(cv.name)} | ${CV_THEMES[cv.theme]} | ${en ? 'English' : 'العربية'}</small></summary>
       ${ib('id="cv-name" data-cv="cv" data-k="name"', cv.name, 'اسم النسخة (مثل: لوظيفة مدير مشاريع)')}
       <div class="field"><span>اللغة</span><div class="seg" role="group">${[['ar', 'العربية (من اليمين)'], ['en', 'English (LTR)']].map(([v, l]) => `<button type="button" data-action="cv-set" data-k="lang" data-v="${v}" aria-pressed="${cv.lang === v}">${l}</button>`).join('')}</div></div>
       <div class="field"><span>الشكل</span><div class="seg" role="group">${Object.entries(CV_THEMES).map(([v, l]) => `<button type="button" data-action="cv-set" data-k="theme" data-v="${v}" aria-pressed="${cv.theme === v}">${l}</button>`).join('')}</div></div>
@@ -159,7 +159,7 @@ function viewCV() {
       <div class="cv-links">${p.links.map((l, k) => `<div class="cv-row">${ib(`id="cv-l-${l.id}-label" data-cv="link" data-iid="${l.id}" data-k="label"`, l.label, en ? 'Label (LinkedIn)' : 'الاسم (لينكدإن)')}${ib(`id="cv-l-${l.id}-url" data-cv="link" data-iid="${l.id}" data-k="url"`, l.url, 'https://', ' dir="ltr" data-novoice')}<span class="cv-ctl"><button type="button" class="j-m-del" data-action="cv-link-del" data-v="${l.id}" aria-label="حذف">✕</button></span></div>`).join('')}
         <button type="button" class="fin-add" data-action="cv-link-add">${icon('plus')} ${en ? 'Link' : 'رابط (لينكدإن، موقع، معرض أعمال)'}</button></div>
     </div>
-    <h3 class="j-month">${en ? 'Sections' : 'الأقسام'} <small>${en ? 'tap to edit · ↑↓ order · 👁 show/hide' : 'اضغط القسم لتحريره · ↑↓ للترتيب · 👁 للإظهار والإخفاء'}</small></h3>
+    <h3 class="j-month">${en ? 'Sections' : 'الأقسام'} <small>${en ? 'tap to edit | ↑↓ order | 👁 show/hide' : 'اضغط القسم لتحريره | ↑↓ للترتيب | 👁 للإظهار والإخفاء'}</small></h3>
     <div class="cv-secs">${cv.sections.map((s, i) => sectionEditor(cv, s, i, cv.sections.length)).join('')}</div>
     <button type="button" class="add-btn" data-action="cv-sec-new">${icon('plus')} ${en ? 'New section' : 'قسم جديد'}</button>`}
   </section>`;
@@ -211,7 +211,7 @@ function exportCVWord() {
       if (x.org || x.place) P.push({ style: 'Meta', text: [x.org, x.place].filter(Boolean).join(en ? ', ' : '، ') });
       lines(x.desc).forEach((l, k, a) => P.push({ style: k === a.length - 1 ? 'Normal' : 'Tight', text: `•  ${l}` }));
     }
-    if (s.type === 'tags') P.push({ text: items.filter((x) => x.name).map((x) => (x.level ? `${x.name} (${LEVELS[cv.lang][x.level]})` : x.name)).join(en ? '  ·  ' : '  ·  ') });
+    if (s.type === 'tags') P.push({ text: items.filter((x) => x.name).map((x) => (x.level ? `${x.name} (${LEVELS[cv.lang][x.level]})` : x.name)).join(en ? '  |  ' : '  |  ') });
     if (s.type === 'list') items.filter((x) => x.text).forEach((x, k, a) => P.push({ style: k === a.length - 1 ? 'Normal' : 'Tight', text: `•  ${x.text}` }));
     if (s.type === 'facts') items.filter((x) => x.label && x.value).forEach((x, k, a) => P.push({ style: k === a.length - 1 ? 'Normal' : 'Tight', runs: [{ text: `${x.label}: `, bold: true }, { text: x.value }] }));
   }

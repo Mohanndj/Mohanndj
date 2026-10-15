@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 43;
+const APP_VERSION = 44;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -105,7 +105,7 @@ function relDate(s) {
 function relDateH(s) {
   const r = relDate(s);
   if (!S.settings.hijri || ['اليوم', 'غداً', 'أمس'].includes(r)) return r;
-  return `${r} · ${fmtHijri(s, { day: 'numeric', month: 'long' })}`;
+  return `${r} | ${fmtHijri(s, { day: 'numeric', month: 'long' })}`;
 }
 const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 // «بعد يومين»، «متأخر يومين»: the dual after a word takes the accusative/genitive form
@@ -395,7 +395,7 @@ function metaHTML(t, d, opts = {}) {
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
   else if (t.due && !opts.noDue) {
     const late = !t.done && t.due < today();
-    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة · ' : ''}${esc(relDateH(t.due))}</span>`);
+    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة | ' : ''}${esc(relDateH(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
@@ -537,7 +537,7 @@ function viewToday() {
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
     <div class="txt">
       <b>${summary}</b>
-      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
+      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> | ` : ''}${esc(fmtHijri(d))}</span>
     </div>
   </div>`,
     prayer: () => todayBlock('أوقات الصلاة', '', prayerStripHTML()),
@@ -568,7 +568,7 @@ function viewToday() {
 // ---------- view: tasks & projects ----------
 function projectCardHTML(p) {
   const st = projectStats(p.id);
-  const sub = st.total ? `${st.done}/${st.total} مهام${st.steps ? ` · ${st.stepsDone}/${st.steps} خطوات` : ''}` : 'لا مهام بعد';
+  const sub = st.total ? `${st.done}/${st.total} مهام${st.steps ? ` | ${st.stepsDone}/${st.steps} خطوات` : ''}` : 'لا مهام بعد';
   return `<button type="button" class="pcard" data-action="open-project" data-v="${p.id}" style="--pc:${p.color}">
     <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
     <span class="pbar"><i style="width:${st.progress}%"></i></span>
@@ -894,7 +894,7 @@ function focusPanelHTML() {
   const max = rows.length ? rows[0][1] : 1;
   return `<section class="panel">
     <h2>وقت التركيز</h2>
-    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> · آخر 7 أيام <b>${fmtDur(weekMs)}</b></p>
+    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> | آخر 7 أيام <b>${fmtDur(weekMs)}</b></p>
     ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>` : ''}
   </section>`;
 }
@@ -923,7 +923,7 @@ function viewStats() {
     <div class="tile"><b>${byDay[t0] || 0}</b><span>أنجزت اليوم</span></div>
     <div class="tile"><b>${week}</b><span>آخر 7 أيام</span></div>
     <div class="tile"><b>${stepsWeek}</b><span>خطوات في 7 أيام</span></div>
-    <div class="tile"><b>${cur}</b><span>أيام متتالية · الأفضل ${best}</span></div>
+    <div class="tile"><b>${cur}</b><span>أيام متتالية | الأفضل ${best}</span></div>
   </div>
   <section class="panel chart">
     <h2>المهام والأهداف المنجزة في آخر 14 يوماً</h2>
@@ -1016,7 +1016,7 @@ function viewSettings() {
         ['ruqaa', 'رقعة', 'خط الرقعة في كل التطبيق', '"Aref Ruqaa"', '"Aref Ruqaa"'],
       ].map(([v, name, desc, fd, fb]) => `<button type="button" data-action="font" data-v="${v}" aria-pressed="${(st.font || 'mix') === v}">
         <span class="big" style="font-family:${esc(fd)}, serif">${name}: الوعي الشخصي</span>
-        <small style="font-family:${esc(fb)}, serif">${desc} · اتصل بأبي الساعة 5 العصر</small></button>`).join('')}</div>
+        <small style="font-family:${esc(fb)}, serif">${desc} | اتصل بأبي الساعة 5 العصر</small></button>`).join('')}</div>
     </div>
     <div class="field"><span>الأرقام</span>
       <div class="seg">${segBtn('digits', 'arab', 'عربية ١٢٣', st.digits)}${segBtn('digits', 'latn', 'إنجليزية 123', st.digits)}</div>
@@ -1098,7 +1098,7 @@ function renderGreeting() {
   const name = S.settings.name.trim();
   const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
   const t0 = today();
-  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} · ${fmtDate(t0, { weekday: 'long', day: 'numeric', month: 'long' })}${S.settings.hijri ? ` · ${fmtHijri(t0)}` : ''}`;
+  $('greeting').textContent = `${hello}${name ? '، ' + name : ''} | ${fmtDate(t0, { weekday: 'long', day: 'numeric', month: 'long' })}${S.settings.hijri ? ` | ${fmtHijri(t0)}` : ''}`;
 }
 
 function go(tab, project) {
@@ -1638,7 +1638,7 @@ function minutesLeft(t, d) {
 function alarmBody(t, d, off) {
   const when = timeLabel(t, d);
   const left = minutesLeft(t, d);
-  return off && left > 0 ? `بعد ${minsWord(left)} · ${when}` : `الآن · ${when}`;
+  return off && left > 0 ? `بعد ${minsWord(left)} | ${when}` : `الآن | ${when}`;
 }
 function ring(t, key, d, off) {
   S.fired[key] = Date.now();
@@ -1663,8 +1663,8 @@ function showAlarm() {
   const t = getTask(cur.id);
   if (!t) { alarmQueue.shift(); showAlarm(); return; }
   const left = minutesLeft(t, cur.d);
-  $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق · بعد ${minsWord(left)}` : 'منبه';
-  $('alarmTitle').textContent = `${t.title} · ${timeLabel(t, cur.d)}`;
+  $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق | بعد ${minsWord(left)}` : 'منبه';
+  $('alarmTitle').textContent = `${t.title} | ${timeLabel(t, cur.d)}`;
   $('alarm').hidden = false;
 }
 
@@ -1993,7 +1993,7 @@ function viewTimer() {
     ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
       : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
   </section>
-  ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} · ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} · ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
+  ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} | ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} | ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
 }
 
 let timerArmed = false;
@@ -2260,7 +2260,7 @@ document.addEventListener('submit', (e) => {
   render();
   if (t.alarms.length) ensureNotifPermission();
   const when = isRepeat(t) ? repeatLabel(t) : t.due ? relDate(t.due) : 'بلا تاريخ';
-  toast(`أُضيفت: ${t.title} · ${when}${hasTime(t) ? ' · ' + timeLabel(t, t.due || t.repeat?.start || today()) : ''}`);
+  toast(`أُضيفت: ${t.title} | ${when}${hasTime(t) ? ' | ' + timeLabel(t, t.due || t.repeat?.start || today()) : ''}`);
 });
 
 document.addEventListener('input', (e) => {

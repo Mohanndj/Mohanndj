@@ -126,7 +126,7 @@ function dailyQuoteHTML() {
   const starter = !q;
   if (starter) q = STARTER_QUOTES[Math.floor(parse(today()).getTime() / 86400000) % STARTER_QUOTES.length];
   return `<button type="button" class="daily-quote" data-tab="inspire">
-    <small>${icon('spark')} الإلهام${starter ? ' · أضف عباراتك من صفحة الإلهام' : ''}</small>
+    <small>${icon('spark')} الإلهام${starter ? ' | أضف عباراتك من صفحة الإلهام' : ''}</small>
     <q>${esc(q.text)}</q>
     ${q.source ? `<cite>${esc(q.source)}</cite>` : ''}
   </button>`;
@@ -135,7 +135,7 @@ function dailyQuoteHTML() {
 // ---------- page ----------
 function quoteCard(x) {
   return `<button type="button" class="quote-card k-${x.type}" data-action="insp-open" data-v="${x.id}">
-    <small>${QUOTE_KIND[x.type]}${x.fav ? ' · ' + icon('star') : ''}</small>
+    <small>${QUOTE_KIND[x.type]}${x.fav ? ' | ' + icon('star') : ''}</small>
     <q>${esc(x.text)}</q>
     ${x.source ? `<cite>${esc(x.source)}</cite>` : ''}
   </button>`;

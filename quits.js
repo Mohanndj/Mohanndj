@@ -86,7 +86,7 @@ function openQuit(id) {
     <label class="field"><span>ماذا أفعل بدلاً منها؟</span><input type="text" id="qInstead" value="${esc(q.instead)}" autocomplete="off" placeholder="مثال: أقرأ صفحتين من كتاب"></label>
     <label class="field"><span>بدأت الترك منذ</span><input type="datetime-local" id="qStart" value="${toLocal(q.start)}"></label>
     ${st && st.slips ? `<div class="field"><span>ما يتكرر في زلّاتك</span><dl class="habit-plan">${row(st.triggers, 'الدافع')}${row(st.parts, 'الوقت')}${row(st.weekdays, 'اليوم')}</dl></div>
-      <ul class="ppl-hist">${q.slips.slice().sort((a, b) => b.at - a.at).slice(0, 10).map((s) => `<li><span>${esc(fmtStamp(s.at))}${s.trigger ? ` · ${esc(s.trigger)}` : ''}${s.note ? ` · ${esc(s.note)}` : ''}</span><button type="button" class="j-m-del" data-action="quit-del-slip" data-v="${s.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>` : ''}
+      <ul class="ppl-hist">${q.slips.slice().sort((a, b) => b.at - a.at).slice(0, 10).map((s) => `<li><span>${esc(fmtStamp(s.at))}${s.trigger ? ` | ${esc(s.trigger)}` : ''}${s.note ? ` | ${esc(s.note)}` : ''}</span><button type="button" class="j-m-del" data-action="quit-del-slip" data-v="${s.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>` : ''}
     ${id ? `<label class="switch"><input type="checkbox" id="qDone"${q.doneAt ? ' checked' : ''}><span>تركتها نهائياً، انقلها إلى «عادات تركتها»</span></label>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">${id ? 'حفظ' : 'ابدأ العدّ'}</button>

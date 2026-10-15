@@ -36,7 +36,7 @@ function totalsBar(t, prof, eaten) {
   const target = prof.kcal || 0;
   const macroCal = t.protein * 4 + t.carbs * 4 + t.fat * 9 || 1;
   return `<div class="h-totals">
-    <div class="row-between"><b>🔥 ${eaten ? `أكلت ${eaten.kcal} من ` : ''}${t.kcal} سعرة${target ? ` <small>· هدفك ${target}</small>` : ''}</b>${target ? `<small class="${t.kcal > target * 1.1 ? 'late' : ''}">${Math.round((t.kcal / target) * 100)}٪</small>` : ''}</div>
+    <div class="row-between"><b>🔥 ${eaten ? `أكلت ${eaten.kcal} من ` : ''}${t.kcal} سعرة${target ? ` <small>| هدفك ${target}</small>` : ''}</b>${target ? `<small class="${t.kcal > target * 1.1 ? 'late' : ''}">${Math.round((t.kcal / target) * 100)}٪</small>` : ''}</div>
     ${eaten ? `<div class="progress-line"><i style="width:${t.kcal ? Math.min(100, (eaten.kcal / t.kcal) * 100) : 0}%"></i></div>` : ''}
     <div class="fin-split h-macros" role="img" aria-label="توزيع العناصر"><i class="mp" style="width:${(t.protein * 4 / macroCal) * 100}%"></i><i class="mc" style="width:${(t.carbs * 4 / macroCal) * 100}%"></i><i class="mf" style="width:${(t.fat * 9 / macroCal) * 100}%"></i></div>
     <div class="fin-legend"><span><i class="mp"></i>بروتين ${t.protein} غ${prof.protein ? ` من ${prof.protein}` : ''}</span><span><i class="mc"></i>كربوهيدرات ${t.carbs} غ</span><span><i class="mf"></i>دهون ${t.fat} غ</span><span>ألياف ${t.fiber} غ</span></div>
@@ -49,7 +49,7 @@ function mealCard(m, tick) {
   const eaten = tick ? eatenOn(today()) : [];
   const t = sumItems(m.items);
   return `<article class="meal">
-    <div class="meal-h"><span class="meal-slot">${s[1]} ${s[0]}${m.name ? ` · <b>${esc(m.name)}</b>` : ''}</span>
+    <div class="meal-h"><span class="meal-slot">${s[1]} ${s[0]}${m.name ? ` | <b>${esc(m.name)}</b>` : ''}</span>
       <span class="btn-row">${AI.on() ? `<button type="button" class="ghost sm" data-action="h-swap" data-v="${m.id}">${icon('repeat')} بدّلها</button>` : ''}<button type="button" class="ghost sm" data-action="h-edit" data-v="${m.id}" aria-label="تعديل">${icon('edit')}</button></span></div>
     <ul class="meal-items">${m.items.map((x) => `<li${tick && eaten.includes(x.id) ? ' class="ate"' : ''}>
       ${tick ? `<button type="button" class="shop-box h-tick" data-action="h-eat" data-v="${x.id}" aria-pressed="${eaten.includes(x.id)}" aria-label="أكلت ${esc(x.name)}">${eaten.includes(x.id) ? '✓' : ''}</button>` : ''}
@@ -86,7 +86,7 @@ function viewHealth() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>الصحة: الطعام</h2><div class="btn-row"><label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="hImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>${addBtn('h-new', 'وجبة')}</div></div>
-    <details class="panel h-prof"${S.meals.length ? '' : ' open'}><summary><b>هدفي وتفضيلاتي</b><small>${H_GOALS[prof.goal]}${prof.kcal ? ` · ${prof.kcal} سعرة يومياً` : ''}</small></summary>
+    <details class="panel h-prof"${S.meals.length ? '' : ' open'}><summary><b>هدفي وتفضيلاتي</b><small>${H_GOALS[prof.goal]}${prof.kcal ? ` | ${prof.kcal} سعرة يومياً` : ''}</small></summary>
       <div class="seg seg-wrap" role="group">${Object.entries(H_GOALS).map(([k, l]) => `<button type="button" data-action="h-goal" data-v="${k}" aria-pressed="${prof.goal === k}">${l}</button>`).join('')}</div>
       ${prof.goal === 'balance' ? '<p class="note-text explain">التكامل الغذائي: أن يغطي طعامك المجموعات الغذائية كلها كل أسبوع (الخضروات، الفواكه، الحبوب الكاملة، البروتين، الأسماك، البقوليات، الألبان، الدهون الصحية) دون التركيز على الوزن.</p>' : ''}
       <div class="grid2">
@@ -107,8 +107,8 @@ function viewHealth() {
       <div class="book-list">${list.map((m) => mealCard(m, isToday)).join('')}</div>`
       : emptyHTML(`لا وجبات لـ${AR_DAYS[d]}`, AI.on() ? 'اضغط «خطط أسبوعاً متنوعاً» أو أضف وجبة بنفسك.' : 'أضف وجبات هذا اليوم بأصنافها وقيمها الغذائية.', addBtn('h-new', 'وجبة'))}
     ${S.meals.length ? `${coverageHTML()}<div class="panel"><h3>الأسبوع كله</h3>
-      <ul class="hbars">${weekRows.map((r) => hbar(AR_DAYS[r.w], r.n ? `${r.t.kcal} سعرة · ${r.t.protein} غ بروتين` : '—', prof.kcal ? Math.min(100, Math.round((r.t.kcal / prof.kcal) * 100)) : Math.min(100, Math.round((r.t.kcal / Math.max(1, ...weekRows.map((x) => x.t.kcal))) * 100)))).join('')}</ul>
-      <p class="note-text">متوسط اليوم ${avg} سعرة · ${distinct} صنفاً مختلفاً في الأسبوع.</p>
+      <ul class="hbars">${weekRows.map((r) => hbar(AR_DAYS[r.w], r.n ? `${r.t.kcal} سعرة | ${r.t.protein} غ بروتين` : '—', prof.kcal ? Math.min(100, Math.round((r.t.kcal / prof.kcal) * 100)) : Math.min(100, Math.round((r.t.kcal / Math.max(1, ...weekRows.map((x) => x.t.kcal))) * 100)))).join('')}</ul>
+      <p class="note-text">متوسط اليوم ${avg} سعرة | ${distinct} صنفاً مختلفاً في الأسبوع.</p>
       <div class="btn-row"><button type="button" class="ghost" data-action="h-shop">${icon('plus')} أضف أصناف الأسبوع إلى مشتريات البيت</button><button type="button" class="ghost" data-action="h-clear">امسح الأسبوع</button></div>
     </div>` : ''}
   </section>`;
@@ -124,7 +124,7 @@ function healthTodayHTML() {
   const t = sumItems(all.filter((x) => eaten.includes(x.id)));
   return todayBlock('الصحة', 'health', `${list.map((m) => `<div class="h-today-meal"><b>${SLOTS[m.slot][1]} ${SLOTS[m.slot][0]}${m.name ? `: ${esc(m.name)}` : ''}</b>
       <div class="h-chips">${m.items.map((x) => `<button type="button" class="h-chip" data-action="h-eat" data-v="${x.id}" aria-pressed="${eaten.includes(x.id)}">${eaten.includes(x.id) ? '✓ ' : ''}${esc(x.name)}</button>`).join('')}</div></div>`).join('')}
-    <small class="note-text">أكلت ${t.kcal} من ${sumItems(all).kcal} سعرة مخططة · ${t.protein} غ بروتين</small>`);
+    <small class="note-text">أكلت ${t.kcal} من ${sumItems(all).kcal} سعرة مخططة | ${t.protein} غ بروتين</small>`);
 }
 
 // ---------- meal editor: the meal's items, each with its values ----------
@@ -325,7 +325,7 @@ async function importMealPlan(file) {
   ldraft = { kind: 'mealimp', id: 'x', isNew: true, meals };
   $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
     <p class="note-text">${via === 'ai' ? 'قرأها الذكاء الاصطناعي من ملفك.' : 'قُرئت من ملفك مباشرة.'} وجدت ${plural(meals.length, 'وجبة واحدة', 'وجبتين', 'وجبات', 'وجبة')} في ${plural(new Set(meals.map((m) => m.dow)).size, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}:</p>
-    <ul class="fin-imp">${WEEK_ORDER.filter((w) => meals.some((m) => m.dow === w)).map((w) => `<li><b>${AR_DAYS[w]}</b><small>${meals.filter((m) => m.dow === w).sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map((m) => `${SLOTS[m.slot][0]}: ${m.items.map((x) => x.name).join('، ')}`).map(esc).join(' · ')}</small></li>`).join('')}</ul>
+    <ul class="fin-imp">${WEEK_ORDER.filter((w) => meals.some((m) => m.dow === w)).map((w) => `<li><b>${AR_DAYS[w]}</b><small>${meals.filter((m) => m.dow === w).sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map((m) => `${SLOTS[m.slot][0]}: ${m.items.map((x) => x.name).join('، ')}`).map(esc).join(' | ')}</small></li>`).join('')}</ul>
     ${!via || via === 'file' ? '<p class="note-text explain">القيم الغذائية غير موجودة في الملف؟ افتح أي وجبة واضغط «احسب القيم الغذائية»، أو فعّل الذكاء الاصطناعي ثم استورد الملف من جديد.</p>' : ''}
     <div class="seg" id="miMode" role="group"><button type="button" data-action="h-imp-mode" data-v="replace" aria-pressed="true">استبدل خطتي بها</button><button type="button" data-action="h-imp-mode" data-v="add" aria-pressed="false">أضفها إلى خطتي</button></div>
     <div class="sheet-actions"><button type="submit" class="primary">اعتمد الخطة</button></div>`;

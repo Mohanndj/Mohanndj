@@ -159,7 +159,7 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
     return `<input type="${c.num ? 'text' : 'text'}" ${c.num ? 'inputmode="decimal" class="num-in"' : ''} id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="${c.k}" value="${esc(c.num ? (x[c.k] || '') : x[c.k])}" placeholder="${c.ph}" aria-label="${c.ph}" autocomplete="off"${c.num ? ' data-novoice' : ''}${x.link && c.k === 'amount' ? ' readonly title="يُعدَّل من مصدره"' : ''}>`;
   };
   return `<div class="fin-rows c${cols.length}">
-    ${items.map((x) => `<div class="fin-row${x.done ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra || x.link ? `<small class="fin-x">${[x.link ? `🔗 من ${esc(linkLabel(x.link))} · يُحدَّث تلقائياً` : '', opts.extra ? opts.extra(x) : ''].filter(Boolean).join(' · ')}</small>` : ''}</div>`).join('')}
+    ${items.map((x) => `<div class="fin-row${x.done ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra || x.link ? `<small class="fin-x">${[x.link ? `🔗 من ${esc(linkLabel(x.link))} | يُحدَّث تلقائياً` : '', opts.extra ? opts.extra(x) : ''].filter(Boolean).join(' | ')}</small>` : ''}</div>`).join('')}
     <button type="button" class="fin-add" data-action="fin-row-add" data-scope="${scope}" data-sid="${sid}" data-list="${list}">${icon('plus')} ${opts.addLabel || 'بند'}</button>
   </div>`;
 }
@@ -177,7 +177,7 @@ function viewFinance() {
   <section class="section">
     <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
     ${c ? `<button type="button" class="fin-top" data-action="fin-open" data-v="${ap.id}">
-      <small>${esc(ap.name)}${ap.month ? ` · ${esc(rangeLabel(ap))}` : ''}</small>
+      <small>${esc(ap.name)}${ap.month ? ` | ${esc(rangeLabel(ap))}` : ''}</small>
       <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
     </button>` : ''}
     ${mini.length ? `<div class="fin-mini">${mini.map((k) => `<button type="button" data-action="fin-lg" data-v="${k}">${{ debt: 'عليّ ديون', owe: 'عليّ حقوق', right: 'لي عند غيري' }[k]}: <b>${money(lgTotal(k))}</b></button>`).join('')}</div>` : ''}
@@ -212,7 +212,7 @@ function finPlansHTML() {
     <div class="section-head"><h2>الخطط الشهرية</h2>${addBtn('fin-new-month', 'خطة شهر')}</div>
     <label class="field fin-payday"><span>يوم نزول الراتب</span><select id="setPayDay">${[0, ...Array.from({ length: 28 }, (_, i) => i + 1)].map((d) => `<option value="${d}"${(Number(S.settings.payDay) || 0) === d ? ' selected' : ''}>${d ? `يوم ${d} من كل شهر` : 'بداية الشهر (من ١ إلى آخره)'}</option>`).join('')}</select><small class="hint explain">تبدأ كل خطة شهرية جديدة من هذا اليوم وتنتهي في اليوم الذي قبله من الشهر التالي، وتستطيع تعديل أي خطة بنفسها.</small></label>
     ${months.length ? `<div class="book-list">${months.map((p) => { const c = planCalc(p); return `<button type="button" class="fin-card${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
-      <span class="row-between"><b>${esc(planTitle(p))}<small class="fin-range-l"> ${esc(rangeLabel(p))}</small></b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' · ')}</small></span>
+      <span class="row-between"><b>${esc(planTitle(p))}<small class="fin-range-l"> ${esc(rangeLabel(p))}</small></b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' | ')}</small></span>
       ${splitBar(c)}
     </button>`; }).join('')}</div>`
       : emptyHTML('لا خطط شهرية بعد', 'أنشئ خطة لهذا الشهر: فارغة، أو من الشهر السابق، أو انقل إليها إحدى خططك المعنونة.', addBtn('fin-new-month', 'خطة هذا الشهر'))}
@@ -273,7 +273,7 @@ function planDetailHTML(p) {
     <div class="panel"><h3>٣- الادخار وسيولة الطوارئ</h3>
       <div class="fin-left ${c.left < 0 ? 'neg' : 'pos'}"><span>${c.left < 0 ? 'العجز' : 'المتبقي للادخار'}</span><b>${money(Math.abs(c.left))}</b></div>
       <p class="note-text explain">أولى مبالغ الادخار تكون لبناء سيولة الطوارئ.</p>
-      ${p.kind === 'month' && savingProject() ? `<button type="button" class="ghost save-link" data-action="proj-open" data-v="${savingProject().id}">💰 ما يبقى من هذا الشهر يذهب إلى «${esc(savingProject().name)}» · نقدك الآن ${money(saveCalc(savingProject()).cash)}</button>` : ''}
+      ${p.kind === 'month' && savingProject() ? `<button type="button" class="ghost save-link" data-action="proj-open" data-v="${savingProject().id}">💰 ما يبقى من هذا الشهر يذهب إلى «${esc(savingProject().name)}» | نقدك الآن ${money(saveCalc(savingProject()).cash)}</button>` : ''}
       <label class="field"><span>هدف الادخار</span><input type="text" inputmode="decimal" class="num-in" id="fp-goal" data-fin="plan" data-sid="${p.id}" data-k="goal" value="${p.goal || ''}" placeholder="مثال: 15000" data-novoice></label>
       ${p.goal && c.left > 0 ? `<p class="note-text">بمعدل ${money(c.left)} شهرياً تبلغ هدفك بعد ${Math.ceil(p.goal / c.left)} ${Math.ceil(p.goal / c.left) <= 10 ? 'أشهر' : 'شهراً'}.</p>` : ''}
       <h4>الحسابات (الرصيد المتوفر) <small>${money(c.accounts)}</small></h4>
@@ -331,7 +331,7 @@ function ledgerCard(x, kind) {
   return `<article class="fin-card ledger${left ? '' : ' cleared'}">
     <button type="button" class="hz-main" data-action="${kind}-open" data-v="${x.id}">
       <span class="row-between"><b>${esc(x.name)}</b><b class="${left ? (mine ? '' : 'late') : 'ok'}">${left ? money(left) : '✓ انتهى'}</b></span>
-      <small>${isDebt ? 'الدَّين' : 'المبلغ'} ${money(total)} · ${mine ? 'المستلم' : 'المسدد'} ${money(total - left)}${!isDebt && x.date ? ` · ${esc(fmtDate(x.date, { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}${isDebt && x.monthly ? ` · القسط ${money(x.monthly)}` : ''}${end && left ? ` · ينتهي ${esc(fmtDate(end, { month: 'long', year: 'numeric' }))}` : ''}</small>
+      <small>${isDebt ? 'الدَّين' : 'المبلغ'} ${money(total)} | ${mine ? 'المستلم' : 'المسدد'} ${money(total - left)}${!isDebt && x.date ? ` | ${esc(fmtDate(x.date, { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}${isDebt && x.monthly ? ` | القسط ${money(x.monthly)}` : ''}${end && left ? ` | ينتهي ${esc(fmtDate(end, { month: 'long', year: 'numeric' }))}` : ''}</small>
       ${x.note ? `<small>${esc(x.note)}</small>` : ''}
     </button>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
@@ -379,7 +379,7 @@ function finProjectsHTML() {
     ${savingProject() ? '' : `<button type="button" class="fin-card save-card save-new" data-action="proj-new-save"><span class="row-between"><b>💰 أنشئ مشروع الادخار</b><b>${icon('plus')}</b></span><small>يصل إليه ما يبقى من دخلك كل شهر من خططك الشهرية تلقائياً، فتعرف كم تملك من النقد.</small></button>`}
     ${S.finProjects.length ? `<div class="book-list">${S.finProjects.slice().sort((a, b) => isSaving(b) - isSaving(a)).map((x) => { if (isSaving(x)) return savingCardHTML(x); const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
       <span class="row-between"><b>${esc(x.name)}</b><b class="${c.gap < 0 ? 'late' : 'ok'}">${c.gap < 0 ? `ينقص ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى'}</b></span>
-      <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} · المتبقي شراؤه ${money(c.left)} · المتوفر ${money(c.avail)}${c.bought ? ` · اشتريت ${c.pct}٪` : ''}</small>
+      <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} | المتبقي شراؤه ${money(c.left)} | المتوفر ${money(c.avail)}${c.bought ? ` | اشتريت ${c.pct}٪` : ''}</small>
       <div class="progress-line"><i style="width:${c.cost ? Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100)) : 0}%"></i></div>
     </button>`; }).join('')}</div>` : emptyHTML('لا مشاريع', 'أنشئ مشروعاً وأضف بنوده ومصادر تمويله.')}
   </section>`;
@@ -402,7 +402,7 @@ function openLedger(kind, id) {
     </div>
     ${isDebt ? `<label class="field"><span>تاريخ الانتهاء المتوقع (اختياري)</span><input type="date" id="lgEnd" value="${x.end}"><small class="hint explain">إن تركته فارغاً يُحسب من القسط الشهري</small></label>` : ''}
     <label class="field"><span>ملاحظة</span><input type="text" id="lgNote" value="${esc(x.note)}" autocomplete="off"></label>
-    ${id && x.payments.length ? `<div class="field"><span>${mine ? 'الدفعات المستلمة' : 'الدفعات المسددة'}</span><ul class="ppl-hist">${x.payments.slice().sort((a, b) => b.d.localeCompare(a.d)).map((p) => `<li><span>${money(p.amount)} · ${esc(dateBoth(p.d, true))}${p.note ? ` · ${esc(p.note)}` : ''}</span><button type="button" class="j-m-del" data-action="lg-pay-del" data-v="${p.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
+    ${id && x.payments.length ? `<div class="field"><span>${mine ? 'الدفعات المستلمة' : 'الدفعات المسددة'}</span><ul class="ppl-hist">${x.payments.slice().sort((a, b) => b.d.localeCompare(a.d)).map((p) => `<li><span>${money(p.amount)} | ${esc(dateBoth(p.d, true))}${p.note ? ` | ${esc(p.note)}` : ''}</span><button type="button" class="j-m-del" data-action="lg-pay-del" data-v="${p.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">حفظ</button>
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
@@ -560,16 +560,16 @@ function finImportPreview(found) {
   finFound = found;
   ldraft = { kind: 'finimport', id: 'x', isNew: true };
   const label = { plan: 'خطة ميزانية', debts: 'الديون', project: 'مشروع مالي', skip: 'لم أفهم هذه الصفحة' };
-  const detail = (f) => f.type === 'plan' ? (() => { const c = planCalc(normalizeFinPlan(f.data.plan)); return `الدخل ${money(c.income)} · المصاريف ${money(c.fixed + c.periodic)} · المتبقي ${money(c.left)}`; })()
+  const detail = (f) => f.type === 'plan' ? (() => { const c = planCalc(normalizeFinPlan(f.data.plan)); return `الدخل ${money(c.income)} | المصاريف ${money(c.fixed + c.periodic)} | المتبقي ${money(c.left)}`; })()
     : f.type === 'debts' ? plural(f.data.length, 'دَين واحد', 'دَينان', 'ديون', 'دَيناً')
-      : f.type === 'project' ? `${plural(f.data.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')}${f.data.funding.length ? ` · ${f.data.funding.length} مصدر تمويل` : ''}` : 'ستُتجاهل';
+      : f.type === 'project' ? `${plural(f.data.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')}${f.data.funding.length ? ` | ${f.data.funding.length} مصدر تمويل` : ''}` : 'ستُتجاهل';
   const rights = [...new Map(found.filter((f) => f.type === 'plan').flatMap((f) => f.data.rights).map((x) => [x.name, x])).values()];
   $('libForm').innerHTML = `
     <div class="sheet-head"><h2>استيراد من الإكسل</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="note-text">وجدت ${plural(found.length, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة')} في الملف. اختر ما تستورده؛ الملف يُقرأ على جوالك ولا يُرسل إلى أي مكان.</p>
-    <ul class="fin-imp">${found.map((f, i) => `<li><label class="switch"><input type="checkbox" data-imp="${i}"${f.type === 'skip' ? ' disabled' : ' checked'}><span><b>${esc(f.name)}</b><small>${label[f.type]} · ${esc(detail(f))}</small></span></label></li>`).join('')}</ul>
-    ${rights.length ? `<label class="switch"><input type="checkbox" id="impRights" checked><span><b>حقوقي (ما لي عند غيري)</b><small>${plural(rights.length, 'اسم واحد', 'اسمان', 'أسماء', 'اسماً')} · ${money(sum(rights))} (تتكرر في كل صفحة فتُستورد مرة واحدة)</small></span></label>` : ''}
+    <ul class="fin-imp">${found.map((f, i) => `<li><label class="switch"><input type="checkbox" data-imp="${i}"${f.type === 'skip' ? ' disabled' : ' checked'}><span><b>${esc(f.name)}</b><small>${label[f.type]} | ${esc(detail(f))}</small></span></label></li>`).join('')}</ul>
+    ${rights.length ? `<label class="switch"><input type="checkbox" id="impRights" checked><span><b>حقوقي (ما لي عند غيري)</b><small>${plural(rights.length, 'اسم واحد', 'اسمان', 'أسماء', 'اسماً')} | ${money(sum(rights))} (تتكرر في كل صفحة فتُستورد مرة واحدة)</small></span></label>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">استورد المحدد</button></div>`;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -675,7 +675,7 @@ function saveFinNew() {
   return true;
 }
 
-// pull: a titled plan into this month · push: this titled plan into a month
+// pull: a titled plan into this month | push: this titled plan into a month
 function openFinMove(dir) {
   const p = getFinPlan(finUi.plan);
   ldraft = { kind: 'finmove', id: p.id, isNew: true, dir };
@@ -727,7 +727,7 @@ function planSheet(p) {
   const add = (row) => { R.push(row); return R.length; };
   const blank = () => add([]);
   add([{ v: p.kind === 'month' ? planTitle(p) : p.name, s: 'title', span: 4 }]);
-  add([{ v: `${p.kind === 'month' ? (p.name && !/^خطة /.test(p.name) ? p.name : 'خطة شهرية') : 'خطة معنونة'} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })} · المبالغ بالـ${S.settings.currency || 'ريال'}`, s: 'sub', span: 4 }]);
+  add([{ v: `${p.kind === 'month' ? (p.name && !/^خطة /.test(p.name) ? p.name : 'خطة شهرية') : 'خطة معنونة'} | صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })} | المبالغ بالـ${S.settings.currency || 'ريال'}`, s: 'sub', span: 4 }]);
   blank();
   const sumHead = add([{ v: 'الدخل', s: 'head' }, { v: 'المصاريف', s: 'head' }, { v: 'المتبقي للادخار', s: 'head' }, { v: 'نسبة الادخار', s: 'head' }]);
   const sumRow = add([null, null, null, null]); // filled once the totals' cells are known
@@ -773,7 +773,7 @@ function ledgerSheet(kind) {
   const isDebt = kind === 'debts', mine = kind === 'rights';
   const lk = { debts: 'debt', owes: 'owe', rights: 'right' }[kind];
   const list = LEDGERS[lk].list();
-  const R = [[{ v: LEDGERS[lk].title, s: 'title', span: 8 }], [{ v: `${{ debts: 'ما استدنته', owes: 'ما عليّ لغيري ولم يكن ديناً', rights: 'ما لي عند غيري' }[kind]} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 8 }], []];
+  const R = [[{ v: LEDGERS[lk].title, s: 'title', span: 8 }], [{ v: `${{ debts: 'ما استدنته', owes: 'ما عليّ لغيري ولم يكن ديناً', rights: 'ما لي عند غيري' }[kind]} | صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 8 }], []];
   R.push([isDebt ? 'الدائن' : mine ? 'عند' : 'لمن', isDebt ? 'الدَّين' : 'المبلغ', mine ? 'المستلم' : 'المسدد', 'الباقي', isDebt ? 'القسط الشهري' : 'التاريخ', isDebt ? 'الانتهاء المتوقع' : '', 'النسبة', 'ملاحظة'].map((v) => ({ v, s: 'head' })));
   const first = R.length + 1;
   for (const x of list) {
@@ -794,7 +794,7 @@ function ledgerSheet(kind) {
 }
 function projectSheet(p) {
   const { cost, fund, bought, left, avail, gap } = projCalc(p);
-  const R = [[{ v: p.name, s: 'title', span: 4 }], [{ v: `مشروع مالي · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 4 }], []];
+  const R = [[{ v: p.name, s: 'title', span: 4 }], [{ v: `مشروع مالي | صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 4 }], []];
   R.push(['التكلفة كاملة', 'تم شراؤه', 'المتبقي شراؤه', 'المتوفر'].map((v) => ({ v, s: 'head' })));
   R.push([{ v: cost, s: 'big' }, { v: bought, s: 'big' }, { v: left, s: 'big' }, { v: avail, s: 'big' }]);
   R.push([{ v: gap < 0 ? 'ينقصك' : gap > 0 ? 'يفيض' : 'مغطّى تماماً', s: 'head', span: 2 }, { v: Math.abs(gap), s: gap < 0 ? 'bad' : 'good', span: 2 }], []);
@@ -813,7 +813,7 @@ function projectSheet(p) {
 }
 function spendSheet() {
   const txs = S.finTx.slice().sort((a, b) => a.d.localeCompare(b.d));
-  const R = [[{ v: 'المصروف', s: 'title', span: 5 }], [{ v: `كل ما سجّلته · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 5 }], [], ['التاريخ', 'النوع', 'البند', 'المبلغ', 'ملاحظة'].map((v) => ({ v, s: 'head' }))];
+  const R = [[{ v: 'المصروف', s: 'title', span: 5 }], [{ v: `كل ما سجّلته | صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 5 }], [], ['التاريخ', 'النوع', 'البند', 'المبلغ', 'ملاحظة'].map((v) => ({ v, s: 'head' }))];
   const f = R.length + 1;
   for (const t of txs) R.push([{ v: fmtDate(t.d, { day: 'numeric', month: 'short', year: 'numeric' }), s: 'txt' }, { v: t.kind === 'in' ? 'دخل' : 'صرف', s: 'txt' }, { v: t.item, s: 'txt' }, { v: t.kind === 'in' ? t.amount : -t.amount, s: 'num' }, { v: t.note, s: 'txt' }]);
   if (txs.length) R.push([{ v: 'الصافي', s: 'tot', span: 3 }, { f: `SUM(D${f}:D${R.length})`, v: sum(txs, (t) => (t.kind === 'in' ? t.amount : -t.amount)), s: 'totnum' }, { v: '', s: 'tot' }]);
@@ -871,10 +871,10 @@ function openFinExport() {
       ${months.length ? `<h4>الخطط الشهرية</h4>${months.map((p) => box(`plan:${p.id}`, esc(planTitle(p)), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
       ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
       <h4>غيرها</h4>
-      ${[['debts', 'debt'], ['owes', 'owe'], ['rights', 'right']].map(([key, k]) => (LEDGERS[k].list().length ? box(key, LEDGERS[k].title, `${LEDGERS[k].list().length} · الباقي ${money(lgTotal(k))}`) : '')).join('')}
-      ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), isSaving(p) ? `ادخار · ${money(saveCalc(p).cash)}` : 'مشروع مالي')).join('')}
+      ${[['debts', 'debt'], ['owes', 'owe'], ['rights', 'right']].map(([key, k]) => (LEDGERS[k].list().length ? box(key, LEDGERS[k].title, `${LEDGERS[k].list().length} | الباقي ${money(lgTotal(k))}`) : '')).join('')}
+      ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), isSaving(p) ? `ادخار | ${money(saveCalc(p).cash)}` : 'مشروع مالي')).join('')}
       ${S.subs.length ? box('subs', 'الاشتراكات والفواتير', `${money(sum(S.subs.filter((s) => s.active), subMonthly))} شهرياً`) : ''}
-      ${S.later.length ? box('later', 'الشراء المؤجّل', `${S.later.length} · وفّرت ${money(sum(S.later.filter((x) => x.decision === 'dropped'), (x) => x.price))}`) : ''}
+      ${S.later.length ? box('later', 'الشراء المؤجّل', `${S.later.length} | وفّرت ${money(sum(S.later.filter((x) => x.decision === 'dropped'), (x) => x.price))}`) : ''}
       ${S.finTx.length ? box('spend', 'المصروف المسجّل', `${S.finTx.length} عملية`) : ''}
     </div>
     <div class="sheet-actions"><button type="submit" class="primary">${icon('sheet')} صدّر</button></div>`;
@@ -1017,7 +1017,7 @@ document.addEventListener('submit', (e) => {
   if (ref) assignTx(t, ref, planForDate(t.d));
   save(); render();
   const rm = ref && rowRemain(p, ref);
-  toast(`سُجّل ${money(amount)}${rm ? ` · «${rm.name}»: ${rm.text}` : ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
+  toast(`سُجّل ${money(amount)}${rm ? ` | «${rm.name}»: ${rm.text}` : ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
 });
 // while choosing the item (or typing its name), say what is left of it before recording
 function tdHintUpdate() {
@@ -1055,7 +1055,7 @@ document.addEventListener('submit', (e) => {
   save();
   render();
   $('txAmount').focus();
-  toast(rm ? `سُجّل · «${rm.name}»: ${rm.text}` : 'سُجّل');
+  toast(rm ? `سُجّل | «${rm.name}»: ${rm.text}` : 'سُجّل');
 });
 
 Object.assign(LibraryViews, { finance: viewFinance });

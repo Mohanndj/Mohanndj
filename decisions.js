@@ -39,7 +39,7 @@ function decCard(x) {
   return `<button type="button" class="dec-card${due ? ' due' : ''}${x.reviewedAt ? ` r-${x.result}` : ''}" data-action="dec-open" data-v="${x.id}">
     <b>${r ? `${r[1]} ` : ''}${esc(x.title)}</b>
     ${x.reasons ? `<p>${esc(excerpt(x.reasons, 160))}</p>` : ''}
-    <span class="book-line">${esc(dateBoth(x.date, true))} · ثقتي ${x.confidence}%${x.state ? ` · كنت ${DEC_STATE[x.state]}` : ''} · ${x.reviewedAt ? `روجع: ${r ? r[0] : ''}` : due ? '<span class="late">حان وقت مراجعته</span>' : `المراجعة ${esc(relDate(x.reviewAt))}`}</span>
+    <span class="book-line">${esc(dateBoth(x.date, true))} | ثقتي ${x.confidence}%${x.state ? ` | كنت ${DEC_STATE[x.state]}` : ''} | ${x.reviewedAt ? `روجع: ${r ? r[0] : ''}` : due ? '<span class="late">حان وقت مراجعته</span>' : `المراجعة ${esc(relDate(x.reviewAt))}`}</span>
   </button>`;
 }
 
@@ -78,7 +78,7 @@ function openDecision(id, review) {
         ${x.context ? `<div><dt>الموقف</dt><dd>${esc(x.context)}</dd></div>` : ''}
         ${x.reasons ? `<div><dt>لماذا اخترته</dt><dd>${esc(x.reasons)}</dd></div>` : ''}
         ${x.expect ? `<div><dt>ما توقعته</dt><dd>${esc(x.expect)}</dd></div>` : ''}
-        <div><dt>ثقتي</dt><dd>${x.confidence}% · ${esc(dateBoth(x.date, true))}${x.state ? ` · كنت ${DEC_STATE[x.state]}` : ''}</dd></div>
+        <div><dt>ثقتي</dt><dd>${x.confidence}% | ${esc(dateBoth(x.date, true))}${x.state ? ` | كنت ${DEC_STATE[x.state]}` : ''}</dd></div>
       </dl>
       <label class="field"><span>ماذا حدث فعلاً؟</span><textarea id="dOutcome" rows="3">${esc(x.outcome)}</textarea></label>
       <div class="field"><span>هل أصبت؟</span><div class="seg" id="dResult" role="group">${Object.entries(DEC_RESULT).map(([k, v]) => `<button type="button" data-action="dec-result" data-v="${k}" aria-pressed="${x.result === k}">${v[1]} ${v[0]}</button>`).join('')}</div></div>

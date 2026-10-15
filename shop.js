@@ -86,7 +86,7 @@ function viewShop() {
     <div class="section-head"><h3>${l.icon} ${esc(l.name)}</h3><button type="button" class="ghost sm" data-action="shop-list-edit" data-v="${l.id}">${icon('edit')} تعديل</button></div>
     ${addForm(l)}
     ${need.length || doneToday.length ? `<ul class="shop-list">${need.map((x) => itemRow(x)).join('')}${doneToday.map((x) => itemRow(x)).join('')}</ul>` : `<p class="note-text">${items.length ? 'شطبت كل ما فيها ✓' : 'القائمة فارغة. أضف ما تتذكره قبل أن تنساه.'}</p>`}
-    ${done.length ? `<details class="shop-done"><summary>تم (${done.length}) · اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
+    ${done.length ? `<details class="shop-done"><summary>تم (${done.length}) | اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
     ${allDone.length > 1 ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text explain">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
   </section>`;
 }

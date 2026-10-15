@@ -41,7 +41,7 @@ function ideaCard(x) {
     <button type="button" class="arch-main" data-action="idea-open" data-v="${x.id}">
       <strong>${esc(head)}</strong>
       ${body ? `<p>${esc(excerpt(body, 220))}</p>` : ''}
-      <span class="book-line"><span class="idea-st">${IDEA_STATUS[x.status]}</span> · ${esc(relDate(iso(new Date(x.created))))}${x.tag ? ` · <span class="cat">${esc(x.tag)}</span>` : ''}${x.convertedTo ? ` · ${icon('check')}${esc(x.convertedTo)}` : ''}</span>
+      <span class="book-line"><span class="idea-st">${IDEA_STATUS[x.status]}</span> | ${esc(relDate(iso(new Date(x.created))))}${x.tag ? ` | <span class="cat">${esc(x.tag)}</span>` : ''}${x.convertedTo ? ` | ${icon('check')}${esc(x.convertedTo)}` : ''}</span>
     </button>
   </article>`;
 }
@@ -102,7 +102,7 @@ function openIdea(id, opts = {}) {
         <button type="button" class="ghost" data-action="idea-to" data-v="memo">ملاحظة</button>
       </div>
     </div>
-    ${id ? `<p class="note-text">سُجّلت ${esc(dateBoth(iso(new Date(x.created)), true))} · ${esc(fmtTime(hmOf(new Date(x.created).getHours() * 60 + new Date(x.created).getMinutes())))}</p>` : ''}`}
+    ${id ? `<p class="note-text">سُجّلت ${esc(dateBoth(iso(new Date(x.created)), true))} | ${esc(fmtTime(hmOf(new Date(x.created).getHours() * 60 + new Date(x.created).getMinutes())))}</p>` : ''}`}
     <div class="sheet-actions">
       <button type="submit" class="primary">${id ? 'حفظ' : 'احفظ الفكرة'}</button>
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}

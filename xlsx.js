@@ -100,9 +100,9 @@ ${sheet.rows.length ? `<autoFilter ref="A1:${last}"/>` : ''}
 </worksheet>`;
   }
 
-  // style ids: 0 plain · 1 header (white on teal) · 2 wrap · 3 top
-  // designed sheets: 4 title · 5 subtitle · 6 section bar · 7 table head · 8 text · 9 number · 10 total label
-  // 11 total number · 12 good number · 13 bad number · 14 note · 15 percent · 16 big number · 17 date
+  // style ids: 0 plain | 1 header (white on teal) | 2 wrap | 3 top
+  // designed sheets: 4 title | 5 subtitle | 6 section bar | 7 table head | 8 text | 9 number | 10 total label
+  // 11 total number | 12 good number | 13 bad number | 14 note | 15 percent | 16 big number | 17 date
   const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.##"/></numFmts>

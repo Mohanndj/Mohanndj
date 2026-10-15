@@ -71,7 +71,7 @@ function awareStats(P) {
   if (typeof P === 'string') P = periodOf('month', P);
   const { start, last, days, all, end } = P;
   const inAll = (d) => !!d && d >= start && d <= end;
-  const leftTxt = (n) => (P.current && n ? ` · بقي ${n}` : '');
+  const leftTxt = (n) => (P.current && n ? ` | بقي ${n}` : '');
   const t0 = today();
   const inP = (d) => !!d && d >= start && d <= last;
   const A = [];
@@ -108,7 +108,7 @@ function awareStats(P) {
   // 🌱 بناء العادات
   const habits = S.tasks.filter((t) => isHabit(t)).map((t) => ({ t, ...goalRun(t, P) })).filter((h) => h.total);
   add('habits', '🌱', 'بناء العادات', 'goals', pctOf(sum(habits, (h) => h.hit), sum(habits, (h) => h.total)),
-    habits.map((h) => `«${h.t.title}»: ${h.hit} من ${h.total} · قوتها ${habitStats(h.t, last).strength}٪`));
+    habits.map((h) => `«${h.t.title}»: ${h.hit} من ${h.total} | قوتها ${habitStats(h.t, last).strength}٪`));
 
   // 🚭 عادات أتركها: clean days over the days it was being left in the period
   const qScores = [], qFacts = [], qDetail = [];
@@ -225,8 +225,9 @@ function awareStats(P) {
   ]);
 
   // 💰 المالية: spending against the plans' expenses, prorated to the days that passed
-  let plannedExp = 0;
-  for (const d of days) { const mp = planForDate(d); if (mp) { const c = planCalc(mp); plannedExp += (c.fixed + c.periodic) / planLen(mp); } }
+  let plannedExp = 0, planDaysN = 0;
+  for (const d of days) { const mp = planForDate(d); if (mp) { const c = planCalc(mp); plannedExp += (c.fixed + c.periodic) / planLen(mp); planDaysN++; } }
+  const share = Math.round(plannedExp);
   const outs = S.finTx.filter((t) => t.kind === 'out' && inP(t.d));
   const spent = sum(outs), outside = sum(outs.filter((t) => t.ref === 'out'));
   const income = sum(S.finTx.filter((t) => t.kind === 'in' && inP(t.d)));
@@ -237,15 +238,17 @@ function awareStats(P) {
   for (const t of outs) { const k = t.item || 'بلا وصف'; byItem[k] = (byItem[k] || 0) + t.amount; }
   // facts only: spending is not a count of things to finish, so it gets no progress score
   add('finance', '💰', 'المالية', 'finance', null, [
-    spent && `صرفت ${money(spent)}${plannedExp ? ` والمخطط لهذه الأيام ${money(Math.round(plannedExp))}${spent > plannedExp + 0.5 ? ` · ⚠️ تجاوزته بـ ${money(Math.round(spent - plannedExp))}` : ' · ضمن المخطط ✓'}` : ''}`,
-    outside && `منها خارج المخطط ${money(outside)}`,
-    income && `دخل إضافي ${money(income)}`,
-    debtPaid && `سدّدت من الديون ${money(debtPaid)}`,
-    owePaid && `أدّيت من الحقوق التي عليك ${money(owePaid)}`,
-    rightGot && `استلمت من حقوقك ${money(rightGot)}`,
-    finesPaid && `سدّدت مخالفات مرورية بـ ${money(finesPaid)}`,
-    savedLater && `وفّرت بالشراء المؤجّل ${money(savedLater)}`,
-    savingProject() && `نقدك المدخر الآن ${money(saveCalc(savingProject()).cash)}`,
+    spent && `صرفت: ${money(spent)}`,
+    spent && share && `نصيب ${planDaysN === 1 ? 'هذا اليوم' : planDaysN === 2 ? 'هذين اليومين' : 'هذه الأيام'} من خطتك الشهرية: ${money(share)} (مصاريف الخطة الشهرية مقسومة على أيامها، مضروبة في ${plural(planDaysN, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} مضت)`,
+    spent && share && (spent > plannedExp + 0.5 ? `النتيجة: ⚠️ تجاوزت نصيبها بـ ${money(Math.round(spent - plannedExp))}` : `النتيجة: ضمن المخطط ✓ (أقل منه بـ ${money(Math.round(plannedExp - spent))})`),
+    outside && `منها خارج المخطط: ${money(outside)}`,
+    income && `دخل إضافي: ${money(income)}`,
+    debtPaid && `سدّدت من الديون: ${money(debtPaid)}`,
+    owePaid && `أدّيت من الحقوق التي عليك: ${money(owePaid)}`,
+    rightGot && `استلمت من حقوقك: ${money(rightGot)}`,
+    finesPaid && `سدّدت مخالفات مرورية: ${money(finesPaid)}`,
+    savedLater && `وفّرت بالشراء المؤجّل: ${money(savedLater)}`,
+    savingProject() && `نقدك المدخر الآن: ${money(saveCalc(savingProject()).cash)}`,
   ], [outs.length && `الصرف حسب البند: ${list(Object.entries(byItem).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${money(v)}`), 15)}`]);
 
   // ⏱️ التركيز (facts only)
@@ -278,7 +281,7 @@ function awareReportHTML(P, prevStats) {
     <h2>التقدم الشامل</h2>
     <p class="note-text explain">النسبة تقدّمك: ما أنجزته من كل المطلوب في هذا ${P.word} كله، فكل مرة مطلوبة لها حصة متساوية (٣ جلسات في الأسبوع: كل جلسة ثلث). لذلك تبدأ صغيرة أول ${P.word} وتكبر مع كل إنجاز. الجانب الذي لا يُعدّ (كالمالية) يظهر بحقائقه دون نسبة.</p>
     ${overall != null ? `<div class="aware-top"><div class="ring" style="--p:${overall}"><span>${overall}%</span></div>
-      <div><b>مؤشر التقدم الشامل${trend(overall, prevStats && prevStats.overall)}</b><small>${P.current ? `مضى ${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')} من ${all.length} (${pctOf(P.days.length, all.length)}٪ من ${P.word})` : ''}${best.length > 1 && best[0].score > best[best.length - 1].score ? `${P.current ? '<br>' : ''}الأكثر تقدماً: ${esc(best[0].title)} · الأقل: ${esc(best[best.length - 1].title)}` : ''}</small></div></div>` : ''}
+      <div><b>مؤشر التقدم الشامل${trend(overall, prevStats && prevStats.overall)}</b><small>${P.current ? `مضى ${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')} من ${all.length} (${pctOf(P.days.length, all.length)}٪ من ${P.word})` : ''}${best.length > 1 && best[0].score > best[best.length - 1].score ? `${P.current ? '<br>' : ''}الأكثر تقدماً: ${esc(best[0].title)} | الأقل: ${esc(best[best.length - 1].title)}` : ''}</small></div></div>` : ''}
     <div class="aware-grid">${aspects.map((a) => `<button type="button" class="aware-card" data-tab="${a.tab}">
       <span class="row-between"><b>${a.icon} ${esc(a.title)}</b>${a.score != null ? `<b style="color:${color(a.score)}">${a.score}%${trend(a.score, prevOf(a.key))}</b>` : ''}</span>
       ${a.score != null ? `<span class="progress-line"><i style="width:${a.score}%;background:${color(a.score)}"></i></span>` : ''}

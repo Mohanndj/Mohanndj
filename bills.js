@@ -35,8 +35,8 @@ function finBillsHTML() {
     ${list.length ? `<div class="book-list">${list.map((s) => { const n = daysBetween(today(), s.next); return `<article class="fin-card${s.active ? '' : ' cleared'}">
       <button type="button" class="hz-main" data-action="sub-open" data-v="${s.id}">
         <span class="row-between"><b>${esc(s.name)}</b><b>${money(s.amount)}</b></span>
-        <small>${BILL_KIND[s.kind]} · ${CYCLE.find(([m]) => m === s.every)[1]}${s.auto ? ' · يُخصم تلقائياً' : ''}${s.active ? '' : ' · موقوف'}</small>
-        ${s.active ? `<small class="${n <= s.remind ? 'late' : ''}">${n < 0 ? `متأخر ${daysWord(-n)}` : n === 0 ? 'موعده اليوم' : `الموعد ${afterDays(n)} · ${esc(fmtDate(s.next, { day: 'numeric', month: 'long' }))}`}</small>` : ''}
+        <small>${BILL_KIND[s.kind]} | ${CYCLE.find(([m]) => m === s.every)[1]}${s.auto ? ' | يُخصم تلقائياً' : ''}${s.active ? '' : ' | موقوف'}</small>
+        ${s.active ? `<small class="${n <= s.remind ? 'late' : ''}">${n < 0 ? `متأخر ${daysWord(-n)}` : n === 0 ? 'موعده اليوم' : `الموعد ${afterDays(n)} | ${esc(fmtDate(s.next, { day: 'numeric', month: 'long' }))}`}</small>` : ''}
       </button>
       ${s.active ? `<div class="btn-row"><button type="button" class="ghost" data-action="sub-paid" data-v="${s.id}">${s.auto ? 'خُصم ✓' : 'دفعت ✓'}</button></div>` : ''}
     </article>`; }).join('')}</div>
@@ -61,7 +61,7 @@ function openSub(id) {
     <label class="switch"><input type="checkbox" id="sbAuto"${s.auto ? ' checked' : ''}><span>يُخصم تلقائياً من حسابي</span></label>
     ${id ? `<label class="switch"><input type="checkbox" id="sbActive"${s.active ? ' checked' : ''}><span>نشط (أطفئه إذا ألغيت الاشتراك)</span></label>` : ''}
     <label class="field"><span>ملاحظة</span><input type="text" id="sbNote" value="${esc(s.note)}" autocomplete="off"></label>
-    ${id && s.paid.length ? `<div class="field"><span>المدفوعات</span><ul class="ppl-hist">${s.paid.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 12).map((p) => `<li><span>${money(p.amount)} · ${esc(dateBoth(p.d, true))}</span></li>`).join('')}</ul></div>` : ''}
+    ${id && s.paid.length ? `<div class="field"><span>المدفوعات</span><ul class="ppl-hist">${s.paid.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 12).map((p) => `<li><span>${money(p.amount)} | ${esc(dateBoth(p.d, true))}</span></li>`).join('')}</ul></div>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button>${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}</div>`;
   libArmed = false;
   showLib();
@@ -107,7 +107,7 @@ function finLaterHTML() {
       <button type="button" class="hz-main" data-action="later-open" data-v="${x.id}">
         <span class="row-between"><b>${esc(x.name)}</b><b>${money(x.price)}</b></span>
         ${x.why ? `<small>${esc(x.why)}</small>` : ''}
-        <small>${x.decision ? (x.decision === 'bought' ? `اشتريته ${esc(relDate(x.decidedAt))}` : `تراجعت عنه ${esc(relDate(x.decidedAt))} · وفّرت ${money(x.price)}`) : left > 0 ? `انتظر ${daysWord(left)} أخرى` : 'انتهت مدة الانتظار'}</small>
+        <small>${x.decision ? (x.decision === 'bought' ? `اشتريته ${esc(relDate(x.decidedAt))}` : `تراجعت عنه ${esc(relDate(x.decidedAt))} | وفّرت ${money(x.price)}`) : left > 0 ? `انتظر ${daysWord(left)} أخرى` : 'انتهت مدة الانتظار'}</small>
       </button>
       ${!x.decision && left <= 0 ? `<p class="later-q">هل ما زلت تريده؟</p><div class="btn-row"><button type="button" class="primary" data-action="later-buy" data-v="${x.id}">نعم، اشتريته</button><button type="button" class="ghost" data-action="later-drop" data-v="${x.id}">لا، تراجعت</button><button type="button" class="ghost" data-action="later-wait" data-v="${x.id}">أجّل ${x.wait} يوماً</button></div>`
         : !x.decision ? `<div class="progress-line"><i style="width:${Math.round(((x.wait - left) / x.wait) * 100)}%"></i></div>` : ''}
@@ -158,7 +158,7 @@ function billsTodayHTML() {
   return todayBlock('الاشتراكات والفواتير', '', tList(rows));
 }
 function laterTodayHTML() {
-  return todayBlock('الشراء المؤجّل', '', tList(S.later.filter(laterReady).map((x) => tRow('🛍️', `${x.name}: هل ما زلت تريده؟`, `${money(x.price)} · انتهت مدة الانتظار`, 'later-go', x.id))));
+  return todayBlock('الشراء المؤجّل', '', tList(S.later.filter(laterReady).map((x) => tRow('🛍️', `${x.name}: هل ما زلت تريده؟`, `${money(x.price)} | انتهت مدة الانتظار`, 'later-go', x.id))));
 }
 
 document.addEventListener('click', (e) => {

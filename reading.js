@@ -19,7 +19,7 @@ function nextReadingDay(b, t) {
   for (let i = 0; i < 8; i++) { const d = addDays(today(), i); if (b.rdays.includes(parse(d).getDay()) && !(t && t.completions[d])) return d; }
   return '';
 }
-const scheduleLine = (b) => (b.rdays.length && b.rpages ? `${pagesWord(b.rpages)} · ${WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ')}` : '');
+const scheduleLine = (b) => (b.rdays.length && b.rpages ? `${pagesWord(b.rpages)} | ${WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ')}` : '');
 
 let readingChanged = false;
 function endGoal(g) {
@@ -104,7 +104,7 @@ function askReadingNote(b) {
     if (lsheet().open) return;
     ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id };
     $('libForm').innerHTML = `${sheetHead('ما أهم فكرة اليوم؟')}
-      <p class="note-text">من «${esc(b.title)}»${b.page ? ` · وصلت صفحة ${b.page}` : ''}. اكتب ما بقي في ذهنك، أو تخطَّ.</p>
+      <p class="note-text">من «${esc(b.title)}»${b.page ? ` | وصلت صفحة ${b.page}` : ''}. اكتب ما بقي في ذهنك، أو تخطَّ.</p>
       <textarea id="rnText" rows="4" placeholder="فكرة أو فائدة أو سؤال خرجت به"></textarea>
       <label class="field"><span>الصفحة</span><input type="number" id="rnPage" min="0" inputmode="numeric" value="${b.page || ''}"></label>
       <div class="sheet-actions"><button type="submit" class="primary">احفظها في الفوائد</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;

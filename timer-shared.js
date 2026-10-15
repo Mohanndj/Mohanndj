@@ -29,7 +29,7 @@ const TimerShared = (() => {
     const kind = tm.phase === 'break' ? 'استراحة' : tm.mode === 'down' ? 'تركيز' : 'مؤقت';
     let body;
     if (!tm.running) body = `متوقف عند ${clock(tm.mode === 'down' ? tm.planned - e : e)}`;
-    else if (tm.mode === 'down') body = `متبقٍ ${clock(tm.planned - e)} · ينتهي ${at(now + tm.planned - e)}`;
+    else if (tm.mode === 'down') body = `متبقٍ ${clock(tm.planned - e)} | ينتهي ${at(now + tm.planned - e)}`;
     else body = `يعمل منذ ${at(now - e)}`;
     const ar = (x) => (tm.ar ? String(x).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]) : x);
     return [ar(`${kind}: ${taskTitle}`), {

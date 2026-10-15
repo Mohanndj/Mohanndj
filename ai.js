@@ -172,14 +172,14 @@ function openAIPreview(title, intro, tasks) {
   $('aiIntro').textContent = intro;
   $('aiList').innerHTML = tasks.map((t, i) => {
     const pName = t.projectId.startsWith('new:') ? `${t.projectId.slice(4)} (مشروع جديد)` : (projectOf(t) || {}).name;
-    const bits = [isGoal(t) ? (isRepeat(t) ? `هدف متكرر · ${repeatLabel(t)}` : 'هدف') : 'مهمة'];
+    const bits = [isGoal(t) ? (isRepeat(t) ? `هدف متكرر | ${repeatLabel(t)}` : 'هدف') : 'مهمة'];
     if (pName) bits.push(`المشروع: ${pName}`);
     if (!isRepeat(t) && t.due) bits.push(relDateH(t.due));
     if (hasTime(t)) bits.push(timeLabel(t, t.due || (t.repeat && t.repeat.start) || today()));
     if (t.target > 1) bits.push(`${t.target} ${t.unit}`);
     if (t.priority !== 'mid') bits.push(`أولوية ${PRI_LABEL[t.priority]}`);
     return `<li><label class="ai-item"><input type="checkbox" data-i="${i}" checked>
-      <span><b>${esc(t.title)}</b><small>${esc(bits.join(' · '))}</small>
+      <span><b>${esc(t.title)}</b><small>${esc(bits.join(' | '))}</small>
       ${t.subtasks.length ? `<ul class="ai-steps">${t.subtasks.map((s) => `<li>${esc(s.text)}</li>`).join('')}</ul>` : ''}</span></label></li>`;
   }).join('');
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');

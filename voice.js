@@ -213,7 +213,7 @@ const Voice = (() => {
       <p class="note-text explain">اضغط على أي خانة كتابة ثم على زر الميكروفون 🎤 بجانبها، وتكلّم. اضغطه مرة أخرى لتتوقف.</p>
       <label class="switch"><input type="checkbox" id="voiceOn"${c.on ? ' checked' : ''}><span>إظهار زر الميكروفون في خانات الكتابة</span></label>
       <label class="field"><span>لغة الإملاء ولهجته</span><select id="voiceLang">${VOICE_LANGS.map(([v, l]) => `<option value="${v}"${c.lang === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="switch"><input type="checkbox" id="voiceAI"${c.ai ? ' checked' : ''}${typeof AI !== 'undefined' && AI.on() ? '' : ' disabled'}><span>تنقيح النص بالذكاء الاصطناعي بعد الإملاء (علامات الترقيم والأخطاء)${typeof AI !== 'undefined' && AI.on() ? '' : ' · فعّل الذكاء الاصطناعي أولاً'}</span></label>
+      <label class="switch"><input type="checkbox" id="voiceAI"${c.ai ? ' checked' : ''}${typeof AI !== 'undefined' && AI.on() ? '' : ' disabled'}><span>تنقيح النص بالذكاء الاصطناعي بعد الإملاء (علامات الترقيم والأخطاء)${typeof AI !== 'undefined' && AI.on() ? '' : ' | فعّل الذكاء الاصطناعي أولاً'}</span></label>
       <p class="note-text explain">التعرّف على الصوت تقدّمه خدمة جهازك (Google أو Apple) ويحتاج إنترنت.</p>
     </section>`;
   }

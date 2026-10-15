@@ -46,8 +46,8 @@ function personCard(p) {
   return `<article class="ppl-card${due != null && due >= 0 ? ' due' : ''}">
     <button type="button" class="ppl-main" data-action="ppl-open" data-v="${p.id}">
       <span class="ppl-av">${esc(p.name.trim().slice(0, 1) || '؟')}</span>
-      <span><b>${esc(p.name)}</b><small>${REL[p.rel]} · ${esc(lastTxt)}</small>
-        <small>${dueTxt}${bd && bd.days <= 30 ? `${dueTxt ? ' · ' : ''}🎂 ${bd.days === 0 ? 'اليوم مناسبته!' : `مناسبته ${afterDays(bd.days)}`}` : ''}</small></span>
+      <span><b>${esc(p.name)}</b><small>${REL[p.rel]} | ${esc(lastTxt)}</small>
+        <small>${dueTxt}${bd && bd.days <= 30 ? `${dueTxt ? ' | ' : ''}🎂 ${bd.days === 0 ? 'اليوم مناسبته!' : `مناسبته ${afterDays(bd.days)}`}` : ''}</small></span>
     </button>
     <div class="ppl-actions">
       ${p.phone ? `<a class="ghost" href="tel:${esc(telHref(p.phone))}">📞</a><a class="ghost" href="${esc(waHref(p.phone))}" target="_blank" rel="noopener">واتساب</a>` : ''}
@@ -68,7 +68,7 @@ function viewPeople() {
   <section class="section">
     <div class="section-head"><h2>الأحبّة</h2><div class="btn-row">${S.people.length ? xlsBtn('people') : ''}${addBtn('ppl-new', 'شخص')}</div></div>
     ${S.people.length ? `<div class="j-stats"><span><b>${S.people.length}</b> شخص</span><span><b>${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length}</b> حان التواصل</span><span><b>${month}</b> تواصل هذا الشهر</span></div>` : ''}
-    ${soon.length ? `<div class="ppl-soon">${soon.map(({ p, b }) => `<button type="button" data-action="ppl-open" data-v="${p.id}">🎂 <b>${esc(p.name)}</b> ${b.days === 0 ? 'اليوم' : `${afterDays(b.days)}`}${b.age ? ` · يتم ${b.age}` : ''}${p.gifts ? ' · 🎁 عندك أفكار هدايا' : ''}</button>`).join('')}</div>` : ''}
+    ${soon.length ? `<div class="ppl-soon">${soon.map(({ p, b }) => `<button type="button" data-action="ppl-open" data-v="${p.id}">🎂 <b>${esc(p.name)}</b> ${b.days === 0 ? 'اليوم' : `${afterDays(b.days)}`}${b.age ? ` | يتم ${b.age}` : ''}${p.gifts ? ' | 🎁 عندك أفكار هدايا' : ''}</button>`).join('')}</div>` : ''}
     ${S.people.length > 5 ? `<input type="search" id="pplSearch" placeholder="ابحث بالاسم أو الاهتمامات" aria-label="بحث" value="${esc(pplUi.q)}">` : ''}
     ${rels.length > 1 ? `<div class="chips" role="group" aria-label="الصلة"><button type="button" class="chip" data-action="ppl-rel" data-v="" aria-pressed="${!pplUi.rel}">الكل</button>${rels.map((r) => `<button type="button" class="chip" data-action="ppl-rel" data-v="${r}" aria-pressed="${pplUi.rel === r}">${REL[r]}</button>`).join('')}</div>` : ''}
     ${due.length ? `<h3 class="j-month">حان التواصل معهم</h3><div class="book-list">${due.map(personCard).join('')}</div>` : ''}
@@ -100,7 +100,7 @@ function openPerson(id) {
     <label class="field"><span>ملاحظات</span><textarea id="pnNotes" rows="2" placeholder="أسماء أبنائه، ما يمر به، ما وعدته به…">${esc(p.notes)}</textarea></label>
     ${id ? `<div class="field"><span>سجل التواصل</span>
       <div class="ppl-log-row">${Object.entries(HOW).map(([k, v]) => `<button type="button" class="chip" data-action="ppl-add-contact" data-v="${k}">${v[1]} ${v[0]} اليوم</button>`).join('')}</div>
-      ${hist.length ? `<ul class="ppl-hist">${hist.slice(0, 12).map((c) => `<li><span>${HOW[c.how][1]} ${HOW[c.how][0]} · ${esc(dateBoth(c.d, true))}${c.note ? ` · ${esc(c.note)}` : ''}</span><button type="button" class="j-m-del" data-action="ppl-del-contact" data-v="${c.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>` : '<p class="note-text">لم تسجّل تواصلاً بعد.</p>'}
+      ${hist.length ? `<ul class="ppl-hist">${hist.slice(0, 12).map((c) => `<li><span>${HOW[c.how][1]} ${HOW[c.how][0]} | ${esc(dateBoth(c.d, true))}${c.note ? ` | ${esc(c.note)}` : ''}</span><button type="button" class="j-m-del" data-action="ppl-del-contact" data-v="${c.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>` : '<p class="note-text">لم تسجّل تواصلاً بعد.</p>'}
     </div>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">حفظ</button>

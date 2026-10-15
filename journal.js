@@ -102,7 +102,7 @@ function jCard(j) {
     <span class="j-date"><b>${esc(fmtDate(j.date, { weekday: 'long', day: 'numeric', month: 'long' }))}</b>${S.settings.hijri ? `<small>${esc(fmtHijri(j.date, { day: 'numeric', month: 'long' }))}</small>` : ''}</span>
     ${j.mood ? `<span class="j-mood" title="${MOODS[j.mood - 1][1]}">${MOODS[j.mood - 1][0]}</span>` : ''}
     ${text ? `<p>${esc(excerpt(text, 240))}</p>` : '<p class="muted">لم تكتب شيئاً بعد</p>'}
-    <small class="book-line">${esc(j.tplName || 'كتابة حرّة')} · ${plural(wordCount(text), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}</small>
+    <small class="book-line">${esc(j.tplName || 'كتابة حرّة')} | ${plural(wordCount(text), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}</small>
   </button>`;
 }
 const wordCount = (s) => (s.trim() ? s.trim().split(/\s+/).length : 0);
@@ -121,7 +121,7 @@ function tplManageHTML() {
   const missing = DEFAULT_TEMPLATES.filter((d) => !getTpl(d.id));
   const n = S.jtemplates.length;
   return `<ul class="j-manage">${S.jtemplates.map((t, i) => `<li>
-      <button type="button" class="j-m-main" data-action="j-tpl-edit" data-v="${t.id}"><span class="j-m-emoji">${esc(t.emoji)}</span><span><b>${esc(t.name)}</b><small>${qCount(t)} · ${JWHEN[t.when]}</small></span></button>
+      <button type="button" class="j-m-main" data-action="j-tpl-edit" data-v="${t.id}"><span class="j-m-emoji">${esc(t.emoji)}</span><span><b>${esc(t.name)}</b><small>${qCount(t)} | ${JWHEN[t.when]}</small></span></button>
       <div class="j-m-btns">
         <button type="button" data-action="j-tpl-move" data-v="${t.id}" data-d="-1" aria-label="تقديم"${i ? '' : ' disabled'}>${icon('prev')}</button>
         <button type="button" data-action="j-tpl-move" data-v="${t.id}" data-d="1" aria-label="تأخير"${i < n - 1 ? '' : ' disabled'}>${icon('next')}</button>
@@ -181,7 +181,7 @@ function journalTodayHTML() {
   return `<button type="button" class="j-commit" data-tab="journal" aria-label="التزامك بالكتابة ${pctW}٪">
     <span class="row-between"><b>${written.has(t0) ? 'كتبت اليوم ✓' : 'لم تكتب اليوم بعد'}</b><b class="num">${pctW}٪</b></span>
     <span class="j-strip" style="--n:${days.length}">${days.map((d) => `<i class="${written.has(d) ? 'on' : ''}${d === t0 ? ' now' : ''}"></i>`).join('')}</span>
-    <small>كتبت في ${plural(n, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} من آخر ${plural(days.length, 'يوم', 'يومين', 'أيام', 'يوماً')}${streak > 1 ? ` · سلسلة ${plural(streak, 'يوم', 'يومين', 'أيام', 'يوماً')} متتالية` : ''}</small>
+    <small>كتبت في ${plural(n, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} من آخر ${plural(days.length, 'يوم', 'يومين', 'أيام', 'يوماً')}${streak > 1 ? ` | سلسلة ${plural(streak, 'يوم', 'يومين', 'أيام', 'يوماً')} متتالية` : ''}</small>
   </button>`;
 }
 
@@ -436,7 +436,7 @@ function runJExport() {
   save();
   const list = S.journal.filter((j) => !jEmpty(j) && (range === 'all' || (range === 'custom' ? j.date >= o.from && j.date <= o.to : monthKey(j.date) === range)));
   if (!list.length) { toast('لا يوميات في هذه الفترة.'); return false; }
-  exportWord(list, o, range === 'all' ? 'يومياتي وتأملاتي' : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي · ${monthLabel(range)}`);
+  exportWord(list, o, range === 'all' ? 'يومياتي وتأملاتي' : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي | ${monthLabel(range)}`);
   return true;
 }
 

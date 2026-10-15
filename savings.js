@@ -33,7 +33,7 @@ function savingCardHTML(x) {
   const c = saveCalc(x);
   return `<button type="button" class="fin-card save-card" data-action="proj-open" data-v="${x.id}">
     <span class="row-between"><b>💰 ${esc(x.name)}</b><b class="${c.cash < 0 ? 'late' : 'ok'}">${money(c.cash)}</b></span>
-    <small>نقدك المدخر الآن${c.pending ? ` · ويُتوقع من هذا الشهر ${money(c.pending)}` : ''}${x.goal ? ` · الهدف ${money(x.goal)} (${c.pct}٪)` : ''}</small>
+    <small>نقدك المدخر الآن${c.pending ? ` | ويُتوقع من هذا الشهر ${money(c.pending)}` : ''}${x.goal ? ` | الهدف ${money(x.goal)} (${c.pct}٪)` : ''}</small>
     ${x.goal ? `<div class="progress-line"><i style="width:${c.pct}%"></i></div>` : ''}
   </button>`;
 }
@@ -50,7 +50,7 @@ function savingDetailHTML(p) {
       ${c.pending ? `<small>ويُتوقع أن يُضاف آخر هذا الشهر ${money(c.pending)} بعد دفع ما بقي من مصاريفه، فيصير ${money(c.expected)}</small>` : ''}</div>
     ${p.goal ? `<div class="progress-line"><i style="width:${c.pct}%"></i></div><p class="note-text">بلغت ${c.pct}٪ من هدفك ${money(p.goal)}${c.cash < p.goal ? `، بقي ${money(p.goal - c.cash)}` : ' ✓'}.</p>` : ''}
     <div class="fin-tiles"><span><b>${money(p.opening)}</b>رصيد البداية</span><span><b>${money(c.fromMonths)}</b>ادخار الأشهر</span><span><b>${money(c.moves)}</b>إيداع وسحب</span></div>
-    ${accounts ? `<p class="note-text">أرصدة حساباتك في خطة «${esc(planTitle(ap))}»: ${money(accounts)}${Math.abs(accounts - c.cash) > 0.5 ? ` · الفرق عن هنا ${money(accounts - c.cash)}. إن كانت أرصدتك أدق، أضف الفرق إيداعاً أو سحباً.` : ' · مطابقة ✓'}</p>` : ''}
+    ${accounts ? `<p class="note-text">أرصدة حساباتك في خطة «${esc(planTitle(ap))}»: ${money(accounts)}${Math.abs(accounts - c.cash) > 0.5 ? ` | الفرق عن هنا ${money(accounts - c.cash)}. إن كانت أرصدتك أدق، أضف الفرق إيداعاً أو سحباً.` : ' | مطابقة ✓'}</p>` : ''}
 
     <div class="panel"><h3>ادخار كل شهر <small>${money(c.fromMonths)}</small></h3>
       <p class="note-text explain">يأتي وحده من خططك الشهرية: ما بقي فعلاً من الدخل بعد ما سجّلته من مصروف، أو «المتبقي للادخار» إن لم تسجّل شيئاً. صحّح أي شهر بكتابة المبلغ.</p>
@@ -84,7 +84,7 @@ function savingDetailHTML(p) {
 
 function savingSheet(p) {
   const c = saveCalc(p);
-  const R = [[{ v: p.name, s: 'title', span: 3 }], [{ v: `مشروع ادخار · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 3 }], []];
+  const R = [[{ v: p.name, s: 'title', span: 3 }], [{ v: `مشروع ادخار | صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 3 }], []];
   R.push(['نقدك المدخر', 'رصيد البداية', 'الهدف'].map((v) => ({ v, s: 'head' })));
   R.push([{ v: c.cash, s: 'big' }, { v: p.opening, s: 'num' }, { v: p.goal || '', s: 'num' }], []);
   R.push([{ v: 'ادخار كل شهر', s: 'sec', span: 3 }], ['الشهر', 'المبلغ', 'مصدره'].map((v) => ({ v, s: 'head' })));

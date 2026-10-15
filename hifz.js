@@ -158,12 +158,12 @@ function planCard(p) {
   return `<article class="plan-card${planToday(p) && !p.log[today()] && !done ? ' today' : ''}">
     <button type="button" class="hz-main" data-action="hz-plan-edit" data-v="${p.id}">
       <b>${HIFZ_TYPES[p.type][1]} ${esc(p.title)}</b>
-      <small>${unitWord(p.type, p.portion)} في الجلسة · ${p.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => p.days.includes(d)).map((d) => AR_DAYS[d]).join('، ')}</small>
+      <small>${unitWord(p.type, p.portion)} في الجلسة | ${p.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => p.days.includes(d)).map((d) => AR_DAYS[d]).join('، ')}</small>
     </button>
     <div class="row-between"><small>حفظت ${learned} من ${unitWord(p.type, total)}</small><small>${pct}%</small></div>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
     ${done ? '<p class="hz-done">✓ أتممت حفظها</p>' : `<div class="row-between">
-      <small>${pending ? `تحفظ الآن: ${esc(planRange(p, p.pos - parsePoemLen(pending), p.pos))}` : `التالي: ${esc(planRange(p, a, b))}`}${eta && !pending ? ` · ${esc(etaText(eta))}` : ''}</small>
+      <small>${pending ? `تحفظ الآن: ${esc(planRange(p, p.pos - parsePoemLen(pending), p.pos))}` : `التالي: ${esc(planRange(p, a, b))}`}${eta && !pending ? ` | ${esc(etaText(eta))}` : ''}</small>
       <button type="button" class="primary" data-action="hz-plan-go" data-v="${p.id}">${pending ? 'أكمل الحفظ' : 'احفظ المقدار التالي'}</button>
     </div>`}
   </article>`;
@@ -223,11 +223,11 @@ function hzCard(h) {
   const t = HIFZ_TYPES[h.type];
   const st = h.state === 'learn' ? '<span class="hz-st learn">أحفظه الآن</span>'
     : h.due <= today() ? '<span class="hz-st due">حان مراجعته</span>'
-      : `<span class="hz-st">${hzFirm(h) ? 'ثابت · ' : ''}المراجعة ${esc(inDays(daysBetween(today(), h.due)))}</span>`;
+      : `<span class="hz-st">${hzFirm(h) ? 'ثابت | ' : ''}المراجعة ${esc(inDays(daysBetween(today(), h.due)))}</span>`;
   return `<button type="button" class="hz-card t-${h.type}" data-action="hz-open" data-v="${h.id}">
     <span class="hz-emoji">${t[1]}</span>
     <span class="hz-main"><b>${esc(hzTitle(h))}</b>${h.source ? `<small>${esc(h.source)}</small>` : ''}
-      <span class="book-line">${st} · ${plural(hzWords(h), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}${h.lapses ? ` · نسيته ${h.lapses === 1 ? 'مرة' : `${h.lapses} مرات`}` : ''}</span></span>
+      <span class="book-line">${st} | ${plural(hzWords(h), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}${h.lapses ? ` | نسيته ${h.lapses === 1 ? 'مرة' : `${h.lapses} مرات`}` : ''}</span></span>
   </button>`;
 }
 
@@ -249,7 +249,7 @@ function viewHifz() {
       <span><b>${S.hifz.filter((h) => h.state === 'review').length}</b> محفوظ</span>
       <span><b>${S.hifz.filter(hzFirm).length}</b> ثابت</span>
     </div>
-    <p class="note-text">${[ayat ? `${ayat} آية` : '', by('hadith') ? plural(by('hadith'), 'حديث واحد', 'حديثان', 'أحاديث', 'حديثاً') : '', by('poem') ? `${by('poem')} من القصائد والأبيات` : ''].filter(Boolean).join(' · ') || 'ابدأ بحفظ أول نص ثم أدخله المراجعة.'}</p>` : ''}
+    <p class="note-text">${[ayat ? `${ayat} آية` : '', by('hadith') ? plural(by('hadith'), 'حديث واحد', 'حديثان', 'أحاديث', 'حديثاً') : '', by('poem') ? `${by('poem')} من القصائد والأبيات` : ''].filter(Boolean).join(' | ') || 'ابدأ بحفظ أول نص ثم أدخله المراجعة.'}</p>` : ''}
     ${due.length ? `<button type="button" class="primary hz-go" data-action="hz-review">${icon('repeat')} ابدأ مراجعة اليوم (${due.length})</button>`
       : S.hifz.some((h) => h.state === 'review') ? '<p class="hz-done">✓ لا مراجعة مستحقة اليوم. أحسنت!</p>' : ''}
     ${S.hplans.length ? `<div class="hz-learning"><h3>خطط الحفظ</h3><div class="book-list">${S.hplans.slice().sort((a, b) => !!a.doneAt - !!b.doneAt || b.created - a.created).map(planCard).join('')}</div></div>` : ''}
@@ -295,7 +295,7 @@ function openHifz(id) {
       <div id="hPlanW">${planFieldsHTML(h.type, h.type === 'quran' ? 5 : 3, [0, 1, 2, 3, 4, 5, 6])}</div>
     </div>`}
     <label class="field" id="hSourceW"${h.type === 'quran' ? ' hidden' : ''}><span>${h.type === 'poem' ? 'الشاعر' : h.type === 'hadith' ? 'الراوي والمصدر' : 'المصدر'}</span><input type="text" id="hSource" value="${esc(h.source)}" autocomplete="off" placeholder="${h.type === 'hadith' ? 'مثال: عن عمر رضي الله عنه، متفق عليه' : ''}"></label>
-    ${id && h.state === 'review' ? `<p class="note-text">في المراجعة · المراجعة القادمة ${esc(dateBoth(h.due, true))} · روجع ${h.reps} ${h.reps === 1 ? 'مرة' : 'مرات'}</p>` : ''}
+    ${id && h.state === 'review' ? `<p class="note-text">في المراجعة | المراجعة القادمة ${esc(dateBoth(h.due, true))} | روجع ${h.reps} ${h.reps === 1 ? 'مرة' : 'مرات'}</p>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">${id ? 'حفظ' : 'أضف وابدأ الحفظ'}</button>
       ${id && h.state === 'review' ? '<button type="button" class="ghost" data-action="hz-relearn">أعده للحفظ</button>' : ''}
@@ -418,7 +418,7 @@ function renderStudy() {
   const views = h.type === 'poem'
     ? [['full', 'كاملة'], ['sadr', 'إخفاء العجز'], ['shatr', 'أوائل الأشطر'], ['letters', 'أوائل الكلمات'], ['gaps', 'إخفاء بعض الكلمات'], ['hidden', 'إخفاء الكل']]
     : [['full', 'النص كاملاً'], ['letters', 'أوائل الكلمات'], ['gaps', 'إخفاء بعض الكلمات'], ['hidden', 'إخفاء الكل']];
-  $('hzHead').innerHTML = `<b>${t[1]} ${esc(hzTitle(h))}</b><small>${hzs.mode === 'review' ? `مراجعة ${hzs.i + 1} من ${hzs.queue.length}` : 'مرحلة الحفظ'}${h.source ? ` · ${esc(h.source)}` : ''}</small>`;
+  $('hzHead').innerHTML = `<b>${t[1]} ${esc(hzTitle(h))}</b><small>${hzs.mode === 'review' ? `مراجعة ${hzs.i + 1} من ${hzs.queue.length}` : 'مرحلة الحفظ'}${h.source ? ` | ${esc(h.source)}` : ''}</small>`;
   const grades = [['again', 'نسيت'], ['hard', 'صعب'], ['good', 'جيد'], ['easy', 'سهل']];
   $('hzBody').innerHTML = `
     <div class="seg seg-wrap hz-views" role="group" aria-label="طريقة العرض">${views.map(([v, l]) => `<button type="button" data-hz="view" data-v="${v}" aria-pressed="${hzs.view === v}">${l}</button>`).join('')}</div>

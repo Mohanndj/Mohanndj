@@ -39,7 +39,7 @@ function routeSmart(text) {
 }
 function routePreviewHTML(q) {
   const tag = (s, cls = '') => `<span class="tag ${cls}">${s}</span>`;
-  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` · ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
+  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` | ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
     : q.type === 'shop' ? [tag(`${q.list.icon} ${esc(q.list.name)}`, 'title'), ...q.names.map((n) => tag(esc(n)))]
       : [tag('💡 فكرة', 'title'), tag(esc(excerpt(q.text, 50)))];
   return `<div class="parsed">${tags.join('')}</div>`;
@@ -160,7 +160,7 @@ function pinText() {
   const goals = S.tasks.filter((t) => isRepeat(t) && !goalEnded(t) && occursOn(t, t0) && !t.completions[t0]).length;
   const lists = S.shop.filter((x) => x.need).length;
   const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `القوائم ${lists}`].filter(Boolean);
-  return parts.length ? `باقٍ اليوم: ${parts.join(' · ')}` : 'لا شيء باقٍ لليوم ✓';
+  return parts.length ? `باقٍ اليوم: ${parts.join(' | ')}` : 'لا شيء باقٍ لليوم ✓';
 }
 let pinTimer = null, pinLast = '';
 async function pinNotify(force) {

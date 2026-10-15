@@ -39,7 +39,7 @@ function viewWeek() {
   <section class="section wk">
     <div class="cal-head">
       <div class="nav"><button type="button" data-action="wk-nav" data-v="-7" aria-label="الأسبوع السابق">${icon('prev')}</button></div>
-      <div class="titles"><h2>${esc(fmtDate(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtDate(end, { day: 'numeric', month: 'long' }))}</h2><small>${esc(fmtHijri(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtHijri(end, { day: 'numeric', month: 'long' }))}${start === weekStartOf(t0) ? ' · هذا الأسبوع' : ''}</small></div>
+      <div class="titles"><h2>${esc(fmtDate(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtDate(end, { day: 'numeric', month: 'long' }))}</h2><small>${esc(fmtHijri(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtHijri(end, { day: 'numeric', month: 'long' }))}${start === weekStartOf(t0) ? ' | هذا الأسبوع' : ''}</small></div>
       <div class="nav"><button type="button" data-action="wk-nav" data-v="7" aria-label="الأسبوع التالي">${icon('next')}</button></div>
     </div>
     ${start !== weekStartOf(t0) ? '<button type="button" class="ghost" data-action="wk-now">العودة إلى هذا الأسبوع</button>' : ''}
@@ -54,7 +54,7 @@ function viewWeek() {
         <button type="button" class="wk-head" data-action="wk-open" data-v="${d}" aria-expanded="${isOpen}">
           <span class="wk-name"><b>${AR_DAYS[parse(d).getDay()]}</b><small>${esc(fmtDate(d, { day: 'numeric', month: 'short' }))}</small></span>
           <span class="wk-load"><i style="width:${(tasks.length / max) * 100}%"></i></span>
-          <span class="wk-sum${d < t0 && left ? ' late' : ''}">${d < t0 && left ? '<span class="late-dot" aria-hidden="true"></span>' : ''}${tasks.length ? `${left ? `${left} ${left === 1 ? 'مهمة' : left === 2 ? 'مهمتان' : 'مهام'}${d < t0 ? ' متأخرة' : ''}` : 'أنجزت كل مهامه ✓'}` : 'فارغ'}${goals.length ? ` · ${goals.length} ${goals.length === 1 ? 'هدف' : 'أهداف'}` : ''}</span>
+          <span class="wk-sum${d < t0 && left ? ' late' : ''}">${d < t0 && left ? '<span class="late-dot" aria-hidden="true"></span>' : ''}${tasks.length ? `${left ? `${left} ${left === 1 ? 'مهمة' : left === 2 ? 'مهمتان' : 'مهام'}${d < t0 ? ' متأخرة' : ''}` : 'أنجزت كل مهامه ✓'}` : 'فارغ'}${goals.length ? ` | ${goals.length} ${goals.length === 1 ? 'هدف' : 'أهداف'}` : ''}</span>
         </button>
         ${isOpen ? `<div class="wk-body">
           ${tasks.length ? `<ul class="wk-tasks">${tasks.map((t) => wkTaskRow(t, d, start)).join('')}</ul>` : '<p class="note-text">لا مهام في هذا اليوم.</p>'}
