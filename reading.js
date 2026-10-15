@@ -83,9 +83,14 @@ function syncReading() {
 function bookAdvance(b, delta) {
   let page = Math.max(0, (b.page || 0) + delta);
   if (b.pages) page = Math.min(b.pages, page);
+  const before = b.page || 0;
   b.page = page;
+  // today's entry keeps the page the day started from, so the report counts what was read today
   const t0 = today(), i = b.log.findIndex((e) => e.d === t0);
-  if (i >= 0) b.log[i].p = page; else b.log.push({ d: t0, p: page });
+  if (i >= 0) {
+    if (!Number.isFinite(b.log[i].from) && !b.log.some((e) => e.d < t0)) b.log[i].from = before;
+    b.log[i].p = page;
+  } else b.log.push({ d: t0, p: page, from: before });
   if (b.pages && page >= b.pages && b.status === 'reading') { b.status = 'read'; b.end = b.end || t0; setTimeout(() => toast(`أحسنت! أنهيت «${b.title}»`), 300); }
 }
 // called by toggle() first: a scheduled book's project task ticks today's session, not the whole book

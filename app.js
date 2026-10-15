@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 45;
+const APP_VERSION = 46;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -826,6 +826,8 @@ function completionEvents() {
     const cat = t.category || 'بلا تصنيف';
     if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal' });
     else if (t.done && t.doneAt) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
+    // a reading project's book task: each day's reading session is a task done that day
+    if (!isRepeat(t) && t.bookId) for (const d of Object.keys(t.completions || {})) ev.push({ d, cat, type: 'task', projectId: t.projectId });
     for (const s of t.subtasks) if (s.done && s.doneAt) ev.push({ d: iso(new Date(s.doneAt)), type: 'step', projectId: t.projectId });
   }
   return ev;

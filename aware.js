@@ -45,12 +45,27 @@ function periodOf(type, key) {
 
 const pctOf = (a, b) => (b ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : null);
 const dayOfTs = (ts) => (ts ? iso(new Date(ts)) : '');
-// pages read from a book's log: the first page recorded is where tracking began, not pages read
+// pages read in a period, day by day. From the book's log: a day's entry knows the page it started from
+// («from», since v46), else the entry before it; the very first page recorded is where tracking began,
+// not pages read. A day with a reading session that the log cannot measure (the book's first entry)
+// counts the session's pages, so the first day of reading is never lost.
 function pagesIn(b, from, to) {
   const log = (b.log || []).slice().sort((a, c) => a.d.localeCompare(c.d));
-  let n = 0;
-  for (let i = 1; i < log.length; i++) if (log[i].d >= from && log[i].d <= to) n += Math.max(0, log[i].p - log[i - 1].p);
-  return n;
+  const byDay = {};
+  for (let i = 0; i < log.length; i++) {
+    const e = log[i];
+    if (e.d < from || e.d > to) continue;
+    if (Number.isFinite(e.from)) byDay[e.d] = Math.max(0, e.p - e.from);
+    else if (i > 0) byDay[e.d] = Math.max(0, e.p - log[i - 1].p);
+  }
+  const sess = {};
+  for (const t of S.tasks.filter((x) => x.bookId === b.id)) {
+    for (const d of Object.keys(t.completions || {})) {
+      if (d < from || d > to || byDay[d] != null) continue;
+      sess[d] = (sess[d] || 0) + (isRepeat(t) ? t.target : b.rpages) || 0;
+    }
+  }
+  return sum(Object.values(byDay), (x) => x) + sum(Object.values(sess), (x) => x);
 }
 // progress of a recurring goal over the whole period: every time it is due counts as an equal share;
 // a counted goal (8 cups) gives part of its share for part of the count
@@ -79,16 +94,17 @@ function awareStats(P) {
   const list = (xs, n = 12) => (xs.length > n ? `${xs.slice(0, n).join('، ')}، و${xs.length - n} غيرها` : xs.join('، '));
 
   // ✅ المهام: those due in the period (a task due today counts once done), plus what was done anyway
-  const due = S.tasks.filter((t) => !isGoal(t) && inAll(t.due));
+  // a reading project's book task is counted under «القراءة», not here
+  const due = S.tasks.filter((t) => !isGoal(t) && !t.bookId && inAll(t.due));
   const doneDue = due.filter((t) => t.done);
-  const doneAll = S.tasks.filter((t) => !isGoal(t) && t.done && inP(dayOfTs(t.doneAt)));
+  const doneAll = S.tasks.filter((t) => !isGoal(t) && !t.bookId && t.done && inP(dayOfTs(t.doneAt)));
   const extra = doneAll.filter((t) => !due.includes(t)).length;
   const missed = due.filter((t) => !t.done && t.due < t0);
   const steps = S.tasks.reduce((n, t) => n + t.subtasks.filter((s) => s.done && inP(dayOfTs(s.doneAt))).length, 0);
-  const lateNow = P.current ? S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due < t0).length : 0;
+  const lateNow = P.current ? S.tasks.filter((t) => !isGoal(t) && !t.bookId && !t.done && t.due && t.due < t0).length : 0;
   const closed = closedDays().filter(inP).length;
   add('tasks', '✅', 'المهام', 'tasks', pctOf(doneDue.length, due.length), [
-    due.length && `أنجزت ${doneDue.length} من ${due.length} مهمة موعدها في هذا ${P.word}${leftTxt(due.filter((t) => !t.done && t.due >= t0).length)}`,
+    due.length && `أنجزت ${doneDue.length} من ${plural(due.length, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')} موعدها في هذا ${P.word}${leftTxt(due.filter((t) => !t.done && t.due >= t0).length)}`,
     extra && `وأنجزت ${plural(extra, 'مهمة أخرى', 'مهمتين أخريين', 'مهام أخرى', 'مهمة أخرى')} بلا موعد أو من قبله`,
     steps && `أتممت ${plural(steps, 'خطوة واحدة', 'خطوتين', 'خطوات', 'خطوة')} من خطوات المهام`,
     lateNow && `${plural(lateNow, 'مهمة متأخرة', 'مهمتان متأخرتان', 'مهام متأخرة', 'مهمة متأخرة')} الآن`,
@@ -100,7 +116,7 @@ function awareStats(P) {
   const gT = sum(goals, (g) => g.total), gH = sum(goals, (g) => g.hit);
   const once = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && t.done && inP(dayOfTs(t.doneAt)));
   add('goals', '🎯', 'الأهداف', 'goals', pctOf(gH, gT), [
-    gT && `أنجزت ${oneDec(gH)} من ${gT} موعداً لأهدافك المتكررة${leftTxt(sum(goals, (g) => g.left))}`,
+    gT && `أنجزت ${oneDec(gH)} من ${plural(gT, 'موعد واحد', 'موعدين', 'مواعيد', 'موعداً')} لأهدافك المتكررة${leftTxt(sum(goals, (g) => g.left))}`,
     ...goals.slice().sort((a, b) => a.hit / a.total - b.hit / b.total).slice(0, 3).map((g) => `«${g.t.title}»: ${g.hit} من ${g.total}`),
     once.length && `حققت: ${list(once.map((t) => t.title), 4)}`,
   ], goals.map((g) => `«${g.t.title}»: ${g.hit} من ${g.total} (${pctOf(g.hit, g.total)}٪)`));
@@ -135,7 +151,7 @@ function awareStats(P) {
   const reviews = S.hifz.reduce((n, h) => n + (h.hist || []).filter(inP).length, 0);
   const learned = S.hifz.filter((h) => inP(h.learnedAt));
   add('hifz', '📖', 'الحفظ', 'hifz', pctOf(kept, sched), [
-    sched && `أتممت ${kept} من ${sched} جلسة حفظ مقررة في هذا ${P.word}${leftTxt(hLeft)}`,
+    sched && `أتممت ${kept} من ${plural(sched, 'جلسة حفظ واحدة', 'جلستي حفظ', 'جلسات حفظ', 'جلسة حفظ')} مقررة في هذا ${P.word}${leftTxt(hLeft)}`,
     learned.length && `حفظت ${plural(learned.length, 'مقطعاً واحداً', 'مقطعين', 'مقاطع', 'مقطعاً')}`,
     reviews && `راجعت ${plural(reviews, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
   ], [learned.length && `ما حفظته: ${list(learned.map((h) => h.title))}`]);
@@ -153,7 +169,7 @@ function awareStats(P) {
   const recalls = S.books.reduce((n, b) => n + b.rvLog.filter((e) => inP(e.d)).length, 0);
   const pendingRecall = S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= end).length;
   add('books', '📚', 'القراءة', 'books', rS + recalls + pendingRecall ? pctOf(rH + recalls, rS + recalls + pendingRecall) : null, [
-    rS && `قرأت في ${rH} من ${rS} موعد قراءة في هذا ${P.word}${leftTxt(rLeft)}`,
+    rS && `قرأت في ${rH} من ${plural(rS, 'موعد قراءة واحد', 'موعدَي قراءة', 'مواعيد قراءة', 'موعد قراءة')} في هذا ${P.word}${leftTxt(rLeft)}`,
     pages && `قرأت ${plural(pages, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة')}`,
     finished.length && `أنهيت: ${list(finished.map((b) => `«${b.title}»`), 4)}`,
     bens.length && `سجّلت ${plural(bens.length, 'فائدة واحدة', 'فائدتين', 'فوائد', 'فائدة')}`,
