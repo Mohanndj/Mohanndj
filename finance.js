@@ -28,7 +28,15 @@ function normalizeRight(d) {
   return { id: d.id || uid(), name: String(d.name || ''), amount: num(d.amount), note: String(d.note || ''), date: d.date || '', payments: payments(d.payments), created: d.created || Date.now() };
 }
 function normalizeFinProject(p) {
-  return { id: p.id || uid(), name: String(p.name || 'مشروع'), items: (p.items || []).map((x) => row({ ...x, done: !!x.done })), funding: (p.funding || []).map(row), note: String(p.note || ''), created: p.created || Date.now() };
+  return { id: p.id || uid(), name: String(p.name || 'مشروع'), items: (p.items || []).map((x) => row({ ...x, done: !!x.done })), funding: (p.funding || []).map(row), paidFrom: p.paidFrom === 'funding' ? 'funding' : 'outside', note: String(p.note || ''), created: p.created || Date.now() };
+}
+// what is bought no longer needs money: the need is what is left to buy. If the purchases were paid
+// out of the project's funding sources, that money is gone from what is available too.
+function projCalc(p) {
+  const cost = sum(p.items), bought = sum(p.items.filter((x) => x.done)), fund = sum(p.funding);
+  const left = cost - bought;
+  const avail = p.paidFrom === 'funding' ? fund - bought : fund;
+  return { cost, bought, left, fund, avail, gap: avail - left, pct: cost ? Math.round((bought / cost) * 100) : 0 };
 }
 function normalizeTx(t) {
   return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), created: t.created || Date.now() };
@@ -238,12 +246,17 @@ function finRightsHTML() {
 function finProjectsHTML() {
   const p = finUi.proj && S.finProjects.find((x) => x.id === finUi.proj);
   if (p) {
-    const cost = sum(p.items), fund = sum(p.funding), bought = sum(p.items.filter((x) => x.done));
+    const c = projCalc(p);
     return `<section class="section fin-plan">
       <div class="crumbs"><button type="button" class="back" data-action="fin-close">${icon('back')} المشاريع</button></div>
       <input type="text" class="fin-title" id="fj-name" data-fin="proj" data-sid="${p.id}" data-k="name" value="${esc(p.name)}" aria-label="اسم المشروع" autocomplete="off">
-      <div class="fin-tiles"><span><b>${money(cost)}</b>التكلفة</span><span><b>${money(fund)}</b>المتوفر</span><span class="${fund - cost < 0 ? 'neg' : 'pos'}"><b>${money(fund - cost)}</b>${fund - cost < 0 ? 'ينقصك' : 'يفيض'}</span></div>
-      ${cost ? `<p class="note-text">تم شراء ما قيمته ${money(bought)} (${Math.round((bought / cost) * 100)}٪).</p>` : ''}
+      <div class="fin-tiles"><span><b>${money(c.left)}</b>المتبقي شراؤه</span><span><b>${money(c.avail)}</b>المتوفر</span><span class="${c.gap < 0 ? 'neg' : 'pos'}"><b>${c.gap ? money(Math.abs(c.gap)) : '✓'}</b>${c.gap < 0 ? 'ينقصك' : c.gap > 0 ? 'يفيض' : 'مغطّى تماماً'}</span></div>
+      ${c.cost ? `<p class="note-text">التكلفة كاملة ${money(c.cost)}، اشتريت منها ما قيمته ${money(c.bought)} (${c.pct}٪)${c.bought ? '، فخُصم من الاحتياج' : ''}.</p>
+      <div class="progress-line"><i style="width:${c.pct}%"></i></div>` : ''}
+      ${c.bought ? `<div class="field"><b class="note-text">ما اشتريته دفعت ثمنه من:</b><div class="seg" role="group">
+        <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="outside" aria-pressed="${p.paidFrom === 'outside'}">خارج مصادر التمويل</button>
+        <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="funding" aria-pressed="${p.paidFrom === 'funding'}">مصادر التمويل المذكورة</button></div>
+        <small class="note-text">${p.paidFrom === 'funding' ? 'خُصم ثمن ما اشتريته من المتوفر أيضاً، لأنه دُفع منه.' : 'المتوفر باقٍ كما هو، لأنك دفعت من مال آخر.'}</small></div>` : ''}
       <div class="panel"><h3>البنود</h3>${rowsHTML('proj', p.id, 'items', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }, { k: 'done' }], p.items)}</div>
       <div class="panel"><h3>مصادر التمويل</h3>${rowsHTML('proj', p.id, 'funding', [{ k: 'name', ph: 'المصدر' }, { k: 'amount', ph: 'المبلغ', num: true }], p.funding, { addLabel: 'مصدر' })}</div>
       <div class="panel"><h3>ملاحظات</h3><textarea id="fj-note" data-fin="proj" data-sid="${p.id}" data-k="note" rows="3">${esc(p.note)}</textarea></div>
@@ -253,10 +266,10 @@ function finProjectsHTML() {
   return `<section class="section">
     <div class="section-head"><h2>المشاريع المالية</h2>${addBtn('proj-new', 'مشروع')}</div>
     <p class="note-text">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك.</p>
-    ${S.finProjects.length ? `<div class="book-list">${S.finProjects.map((x) => { const cost = sum(x.items), fund = sum(x.funding); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
-      <span class="row-between"><b>${esc(x.name)}</b><b class="${fund - cost < 0 ? 'late' : 'ok'}">${fund - cost < 0 ? `ينقص ${money(cost - fund)}` : 'مغطّى'}</b></span>
-      <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} · التكلفة ${money(cost)} · المتوفر ${money(fund)}</small>
-      <div class="progress-line"><i style="width:${cost ? Math.min(100, Math.round((fund / cost) * 100)) : 0}%"></i></div>
+    ${S.finProjects.length ? `<div class="book-list">${S.finProjects.map((x) => { const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
+      <span class="row-between"><b>${esc(x.name)}</b><b class="${c.gap < 0 ? 'late' : 'ok'}">${c.gap < 0 ? `ينقص ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى'}</b></span>
+      <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} · المتبقي شراؤه ${money(c.left)} · المتوفر ${money(c.avail)}${c.bought ? ` · اشتريت ${c.pct}٪` : ''}</small>
+      <div class="progress-line"><i style="width:${c.cost ? Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100)) : 0}%"></i></div>
     </button>`; }).join('')}</div>` : emptyHTML('لا مشاريع', 'أنشئ مشروعاً وأضف بنوده ومصادر تمويله.')}
   </section>`;
 }
@@ -637,10 +650,11 @@ function ledgerSheet(kind) {
   return { name: isDebt ? 'الديون' : 'الحقوق', design: true, widths: [22, 13, 13, 13, 14, 16, 10, 26], rows: R };
 }
 function projectSheet(p) {
-  const cost = sum(p.items), fund = sum(p.funding);
+  const { cost, fund, bought, left, avail, gap } = projCalc(p);
   const R = [[{ v: p.name, s: 'title', span: 4 }], [{ v: `مشروع مالي · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 4 }], []];
-  R.push(['التكلفة', 'المتوفر', 'الفرق', 'تم شراؤه'].map((v) => ({ v, s: 'head' })));
-  R.push([{ v: cost, s: 'big' }, { v: fund, s: 'big' }, { v: fund - cost, s: fund - cost < 0 ? 'bad' : 'good' }, { v: cost ? sum(p.items.filter((x) => x.done)) / cost : 0, s: 'pct' }], []);
+  R.push(['التكلفة كاملة', 'تم شراؤه', 'المتبقي شراؤه', 'المتوفر'].map((v) => ({ v, s: 'head' })));
+  R.push([{ v: cost, s: 'big' }, { v: bought, s: 'big' }, { v: left, s: 'big' }, { v: avail, s: 'big' }]);
+  R.push([{ v: gap < 0 ? 'ينقصك' : gap > 0 ? 'يفيض' : 'مغطّى تماماً', s: 'head', span: 2 }, { v: Math.abs(gap), s: gap < 0 ? 'bad' : 'good', span: 2 }], []);
   R.push([{ v: 'البنود', s: 'sec', span: 4 }], [{ v: 'البند', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head' }, { v: 'تم', s: 'head' }]);
   const f = R.length + 1;
   for (const x of p.items) R.push([{ v: x.name, s: 'txt', span: 2 }, { v: x.amount, s: 'num' }, { v: x.done ? '✓' : '', s: 'txt' }]);
@@ -808,6 +822,7 @@ document.addEventListener('click', (e) => {
     }
     case 'proj-new': { const p = normalizeFinProject({ name: 'مشروع جديد', items: [{ name: '', amount: 0 }], funding: [] }); S.finProjects.push(p); save(); finUi.proj = p.id; render(); break; }
     case 'proj-open': finUi.proj = v; render(); window.scrollTo({ top: 0 }); break;
+    case 'proj-paid': { const p = S.finProjects.find((x) => x.id === el.dataset.sid); if (p) { p.paidFrom = v; save(); render(); } break; }
     case 'proj-del': if (!armed()) break; S.finProjects = S.finProjects.filter((p) => p.id !== v); finUi.proj = ''; save(); render(); break;
   }
 });
