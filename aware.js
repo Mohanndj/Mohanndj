@@ -42,6 +42,8 @@ function awareStats(m) {
   const pendingRecall = S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= last).length;
   let rSched = 0, rHit = 0;
   for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t))) for (const d of days) if (occursOn(g, d)) { rSched++; if (g.completions[d]) rHit++; }
+  // a book read inside a reading project: its sessions are on its project task
+  for (const t of S.tasks.filter((x) => x.bookId && !isRepeat(x) && x.projectId)) { const b = getBook(t.bookId); if (!b || !b.rdays.length) continue; for (const d of days) if (d >= iso(new Date(t.created)) && b.rdays.includes(parse(d).getDay())) { rSched++; if (t.completions[d]) rHit++; } }
   add('books', '📚', 'القراءة والاستذكار', 'books', rSched || recalls + pendingRecall ? pctOf(rHit + recalls, rSched + recalls + pendingRecall) : null, [
     rSched && `قرأت في ${rHit} من ${rSched} موعد قراءة`,
     recalls && `استذكرت ${recalls} ${recalls === 1 ? 'كتاباً' : 'كتب'}`,

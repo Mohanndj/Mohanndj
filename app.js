@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 33;
+const APP_VERSION = 34;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -332,6 +332,7 @@ function toggle(id, date) {
   const t = getTask(id);
   if (!t) return;
   const d = date || today();
+  if (t.bookId && readingSession(t, d)) { save(); render(); return; }
   if (isCounted(t)) {
     const c = countOn(t, d);
     setCount(t, d, c >= t.target ? 0 : c + 1);

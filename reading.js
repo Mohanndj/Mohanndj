@@ -1,16 +1,24 @@
 'use strict';
 // Reading, organised:
-// 1) A book being read can have reading days in the week and pages per session. It then appears as a
-//    recurring goal «اقرأ «الكتاب»» on «اليوم», on those days only (task.bookId ties them). Ticking it
-//    moves the book's page on by those pages; the book finished, the goal ends.
+// 1) A book being read can have reading days in the week and pages per session. Ticking a session
+//    moves the book's page on by those pages; the book finished, its reading stops by itself.
 // 2) Books (to read or read) can have a topic. Turning a topic on makes it a reading project
-//    («مشروع قرائي: الموضوع», project.topic) whose tasks are its books, done when the book is read,
-//    and ticking a task there marks the book read.
+//    («مشروع قرائي: الموضوع», project.topic) whose tasks are its books, done when the book is read.
+// A book shows in ONE place only: in its project's task if its topic is a project (the task then
+// carries the reading days: it is due on the next reading day, and ticking it there is today's
+// session), otherwise as a recurring goal on «اليوم» (task.bookId ties them).
 
 const bookTopics = () => [...new Set(S.books.map((b) => b.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
 const topicProject = (topic) => S.projects.find((p) => p.topic === topic);
 const activeBookGoal = (b) => S.tasks.find((t) => t.bookId === b.id && isRepeat(t) && !goalEnded(t));
 const pagesWord = (n) => plural(n, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة');
+const scheduled = (b) => b.status === 'reading' && b.rdays.length > 0 && b.rpages > 0;
+const inReadingProject = (b) => !!(b.topic && topicProject(b.topic));
+// the next reading day from today (today itself if its session is not done yet)
+function nextReadingDay(b, t) {
+  for (let i = 0; i < 8; i++) { const d = addDays(today(), i); if (b.rdays.includes(parse(d).getDay()) && !(t && t.completions[d])) return d; }
+  return '';
+}
 const scheduleLine = (b) => (b.rdays.length && b.rpages ? `${pagesWord(b.rpages)} · ${WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ')}` : '');
 
 let readingChanged = false;
@@ -21,7 +29,7 @@ function endGoal(g) {
 }
 function syncBookGoal(b) {
   const g = activeBookGoal(b);
-  const want = b.status === 'reading' && b.rdays.length && b.rpages > 0;
+  const want = scheduled(b) && !inReadingProject(b);
   const title = `اقرأ ${pagesWord(b.rpages)} من «${b.title}»`;
   if (!want) { if (g) endGoal(g); return; }
   if (!g) {
@@ -39,11 +47,14 @@ function syncBookGoal(b) {
 function syncTopicProject(p) {
   const books = S.books.filter((b) => b.topic === p.topic);
   for (const b of books) {
-    const title = `اقرأ «${b.title}»`;
+    const sch = scheduled(b);
+    const title = sch ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`;
     const read = b.status === 'read';
-    const t = S.tasks.find((x) => x.projectId === p.id && x.bookId === b.id && !isRepeat(x));
-    if (!t) { S.tasks.push(normalize({ kind: 'task', title, projectId: p.id, bookId: b.id, category: 'قراءة', done: read, doneAt: read ? Date.now() : null, created: Date.now() })); readingChanged = true; }
-    else if (t.title !== title || t.done !== read) { t.title = title; t.done = read; t.doneAt = read ? t.doneAt || Date.now() : null; readingChanged = true; }
+    let t = S.tasks.find((x) => x.projectId === p.id && x.bookId === b.id && !isRepeat(x));
+    if (!t) { t = normalize({ kind: 'task', title, projectId: p.id, bookId: b.id, category: 'قراءة', done: read, doneAt: read ? Date.now() : null, created: Date.now() }); S.tasks.push(t); readingChanged = true; }
+    // a scheduled book: the task is due on its next reading day, so «اليوم» shows it on those days only
+    const due = sch && !read ? nextReadingDay(b, t) : '';
+    if (t.title !== title || t.done !== read || t.due !== due) { t.title = title; t.done = read; t.doneAt = read ? t.doneAt || Date.now() : null; t.due = due; readingChanged = true; }
   }
   const n = S.tasks.length;
   S.tasks = S.tasks.filter((x) => !(x.projectId === p.id && x.bookId && !isRepeat(x) && !books.some((b) => b.id === x.bookId)));
@@ -66,6 +77,16 @@ function bookAdvance(b, delta) {
   const t0 = today(), i = b.log.findIndex((e) => e.d === t0);
   if (i >= 0) b.log[i].p = page; else b.log.push({ d: t0, p: page });
   if (b.pages && page >= b.pages && b.status === 'reading') { b.status = 'read'; b.end = b.end || t0; setTimeout(() => toast(`أحسنت! أنهيت «${b.title}»`), 300); }
+}
+// called by toggle() first: a scheduled book's project task ticks today's session, not the whole book
+function readingSession(t, d) {
+  const b = getBook(t.bookId);
+  if (!b || isRepeat(t) || !t.projectId || !scheduled(b)) return false;
+  const day = d || today();
+  if (t.completions[day]) { delete t.completions[day]; bookAdvance(b, -b.rpages); }
+  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); }
+  syncReading();
+  return true;
 }
 // called by toggle() for a task tied to a book
 function readingFromTask(t, d) {
@@ -122,7 +143,7 @@ document.addEventListener('click', (e) => {
     if (topicProject(v)) return;
     const p = normalizeProject({ name: `مشروع قرائي: ${v}`, color: PROJECT_COLORS[5][0], desc: `كتب موضوع «${v}»`, topic: v });
     S.projects.push(p);
-    syncTopicProject(p);
+    syncReading();
     save(); render();
     toast(`صار «${v}» مشروعاً قرائياً في «المشاريع والمهام»`);
     return;
@@ -131,7 +152,7 @@ document.addEventListener('click', (e) => {
     if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'تأكيد الإيقاف'; return; }
     const p = topicProject(v);
     if (p) { S.tasks = S.tasks.filter((t) => t.projectId !== p.id); S.projects = S.projects.filter((x) => x !== p); }
-    save(); render();
+    syncReading(); save(); render();
     toast('أُوقف المشروع القرائي. الكتب باقية كما هي');
   }
 });
