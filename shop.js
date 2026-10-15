@@ -137,7 +137,10 @@ document.addEventListener('click', (e) => {
   const x = S.shop.find((i) => i.id === v);
   if (!x) return;
   if (action === 'shop-toggle') {
-    if (x.need) { x.need = false; x.boughtAt = today(); x.times++; } else { x.need = true; }
+    // ticking keeps today's list open (the ticked item stays visible, crossed out, until the day ends);
+    // unticking an item ticked today by mistake takes its count back
+    shopUi.picked = true;
+    if (x.need) { x.need = false; x.boughtAt = today(); x.times++; } else { if (x.boughtAt === today() && x.times > 0) x.times--; x.need = true; }
     x.updated = Date.now();
     save(); render();
   }

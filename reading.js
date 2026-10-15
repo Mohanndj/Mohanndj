@@ -10,20 +10,23 @@
 
 const bookTopics = () => [...new Set(S.books.map((b) => b.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
 const topicProject = (topic) => S.projects.find((p) => p.topic === topic);
-const activeBookGoal = (b) => S.tasks.find((t) => t.bookId === b.id && isRepeat(t) && !goalEnded(t));
+const activeBookGoal = (b) => S.tasks.find((t) => t.bookId === b.id && isRepeat(t) && !t.repeat.until);
+// read today from any of the book's tasks (its goal or its project task)
+const readToday = (b) => S.tasks.some((x) => x.bookId === b.id && x.completions && x.completions[today()]);
 const pagesWord = (n) => plural(n, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة');
 const scheduled = (b) => b.status === 'reading' && b.rdays.length > 0 && b.rpages > 0;
 const inReadingProject = (b) => !!(b.topic && topicProject(b.topic));
 // the next reading day from today (today itself if its session is not done yet)
 function nextReadingDay(b, t) {
-  for (let i = 0; i < 8; i++) { const d = addDays(today(), i); if (b.rdays.includes(parse(d).getDay()) && !(t && t.completions[d])) return d; }
+  for (let i = 0; i < 8; i++) { const d = addDays(today(), i); if (b.rdays.includes(parse(d).getDay()) && !(t && t.completions[d]) && !(i === 0 && readToday(b))) return d; }
   return '';
 }
 const scheduleLine = (b) => (b.rdays.length && b.rpages ? `${pagesWord(b.rpages)} | ${WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ')}` : '');
 
 let readingChanged = false;
+// a goal read today stays until the end of today (still shown ticked, and its session counted)
 function endGoal(g) {
-  if (Object.keys(g.completions).length) g.repeat.until = addDays(today(), -1);
+  if (Object.keys(g.completions).length) g.repeat.until = g.completions[today()] ? today() : addDays(today(), -1);
   else S.tasks = S.tasks.filter((t) => t !== g);
   readingChanged = true;
 }
@@ -33,7 +36,13 @@ function syncBookGoal(b) {
   const title = `اقرأ ${pagesWord(b.rpages)} من «${b.title}»`;
   if (!want) { if (g) endGoal(g); return; }
   if (!g) {
-    S.tasks.push(normalize({ kind: 'goal', title, category: 'قراءة', repeat: { days: [...b.rdays].sort(), start: today(), until: null }, target: b.rpages, unit: 'صفحة', bookId: b.id, created: Date.now() }));
+    // the book's goal ended today or yesterday (finished then unticked, or moved and back): it continues
+    const recent = S.tasks.find((t) => t.bookId === b.id && isRepeat(t) && t.repeat.until && t.repeat.until >= addDays(today(), -1));
+    if (recent) { recent.repeat.until = null; readingChanged = true; return; }
+    const ng = normalize({ kind: 'goal', title, category: 'قراءة', repeat: { days: [...b.rdays].sort(), start: today(), until: null }, target: b.rpages, unit: 'صفحة', bookId: b.id, created: Date.now() });
+    // already read today in its project (the book just left it): today's session shows done here too
+    if (readToday(b)) ng.completions[today()] = Date.now();
+    S.tasks.push(ng);
     readingChanged = true;
     return;
   }
@@ -46,15 +55,17 @@ function syncBookGoal(b) {
 }
 function syncTopicProject(p) {
   const books = S.books.filter((b) => b.topic === p.topic);
+  // a book read in the past is done on the day it was finished, not on the day the project was made
+  const readAt = (b) => (!b.end ? null : b.end === today() ? Date.now() : parse(b.end).getTime() + 12 * 3600000);
   for (const b of books) {
     const sch = scheduled(b);
     const title = sch ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`;
     const read = b.status === 'read';
     let t = S.tasks.find((x) => x.projectId === p.id && x.bookId === b.id && !isRepeat(x));
-    if (!t) { t = normalize({ kind: 'task', title, projectId: p.id, bookId: b.id, category: 'قراءة', done: read, doneAt: read ? Date.now() : null, created: Date.now() }); S.tasks.push(t); readingChanged = true; }
+    if (!t) { t = normalize({ kind: 'task', title, projectId: p.id, bookId: b.id, category: 'قراءة', done: read, doneAt: read ? readAt(b) : null, created: Date.now() }); S.tasks.push(t); readingChanged = true; }
     // a scheduled book: the task is due on its next reading day, so «اليوم» shows it on those days only
     const due = sch && !read ? nextReadingDay(b, t) : '';
-    if (t.title !== title || t.done !== read || t.due !== due) { t.title = title; t.done = read; t.doneAt = read ? t.doneAt || Date.now() : null; t.due = due; readingChanged = true; }
+    if (t.title !== title || t.done !== read || t.due !== due) { t.title = title; t.done = read; t.doneAt = read ? t.doneAt || readAt(b) : null; t.due = due; readingChanged = true; }
   }
   const n = S.tasks.length;
   S.tasks = S.tasks.filter((x) => !(x.projectId === p.id && x.bookId && !isRepeat(x) && !books.some((b) => b.id === x.bookId)));
@@ -64,7 +75,7 @@ function syncTopicProject(p) {
 function syncReading() {
   readingChanged = false;
   for (const b of S.books) syncBookGoal(b);
-  for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t) && !goalEnded(t) && !getBook(t.bookId))) endGoal(g);
+  for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t) && !t.repeat.until && !getBook(t.bookId))) endGoal(g);
   for (const p of S.projects.filter((x) => x.topic)) syncTopicProject(p);
   // a book's reading task left outside its reading project (the project deleted, or the topic
   // changed) is a duplicate: the book already shows as its goal or in its current project
@@ -81,12 +92,16 @@ function syncReading() {
 
 // the page moves with the goal: ticking today's reading adds its pages, unticking takes them back
 function bookAdvance(b, delta) {
+  const t0 = today(), i = b.log.findIndex((e) => e.d === t0);
   let page = Math.max(0, (b.page || 0) + delta);
   if (b.pages) page = Math.min(b.pages, page);
+  // unticking goes back no further than where today started (the last session may have been capped at the end)
+  if (delta < 0 && i >= 0 && Number.isFinite(b.log[i].from)) page = Math.max(page, b.log[i].from);
   const before = b.page || 0;
   b.page = page;
+  // a session that finished the book today, unticked: the book is being read again
+  if (delta < 0 && b.status === 'read' && b.end === t0 && (!b.pages || page < b.pages)) { b.status = 'reading'; b.end = ''; }
   // today's entry keeps the page the day started from, so the report counts what was read today
-  const t0 = today(), i = b.log.findIndex((e) => e.d === t0);
   if (i >= 0) {
     if (!Number.isFinite(b.log[i].from) && !b.log.some((e) => e.d < t0)) b.log[i].from = before;
     b.log[i].p = page;
@@ -96,8 +111,9 @@ function bookAdvance(b, delta) {
 // called by toggle() first: a scheduled book's project task ticks today's session, not the whole book
 function readingSession(t, d) {
   const b = getBook(t.bookId);
-  if (!b || isRepeat(t) || !t.projectId || !scheduled(b)) return false;
   const day = d || today();
+  // (a session that just finished the book can still be unticked)
+  if (!b || isRepeat(t) || !t.projectId || !(scheduled(b) || t.completions[day])) return false;
   if (t.completions[day]) { delete t.completions[day]; bookAdvance(b, -b.rpages); }
   else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); askReadingNote(b); }
   syncReading();

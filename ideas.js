@@ -20,7 +20,7 @@ const ideaTags = () => [...new Set(S.ideas.map((x) => x.tag).filter(Boolean))].s
 // «تطبيق للقراءة #مشاريع» → text «تطبيق للقراءة», tag «مشاريع»
 function splitTag(s) {
   let tag = '';
-  const text = s.replace(/(^|\s)#([^\s#]+)/g, (m, sp, t) => { if (!tag) tag = t.replace(/_/g, ' '); return ''; }).replace(/\s{2,}/g, ' ').trim();
+  const text = s.replace(/(^|\s)#([^\s#]+)/g, (m, sp, t) => { if (!tag) tag = t.replace(/_/g, ' '); return ''; }).replace(/[^\S\n]{2,}/g, ' ').trim(); // spaces only: a blank line between paragraphs stays
   return { text, tag };
 }
 

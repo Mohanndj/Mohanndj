@@ -17,14 +17,15 @@ function normalizeQuit(q) {
 const getQuit = (id) => S.quits.find((q) => q.id === id);
 
 function quitStats(q, now = Date.now()) {
-  const marks = [q.start, ...q.slips.map((s) => s.at).sort((a, b) => a - b)];
+  // slips before an edited start date belong to an earlier attempt
+  const marks = [q.start, ...q.slips.map((s) => s.at).filter((at) => at >= q.start).sort((a, b) => a - b)];
   const lastAt = marks[marks.length - 1];
   const curMs = Math.max(0, now - lastAt);
   let bestMs = curMs;
   for (let i = 1; i < marks.length; i++) bestMs = Math.max(bestMs, marks[i] - marks[i - 1]);
   const days = Math.floor(curMs / DAY_MS);
   const next = QUIT_MILES.find((m) => m > days) || Math.ceil((days + 1) / 365) * 365;
-  const prev = [...QUIT_MILES].reverse().find((m) => m <= days) || 0;
+  const prev = days >= 365 ? Math.floor(days / 365) * 365 : [...QUIT_MILES].reverse().find((m) => m <= days) || 0;
   // patterns: triggers, part of day, weekday
   const count = (f) => { const o = {}; for (const s of q.slips) { const k = f(s); if (k) o[k] = (o[k] || 0) + 1; } return Object.entries(o).sort((a, b) => b[1] - a[1]); };
   const part = (s) => { const h = new Date(s.at).getHours(); return h < 5 ? 'آخر الليل' : h < 12 ? 'الصباح' : h < 17 ? 'الظهيرة' : h < 21 ? 'المساء' : 'الليل'; };

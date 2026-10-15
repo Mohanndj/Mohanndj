@@ -29,7 +29,9 @@ function viewWeek() {
   const t0 = today();
   const start = weekUi.start || weekStartOf(t0);
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(start, i));
-  const open = weekUi.open && days.includes(weekUi.open) ? weekUi.open : days.includes(t0) ? t0 : days[0];
+  // 'none': the user closed the open day (also the one opened by default)
+  const open = weekUi.open === 'none' ? '' : weekUi.open && days.includes(weekUi.open) ? weekUi.open : days.includes(t0) ? t0 : days[0];
+  weekUi.shown = open;
   const rec = weekRec(start) || normalizeWeek({ id: start });
   const max = Math.max(1, ...days.map((d) => tasksOnDay(d).length));
   const late = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due < t0).sort((a, b) => a.due.localeCompare(b.due));
@@ -77,7 +79,7 @@ document.addEventListener('click', (e) => {
   switch (action) {
     case 'wk-nav': weekUi.start = addDays(weekUi.start || weekStartOf(today()), Number(v)); weekUi.open = ''; weekUi.move = ''; render(); break;
     case 'wk-now': weekUi.start = ''; weekUi.open = ''; render(); break;
-    case 'wk-open': weekUi.open = weekUi.open === v ? 'none' : v; weekUi.move = ''; render(); break;
+    case 'wk-open': weekUi.open = weekUi.shown === v ? 'none' : v; weekUi.move = ''; render(); break;
     case 'wk-move': weekUi.move = weekUi.move === v ? '' : v; render(); break;
     case 'wk-to': {
       const t = getTask(el.dataset.id);

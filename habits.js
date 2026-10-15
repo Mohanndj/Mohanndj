@@ -54,9 +54,14 @@ function habitStats(t, upto = today()) {
 const activeHabits = (exceptId) => S.tasks.filter((t) => isHabit(t) && t.id !== exceptId && !goalEnded(t) && !habitStats(t).graduated);
 
 // celebrate once when a habit becomes established
+// (and take it back if the tick that made it so is undone the same day)
 function checkGraduation(t) {
-  if (!isHabit(t) || t.habit.graduatedAt) return;
+  if (!isHabit(t)) return;
   const st = habitStats(t);
+  if (t.habit.graduatedAt) {
+    if (t.habit.graduatedAt === today() && !(st.hit >= t.habit.days && st.strength >= 80)) { t.habit.graduatedAt = ''; save(); }
+    return;
+  }
   if (st.hit >= t.habit.days && st.strength >= 80) {
     t.habit.graduatedAt = today();
     save();

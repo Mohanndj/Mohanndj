@@ -143,7 +143,7 @@ function startPlan(id) {
   });
   S.hifz.push(card);
   p.pos = b;
-  p.log[today()] = (p.log[today()] || 0) + (b - a);
+  // (today's session is recorded when the portion is memorised, not when it is opened)
   save();
   openStudy('learn', card.id);
 }
@@ -450,9 +450,11 @@ document.addEventListener('click', (e) => {
     case 'view': hzs.view = el.dataset.v; if (hzs.view === 'full') hzs.shown = true; renderStudy(); break;
     case 'show': hzs.view = 'full'; hzs.shown = true; renderStudy(); break;
     case 'learned':
-      Object.assign(h, { state: 'review', reps: 0, interval: 1, due: addDays(today(), 1), learnedAt: today(), last: today() });
+      // reps 1: tomorrow is the first review, so «جيد» then means 3 days, not tomorrow again
+      Object.assign(h, { state: 'review', reps: 1, interval: 1, due: addDays(today(), 1), learnedAt: today(), last: today() });
       {
         const p = h.planId && getPlan(h.planId);
+        if (p) p.log[today()] = (p.log[today()] || 0) + parsePoemLen(h);
         if (p && p.pos >= planUnits(p).length && !planPending(p)) { p.doneAt = today(); setTimeout(() => toast(`🎉 أتممت حفظ «${p.title}» كاملة! بارك الله فيك`), 400); }
       }
       save();
@@ -515,6 +517,8 @@ document.addEventListener('click', (e) => {
       const n = last ? parsePoemLen(last) : p.portion;
       p.pos = Math.max(0, p.pos - n);
       p.doneAt = '';
+      // a portion already memorised is taken off that day's session too
+      if (last && last.learnedAt && p.log[last.learnedAt]) { p.log[last.learnedAt] -= n; if (p.log[last.learnedAt] <= 0) delete p.log[last.learnedAt]; }
       if (last) S.hifz = S.hifz.filter((h) => h !== last);
       save(); closeLib(); render(); toast('أُعيد المقدار الأخير إلى الخطة');
       break;

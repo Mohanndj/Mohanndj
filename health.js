@@ -315,7 +315,7 @@ async function importMealPlan(file) {
     toast('يقرأ الذكاء الاصطناعي ملفك…');
     try {
       const out = await AI.ask({ system: H_SYSTEM, effort: 'medium', maxTokens: 16000,
-        prompt: `The user exported their meal plan from Excel. Below is every non-empty cell as «row: [column] value». Rebuild the plan exactly: keep every dish and item name and portion as written (do not invent or drop items, do not rename). Map day names to dow (0=Sunday … 6=Saturday); if days are numbered (اليوم 1…7) map day 1 to Saturday. Split a cell listing several foods into separate items. Use nutrition values from the sheet when present; otherwise estimate them and the food groups.\n\n${sheetText(sheets)}`,
+        prompt: `The user exported their meal plan from Excel. Below is every non-empty cell as «row: [column] value». Rebuild the plan exactly: keep every dish and item name and portion as written (do not invent or drop items, do not rename). Map day names to dow (0=Sunday … 6=Saturday); if days are numbered (اليوم 1…7) map day 1 to Sunday (the user's week starts on Sunday). Split a cell listing several foods into separate items. Use nutrition values from the sheet when present; otherwise estimate them and the food groups.\n\n${sheetText(sheets)}`,
         schema: WEEK_SCHEMA });
       const m2 = toMeals(out.days);
       if (m2.length) { meals = m2; via = 'ai'; }

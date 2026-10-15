@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 46;
+const APP_VERSION = 47;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -269,7 +269,8 @@ function occursOn(t, d) {
   if (!r || d < r.start || (r.until && d > r.until)) return false;
   return r.days.includes(parse(d).getDay());
 }
-const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done);
+// a reading project's book task is done on a day it holds that day's session
+const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done || !!(t.bookId && t.completions && t.completions[d]));
 function countOn(t, d) {
   if (!isRepeat(t)) return t.done && !t.count ? t.target : t.count;
   return t.completions[d] && !t.counts[d] ? t.target : t.counts[d] || 0;
@@ -520,13 +521,14 @@ function viewToday() {
   const d = today();
   const items = S.tasks.filter((t) => {
     if (isRepeat(t)) return occursOn(t, d);
+    if (t.bookId && t.completions && t.completions[d]) return true; // today's reading session stays, ticked
     if (!t.done && t.due && t.due <= d) return true;
     return t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
   });
   items.sort(byTime(d));
   const done = items.filter((t) => doneOn(t, d)).length;
   const p = pct(done, items.length);
-  const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
+  const late = items.filter((t) => !isRepeat(t) && !t.done && t.due && t.due < d).length;
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   const parts = {
@@ -825,7 +827,8 @@ function completionEvents() {
   for (const t of S.tasks) {
     const cat = t.category || 'بلا تصنيف';
     if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal' });
-    else if (t.done && t.doneAt) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
+    // (a book task with reading sessions: the sessions are its events, its finishing is not one more)
+    else if (t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
     // a reading project's book task: each day's reading session is a task done that day
     if (!isRepeat(t) && t.bookId) for (const d of Object.keys(t.completions || {})) ev.push({ d, cat, type: 'task', projectId: t.projectId });
     for (const s of t.subtasks) if (s.done && s.doneAt) ev.push({ d: iso(new Date(s.doneAt)), type: 'step', projectId: t.projectId });
@@ -1418,7 +1421,12 @@ function readDraft() {
       t.repeat = null;
       t.habit = null;
       t.due = $('fGoalDue').value || '';
-      if (t.target > 1) { t.count = Math.min(t.count, t.target); t.done = t.count >= t.target; t.doneAt = t.done ? (base.doneAt || Date.now()) : null; }
+      if (t.target > 1) { t.count = Math.min(t.count, t.target); t.done = t.count >= t.target; t.doneAt = t.done ? (base.doneAt || Date.now()) : null; } else t.count = 0;
+    }
+    // a changed daily amount re-judges the days already counted (7 of a new 6 is done; 6 of a new 8 is not)
+    if (t.repeat && t.counts) for (const [d, n] of Object.entries(t.counts)) {
+      if (t.target <= 1) { delete t.counts[d]; continue; }
+      if (n >= t.target) { t.counts[d] = t.target; t.completions[d] = t.completions[d] || Date.now(); } else delete t.completions[d];
     }
   } else {
     t.repeat = null;
@@ -2241,6 +2249,7 @@ document.addEventListener('click', (e) => {
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }

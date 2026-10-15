@@ -108,7 +108,7 @@ function awareStats(P) {
     extra && `وأنجزت ${plural(extra, 'مهمة أخرى', 'مهمتين أخريين', 'مهام أخرى', 'مهمة أخرى')} بلا موعد أو من قبله`,
     steps && `أتممت ${plural(steps, 'خطوة واحدة', 'خطوتين', 'خطوات', 'خطوة')} من خطوات المهام`,
     lateNow && `${plural(lateNow, 'مهمة متأخرة', 'مهمتان متأخرتان', 'مهام متأخرة', 'مهمة متأخرة')} الآن`,
-    closed && `أغلقت يومك ${plural(closed, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} من ${days.length}`,
+    closed && `أغلقت يومك ${plural(closed, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} من ${days.filter((d) => d < t0 || closedDays().includes(d)).length}`,
   ], [doneAll.length && `المنجزة: ${list(doneAll.map((t) => t.title))}`, missed.length && `فاتت: ${list(missed.map((t) => `${t.title} (${fmtDate(t.due, { day: 'numeric', month: 'short' })})`))}`]);
 
   // 🎯 الأهداف المتكررة (غير العادات وأهداف القراءة) والأهداف لمرة واحدة
@@ -160,8 +160,16 @@ function awareStats(P) {
   let rS = 0, rH = 0, rLeft = 0;
   for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t))) { const r = goalRun(g, P); rS += r.total; rH += r.hit; rLeft += r.left; }
   for (const t of S.tasks.filter((x) => x.bookId && !isRepeat(x) && x.projectId)) {
-    const b = getBook(t.bookId); if (!b || !b.rdays.length) continue;
-    for (const d of all) { if (d < dayOfTs(t.created) || !b.rdays.includes(parse(d).getDay())) continue; rS++; if (t.completions[d]) rH++; else if (d >= t0) rLeft++; }
+    const b = getBook(t.bookId); if (!b || !b.rdays.length || !b.rpages) continue;
+    // only while the book is being read: from when its task (or its reading) began until it was finished;
+    // a book still waiting to be read has no reading days yet (a session it holds still counts)
+    const from = b.start && b.start > dayOfTs(t.created) ? b.start : dayOfTs(t.created);
+    const until = b.status === 'read' ? (b.end || dayOfTs(t.doneAt) || '') : b.status === 'reading' ? '9999' : '';
+    for (const d of all) {
+      if (t.completions[d]) { rS++; rH++; continue; }
+      if (d < from || !until || d > until || !b.rdays.includes(parse(d).getDay())) continue;
+      rS++; if (d >= t0) rLeft++;
+    }
   }
   const pages = S.books.reduce((n, b) => n + pagesIn(b, start, last), 0);
   const finished = S.books.filter((b) => b.status === 'read' && inP(b.end));
