@@ -224,24 +224,38 @@ function awareStats(P) {
     tracked && `متوسط ما أكلته ${Math.round(kcal / tracked)} سعرة، والتكامل الغذائي ${Math.round(sum(coverage, (x) => x) / coverage.length)}٪`,
   ]);
 
-  // 💰 المالية: spending against the plans' expenses, prorated to the days that passed
-  let plannedExp = 0, planDaysN = 0;
-  for (const d of days) { const mp = planForDate(d); if (mp) { const c = planCalc(mp); plannedExp += (c.fixed + c.periodic) / planLen(mp); planDaysN++; } }
-  const share = Math.round(plannedExp);
+  // 💰 المالية: «مصروف …» items: what was spent from each and what is left of it this month;
+  // spending with no item: outside the spending budgets; other items are obligations, just said paid
   const outs = S.finTx.filter((t) => t.kind === 'out' && inP(t.d));
-  const spent = sum(outs), outside = sum(outs.filter((t) => t.ref === 'out'));
+  const spent = sum(outs);
   const income = sum(S.finTx.filter((t) => t.kind === 'in' && inP(t.d)));
   const paidIn = (xs) => sum(xs.flatMap((x) => x.payments).filter((p) => inP(p.d)));
   const debtPaid = paidIn(S.finDebts), owePaid = paidIn(LEDGERS.owe.list()), rightGot = paidIn(LEDGERS.right.list()), finesPaid = paidIn(S.fines);
   const savedLater = sum(S.later.filter((x) => x.decision === 'dropped' && inP(x.decidedAt)), (x) => x.price);
+  const bySpend = new Map(), byDuty = new Map();
+  let outsideSpend = 0;
+  for (const t of outs) {
+    const p = planForDate(t.d);
+    const r = p && t.ref && t.ref !== 'out' ? planRows(p).find((y) => y.x.id === t.ref) : null;
+    if (!r) { outsideSpend += t.amount; continue; }
+    const m = isSpendRow(r) ? bySpend : byDuty;
+    const k = `${p.id}:${r.x.id}`;
+    const e = m.get(k) || { p, r, amount: 0 };
+    e.amount += t.amount; m.set(k, e);
+  }
+  const spendLines = [...bySpend.values()].sort((a, b) => b.amount - a.amount).map((e) => {
+    const rm = rowRemain(e.p, e.r.x.id);
+    return `${e.r.x.name}: صرفت ${money(e.amount)}${rm ? ` | ${rm.left > 0.5 ? `الباقي ${money(rm.left)} من ${money(rm.budget)}` : rm.left > -0.5 ? `استنفدته كاملاً (${money(rm.budget)})` : `⚠️ تجاوزته بـ ${money(-rm.left)} (المخطط ${money(rm.budget)})`}` : ''}`;
+  });
+  const duties = [...byDuty.values()];
   const byItem = {};
   for (const t of outs) { const k = t.item || 'بلا وصف'; byItem[k] = (byItem[k] || 0) + t.amount; }
   // facts only: spending is not a count of things to finish, so it gets no progress score
   add('finance', '💰', 'المالية', 'finance', null, [
-    spent && `صرفت: ${money(spent)}`,
-    spent && share && `نصيب ${planDaysN === 1 ? 'هذا اليوم' : planDaysN === 2 ? 'هذين اليومين' : 'هذه الأيام'} من خطتك الشهرية: ${money(share)} (مصاريف الخطة الشهرية مقسومة على أيامها، مضروبة في ${plural(planDaysN, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} مضت)`,
-    spent && share && (spent > plannedExp + 0.5 ? `النتيجة: ⚠️ تجاوزت نصيبها بـ ${money(Math.round(spent - plannedExp))}` : `النتيجة: ضمن المخطط ✓ (أقل منه بـ ${money(Math.round(plannedExp - spent))})`),
-    outside && `منها خارج المخطط: ${money(outside)}`,
+    ...spendLines,
+    outsideSpend && `خارج مخصص المصروفات: ${money(outsideSpend)}`,
+    duties.length && `التزامات دُفعت: ${list(duties.map((e) => `${e.r.x.name} (${money(e.amount)})`), 6)}`,
+    spent && (spendLines.length + (outsideSpend ? 1 : 0) + (duties.length ? 1 : 0) > 1) && `مجموع ما دفعت: ${money(spent)}`,
     income && `دخل إضافي: ${money(income)}`,
     debtPaid && `سدّدت من الديون: ${money(debtPaid)}`,
     owePaid && `أدّيت من الحقوق التي عليك: ${money(owePaid)}`,

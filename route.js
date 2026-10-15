@@ -21,7 +21,8 @@ function routeSmart(text) {
     const p = currentPlan();
     if (p) syncPlanLinks(p);
     const nm = normName(what);
-    const r = p && nm.length >= 2 ? planRows(p).find((y) => y.x.name && (normName(y.x.name) === nm || normName(y.x.name).includes(nm) || nm.includes(normName(y.x.name)))) : null;
+    const hit = (y) => y.x.name && (normName(y.x.name) === nm || normName(y.x.name).includes(nm) || nm.includes(normName(y.x.name)));
+    const r = p && nm.length >= 2 ? spendRowsOf(p).find(hit) || planRows(p).find(hit) : null;
     return { type: 'spend', amount, what, row: r ? r.x : null };
   }
   // shopping: «اشتر حليب وخبز» (optionally «… لقائمة السفر»)

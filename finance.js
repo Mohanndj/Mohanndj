@@ -112,6 +112,19 @@ function rowRemain(p, rowId, extra = 0) {
 }
 // the same, before recording an amount: what it would leave
 const remainAfter = (rm) => (rm.left > 0.5 ? `بعده يبقى ${money(rm.left)} من ${money(rm.budget)}` : rm.left > -0.5 ? `به تستنفد ${money(rm.budget)} كاملاً` : `⚠️ به تتجاوز المخطط (${money(rm.budget)}) بـ ${money(-rm.left)}`);
+// a plan item whose name starts with «مصروف» is a spending budget (spent bit by bit, like «مصروف البنزين»);
+// any other item is an obligation (rent, an instalment, a bill) paid once and just ticked «دُفع»
+const isSpendRow = (r) => /^\s*(ال)?مصروف/.test(r.x.name || '');
+const bareName = (s) => String(s || '').trim().replace(/^(ال)?مصروف\s*/, '').replace(/^ال/, '').trim();
+// «بنزين» finds «مصروف البنزين», and the full name finds itself
+const rowIs = (r, text) => !!r.x.name && !!String(text || '').trim() && (r.x.name.trim() === String(text).trim() || bareName(r.x.name) === bareName(text));
+// the items offered when recording a spending: only «مصروف …» items when the plan has them
+function spendRowsOf(p) {
+  const rs = p ? planRows(p).filter((r) => r.x.name) : [];
+  const sp = rs.filter(isSpendRow);
+  return sp.length ? sp : rs;
+}
+const spendOptions = (p, cur) => `${spendRowsOf(p).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('')}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
@@ -121,7 +134,7 @@ function spendTodayHTML() {
   const list = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
       <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
-      <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${refOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
+      <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${spendOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
       <small class="td-hint" id="tdHint"></small>
     </form>
     ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
@@ -240,6 +253,7 @@ function planActualHTML(p) {
       <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
         <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
     <p class="note-text explain">سجّل ما تدفعه من «اليوم» أو «المصروف» وأضفه إلى بنده، أو ضع «دُفع» أمام البند إن دفعته كاملاً.</p>
+    <p class="note-text explain">ابدأ اسم البند الذي تصرف منه على دفعات بكلمة «مصروف» (مثل: مصروف البنزين)، فلا يظهر في خانة «المصروف» إلا هو. وبقية البنود التزامات (إيجار، قسط، فاتورة) يكفيها «دُفع».</p>
   </div>`;
 }
 function planDetailHTML(p) {
@@ -1012,7 +1026,7 @@ document.addEventListener('submit', (e) => {
   const t = normalizeTx({ amount, kind: 'out', item: $('tdWhy').value.trim(), d: today() });
   S.finTx.push(t);
   const p = planForDate(t.d);
-  const named = !$('tdRef').value && p && planRows(p).find((r) => r.x.name && r.x.name === t.item);
+  const named = !$('tdRef').value && p && planRows(p).find((r) => rowIs(r, t.item));
   const ref = $('tdRef').value || (named ? named.x.id : '');
   if (ref) assignTx(t, ref, planForDate(t.d));
   save(); render();
@@ -1025,7 +1039,7 @@ function tdHintUpdate() {
   if (!el) return;
   const p = currentPlan();
   const why = ($('tdWhy').value || '').trim();
-  const named = !$('tdRef').value && p && why && planRows(p).find((r) => r.x.name && r.x.name === why);
+  const named = !$('tdRef').value && p && why && planRows(p).find((r) => rowIs(r, why));
   const rm = rowRemain(p, $('tdRef').value || (named ? named.x.id : ''), num($('tdAmt').value));
   el.textContent = rm ? `«${rm.name}»: ${num($('tdAmt').value) ? remainAfter(rm) : rm.text}` : '';
   el.classList.toggle('late', !!rm && rm.left < -0.5);
@@ -1049,7 +1063,7 @@ document.addEventListener('submit', (e) => {
   const t = normalizeTx({ amount, kind: finUi.txKind || 'out', item: $('txItem').value.trim(), note: $('txNote').value.trim(), d: $('txDate').value || today() });
   S.finTx.push(t);
   const p = planForDate(t.d);
-  const r = t.kind === 'out' && p && planRows(p).find((y) => y.x.name && y.x.name === t.item);
+  const r = t.kind === 'out' && p && planRows(p).find((y) => rowIs(y, t.item));
   if (r) assignTx(t, r.x.id, p);
   const rm = r && rowRemain(p, r.x.id);
   save();
