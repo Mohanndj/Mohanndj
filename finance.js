@@ -84,8 +84,9 @@ function planActual(p) {
   for (const r of rows) {
     r.spent = sum(outs.filter((t) => t.ref === r.x.id));
     // ticked «دُفع»: paid in full even if only part of it was recorded
-    r.paid = r.x.done ? Math.max(r.spent, r.plan) : r.spent;
-    r.left = r.x.done ? 0 : Math.max(0, r.plan - r.paid);
+    const once = !isSpendRow(r); // a «مصروف …» item has no «دُفع»: only what was spent from it counts
+    r.paid = once && r.x.done ? Math.max(r.spent, r.plan) : r.spent;
+    r.left = once && r.x.done ? 0 : Math.max(0, r.plan - r.paid);
   }
   const outside = outs.filter((t) => t.ref === 'out');
   const loose = outs.filter((t) => t.ref !== 'out' && !rows.some((r) => r.x.id === t.ref));
@@ -101,7 +102,7 @@ function assignTx(t, ref, p) {
   if (ref === 'out' && !t.item) t.item = 'خارج المخطط';
   t.ref = ref;
   if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t); return; }
-  if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && inPlan(p, y.d))); if (r.plan && got >= r.plan - 0.5) { r.x.done = true; r.x.auto = true; } }
+  if (r && !r.x.done && !isSpendRow(r)) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && inPlan(p, y.d))); if (r.plan && got >= r.plan - 0.5) { r.x.done = true; r.x.auto = true; } }
 }
 // what is left of a plan item this month, said plainly: «بقي ٢٥٠ من ٦٠٠ هذا الشهر» or an overrun
 function rowRemain(p, rowId, extra = 0) {
@@ -115,7 +116,8 @@ function rowRemain(p, rowId, extra = 0) {
 const remainAfter = (rm) => (rm.left > 0.5 ? `بعده يبقى ${money(rm.left)} من ${money(rm.budget)}` : rm.left > -0.5 ? `به تستنفد ${money(rm.budget)} كاملاً` : `⚠️ به تتجاوز المخطط (${money(rm.budget)}) بـ ${money(-rm.left)}`);
 // a plan item whose name starts with «مصروف» is a spending budget (spent bit by bit, like «مصروف البنزين»);
 // any other item is an obligation (rent, an instalment, a bill) paid once and just ticked «دُفع»
-const isSpendRow = (r) => /^\s*(ال)?مصروف/.test(r.x.name || '');
+const spendName = (name) => /^\s*(ال)?مصروف/.test(name || '');
+const isSpendRow = (r) => spendName(r.x.name);
 const bareName = (s) => String(s || '').trim().replace(/^(ال)?مصروف\s*/, '').replace(/^ال/, '').trim();
 // «بنزين» finds «مصروف البنزين», and the full name finds itself
 const rowIs = (r, text) => !!r.x.name && !!String(text || '').trim() && (r.x.name.trim() === String(text).trim() || bareName(r.x.name) === bareName(text));
@@ -190,11 +192,13 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
   const inp = (x, c) => {
     const id = `f-${list}-${x.id}-${c.k}`;
     if (c.k === 'every') return `<select id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="every" aria-label="التكرار">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select>`;
+    // a «مصروف …» item is spent bit by bit, never paid once: no «دُفع» box (an empty cell keeps the row's shape)
+    if (c.k === 'done' && scope === 'plan' && spendName(x.name)) return '<span class="fin-chk"></span>';
     if (c.k === 'done') return `<label class="fin-chk"><input type="checkbox" id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="done"${x.done ? ' checked' : ''}><span>${c.label || 'تم'}</span></label>`;
     return `<input type="${c.num ? 'text' : 'text'}" ${c.num ? 'inputmode="decimal" class="num-in"' : ''} id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="${c.k}" value="${esc(c.num ? (x[c.k] || '') : x[c.k])}" placeholder="${c.ph}" aria-label="${c.ph}" autocomplete="off"${c.num ? ' data-novoice' : ''}${x.link && c.k === 'amount' ? ' readonly title="يُعدَّل من مصدره"' : ''}>`;
   };
   return `<div class="fin-rows c${cols.length}">
-    ${items.map((x) => `<div class="fin-row${x.done ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra || x.link ? `<small class="fin-x">${[x.link ? `🔗 من ${esc(linkLabel(x.link))} | يُحدَّث تلقائياً` : '', opts.extra ? opts.extra(x) : ''].filter(Boolean).join(' | ')}</small>` : ''}</div>`).join('')}
+    ${items.map((x) => `<div class="fin-row${x.done && !(scope === 'plan' && spendName(x.name)) ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra || x.link ? `<small class="fin-x">${[x.link ? `🔗 من ${esc(linkLabel(x.link))} | يُحدَّث تلقائياً` : '', opts.extra ? opts.extra(x) : ''].filter(Boolean).join(' | ')}</small>` : ''}</div>`).join('')}
     <button type="button" class="fin-add" data-action="fin-row-add" data-scope="${scope}" data-sid="${sid}" data-list="${list}">${icon('plus')} ${opts.addLabel || 'بند'}</button>
   </div>`;
 }
@@ -796,7 +800,7 @@ function planSheet(p) {
     add([{ v: title, s: 'sec', span: 4 }]);
     add([{ v: h1, s: 'head', span: 2 }, { v: h2, s: 'head', span: 2 }]);
     const first = R.length + 1;
-    for (const x of list.filter((y) => y.name || y[key])) add([{ v: x.done && p.kind === 'month' ? `${x.name} ✓ دُفع` : x.name, s: 'txt', span: 2 }, { v: x[key] || 0, s: 'num', span: 2 }]);
+    for (const x of list.filter((y) => y.name || y[key])) add([{ v: x.done && p.kind === 'month' && !spendName(x.name) ? `${x.name} ✓ دُفع` : x.name, s: 'txt', span: 2 }, { v: x[key] || 0, s: 'num', span: 2 }]);
     const last = R.length;
     const tot = add([{ v: 'المجموع', s: 'tot', span: 2 }, { f: last >= first ? `SUM(C${first}:C${last})` : '0', v: sum(list, (x) => x[key]), s: 'totnum', span: 2 }]);
     blank();
@@ -807,7 +811,7 @@ function planSheet(p) {
   add([{ v: '٢- المصاريف الدورية', s: 'sec', span: 4 }]);
   add([{ v: 'البند', s: 'head' }, { v: 'كل كم شهر', s: 'head' }, { v: 'المبلغ', s: 'head' }, { v: 'المخصص الشهري', s: 'head' }]);
   const pf = R.length + 1;
-  for (const x of p.periodic.filter((y) => y.name || y.amount)) { const r = R.length + 1; add([{ v: x.done && p.kind === 'month' ? `${x.name} ✓ دُفع` : x.name, s: 'txt' }, { v: x.every || 12, s: 'num' }, { v: x.amount || 0, s: 'num' }, { f: `IFERROR(C${r}/B${r},0)`, v: (x.amount || 0) / (x.every || 12), s: 'num' }]); }
+  for (const x of p.periodic.filter((y) => y.name || y.amount)) { const r = R.length + 1; add([{ v: x.done && p.kind === 'month' && !spendName(x.name) ? `${x.name} ✓ دُفع` : x.name, s: 'txt' }, { v: x.every || 12, s: 'num' }, { v: x.amount || 0, s: 'num' }, { f: `IFERROR(C${r}/B${r},0)`, v: (x.amount || 0) / (x.every || 12), s: 'num' }]); }
   const pl = R.length;
   const per = add([{ v: 'المخصص الشهري للمصاريف الدورية', s: 'tot', span: 3 }, { f: pl >= pf ? `SUM(D${pf}:D${pl})` : '0', v: c.periodic, s: 'totnum' }]);
   add([{ v: 'مخصصها السنوي', s: 'tot', span: 3 }, { f: `D${per}*12`, v: c.periodicYear, s: 'totnum' }]);
