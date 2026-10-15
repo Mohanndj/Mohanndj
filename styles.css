@@ -881,3 +881,28 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .j-more .ghost { display: inline-flex; align-items: center; gap: 4px; }
 .j-more svg { width: 16px; height: 16px; }
 .word-btn svg { color: #2b579a; }
+
+/* v16: journal template management */
+.j-start .row-between { gap: 8px; }
+.j-manage-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--accent); color: var(--accent); font-size: .85rem; font-weight: 700; background: var(--card); }
+.j-manage-btn svg { width: 15px; height: 15px; }
+.j-manage-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.j-manage { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.j-manage li { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; }
+.j-m-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: start; padding: 2px; }
+.j-m-main > span:last-child { display: grid; min-width: 0; }
+.j-m-main b { overflow-wrap: anywhere; }
+.j-m-main small { color: var(--muted); font-size: .78rem; }
+.j-m-emoji { font-size: 1.5rem; line-height: 1; }
+.j-m-btns, .tq-list li { display: flex; gap: 2px; align-items: center; flex: none; }
+.j-m-btns button, .tq-list li button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+.j-m-btns button svg, .tq-list li button svg { width: 17px; height: 17px; }
+.j-m-btns button[data-d="-1"] svg, .tq-list [data-taction="up"] svg { transform: rotate(-90deg); }
+.j-m-btns button[data-d="1"] svg, .tq-list [data-taction="down"] svg { transform: rotate(-90deg); }
+.j-m-btns button:disabled { opacity: .3; }
+.j-m-del { color: var(--high) !important; font-weight: 700; }
+.j-m-del.armed { width: auto !important; padding: 0 8px !important; background: var(--high); color: #fff !important; }
+.tq-list { margin: 0; padding: 0 1.4em 0 0; display: grid; gap: 6px; }
+.tq-list li .tq-in { flex: 1; min-width: 0; }
+.tq-add { justify-self: start; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; }
+.tq-add svg { width: 16px; height: 16px; }

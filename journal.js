@@ -8,7 +8,7 @@
 const MOODS = [['😞', 'صعب'], ['😕', 'متعب'], ['😐', 'عادي'], ['🙂', 'جيد'], ['😄', 'رائع']];
 const JBLOCKS = { mood: 'المزاج', plan: 'خطة اليوم من مهامي', done: 'ما أنجزته اليوم', habits: 'عاداتي اليوم', focus: 'وقت التركيز' };
 const JWHEN = { any: 'أي وقت', morning: 'الصباح', evening: 'المساء', week: 'نهاية الأسبوع' };
-const jUi = { q: '', month: '' };
+const jUi = { q: '', month: '', manage: false };
 
 const DEFAULT_TEMPLATES = [
   { id: 'tpl-evening', emoji: '🌙', name: 'مراجعة المساء', when: 'evening', blocks: { mood: true, done: true, habits: true, focus: true },
@@ -111,7 +111,30 @@ const monthLabel = (m) => parse(`${m}-01`).toLocaleDateString(LOCALE, { month: '
 
 function tplChips(d, compact) {
   const sug = suggestedTpl(d);
+  if (!S.jtemplates.length) return `<button type="button" class="j-tpl" data-action="j-new" data-v=""><span>✍️</span><b>كتابة حرّة</b></button>`;
   return S.jtemplates.map((t) => `<button type="button" class="j-tpl${sug && t.id === sug.id ? ' suggested' : ''}" data-action="j-new" data-v="${t.id}"><span>${esc(t.emoji)}</span><b>${esc(t.name)}</b>${!compact && sug && t.id === sug.id ? '<small>مقترح الآن</small>' : ''}</button>`).join('');
+}
+
+const qCount = (t) => (t.questions.length ? plural(t.questions.length, 'سؤال واحد', 'سؤالان', 'أسئلة', 'سؤالاً') : 'بلا أسئلة');
+// template management: edit, reorder, delete (two taps), add, restore the originals
+function tplManageHTML() {
+  const missing = DEFAULT_TEMPLATES.filter((d) => !getTpl(d.id));
+  const n = S.jtemplates.length;
+  return `<ul class="j-manage">${S.jtemplates.map((t, i) => `<li>
+      <button type="button" class="j-m-main" data-action="j-tpl-edit" data-v="${t.id}"><span class="j-m-emoji">${esc(t.emoji)}</span><span><b>${esc(t.name)}</b><small>${qCount(t)} · ${JWHEN[t.when]}</small></span></button>
+      <div class="j-m-btns">
+        <button type="button" data-action="j-tpl-move" data-v="${t.id}" data-d="-1" aria-label="تقديم"${i ? '' : ' disabled'}>${icon('prev')}</button>
+        <button type="button" data-action="j-tpl-move" data-v="${t.id}" data-d="1" aria-label="تأخير"${i < n - 1 ? '' : ' disabled'}>${icon('next')}</button>
+        <button type="button" data-action="j-tpl-edit" data-v="${t.id}" aria-label="تعديل">${icon('edit')}</button>
+        <button type="button" class="j-m-del" data-action="j-tpl-del" data-v="${t.id}" aria-label="حذف">✕</button>
+      </div>
+    </li>`).join('')}</ul>
+    ${n ? '' : '<p class="note-text">حذفت كل القوالب. أضف قالباً جديداً أو استعد الأصلية، ويمكنك الكتابة الحرّة دائماً.</p>'}
+    <div class="btn-row">
+      ${addBtn('j-tpl-new', 'قالب جديد')}
+      ${missing.length ? `<button type="button" class="ghost" data-action="j-tpl-restore">استعادة القوالب الأصلية (${missing.length})</button>` : ''}
+    </div>
+    <p class="note-text">اضغط على القالب لتعديل اسمه ورمزه وأسئلته وما يُضاف من يومك. حذف القالب لا يحذف اليوميات التي كتبتها به.</p>`;
 }
 
 function viewJournal() {
@@ -130,19 +153,16 @@ function viewJournal() {
     <div class="section-head"><h2>يومياتي</h2><div class="btn-row">${S.journal.length ? `<button type="button" class="xls-btn word-btn" data-action="j-export">${icon('note')}وورد</button>${xlsBtn('journal')}` : ''}</div></div>
     ${S.journal.length ? `<div class="j-stats"><span><b>${S.journal.length}</b> ${S.journal.length >= 3 && S.journal.length <= 10 ? 'يوميات' : 'يومية'}</span><span><b>${thisMonth}</b> هذا الشهر</span><span><b>${streak}</b> ${streak >= 3 && streak <= 10 ? 'أيام متتالية' : 'يوم متتالٍ'}</span></div>` : ''}
     <div class="j-start">
-      <h3>${todays.length ? 'يومية أخرى لليوم؟' : 'اكتب يومية اليوم'}</h3>
-      <div class="j-tpls">${tplChips(t0)}</div>
+      <div class="row-between"><h3>${jUi.manage ? 'قوالبي' : todays.length ? 'يومية أخرى لليوم؟' : 'اكتب يومية اليوم'}</h3>
+        <button type="button" class="j-manage-btn" data-action="j-manage" aria-pressed="${jUi.manage}">${jUi.manage ? `${icon('check')} تم` : `${icon('edit')} تخصيص القوالب`}</button></div>
+      ${jUi.manage ? tplManageHTML() : `<div class="j-tpls">${tplChips(t0)}</div>`}
     </div>
     ${S.journal.length ? `<input type="search" id="jSearch" placeholder="ابحث في يومياتك" aria-label="بحث" value="${esc(jUi.q)}">
       ${months.length > 1 ? `<div class="chips" role="group" aria-label="الشهر"><button type="button" class="chip" data-action="j-month" data-v="" aria-pressed="${!jUi.month}">كل الأشهر</button>${months.map((m) => `<button type="button" class="chip" data-action="j-month" data-v="${m}" aria-pressed="${jUi.month === m}">${esc(monthLabel(m))}</button>`).join('')}</div>` : ''}` : ''}
     ${groups.length ? groups.map((g) => `<h3 class="j-month">${esc(monthLabel(g.m))}</h3><div class="book-list">${g.items.map(jCard).join('')}</div>`).join('')
       : S.journal.length ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى.') : emptyHTML('دفتر يومياتك', 'اختر قالباً أعلاه وابدأ. كل قالب يسألك أسئلة تساعدك على الكتابة، ويضيف تلقائياً ما أنجزته وعاداتك ووقت تركيزك في ذلك اليوم.')}
   </section>
-  <section class="panel">
-    <div class="row-between"><h2>القوالب</h2>${addBtn('j-tpl-new', 'قالب')}</div>
-    <p class="note-text">عدّل الأسئلة كما تحب، واختر ما يُضاف تلقائياً من بيانات يومك. يمكنك كتابة {اليوم} أو {التاريخ} أو {الهجري} أو {الاسم} داخل السؤال فتُستبدل تلقائياً.</p>
-    <ul class="j-tpl-list">${S.jtemplates.map((t) => `<li><button type="button" class="t-main" data-action="j-tpl-edit" data-v="${t.id}"><span class="t-title">${esc(t.emoji)} ${esc(t.name)}</span><span class="meta"><span>${t.questions.length ? plural(t.questions.length, 'سؤال واحد', 'سؤالان', 'أسئلة', 'سؤالاً') : 'بلا أسئلة'}</span><span>${JWHEN[t.when]}</span></span></button></li>`).join('')}</ul>
-  </section>`;
+`;
 }
 
 // «اليوم»: a small invitation to write, or a link to today's entry
@@ -329,27 +349,44 @@ function openJTpl(id) {
       <label class="field"><span>رمز</span><input type="text" id="tEmoji" value="${esc(t.emoji)}" maxlength="4" autocomplete="off" data-novoice></label>
       <label class="field"><span>اسم القالب</span><input type="text" id="tName" value="${esc(t.name)}" autocomplete="off" placeholder="مثال: يومية السفر"></label>
     </div>
-    <label class="field"><span>الأسئلة (سؤال في كل سطر)</span><textarea id="tQs" rows="6" placeholder="ما أجمل ما حدث اليوم؟&#10;ماذا تعلمت؟">${esc(t.questions.join('\n'))}</textarea></label>
-    <p class="note-text">اكتب {اليوم} أو {التاريخ} أو {الهجري} أو {الاسم} داخل السؤال لتُستبدل تلقائياً. اتركها فارغة لقالب كتابة حرّة.</p>
+    <div class="field"><span>الأسئلة</span>
+      <ol class="tq-list" id="tQs">${t.questions.map(tqRow).join('')}</ol>
+      <button type="button" class="ghost tq-add" data-taction="add">${icon('plus')} أضف سؤالاً</button>
+    </div>
+    <p class="note-text">اكتب {اليوم} أو {التاريخ} أو {الهجري} أو {الاسم} داخل السؤال لتُستبدل تلقائياً. بلا أسئلة يصبح القالب كتابة حرّة.</p>
     <div class="field"><span>يُضاف تلقائياً من يومك</span>
       <div class="j-blocks">${Object.entries(JBLOCKS).map(([k, l]) => `<label class="switch"><input type="checkbox" data-block="${k}"${t.blocks[k] ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
     </div>
     <label class="field"><span>يُقترح تلقائياً في</span><select id="tWhen">${Object.entries(JWHEN).map(([v, l]) => `<option value="${v}"${t.when === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
     <div class="sheet-actions">
       <button type="submit" class="primary">${id ? 'حفظ' : 'أضف القالب'}</button>
-      ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
+      ${id ? '<button type="button" class="ghost" data-action="j-tpl-copy">نسخة منه</button><button type="button" class="danger" data-action="lib-delete">حذف القالب</button>' : ''}
     </div>`;
   libArmed = false;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
 }
+const tqRow = (q = '') => `<li><input type="text" class="tq-in" value="${esc(q)}" placeholder="اكتب السؤال" aria-label="سؤال" autocomplete="off">
+  <button type="button" data-taction="up" aria-label="تقديم">${icon('prev')}</button><button type="button" data-taction="down" aria-label="تأخير">${icon('next')}</button><button type="button" class="j-m-del" data-taction="del" aria-label="حذف السؤال">✕</button></li>`;
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-taction]');
+  if (!b) return;
+  const list = $('tQs');
+  const li = b.closest('li');
+  switch (b.dataset.taction) {
+    case 'add': list.insertAdjacentHTML('beforeend', tqRow()); list.lastElementChild.querySelector('input').focus(); break;
+    case 'del': li.remove(); break;
+    case 'up': if (li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); break;
+    case 'down': if (li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); break;
+  }
+});
 function saveJTpl() {
   const name = $('tName').value.trim();
   if (!name) { toast('سمِّ القالب.'); return false; }
   const old = getTpl(ldraft.id);
   const t = normalizeJTemplate({
     ...(old || {}), id: ldraft.id, name, emoji: $('tEmoji').value.trim() || '📝', when: $('tWhen').value,
-    questions: $('tQs').value.split('\n'), updated: Date.now(),
+    questions: [...$('tQs').querySelectorAll('.tq-in')].map((x) => x.value), updated: Date.now(),
     blocks: Object.fromEntries([...$('libForm').querySelectorAll('[data-block]')].map((c) => [c.dataset.block, c.checked])),
   });
   if (old) Object.assign(old, t); else S.jtemplates.push(t);
@@ -442,6 +479,39 @@ document.addEventListener('click', (e) => {
     case 'j-month': jUi.month = v; render(); break;
     case 'j-tpl-new': openJTpl(null); break;
     case 'j-tpl-edit': openJTpl(v); break;
+    case 'j-manage': jUi.manage = !jUi.manage; render(); break;
+    case 'j-tpl-move': {
+      const i = S.jtemplates.findIndex((t) => t.id === v), k = i + Number(el.dataset.d);
+      if (i < 0 || k < 0 || k >= S.jtemplates.length) break;
+      [S.jtemplates[i], S.jtemplates[k]] = [S.jtemplates[k], S.jtemplates[i]];
+      save(); render();
+      break;
+    }
+    case 'j-tpl-del': {
+      if (!el.classList.contains('armed')) {
+        el.classList.add('armed'); el.textContent = 'احذف؟';
+        setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 3000);
+        break;
+      }
+      const t = getTpl(v);
+      S.jtemplates = S.jtemplates.filter((x) => x.id !== v);
+      save(); render();
+      toast(`حُذف قالب «${t ? t.name : ''}»`);
+      break;
+    }
+    case 'j-tpl-restore':
+      for (const d of DEFAULT_TEMPLATES) if (!getTpl(d.id)) S.jtemplates.push(normalizeJTemplate(d));
+      save(); render(); toast('أُعيدت القوالب الأصلية');
+      break;
+    case 'j-tpl-copy': {
+      if (!saveJTpl()) break;
+      const src = getTpl(ldraft.id);
+      const c = normalizeJTemplate({ ...src, id: uid(), name: `${src.name} (نسخة)`, created: Date.now() });
+      S.jtemplates.splice(S.jtemplates.indexOf(src) + 1, 0, c);
+      save(); closeLib(); render(); openJTpl(c.id);
+      toast('أُنشئت نسخة، عدّلها كما تحب');
+      break;
+    }
     case 'j-export': openJExport(); break;
   }
 });
