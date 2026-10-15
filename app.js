@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 21;
+const APP_VERSION = 22;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -424,9 +424,7 @@ function categories() {
 function prayerStripHTML() {
   const d = today();
   const pt = prayerTimes(d);
-  if (!pt) {
-    return `<div class="prayer-cta"><span>${icon('moon')} أضف مدينتك لتظهر أوقات الصلاة</span><button type="button" class="ghost" data-tab="settings">إعداد</button></div>`;
-  }
+  if (!pt) return ''; // «اليوم» holds only today's matters; the city is set in the settings
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const next = Prayer.PRAYERS.find((p) => pt[p] > nowMin) || 'fajr';
@@ -520,16 +518,19 @@ function viewToday() {
       <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
     </div>
   </div>
-  ${remindersHTML()}
+  ${todayBlock('أوقات الصلاة', '', prayerStripHTML())}
+  ${hifzTodayHTML()}
   ${todayHabitsHTML()}
-  ${journalTodayHTML()}
-  ${prayerStripHTML()}
-  ${dailyBenefitHTML()}
+  ${booksTodayHTML()}
+  ${todayBlock('الفوائد', 'benefits', dailyBenefitHTML())}
+  ${decisionsTodayHTML()}
+  ${peopleTodayHTML()}
+  ${todayBlock('يومياتي', 'journal', journalTodayHTML())}
   <section class="section">
-    <div class="section-head"><h2>اليوم</h2>${addBtn('new', 'مهمة')}</div>
+    <div class="section-head"><h2>المهام والأهداف</h2>${addBtn('new', 'مهمة')}</div>
     ${items.some((t) => !isHabit(t))
       ? `<ul class="list">${items.filter((t) => !isHabit(t)).map((t) => itemHTML(t, d)).join('')}</ul>`
-      : emptyHTML('لا مهام لليوم', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا، وعاداتك في مربعها أعلاه.')}
+      : emptyHTML('لا مهام لليوم', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا، وعاداتك في «بناء العادات» أعلاه.')}
   </section>`;
 }
 

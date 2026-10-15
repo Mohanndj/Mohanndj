@@ -92,11 +92,11 @@ function dailyBenefitHTML() {
   if (!f) return '';
   const t0 = today();
   if (f.lastReview === t0) {
-    return `<div class="review-card done"><small>${icon('bulb')} فائدة للمراجعة</small><span>أحسنت، راجعت فائدة اليوم «${esc(f.title || 'فائدة')}».</span></div>`;
+    return `<div class="review-card done"><span>أحسنت، راجعت فائدة اليوم «${esc(f.title || 'فائدة')}».</span></div>`;
   }
   const action = f.actionId && getTask(f.actionId);
   return `<div class="review-card">
-    <small>${icon('bulb')} فائدة للمراجعة</small>
+    <small>${icon('bulb')} فائدة اليوم للمراجعة</small>
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` · ص ${f.page}` : ''}</span>
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 240))}</p>` : ''}

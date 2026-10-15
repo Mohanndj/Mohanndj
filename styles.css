@@ -1194,3 +1194,20 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .fin-exp .switch span { display: grid; }
 .fin-exp small { color: var(--muted); font-size: .8rem; }
 .fin-legend .neg { background: var(--high); }
+
+/* v22: «اليوم» blocks titled with their page's name */
+.tblock { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; display: grid; gap: 6px; }
+.tblock-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tblock-h h2 { margin: 0; font-size: 1.05rem; display: inline-flex; align-items: baseline; gap: 8px; }
+.tblock-h h2 small { color: var(--muted); font-weight: 400; font-size: .8rem; }
+.tblock-go { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-size: .8rem; padding: 4px 6px; border-radius: 8px; white-space: nowrap; }
+.tblock-go svg { width: 14px; height: 14px; }
+.tlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.tlist button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: start; padding: 6px 4px; border-radius: 10px; }
+.tlist button > span:last-child { display: grid; min-width: 0; }
+.tlist b { font-size: .95rem; overflow-wrap: anywhere; }
+.tlist small { color: var(--muted); font-size: .8rem; }
+.tlist button.done { opacity: .6; }
+.tblock .prayers, .tblock .review-card { margin: 0; border: 0; padding: 0; background: transparent; box-shadow: none; }
+.tblock .j-today { border: 0; padding: 4px 0; }
+.habits-today .tblock-h { margin-bottom: 2px; }

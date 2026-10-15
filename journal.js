@@ -171,7 +171,7 @@ function journalTodayHTML() {
   const j = S.journal.filter((x) => x.date === t0 && !jEmpty(x)).sort((a, b) => b.updated - a.updated)[0];
   if (j) return `<button type="button" class="j-today done" data-action="j-open" data-v="${j.id}"><span>${j.mood ? MOODS[j.mood - 1][0] : '📖'}</span><span><b>كتبت يومية اليوم</b><small>${esc(excerpt(jText(j) || j.tplName, 60))}</small></span></button>`;
   const t = suggestedTpl(t0);
-  if (!t) return '';
+  if (!t || !S.journal.length) return ''; // an invitation only for someone who keeps a journal
   return `<button type="button" class="j-today" data-action="j-new" data-v="${t.id}"><span>${esc(t.emoji)}</span><span><b>يومياتي: ${esc(t.name)}</b><small>${esc(t.questions[0] ? fillPlaceholders(t.questions[0], t0) : 'دقيقتان من الكتابة تكفي')}</small></span></button>`;
 }
 

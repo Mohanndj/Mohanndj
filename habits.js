@@ -168,14 +168,10 @@ function todayHabitsHTML() {
   const t0 = today();
   const habits = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && occursOn(t, t0))
     .sort((a, b) => habitStats(a).graduated - habitStats(b).graduated || (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
-  const building = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && !habitStats(t).graduated).length;
-  if (!habits.length) {
-    if (building) return '';
-    return `<button type="button" class="habits-today empty-cta" data-tab="goals">${icon('target')}<span><b>ابنِ عادة جديدة</b><small>حتى ${HABIT_MAX} عادات في وقت واحد، مع مقياس لقوتها</small></span></button>`;
-  }
+  if (!habits.length) return ''; // nothing scheduled today
   const done = habits.filter((t) => t.completions[t0]).length;
   return `<section class="habits-today" aria-label="عاداتي اليوم">
-    <div class="row-between"><h2>عاداتي اليوم</h2><small class="num">${done} من ${habits.length}</small></div>
+    <div class="tblock-h"><h2>بناء العادات <small class="num">${done} من ${habits.length}</small></h2><button type="button" class="tblock-go" data-tab="goals">الأهداف ${icon('next')}</button></div>
     <ul>${habits.map((t) => {
       const st = habitStats(t);
       const isDone = !!t.completions[t0];
