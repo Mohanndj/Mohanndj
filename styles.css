@@ -1355,3 +1355,20 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
   .fin-rows.c3 .fin-row:has(.fin-chk) { grid-template-columns: minmax(0, 1fr) auto 34px; }
   .fin-rows.c3 .fin-row:has(.fin-chk) > input[data-k="name"] { grid-column: 1 / -1; }
 }
+
+/* ================= v30: payments from Today, actual against the plan ================= */
+.td-spend { background: transparent; border: 0; padding: 0; }
+.td-spend select { min-width: 0; }
+.td-list { margin-top: 2px; }
+.fin-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fin-cmp > div { display: grid; gap: 2px; background: var(--bg); border-radius: 12px; padding: 8px 10px; font-size: .85rem; color: var(--muted); }
+.fin-cmp > div > small { font-weight: 700; color: var(--fg); }
+.fin-cmp span { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.fin-cmp b { color: var(--fg); }
+.fin-cmp .neg b { color: var(--high); }
+.fin-cmp .pos b { color: var(--low); }
+.fin-loose { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.fin-loose h4 { margin: 0; font-size: .92rem; }
+.fin-loose ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fin-loose li { display: grid; gap: 4px; }
+.fin-loose select { min-width: 0; }

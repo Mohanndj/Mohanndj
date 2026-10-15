@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 29;
+const APP_VERSION = 30;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -538,6 +538,7 @@ function viewToday() {
     bills: billsTodayHTML,
     later: laterTodayHTML,
     journal: () => todayBlock('يومياتي وتأملاتي', 'journal', journalTodayHTML()),
+    spend: spendTodayHTML,
     lists: shopTodayHTML,
     tasks: () => `<section class="section">
     <div class="section-head"><h2>المهام والأهداف</h2>${addBtn('new', 'مهمة')}</div>

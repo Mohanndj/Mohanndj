@@ -48,7 +48,7 @@ function projCalc(p) {
   return { cost, bought, left, fund, avail, gap: avail - left, pct: cost ? Math.round((bought / cost) * 100) : 0 };
 }
 function normalizeTx(t) {
-  return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), created: t.created || Date.now() };
+  return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), ref: String(t.ref || ''), created: t.created || Date.now() };
 }
 
 // ---------- calculations ----------
@@ -56,10 +56,51 @@ function planCalc(p) {
   const income = sum(p.income), fixed = sum(p.fixed);
   const periodic = sum(p.periodic, (x) => x.amount / (x.every || 12));
   const left = income - fixed - periodic;
-  // in a monthly plan each expense can be ticked «دُفع»: what was paid, what is still to pay, and
-  // what is really left of the income right now
-  const paidOut = sum(p.fixed.filter((x) => x.done)) + sum(p.periodic.filter((x) => x.done), (x) => x.amount / (x.every || 12));
-  return { income, fixed, periodic, periodicYear: periodic * 12, left, accounts: sum(p.accounts, (x) => x.balance), paidOut, toPay: fixed + periodic - paidOut, inHand: income - paidOut };
+  return { income, fixed, periodic, periodicYear: periodic * 12, left, accounts: sum(p.accounts, (x) => x.balance) };
+}
+// a monthly plan against reality: payments recorded that month (from «اليوم» or «المصروف»), each
+// added to its plan item or marked outside the plan. An item ticked «دُفع» with no payment counts
+// as paid in full. inHand is what is really left of the income now.
+function planRows(p) {
+  return [...p.fixed.map((x) => ({ x, list: 'fixed', plan: x.amount })), ...p.periodic.map((x) => ({ x, list: 'periodic', plan: x.amount / (x.every || 12) }))].filter((r) => r.x.name || r.plan);
+}
+function planActual(p) {
+  const c = planCalc(p);
+  const txs = p.kind === 'month' && p.month ? S.finTx.filter((t) => t.d.slice(0, 7) === p.month) : [];
+  const outs = txs.filter((t) => t.kind === 'out');
+  const rows = planRows(p);
+  for (const r of rows) {
+    r.spent = sum(outs.filter((t) => t.ref === r.x.id));
+    r.paid = r.spent || (r.x.done ? r.plan : 0);
+    r.left = r.x.done ? 0 : Math.max(0, r.plan - r.paid);
+  }
+  const outside = outs.filter((t) => t.ref === 'out');
+  const loose = outs.filter((t) => t.ref !== 'out' && !rows.some((r) => r.x.id === t.ref));
+  const paidPlan = sum(rows, (r) => r.paid);
+  const extra = sum(txs.filter((t) => t.kind === 'in'));
+  const spent = paidPlan + sum(outside) + sum(loose);
+  return { ...c, rows, extra, paidPlan, outside, loose, spent, toPay: sum(rows, (r) => r.left), inHand: c.income + extra - spent };
+}
+// adding a payment to an item: once what was paid reaches the planned amount, tick it «دُفع»
+function assignTx(t, ref, p) {
+  const r = p && planRows(p).find((y) => y.x.id === ref);
+  if (r && t.item !== r.x.name) { if (t.item && !t.note) t.note = t.item; t.item = r.x.name; }
+  if (ref === 'out' && !t.item) t.item = 'خارج المخطط';
+  t.ref = ref;
+  if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && y.d.slice(0, 7) === p.month)); if (r.plan && got >= r.plan - 0.5) r.x.done = true; }
+}
+const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
+
+// «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
+function spendTodayHTML() {
+  const t0 = today(), p = monthPlan(t0.slice(0, 7));
+  const list = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
+  return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
+      <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
+      <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${refOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
+    </form>
+    ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
+      <p class="note-text">دفعت اليوم ${money(sum(list))}</p>` : ''}`);
 }
 const paid = (d) => sum(d.payments);
 const debtLeft = (d) => Math.max(0, d.total - paid(d));
@@ -151,6 +192,28 @@ function finPlansHTML() {
   </section>`;
 }
 
+function planActualHTML(p) {
+  const a = planActual(p);
+  const planned = a.fixed + a.periodic;
+  if (!planned && !a.spent) return '';
+  const pct = planned ? Math.min(100, (a.paidPlan / planned) * 100) : 0;
+  const bars = a.rows.filter((r) => r.paid || r.spent).map((r) => hbar(`${esc(r.x.name)}${r.spent > r.plan + 0.5 ? ' ⚠️' : ''}`, `${money(r.paid)} من ${money(r.plan)}`, r.plan ? Math.min(100, Math.round((r.paid / r.plan) * 100)) : 100, r.spent > r.plan + 0.5 ? 'var(--high)' : undefined)).join('');
+  return `<div class="panel fin-paid">
+    <h3>الفعلي هذا الشهر <small>${Math.round(pct)}٪ من المخطط</small></h3>
+    <div class="progress-line"><i style="width:${pct}%"></i></div>
+    <div class="fin-cmp">
+      <div><small>على الورق</small><span>المصاريف <b>${money(planned)}</b></span><span>المتبقي من الدخل <b>${money(a.left)}</b></span></div>
+      <div><small>في الواقع</small><span>صرفت <b>${money(a.spent)}</b></span><span class="${a.inHand < 0 ? 'neg' : 'pos'}">المتبقي من الدخل <b>${money(a.inHand)}</b></span></div>
+    </div>
+    <div class="fin-tiles"><span><b>${money(a.paidPlan)}</b>دُفع من المخطط</span><span><b>${money(a.toPay)}</b>باقٍ دفعه</span><span class="${sum(a.outside) ? 'neg' : ''}"><b>${money(sum(a.outside))}</b>خارج المخطط</span></div>
+    ${a.extra ? `<p class="note-text">ومعه دخل إضافي هذا الشهر ${money(a.extra)}.</p>` : ''}
+    ${bars ? `<ul class="hbars">${bars}${sum(a.outside) ? hbar('خارج المخطط', money(sum(a.outside)), 100, 'var(--mid)') : ''}</ul>` : ''}
+    ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
+      <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
+        <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
+    <p class="note-text">سجّل ما تدفعه من «اليوم» أو «المصروف» وأضفه إلى بنده، أو ضع «دُفع» أمام البند إن دفعته كاملاً.</p>
+  </div>`;
+}
 function planDetailHTML(p) {
   const c = planCalc(p);
   const isActive = activePlan() && activePlan().id === p.id;
@@ -165,12 +228,7 @@ function planDetailHTML(p) {
       ${p.kind === 'month' ? `<input type="month" id="fp-month" data-fin="plan" data-sid="${p.id}" data-k="month" value="${p.month}" aria-label="الشهر">` : ''}
     </div>
     ${splitBar(c)}
-    ${p.kind === 'month' && c.fixed + c.periodic ? `<div class="panel fin-paid">
-      <h3>المدفوع هذا الشهر <small>${Math.round((c.paidOut / (c.fixed + c.periodic)) * 100)}٪</small></h3>
-      <div class="progress-line"><i style="width:${Math.min(100, (c.paidOut / (c.fixed + c.periodic)) * 100)}%"></i></div>
-      <div class="fin-tiles"><span><b>${money(c.paidOut)}</b>دُفع</span><span><b>${money(c.toPay)}</b>باقٍ دفعه</span><span class="${c.inHand < 0 ? 'neg' : 'pos'}"><b>${money(c.inHand)}</b>المتبقي فعلياً من الدخل</span></div>
-      <p class="note-text">ضع علامة «دُفع» أمام كل مصروف تدفعه، فيُخصم من دخلك هنا. وبعد دفع الباقي يبقى لك ${money(c.left)}.</p>
-    </div>` : ''}
+    ${p.kind === 'month' ? planActualHTML(p) : ''}
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${rowsHTML('plan', p.id, 'income', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.income, { addLabel: 'دخل' })}</div>
     <div class="panel"><h3>١- المصاريف الشهرية الثابتة <small>${money(c.fixed)}</small></h3>
       <p class="note-text">مبالغ تُدفع كل شهر بشكل ثابت ومكرر.</p>
@@ -612,9 +670,10 @@ function planSheet(p) {
   blank();
   const sumHead = add([{ v: 'الدخل', s: 'head' }, { v: 'المصاريف', s: 'head' }, { v: 'المتبقي للادخار', s: 'head' }, { v: 'نسبة الادخار', s: 'head' }]);
   const sumRow = add([null, null, null, null]); // filled once the totals' cells are known
-  if (p.kind === 'month' && c.paidOut) {
-    add([{ v: 'دُفع حتى الآن', s: 'head' }, { v: 'باقٍ دفعه', s: 'head' }, { v: 'المتبقي فعلياً من الدخل', s: 'head', span: 2 }]);
-    add([{ v: c.paidOut, s: 'num' }, { v: c.toPay, s: 'num' }, { v: c.inHand, s: c.inHand < 0 ? 'bad' : 'good', span: 2 }]);
+  const a = planActual(p);
+  if (p.kind === 'month' && a.spent) {
+    add([{ v: 'صرفت فعلياً', s: 'head' }, { v: 'باقٍ دفعه', s: 'head' }, { v: 'خارج المخطط', s: 'head' }, { v: 'المتبقي فعلياً من الدخل', s: 'head' }]);
+    add([{ v: a.spent, s: 'num' }, { v: a.toPay, s: 'num' }, { v: sum(a.outside), s: 'num' }, { v: a.inHand, s: a.inHand < 0 ? 'bad' : 'good' }]);
   }
   blank();
   const twoCol = (title, h1, h2, list, key) => {
@@ -856,11 +915,38 @@ document.addEventListener('click', (e) => {
   }
 });
 document.addEventListener('submit', (e) => {
+  if (e.target.id !== 'tdSpend') return;
+  e.preventDefault();
+  const amount = num($('tdAmt').value);
+  if (!amount) { $('tdAmt').focus(); toast('اكتب المبلغ.'); return; }
+  const t = normalizeTx({ amount, kind: 'out', item: $('tdWhy').value.trim(), d: today() });
+  S.finTx.push(t);
+  const p = monthPlan(t.d.slice(0, 7));
+  const named = !$('tdRef').value && p && planRows(p).find((r) => r.x.name && r.x.name === t.item);
+  const ref = $('tdRef').value || (named ? named.x.id : '');
+  if (ref) assignTx(t, ref, monthPlan(t.d.slice(0, 7)));
+  save(); render();
+  toast(`سُجّل ${money(amount)}${ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
+});
+document.addEventListener('change', (e) => {
+  const id = e.target.dataset && e.target.dataset.assign;
+  if (!id || !e.target.value) return;
+  const t = S.finTx.find((x) => x.id === id);
+  if (!t) return;
+  assignTx(t, e.target.value, getFinPlan(e.target.dataset.plan));
+  save(); render();
+  toast(e.target.value === 'out' ? 'سُجّلت خارج المخطط' : `أُضيفت إلى «${t.item}»`);
+});
+document.addEventListener('submit', (e) => {
   if (e.target.id !== 'finTxForm') return;
   e.preventDefault();
   const amount = num($('txAmount').value);
   if (!amount) { $('txAmount').focus(); toast('اكتب المبلغ.'); return; }
-  S.finTx.push(normalizeTx({ amount, kind: finUi.txKind || 'out', item: $('txItem').value.trim(), note: $('txNote').value.trim(), d: $('txDate').value || today() }));
+  const t = normalizeTx({ amount, kind: finUi.txKind || 'out', item: $('txItem').value.trim(), note: $('txNote').value.trim(), d: $('txDate').value || today() });
+  S.finTx.push(t);
+  const p = monthPlan(t.d.slice(0, 7));
+  const r = t.kind === 'out' && p && planRows(p).find((y) => y.x.name && y.x.name === t.item);
+  if (r) assignTx(t, r.x.id, p);
   save();
   render();
   $('txAmount').focus();
