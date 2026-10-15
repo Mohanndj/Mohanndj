@@ -40,7 +40,7 @@ function finBillsHTML() {
       </button>
       ${s.active ? `<div class="btn-row"><button type="button" class="ghost" data-action="sub-paid" data-v="${s.id}">${s.auto ? 'خُصم ✓' : 'دفعت ✓'}</button></div>` : ''}
     </article>`; }).join('')}</div>
-    ${activePlan() && act.length ? `<button type="button" class="ghost" data-action="sub-to-plan">أضفها إلى خطة «${esc(planTitle(activePlan()))}»</button>` : ''}`
+    ${act.length ? '<p class="note-text">🔗 تظهر تلقائياً بنوداً في خطة هذا الشهر وما بعده، و«دفعت» يسجّلها في المصروف ويؤشّر عليها في الخطة.</p>' : ''}`
       : emptyHTML('لا اشتراكات ولا فواتير', 'سجّل اشتراكاتك وفواتيرك (الجوال، الإنترنت، التأمين، تجديد الاستمارة…) ومواعيدها، فيذكّرك التطبيق قبلها في صفحة «اليوم».', addBtn('sub-new', 'أضف أول واحد'))}
   </section>`;
 }
@@ -77,14 +77,11 @@ function saveSub() {
 }
 function paySub(id) {
   const s = S.subs.find((x) => x.id === id);
-  s.paid.push({ id: uid(), d: today(), amount: s.amount, note: '' });
-  S.finTx.push(normalizeTx({ amount: s.amount, kind: 'out', item: s.name, note: BILL_KIND[s.kind] }));
-  // move to the next date after today (skipping missed cycles)
-  let next = s.next;
-  do { next = addMonths(next, s.every); } while (next <= today());
-  s.next = next;
+  // one payment: in the bill, in «المصروف», and ticked in this month's plan (links.js)
+  const t = payLink(`sub:${s.id}`, s.amount, today());
+  if (t) t.note = BILL_KIND[s.kind];
   save(); render();
-  toast(`سُجّل في المصروف. الموعد القادم ${fmtDate(next, { day: 'numeric', month: 'long' })}`);
+  toast(`سُجّل في المصروف والخطة. الموعد القادم ${fmtDate(s.next, { day: 'numeric', month: 'long' })}`);
 }
 function subsToPlan() {
   const p = activePlan();

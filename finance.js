@@ -10,13 +10,13 @@ const EVERY_M = [1, 2, 3, 4, 6, 12, 24];
 const money = (n) => `${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US')} ${S.settings.currency || 'ريال'}`;
 const num = (v) => { const n = Number(String(v).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[,٬\s]/g, '')); return Number.isFinite(n) ? n : 0; };
 const sum = (arr, f = (x) => x.amount) => arr.reduce((n, x) => n + (Number(f(x)) || 0), 0);
-const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num(o.amount), ...(o.every != null ? { every: Math.max(1, num(o.every) || 12) } : {}), ...(o.balance != null ? { balance: num(o.balance) } : {}), ...(o.done != null ? { done: !!o.done } : {}) });
+const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num(o.amount), ...(o.every != null ? { every: Math.max(1, num(o.every) || 12) } : {}), ...(o.balance != null ? { balance: num(o.balance) } : {}), ...(o.done != null ? { done: !!o.done } : {}), ...(o.link ? { link: String(o.link) } : {}) });
 
 function normalizeFinPlan(p) {
   return {
     id: p.id || uid(), name: String(p.name || 'خطة'), kind: p.kind === 'scenario' ? 'scenario' : 'month', month: p.month || '',
     income: (p.income || []).map(row), fixed: (p.fixed || []).map(row), periodic: (p.periodic || []).map((x) => row({ ...x, every: x.every ?? 12 })),
-    accounts: (p.accounts || []).map((x) => row({ ...x, balance: x.balance ?? 0 })), goal: num(p.goal), notes: String(p.notes || ''),
+    accounts: (p.accounts || []).map((x) => row({ ...x, balance: x.balance ?? 0 })), goal: num(p.goal), notes: String(p.notes || ''), unlinked: Array.isArray(p.unlinked) ? p.unlinked.map(String) : [],
     created: p.created || Date.now(), updated: p.updated || Date.now(),
   };
 }
@@ -48,7 +48,7 @@ function projCalc(p) {
   return { cost, bought, left, fund, avail, gap: avail - left, pct: cost ? Math.round((bought / cost) * 100) : 0 };
 }
 function normalizeTx(t) {
-  return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), ref: String(t.ref || ''), created: t.created || Date.now() };
+  return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), ref: String(t.ref || ''), src: String(t.src || ''), created: t.created || Date.now() };
 }
 
 // ---------- calculations ----------
@@ -87,6 +87,7 @@ function assignTx(t, ref, p) {
   if (r && t.item !== r.x.name) { if (t.item && !t.note) t.note = t.item; t.item = r.x.name; }
   if (ref === 'out' && !t.item) t.item = 'خارج المخطط';
   t.ref = ref;
+  if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t); return; }
   if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && y.d.slice(0, 7) === p.month)); if (r.plan && got >= r.plan - 0.5) r.x.done = true; }
 }
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
@@ -94,6 +95,7 @@ const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
 function spendTodayHTML() {
   const t0 = today(), p = monthPlan(t0.slice(0, 7));
+  if (syncPlanLinks(p)) save();
   const list = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
       <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
@@ -131,16 +133,17 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
     const id = `f-${list}-${x.id}-${c.k}`;
     if (c.k === 'every') return `<select id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="every" aria-label="التكرار">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select>`;
     if (c.k === 'done') return `<label class="fin-chk"><input type="checkbox" id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="done"${x.done ? ' checked' : ''}><span>${c.label || 'تم'}</span></label>`;
-    return `<input type="${c.num ? 'text' : 'text'}" ${c.num ? 'inputmode="decimal" class="num-in"' : ''} id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="${c.k}" value="${esc(c.num ? (x[c.k] || '') : x[c.k])}" placeholder="${c.ph}" aria-label="${c.ph}" autocomplete="off"${c.num ? ' data-novoice' : ''}>`;
+    return `<input type="${c.num ? 'text' : 'text'}" ${c.num ? 'inputmode="decimal" class="num-in"' : ''} id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="${c.k}" value="${esc(c.num ? (x[c.k] || '') : x[c.k])}" placeholder="${c.ph}" aria-label="${c.ph}" autocomplete="off"${c.num ? ' data-novoice' : ''}${x.link && c.k === 'amount' ? ' readonly title="يُعدَّل من مصدره"' : ''}>`;
   };
   return `<div class="fin-rows c${cols.length}">
-    ${items.map((x) => `<div class="fin-row${x.done ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra ? `<small class="fin-x">${opts.extra(x)}</small>` : ''}</div>`).join('')}
+    ${items.map((x) => `<div class="fin-row${x.done ? ' done' : ''}">${cols.map((c) => inp(x, c)).join('')}<button type="button" class="fin-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${sid}" data-list="${list}" data-v="${x.id}" aria-label="حذف">✕</button>${opts.extra || x.link ? `<small class="fin-x">${[x.link ? `🔗 من ${esc(linkLabel(x.link))} · يُحدَّث تلقائياً` : '', opts.extra ? opts.extra(x) : ''].filter(Boolean).join(' · ')}</small>` : ''}</div>`).join('')}
     <button type="button" class="fin-add" data-action="fin-row-add" data-scope="${scope}" data-sid="${sid}" data-list="${list}">${icon('plus')} ${opts.addLabel || 'بند'}</button>
   </div>`;
 }
 
 // ---------- page ----------
 function viewFinance() {
+  syncAllPlans();
   const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['ledger', 'الديون والحقوق'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
   const ap = activePlan();
   const c = ap ? planCalc(ap) : null;
@@ -197,7 +200,8 @@ function planActualHTML(p) {
   const planned = a.fixed + a.periodic;
   if (!planned && !a.spent) return '';
   const pct = planned ? Math.min(100, (a.paidPlan / planned) * 100) : 0;
-  const bars = a.rows.filter((r) => r.paid || r.spent).map((r) => hbar(`${esc(r.x.name)}${r.spent > r.plan + 0.5 ? ' ⚠️' : ''}`, `${money(r.paid)} من ${money(r.plan)}`, r.plan ? Math.min(100, Math.round((r.paid / r.plan) * 100)) : 100, r.spent > r.plan + 0.5 ? 'var(--high)' : undefined)).join('');
+  const over = (r) => r.list === 'fixed' && r.spent > r.plan + 0.5;
+  const bars = a.rows.filter((r) => r.paid || r.spent).map((r) => hbar(`${esc(r.x.name)}${over(r) ? ' ⚠️' : ''}`, `${money(r.paid)} من ${money(r.plan)}`, r.plan ? Math.min(100, Math.round((r.paid / r.plan) * 100)) : 100, over(r) ? 'var(--high)' : undefined)).join('');
   return `<div class="panel fin-paid">
     <h3>الفعلي هذا الشهر <small>${Math.round(pct)}٪ من المخطط</small></h3>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
@@ -215,6 +219,7 @@ function planActualHTML(p) {
   </div>`;
 }
 function planDetailHTML(p) {
+  if (syncPlanLinks(p)) save();
   const c = planCalc(p);
   const isActive = activePlan() && activePlan().id === p.id;
   return `<section class="section fin-plan">
@@ -411,7 +416,9 @@ function savePayment() {
   const x = (isDebt ? S.finDebts : S.finRights).find((d) => d.id === ldraft.id);
   const amount = num($('pyAmount').value);
   if (!amount) { toast('اكتب المبلغ.'); return false; }
-  x.payments.push({ id: uid(), d: $('pyDate').value || today(), amount, note: $('pyNote').value.trim() });
+  const d = $('pyDate').value || today();
+  if (isDebt) { const t = payLink(`debt:${x.id}`, amount, d); const pay = t && x.payments.find((p) => t.src.endsWith(`:${p.id}`)); if (pay) pay.note = $('pyNote').value.trim(); }
+  else x.payments.push({ id: uid(), d, amount, note: $('pyNote').value.trim() });
   save();
   const left = isDebt ? debtLeft(x) : rightLeft(x);
   toast(left ? `سُجّلت. الباقي ${money(left)}` : isDebt ? `🎉 سددت دَين ${x.name} كاملاً!` : ldraft.of === 'owe' ? `🎉 أدّيت حق ${x.name} كاملاً` : `استلمت حقك من ${x.name} كاملاً`);
@@ -839,6 +846,12 @@ document.addEventListener('change', (e) => {
   const obj = finScope(el.dataset.fin, el.dataset.sid);
   if (!obj) return;
   const k = el.dataset.k;
+  const lrow = el.dataset.list && k === 'done' ? obj[el.dataset.list].find((x) => x.id === el.dataset.row) : null;
+  if (lrow && lrow.link) {
+    if (el.checked) { const d = obj.month === curMonth() ? today() : obj.month < curMonth() ? iso(new Date(+obj.month.slice(0, 4), +obj.month.slice(5, 7), 0)) : `${obj.month}-01`; payLink(lrow.link, lrow.amount, d); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
+    else { unpayLinkMonth(lrow.link, obj.month); toast('أُلغي دفع هذا الشهر'); }
+    save(); render(); return;
+  }
   const val = el.type === 'checkbox' ? el.checked : ['amount', 'balance', 'every', 'goal'].includes(k) ? num(el.value) : el.value;
   if (el.dataset.list) { const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row); if (r) r[k] = k === 'name' ? String(val).trim() : val; }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
@@ -888,11 +901,16 @@ document.addEventListener('click', (e) => {
       const inp = $(`f-${L}-${r.id}-name`); if (inp) inp.focus();
       break;
     }
-    case 'fin-row-del': { const obj = finScope(el.dataset.scope, el.dataset.sid); obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v); save(); render(); break; }
+    case 'fin-row-del': {
+      const obj = finScope(el.dataset.scope, el.dataset.sid);
+      const r = obj[el.dataset.list].find((x) => x.id === v);
+      if (r && r.link && obj.unlinked) { obj.unlinked.push(r.link); toast('حُذف، ولن يُضاف تلقائياً إلى هذه الخطة'); }
+      obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v); save(); render(); break;
+    }
     case 'fin-month': finUi.month = v; render(); break;
     case 'fin-mode': ldraft.mode = v; for (const b of $('fmMode').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
     case 'fin-txkind': finUi.txKind = v; for (const b of $('txKind').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
-    case 'fin-tx-del': S.finTx = S.finTx.filter((t) => t.id !== v); save(); render(); break;
+    case 'fin-tx-del': { const t = S.finTx.find((x) => x.id === v); unpayTx(t); S.finTx = S.finTx.filter((x) => x.id !== v); syncAllPlans(); save(); render(); if (t && t.src) toast(`حُذف، وأُلغي من ${linkLabel(t.src.split(':').slice(0, 2).join(':'))}`); break; }
     case 'debt-new': openLedger('debt', null); break;
     case 'debt-open': openLedger('debt', v); break;
     case 'debt-pay': openPayment('debt', v); break;
@@ -905,7 +923,7 @@ document.addEventListener('click', (e) => {
     case 'fin-lg': finUi.tab = 'ledger'; finUi.lg = v; render(); break;
     case 'lg-pay-del': {
       const x = (ldraft.kind === 'debt' ? S.finDebts : S.finRights).find((d) => d.id === ldraft.id);
-      x.payments = x.payments.filter((p) => p.id !== v); save(); openLedger(ldraft.kind, x.id); render();
+      x.payments = x.payments.filter((p) => p.id !== v); if (ldraft.kind === 'debt') { dropPayment(`debt:${x.id}`, v); syncAllPlans(); } save(); openLedger(ldraft.kind, x.id); render();
       break;
     }
     case 'proj-new': { const p = normalizeFinProject({ name: 'مشروع جديد', items: [{ name: '', amount: 0 }], funding: [] }); S.finProjects.push(p); save(); finUi.proj = p.id; render(); break; }

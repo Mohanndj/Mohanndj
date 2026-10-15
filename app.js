@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -445,7 +445,7 @@ function smartHTML() {
   return `<form class="smart" id="smartForm" autocomplete="off">
     <label class="smart-label" for="smartIn">${icon('spark')} أضف بسرعة بكلامك</label>
     <div class="smart-row">
-      <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="مثال: اتصل بأبي بكرة الساعة 5 العصر" enterkeyhint="done">
+      <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="${smartAll() ? 'مهمة، أو: دفعت ١٥٠ بنزين، اشتر حليب، فكرة: …' : 'مثال: اتصل بأبي بكرة الساعة 5 العصر'}" enterkeyhint="done">
       <button type="submit" class="primary">إضافة</button>
     </div>
     ${AI.on() ? `<div class="btn-row smart-ai">${aiBtn('ai-smart', 'افهمها بالذكاء الاصطناعي')}<small class="hint">لجملة طويلة أو عدة مهام في فقرة واحدة</small></div>` : ''}
@@ -484,6 +484,8 @@ function smartPreviewHTML() {
   if (!text) {
     return `<div class="examples" aria-label="أمثلة">${SMART_EXAMPLES.map((e) => `<button type="button" data-action="example" data-v="${esc(e)}">${esc(e)}</button>`).join('')}</div>`;
   }
+  const q = smartAll() && routeSmart(text);
+  if (q) return routePreviewHTML(q);
   const r = SmartParse.parse(text);
   if (!r.title) return '<div class="parsed"><span class="tag warn">اكتب ما تريد فعله</span></div>';
   const t = smartToTask(r);
@@ -518,6 +520,7 @@ function viewToday() {
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   const parts = {
+    close: closeTodayHTML,
     quote: dailyQuoteHTML,
     smart: smartHTML,
     summary: () => `<div class="today-card">
@@ -1007,6 +1010,7 @@ function viewSettings() {
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
     </div>
   </section>
+  ${smartSettingsHTML()}
   ${Sync.settingsHTML()}
   ${aiSettingsHTML()}
   ${Voice.settingsHTML()}
@@ -2223,6 +2227,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('submit', (e) => {
   if (e.target.id !== 'smartForm') return;
   e.preventDefault();
+  const q = smartAll() && routeSmart(ui.smart);
+  if (q) { const msg = runRoute(q); ui.smart = ''; render(); toast(msg); return; }
   const r = SmartParse.parse(ui.smart);
   if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبي بكرة الساعة 5'); return; }
   const t = smartToTask(r);

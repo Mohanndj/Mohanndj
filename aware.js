@@ -23,6 +23,7 @@ function awareStats(m) {
   add('tasks', '✅', 'المهام والتخطيط الأسبوعي', 'week', pctOf(doneTasks.length, dueTasks.length), [
     dueTasks.length && `أنجزت ${doneTasks.length} من ${dueTasks.length} مهمة كان موعدها هذا الشهر`,
     weeksSet && `حدّدت أولويات ${weeksSet} ${weeksSet === 1 ? 'أسبوع' : 'أسابيع'}`,
+    closedDays().filter(inM).length && `أغلقت يومك ${plural(closedDays().filter(inM).length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
   ]);
 
   // الحفظ

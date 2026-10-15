@@ -1372,3 +1372,12 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .fin-loose ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .fin-loose li { display: grid; gap: 4px; }
 .fin-loose select { min-width: 0; }
+
+/* ================= v31: day close ================= */
+.close-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.close-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.close-list li > span:first-child { width: 20px; text-align: center; color: var(--muted); font-weight: 700; }
+.close-list li.ok > span:first-child { color: var(--low); }
+.close-list li > span:nth-child(2) { flex: 1; min-width: 0; }
+.close-list li.ok > span:nth-child(2) { color: var(--muted); }
+.close-done { width: 100%; margin-top: 4px; }

@@ -3,7 +3,7 @@
 // which parts show at all. Saved in S.settings (todayOrder, todayHidden, moreOrder).
 
 const TODAY_PARTS = [
-  ['quote', 'عبارة اليوم'], ['smart', 'الإضافة السريعة'], ['summary', 'ملخص اليوم'], ['prayer', 'أوقات الصلاة'],
+  ['close', 'إغلاق اليوم (مساءً)'], ['quote', 'عبارة اليوم'], ['smart', 'الإضافة السريعة'], ['summary', 'ملخص اليوم'], ['prayer', 'أوقات الصلاة'],
   ['hifz', 'الحفظ'], ['habits', 'بناء العادات'], ['health', 'الصحة'], ['books', 'الكتب'], ['benefits', 'الفوائد'],
   ['decisions', 'سجل القرارات'], ['people', 'الأحبّة'], ['bills', 'الاشتراكات والفواتير'], ['later', 'الشراء المؤجّل'],
   ['journal', 'يومياتي وتأملاتي'], ['spend', 'المصروف'], ['lists', 'القوائم'], ['tasks', 'المهام والأهداف'],
