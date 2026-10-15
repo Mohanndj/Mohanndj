@@ -38,6 +38,26 @@ function hzNext(h, grade) {
 }
 const inDays = (n) => (n <= 1 ? 'غداً' : n < 30 ? `${afterDays(n)}` : n < 365 ? `بعد ${Math.round(n / 30)} ${Math.round(n / 30) <= 2 ? 'شهر' : 'أشهر'}` : 'بعد سنة');
 
+// ---------- poems: read whatever was pasted into abyat ----------
+// Copied poems come as «صدر * عجز», with the halves on separate lines, split by tabs or wide
+// spaces, numbered, or with blank lines between abyat. mode: auto | pairs (two lines = one bayt) | sep (one line = one bayt)
+const SHATR_SEP = /\s*(?:\*+|…+|\.{3,}|\t+|\s{2,}|\s[-–—|]{1,3}\s)\s*/;
+const cleanPoemLine = (l) => l.replace(/[\u200f\u200e\u00a0]/g, ' ').trim()
+  .replace(/^[\(\[]?[0-9٠-٩]+[\)\]\.\-–:،]?\s+/, '') // leading «1-», «(٢)», «3.»
+  .replace(/ـ{2,}/g, 'ـ').trim();
+function parsePoem(text, mode = 'auto') {
+  const lines = text.split('\n').map(cleanPoemLine).filter(Boolean);
+  if (mode === 'auto') mode = lines.filter((l) => SHATR_SEP.test(l)).length >= lines.length / 2 ? 'sep' : lines.length > 1 && lines.length % 2 === 0 ? 'pairs' : 'sep';
+  if (mode === 'pairs') {
+    const out = [];
+    for (let i = 0; i < lines.length; i += 2) out.push([lines[i].split(SHATR_SEP).join(' '), (lines[i + 1] || '').split(SHATR_SEP).join(' ')]);
+    return out;
+  }
+  return lines.map((l) => { const [a, ...b] = l.split(SHATR_SEP); return [a.trim(), b.join(' ').trim()]; });
+}
+// the canonical form kept in storage: one bayt per line, «صدر * عجز»
+const poemToText = (abyat) => abyat.map(([a, b]) => (b ? `${a} * ${b}` : a)).join('\n');
+
 // ---------- the text, rendered for memorising ----------
 // mode: full | letters | gaps | hidden
 function hzTextHTML(h, mode) {
@@ -54,10 +74,17 @@ function hzTextHTML(h, mode) {
     return hide ? `<span class="hz-w hz-hid" data-w="${esc(w)}">${esc(w)}</span>` : `<span class="hz-w">${esc(w)}</span>`;
   }).join(' ');
   if (h.type === 'poem') {
-    return `<div class="hz-poem">${lines.map((l) => {
-      const [a, b] = l.split(/\s*(?:\*|…|\.\.\.|\t|\s{3,})\s*/);
-      return `<div class="hz-bayt"><span>${words(a || '')}</span><span>${words(b || '')}</span></div>`;
-    }).join('')}</div>`;
+    // poem-only views: «إخفاء العجز» hides the second half, «أوائل الأشطر» keeps the first word of each half
+    const as = (m, s) => { const save = mode; mode = m; const r = words(s); mode = save; return r; };
+    const shatr = (s, second) => {
+      if (mode === 'sadr') return as(second ? 'hidden' : 'full', s);
+      if (mode === 'shatr') { const [first, ...rest] = s.split(/\s+/).filter(Boolean); return first ? `${as('full', first)} ${as('hidden', rest.join(' '))}` : ''; }
+      return words(s);
+    };
+    return `<div class="hz-poem">${parsePoem(h.text).map(([a, b], i) => `<div class="hz-bayt${b ? '' : ' single'}">
+      <button type="button" class="hz-n" data-hz="bayt" aria-label="أظهر البيت ${i + 1}">${i + 1}</button>
+      <span class="hz-s1">${shatr(a, false)}</span>${b ? `<span class="hz-s2">${shatr(b, true)}</span>` : ''}
+    </div>`).join('')}</div>`;
   }
   return `<div class="hz-text${h.type === 'quran' ? ' quran' : ''}">${lines.map((l) => `<p>${words(l)}</p>`).join('')}</div>`;
 }
@@ -121,7 +148,17 @@ function openHifz(id) {
       <button type="button" class="ghost" data-action="hz-fetch">${icon('book')} اجلب نص الآيات</button>
     </div>
     <label class="field"><span id="hTitleL">${h.type === 'quran' ? 'عنوان (اختياري)' : 'العنوان'}</span><input type="text" id="hTitle" value="${esc(h.title)}" autocomplete="off" placeholder="${{ quran: 'يُكتب تلقائياً من السورة والآيات', hadith: 'مثال: إنما الأعمال بالنيات', poem: 'مثال: لامية ابن الوردي', other: 'مثال: متن الآجرومية' }[h.type]}"></label>
-    <label class="field"><span>النص</span><textarea id="hText" rows="7" placeholder="${h.type === 'poem' ? 'كل بيت في سطر، وافصل بين الصدر والعجز بـ * مثل:&#10;اعتزل ذكر الأغاني والغزل * وقل الفصل وجانب من هزل' : 'اكتب النص أو الصقه هنا'}">${esc(h.text)}</textarea></label>
+    <label class="field"><span>النص</span><textarea id="hText" rows="7" placeholder="${h.type === 'poem' ? 'الصق القصيدة كما هي من أي موقع، وسيرتّبها التطبيق' : 'اكتب النص أو الصقه هنا'}">${esc(h.text)}</textarea></label>
+    <div class="hz-poemtools" id="hPoemTools"${h.type === 'poem' ? '' : ' hidden'}>
+      <div class="field"><span>كيف وصلت الأبيات؟</span><div class="seg seg-wrap" id="hPoemMode" role="group">
+        <button type="button" data-action="hz-pmode" data-v="auto" aria-pressed="true">اكتشاف تلقائي</button>
+        <button type="button" data-action="hz-pmode" data-v="pairs" aria-pressed="false">كل سطرين بيت</button>
+        <button type="button" data-action="hz-pmode" data-v="sep" aria-pressed="false">كل سطر بيت</button>
+      </div></div>
+      <div class="hz-preview" id="hPoemPrev" aria-live="polite"></div>
+      ${id ? '' : `<label class="field"><span>قسّمها للحفظ</span><select id="hSplit"><option value="0">بطاقة واحدة</option><option value="4">كل ٤ أبيات بطاقة</option><option value="5" selected>كل ٥ أبيات بطاقة</option><option value="8">كل ٨ أبيات بطاقة</option><option value="10">كل ١٠ أبيات بطاقة</option></select></label>
+      <p class="note-text">القصيدة الطويلة تُحفظ أسهل مقطعاً مقطعاً، ولكل مقطع مراجعته الخاصة.</p>`}
+    </div>
     <label class="field" id="hSourceW"${h.type === 'quran' ? ' hidden' : ''}><span>${h.type === 'poem' ? 'الشاعر' : h.type === 'hadith' ? 'الراوي والمصدر' : 'المصدر'}</span><input type="text" id="hSource" value="${esc(h.source)}" autocomplete="off" placeholder="${h.type === 'hadith' ? 'مثال: عن عمر رضي الله عنه، متفق عليه' : ''}"></label>
     ${id && h.state === 'review' ? `<p class="note-text">في المراجعة · المراجعة القادمة ${esc(dateBoth(h.due, true))} · روجع ${h.reps} ${h.reps === 1 ? 'مرة' : 'مرات'}</p>` : ''}
     <div class="sheet-actions">
@@ -132,6 +169,7 @@ function openHifz(id) {
   libArmed = false;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+  poemPreview();
 }
 
 function setHzType(type) {
@@ -141,7 +179,19 @@ function setHzType(type) {
   $('hSourceW').hidden = type === 'quran';
   $('hSourceW').querySelector('span').textContent = type === 'poem' ? 'الشاعر' : type === 'hadith' ? 'الراوي والمصدر' : 'المصدر';
   $('hTitleL').textContent = type === 'quran' ? 'عنوان (اختياري)' : 'العنوان';
-  $('hText').placeholder = type === 'poem' ? 'كل بيت في سطر، وافصل بين الصدر والعجز بـ *' : 'اكتب النص أو الصقه هنا';
+  $('hText').placeholder = type === 'poem' ? 'الصق القصيدة كما هي من أي موقع، وسيرتّبها التطبيق' : 'اكتب النص أو الصقه هنا';
+  $('hPoemTools').hidden = type !== 'poem';
+  poemPreview();
+}
+
+// live preview of how the pasted poem was read
+function poemPreview() {
+  const box = $('hPoemPrev');
+  if (!box || !ldraft || ldraft.type !== 'poem') return;
+  const ab = parsePoem($('hText').value, ldraft.pmode || 'auto');
+  const halves = ab.filter(([, b]) => !b).length;
+  box.innerHTML = ab.length ? `<div class="row-between"><b>معاينة: ${plural(ab.length, 'بيت واحد', 'بيتان', 'أبيات', 'بيتاً')}</b>${halves && ab.length > 1 ? '<small class="late">أبيات بلا عجز؟ جرّب «كل سطرين بيت»</small>' : ''}</div>
+    ${hzTextHTML({ type: 'poem', text: poemToText(ab.slice(0, 40)) }, 'full')}${ab.length > 40 ? '<p class="note-text">…</p>' : ''}` : '';
 }
 
 function quranRange() {
@@ -181,10 +231,26 @@ async function fetchAyat(btn) {
 function saveHifz() {
   const old = getHz(ldraft.id);
   const type = ldraft.type;
-  const text = $('hText').value.trim();
+  let text = $('hText').value.trim();
   if (!text) { toast(type === 'quran' ? 'اجلب نص الآيات أو الصقه.' : 'اكتب النص.'); return false; }
   const q = type === 'quran' ? quranRange() : { s: 0, from: 0, to: 0 };
-  const h = normalizeHifz({ ...(old || {}), id: ldraft.id, type, text, title: $('hTitle').value.trim(), source: type === 'quran' ? '' : $('hSource').value.trim(), surah: q.s, from: q.from, to: q.to });
+  const title = $('hTitle').value.trim(), source = type === 'quran' ? '' : $('hSource').value.trim();
+  if (type === 'poem') {
+    const ab = parsePoem(text, ldraft.pmode || 'auto');
+    const size = !old && $('hSplit') ? +$('hSplit').value : 0;
+    // a long poem becomes one card per part, each with its own review
+    if (size && ab.length > size) {
+      const parts = [];
+      for (let i = 0; i < ab.length; i += size) parts.push(normalizeHifz({ type, title: `${title || excerpt(ab[0][0], 30)} (${i + 1}–${Math.min(i + size, ab.length)})`, text: poemToText(ab.slice(i, i + size)), source }));
+      S.hifz.push(...parts);
+      save();
+      toast(`قُسّمت إلى ${parts.length} ${parts.length <= 10 ? 'مقاطع' : 'مقطعاً'}، ابدأ بالأول`);
+      setTimeout(() => openStudy('learn', parts[0].id), 50);
+      return true;
+    }
+    text = poemToText(ab);
+  }
+  const h = normalizeHifz({ ...(old || {}), id: ldraft.id, type, text, title, source, surah: q.s, from: q.from, to: q.to });
   if (old) Object.assign(old, h); else S.hifz.push(h);
   save();
   if (!old) setTimeout(() => openStudy('learn', h.id), 50);
@@ -212,12 +278,15 @@ function renderStudy() {
   const h = getHz(hzs.queue[hzs.i]);
   if (!h) { closeStudy(); return; }
   const t = HIFZ_TYPES[h.type];
-  const views = [['full', 'النص كاملاً'], ['letters', 'أوائل الكلمات'], ['gaps', 'إخفاء بعض الكلمات'], ['hidden', 'إخفاء الكل']];
+  const views = h.type === 'poem'
+    ? [['full', 'كاملة'], ['sadr', 'إخفاء العجز'], ['shatr', 'أوائل الأشطر'], ['letters', 'أوائل الكلمات'], ['gaps', 'إخفاء بعض الكلمات'], ['hidden', 'إخفاء الكل']]
+    : [['full', 'النص كاملاً'], ['letters', 'أوائل الكلمات'], ['gaps', 'إخفاء بعض الكلمات'], ['hidden', 'إخفاء الكل']];
   $('hzHead').innerHTML = `<b>${t[1]} ${esc(hzTitle(h))}</b><small>${hzs.mode === 'review' ? `مراجعة ${hzs.i + 1} من ${hzs.queue.length}` : 'مرحلة الحفظ'}${h.source ? ` · ${esc(h.source)}` : ''}</small>`;
   const grades = [['again', 'نسيت'], ['hard', 'صعب'], ['good', 'جيد'], ['easy', 'سهل']];
   $('hzBody').innerHTML = `
     <div class="seg seg-wrap hz-views" role="group" aria-label="طريقة العرض">${views.map(([v, l]) => `<button type="button" data-hz="view" data-v="${v}" aria-pressed="${hzs.view === v}">${l}</button>`).join('')}</div>
-    <p class="note-text">${hzs.view === 'full' ? 'اقرأه بتمهّل مرات، ثم جرّب «أوائل الكلمات» فـ«إخفاء الكل».' : 'سمّع من ذاكرتك، واضغط على أي كلمة مخفية لتظهرها.'}</p>
+    <p class="note-text">${hzs.view === 'full' ? (h.type === 'poem' ? 'اقرأها بتمهّل بيتاً بيتاً، ثم جرّب «إخفاء العجز»: تقرأ الصدر وتكمل العجز من ذاكرتك، ثم «أوائل الأشطر» فـ«إخفاء الكل».' : 'اقرأه بتمهّل مرات، ثم جرّب «أوائل الكلمات» فـ«إخفاء الكل».')
+      : `سمّع من ذاكرتك، واضغط على أي كلمة مخفية لتظهرها${h.type === 'poem' ? '، أو على رقم البيت ليظهر كله' : ''}.`}</p>
     ${hzTextHTML(h, hzs.view)}`;
   $('hzFoot').innerHTML = hzs.mode === 'learn'
     ? `<button type="button" class="primary" data-hz="learned">✓ حفظته، أدخله المراجعة</button><button type="button" class="ghost" data-hz="edit">تعديل النص</button><button type="button" class="ghost" data-hz="close">لاحقاً</button>`
@@ -230,7 +299,12 @@ document.addEventListener('click', (e) => {
   const w = e.target.closest('#hzBody .hz-hid, #hzBody .hz-l');
   if (w) { w.textContent = w.dataset.w; w.classList.remove('hz-hid', 'hz-l'); w.classList.add('hz-shown'); return; }
   const el = e.target.closest('[data-hz]');
-  if (!el || !hzs) return;
+  if (!el) return;
+  if (el.dataset.hz === 'bayt') {
+    for (const x of el.parentNode.querySelectorAll('.hz-hid, .hz-l')) { x.textContent = x.dataset.w; x.classList.remove('hz-hid', 'hz-l'); x.classList.add('hz-shown'); }
+    return;
+  }
+  if (!hzs) return;
   const h = getHz(hzs.queue[hzs.i]);
   switch (el.dataset.hz) {
     case 'close': closeStudy(); break;
@@ -270,6 +344,11 @@ document.addEventListener('click', (e) => {
     }
     case 'hz-type': hzUi.type = v; render(); break;
     case 'hz-set-type': setHzType(v); break;
+    case 'hz-pmode':
+      ldraft.pmode = v;
+      for (const b of $('hPoemMode').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+      poemPreview();
+      break;
     case 'hz-fetch': fetchAyat(el); break;
     case 'hz-review': openStudy('review'); break;
     case 'hz-relearn': {
@@ -281,6 +360,7 @@ document.addEventListener('click', (e) => {
   }
 });
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'hText') poemPreview();
   if (e.target.id === 'hzSearch') { hzUi.q = e.target.value; render(); }
 });
 document.addEventListener('change', (e) => {

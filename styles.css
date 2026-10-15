@@ -942,11 +942,23 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .hz-hid { color: transparent; background: var(--line); cursor: pointer; user-select: none; }
 .hz-l { color: var(--accent); cursor: pointer; }
 .hz-shown { background: var(--accent-soft); }
-.hz-poem { display: grid; gap: 10px; font-size: 1.25rem; line-height: 2; }
-.hz-bayt { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
-.hz-bayt > span:first-child { text-align: right; }
-.hz-bayt > span:last-child { text-align: left; }
-@media (max-width: 420px) { .hz-bayt { grid-template-columns: 1fr; } .hz-bayt > span:last-child { text-align: left; padding-inline-start: 1.5em; } }
+.hz-poem { display: grid; font-size: 1.25rem; line-height: 2; }
+.hz-bayt { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); align-items: baseline; gap: 0 18px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.hz-bayt:last-child { border-bottom: 0; }
+.hz-s1, .hz-s2 { text-align: center; overflow-wrap: anywhere; }
+.hz-bayt.single .hz-s1 { grid-column: 2 / -1; }
+.hz-n { width: 24px; height: 24px; padding: 0; border-radius: 50%; display: grid; place-items: center; align-self: center; font-size: .72rem; line-height: 1; color: var(--muted); background: var(--bg); border: 1px solid var(--line); }
+@media (max-width: 480px) {
+  .hz-bayt { grid-template-columns: 26px minmax(0, 1fr); }
+  .hz-n { grid-row: span 2; }
+  .hz-s1 { text-align: right; }
+  .hz-s2 { text-align: left; grid-column: 2; padding-inline-start: 1.2em; }
+  .hz-bayt.single .hz-s1 { grid-column: 2; }
+}
+.hz-poemtools { display: grid; gap: 8px; }
+.hz-preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; max-height: 340px; overflow-y: auto; }
+.hz-preview:empty { display: none; }
+.hz-preview .hz-poem { font-size: 1.05rem; line-height: 1.8; }
 .hz-foot { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); flex: none;
   padding: 10px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 .hz-foot > button { flex: 1 1 auto; padding: 12px; border-radius: 12px; }
