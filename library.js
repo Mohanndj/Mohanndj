@@ -722,8 +722,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, debt: saveLedger, right: saveLedger, pay: savePayment, finimport: runFinImport, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, debt: saveLedger, right: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();

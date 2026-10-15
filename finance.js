@@ -61,7 +61,7 @@ function splitBar(c) {
   const base = Math.max(c.income, c.fixed + c.periodic, 1);
   const seg = (v, cls, label) => (v > 0 ? `<i class="${cls}" style="width:${(v / base) * 100}%" title="${label}"></i>` : '');
   return `<div class="fin-split" role="img" aria-label="توزيع الدخل">${seg(c.fixed, 'fx', 'الثابتة')}${seg(c.periodic, 'pd', 'الدورية')}${seg(c.left, 'sv', 'المتبقي')}</div>
-    <div class="fin-legend"><span><i class="fx"></i>الثابتة ${money(c.fixed)}</span><span><i class="pd"></i>الدورية ${money(c.periodic)}</span><span><i class="sv"></i>${c.left >= 0 ? 'المتبقي للادخار' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
+    <div class="fin-legend"><span><i class="fx"></i>الثابتة ${money(c.fixed)}</span><span><i class="pd"></i>الدورية ${money(c.periodic)}</span><span><i class="${c.left >= 0 ? 'sv' : 'neg'}"></i>${c.left >= 0 ? 'المتبقي للادخار' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
 }
 
 // ---------- editable rows (like spreadsheet rows) ----------
@@ -87,7 +87,7 @@ function viewFinance() {
   const body = { plans: finPlansHTML, spend: finSpendHTML, debts: finDebtsHTML, rights: finRightsHTML, projects: finProjectsHTML }[finUi.tab]();
   return `${moreCrumb()}
   <section class="section">
-    <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length ? xlsBtn('finance') : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
+    <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
     ${c ? `<button type="button" class="fin-top" data-action="fin-open" data-v="${ap.id}">
       <small>${esc(ap.name)}${ap.month ? ` · ${esc(monthName(ap.month))}` : ''}</small>
       <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
@@ -99,17 +99,34 @@ function viewFinance() {
 }
 
 // --- plans
+const planTitle = (p) => (p.kind === 'month' ? (p.month ? monthName(p.month) : 'شهر غير محدد') : p.name);
 function finPlansHTML() {
   if (finUi.plan && getFinPlan(finUi.plan)) return planDetailHTML(getFinPlan(finUi.plan));
   const ap = activePlan();
-  const list = S.finPlans.slice().sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'month' ? -1 : 1) || (b.month || '').localeCompare(a.month || '') || b.created - a.created);
+  const titled = S.finPlans.filter((p) => p.kind !== 'month').sort((a, b) => a.created - b.created);
+  const months = S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''));
+  const mini = (c) => `<span class="fin-hnum ${c.left < 0 ? 'neg' : 'pos'}">${c.left < 0 ? 'عجز' : 'للادخار'} <b>${money(Math.abs(c.left))}</b></span>`;
   return `<section class="section">
-    <div class="section-head"><h2>خطط الميزانية</h2><div class="btn-row">${ap ? `<button type="button" class="ghost" data-action="fin-copy" data-v="${ap.id}">نسخة لشهر جديد</button>` : ''}${addBtn('fin-new', 'خطة')}</div></div>
-    ${list.length ? `<div class="book-list">${list.map((p) => { const c = planCalc(p); return `<button type="button" class="fin-card${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
-      <span class="row-between"><b>${esc(p.name)}</b><small class="fin-kind">${p.kind === 'month' ? (p.month ? esc(monthName(p.month)) : 'شهرية') : 'افتراضية'}${ap && p.id === ap.id ? ' · الحالية' : ''}</small></span>
+    <div class="section-head"><h2>الخطط المعنونة</h2>${addBtn('fin-new-titled', 'خطة معنونة')}</div>
+    <p class="note-text">خطط تسمّيها بما تشاء: لفترة زمنية («بعد سداد القرض»، «عام ٢٠٢٧») أو لما تتصوره («على فرض الزواج»). اضغط أي خطة لترى تفاصيلها، وانقلها إلى أي شهر.</p>
+    <div class="fin-hscroll" role="list">
+      ${titled.map((p) => { const c = planCalc(p); return `<button type="button" role="listitem" class="fin-hcard${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
+        <b>${esc(p.name)}</b>
+        <span class="fin-hrow"><small>الدخل</small><span>${money(c.income)}</span></span>
+        <span class="fin-hrow"><small>المصاريف</small><span>${money(c.fixed + c.periodic)}</span></span>
+        ${mini(c)}
+        <span class="fin-split sm">${[['fx', c.fixed], ['pd', c.periodic], ['sv', c.left]].map(([k, v]) => (v > 0 ? `<i class="${k}" style="width:${(v / Math.max(c.income, c.fixed + c.periodic, 1)) * 100}%"></i>` : '')).join('')}</span>
+      </button>`; }).join('')}
+      <button type="button" role="listitem" class="fin-hcard add" data-action="fin-new-titled">${icon('plus')}<b>خطة معنونة</b><small>لفترة أو لتصوّر</small></button>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-head"><h2>الخطط الشهرية</h2>${addBtn('fin-new-month', 'خطة شهر')}</div>
+    ${months.length ? `<div class="book-list">${months.map((p) => { const c = planCalc(p); return `<button type="button" class="fin-card${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
+      <span class="row-between"><b>${esc(planTitle(p))}</b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' · ')}</small></span>
       ${splitBar(c)}
     </button>`; }).join('')}</div>`
-      : emptyHTML('ابدأ خطتك المالية', 'خطة لكل شهر، أو خطة افتراضية «على فرض…» لتجرّب سيناريو: الدخل، والمصاريف الشهرية الثابتة، والمصاريف الدورية (السنوية أو كل بضعة أشهر) مقسّمة على الأشهر، وما يتبقى للادخار وسيولة الطوارئ. أو استورد ملف الإكسل الذي تعمل عليه.', addBtn('fin-new', 'أول خطة'))}
+      : emptyHTML('لا خطط شهرية بعد', 'أنشئ خطة لهذا الشهر: فارغة، أو من الشهر السابق، أو انقل إليها إحدى خططك المعنونة.', addBtn('fin-new-month', 'خطة هذا الشهر'))}
   </section>`;
 }
 
@@ -117,10 +134,13 @@ function planDetailHTML(p) {
   const c = planCalc(p);
   const isActive = activePlan() && activePlan().id === p.id;
   return `<section class="section fin-plan">
-    <div class="crumbs"><button type="button" class="back" data-action="fin-close">${icon('back')} الخطط</button></div>
+    <div class="crumbs row-between"><button type="button" class="back" data-action="fin-close">${icon('back')} الخطط</button>
+      <span class="btn-row">${p.kind === 'month' ? '<button type="button" class="ghost" data-action="fin-pull">انقل إليها خطة معنونة</button>' : '<button type="button" class="ghost" data-action="fin-push">انقلها إلى شهر</button>'}
+      <button type="button" class="xls-btn" data-action="fin-xls-plan" data-v="${p.id}">${icon('sheet')}إكسل</button></span></div>
+    ${p.kind === 'month' ? `<p class="fin-month-title">${esc(planTitle(p))}</p>` : ''}
     <input type="text" class="fin-title" id="fp-name" data-fin="plan" data-sid="${p.id}" data-k="name" value="${esc(p.name)}" aria-label="اسم الخطة" autocomplete="off">
     <div class="row-between fin-meta">
-      <div class="seg" role="group">${[['month', 'خطة شهر'], ['scenario', 'افتراضية «على فرض»']].map(([v, l]) => `<button type="button" data-action="fin-kind" data-v="${v}" aria-pressed="${p.kind === v}">${l}</button>`).join('')}</div>
+      <div class="seg" role="group">${[['month', 'خطة شهرية'], ['scenario', 'خطة معنونة']].map(([v, l]) => `<button type="button" data-action="fin-kind" data-v="${v}" aria-pressed="${p.kind === v}">${l}</button>`).join('')}</div>
       ${p.kind === 'month' ? `<input type="month" id="fp-month" data-fin="plan" data-sid="${p.id}" data-k="month" value="${p.month}" aria-label="الشهر">` : ''}
     </div>
     ${splitBar(c)}
@@ -201,14 +221,14 @@ function ledgerCard(x, kind) {
 function finDebtsHTML() {
   const list = S.finDebts.slice().sort((a, b) => !debtLeft(a) - !debtLeft(b) || debtLeft(b) - debtLeft(a));
   return `<section class="section">
-    <div class="section-head"><h2>الديون <small class="num">${money(sum(S.finDebts, debtLeft))}</small></h2>${addBtn('debt-new', 'دَين')}</div>
+    <div class="section-head"><h2>الديون <small class="num">${money(sum(S.finDebts, debtLeft))}</small></h2><div class="btn-row">${S.finDebts.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="debts">${icon('sheet')}إكسل</button>` : ''}${addBtn('debt-new', 'دَين')}</div></div>
     ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, 'debt')).join('')}</div>` : emptyHTML('لا ديون', 'سجّل ما عليك من ديون: الدائن، والمبلغ، والقسط الشهري، وسجّل كل دفعة تسددها لترى الباقي ومتى تنتهي.')}
   </section>`;
 }
 function finRightsHTML() {
   const list = S.finRights.slice().sort((a, b) => !rightLeft(a) - !rightLeft(b) || rightLeft(b) - rightLeft(a));
   return `<section class="section">
-    <div class="section-head"><h2>الحقوق المالية <small class="num">${money(sum(S.finRights, rightLeft))}</small></h2>${addBtn('right-new', 'حق')}</div>
+    <div class="section-head"><h2>الحقوق المالية <small class="num">${money(sum(S.finRights, rightLeft))}</small></h2><div class="btn-row">${S.finRights.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="rights">${icon('sheet')}إكسل</button>` : ''}${addBtn('right-new', 'حق')}</div></div>
     <p class="note-text">المبالغ التي لك عند الآخرين.</p>
     ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, 'right')).join('')}</div>` : emptyHTML('لا حقوق مسجلة', 'سجّل من استدان منك ومتى، وسجّل ما يرده لك.')}
   </section>`;
@@ -316,6 +336,13 @@ const isNum = (v) => typeof v === 'number';
 function findCell(sh, test) { for (const [k, v] of sh.cells) if (isStr(v) && test(v)) { const [r, c] = k.split(',').map(Number); return [r, c]; } return null; }
 const numRight = (sh, r, c) => { for (let k = 1; k <= 4; k++) { const v = sh.get(r, c + k); if (isNum(v)) return v; } return 0; };
 
+// «راتب شهر ١٠» → a month plan for October (this year); any other sheet name → a titled plan
+function sheetMonth(name) {
+  const m = /^(?:راتب|خطة|مصاريف)?\s*شهر\s*([0-9٠-٩]{1,2})$/.exec(name.trim().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const n = m ? Number(m[1]) : 0;
+  if (!n || n > 12) return { kind: 'scenario' };
+  return { kind: 'month', month: `${today().slice(0, 4)}-${String(n).padStart(2, '0')}` };
+}
 function parseBudgetSheet(sh) {
   const incL = findCell(sh, (v) => v.startsWith('الدخل الشهري'));
   if (!incL) return null;
@@ -346,7 +373,7 @@ function parseBudgetSheet(sh) {
   const skip = /^(\d+\s*-|المصاريف|أولى مبالغ|حتى راتب|الخطة الشخصية|مخصص|المخصص|المتبقي|مبلغ الادخار$|الادخار وسيولة)/;
   const notes = [...sh.cells.values()].filter((v) => isStr(v) && v.length >= 18 && !skip.test(v));
   return {
-    plan: { name: sh.name, kind: /على فرض|بعد|بنهاية|بدون|الدخل مع/.test(sh.name) ? 'scenario' : 'month', income, fixed, periodic, accounts, notes: [...new Set(notes)].join('\n') },
+    plan: { name: sh.name, ...sheetMonth(sh.name), income, fixed, periodic, accounts, notes: [...new Set(notes)].join('\n') },
     rights,
   };
 }
@@ -426,7 +453,11 @@ function runFinImport() {
   for (const box of $('libForm').querySelectorAll('[data-imp]')) {
     if (!box.checked) continue;
     const f = finFound[+box.dataset.imp];
-    if (f.type === 'plan') { S.finPlans.push(normalizeFinPlan(f.data.plan)); n.plan++; }
+    if (f.type === 'plan') {
+      const pl = normalizeFinPlan(f.data.plan);
+      if (pl.kind === 'month' && monthPlan(pl.month)) { pl.kind = 'scenario'; pl.month = ''; }
+      S.finPlans.push(pl); n.plan++;
+    }
     if (f.type === 'project') { S.finProjects.push(normalizeFinProject(f.data)); n.project++; }
     if (f.type === 'debts') for (const d of f.data) if (!S.finDebts.some((x) => x.name === d.name)) { S.finDebts.push(normalizeDebt(d)); n.debts++; }
   }
@@ -439,10 +470,268 @@ function runFinImport() {
   return true;
 }
 
+// ---------- new plans and moving plans into months ----------
+const cloneRows = (l) => l.map((x) => ({ ...x, id: uid() }));
+function applyPlan(target, src, mode) {
+  for (const k of ['income', 'fixed', 'periodic', 'accounts']) {
+    if (mode === 'replace') target[k] = cloneRows(src[k]);
+    else for (const x of src[k]) if (!target[k].some((y) => y.name && y.name === x.name)) target[k].push({ ...x, id: uid() });
+  }
+  if (mode === 'replace' || !target.goal) target.goal = src.goal;
+  target.updated = Date.now();
+}
+const monthPlan = (m) => S.finPlans.find((p) => p.kind === 'month' && p.month === m);
+function nextFreeMonth() {
+  let d = parse(`${today().slice(0, 7)}-01`);
+  for (let i = 0; i < 24; i++) { const m = iso(d).slice(0, 7); if (!monthPlan(m)) return m; d.setMonth(d.getMonth() + 1); }
+  return today().slice(0, 7);
+}
+const sheetHead = (t) => `<div class="sheet-head"><h2>${t}</h2><button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
+const showLib = () => { const d = lsheet(); if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', ''); };
+const planOptions = (list, sel) => list.map((p) => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.kind === 'month' ? planTitle(p) : p.name)}</option>`).join('');
+
+function openFinNew(kind) {
+  const titled = S.finPlans.filter((p) => p.kind !== 'month');
+  const months = S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''));
+  ldraft = { kind: 'finnew', id: 'x', isNew: true, pk: kind };
+  $('libForm').innerHTML = `${sheetHead(kind === 'month' ? 'خطة شهر جديدة' : 'خطة معنونة جديدة')}
+    ${kind === 'month' ? `<label class="field"><span>الشهر</span><input type="month" id="fnMonth" value="${nextFreeMonth()}"></label>`
+      : `<label class="field"><span>عنوان الخطة</span><input type="text" id="fnName" autocomplete="off" placeholder="مثال: بعد سداد القرض العقاري، على فرض الزواج"></label>`}
+    <div class="field"><span>ابدأ من</span><select id="fnFrom">
+      <option value="">خطة فارغة</option>
+      ${months.length ? `<optgroup label="الخطط الشهرية">${planOptions(months, kind === 'month' ? months[0].id : '')}</optgroup>` : ''}
+      ${titled.length ? `<optgroup label="الخطط المعنونة">${planOptions(titled)}</optgroup>` : ''}
+    </select><small class="hint">تُنسخ بنودها (الدخل والمصاريف والحسابات) فتعدّل ما تغيّر فقط.</small></div>
+    <div class="sheet-actions"><button type="submit" class="primary">أنشئ الخطة</button></div>`;
+  showLib();
+}
+function saveFinNew() {
+  const kind = ldraft.pk;
+  const src = getFinPlan($('fnFrom').value);
+  let p;
+  if (kind === 'month') {
+    const m = $('fnMonth').value || today().slice(0, 7);
+    if (monthPlan(m)) { toast(`لديك خطة لـ${monthName(m)} من قبل، افتحها أو انقل إليها خطة.`); return false; }
+    p = normalizeFinPlan({ kind: 'month', month: m, name: `خطة ${monthName(m)}`, income: [{ name: 'الراتب', amount: 0 }], fixed: [], periodic: [], accounts: [] });
+  } else {
+    const name = $('fnName').value.trim();
+    if (!name) { toast('اكتب عنوان الخطة.'); return false; }
+    p = normalizeFinPlan({ kind: 'scenario', name, income: [{ name: 'الراتب', amount: 0 }], fixed: [], periodic: [], accounts: [] });
+  }
+  if (src) { applyPlan(p, src, 'replace'); p.notes = src.notes; }
+  S.finPlans.push(p);
+  save();
+  finUi.tab = 'plans'; finUi.plan = p.id;
+  return true;
+}
+
+// pull: a titled plan into this month · push: this titled plan into a month
+function openFinMove(dir) {
+  const p = getFinPlan(finUi.plan);
+  ldraft = { kind: 'finmove', id: p.id, isNew: true, dir };
+  const titled = S.finPlans.filter((x) => x.kind !== 'month');
+  if (dir === 'pull' && !titled.length) { toast('لا خطط معنونة بعد. أنشئ واحدة من صفحة الخطط.'); return; }
+  $('libForm').innerHTML = `${sheetHead(dir === 'pull' ? `انقل خطة معنونة إلى ${esc(planTitle(p))}` : `انقل «${esc(p.name)}» إلى شهر`)}
+    ${dir === 'pull' ? `<label class="field"><span>الخطة المعنونة</span><select id="fmSrc">${planOptions(titled)}</select></label>`
+      : `<label class="field"><span>الشهر</span><input type="month" id="fmMonth" value="${nextFreeMonth()}"></label><p class="note-text" id="fmHint"></p>`}
+    <div class="field" id="fmModeW"><span>إذا كان في الشهر بنود</span><div class="seg" id="fmMode" role="group">
+      <button type="button" data-action="fin-mode" data-v="replace" aria-pressed="true">استبدلها ببنود الخطة</button>
+      <button type="button" data-action="fin-mode" data-v="add" aria-pressed="false">أضف البنود الناقصة فقط</button>
+    </div></div>
+    <div class="sheet-actions"><button type="submit" class="primary">انقل</button></div>`;
+  ldraft.mode = 'replace';
+  showLib();
+  updateMoveHint();
+}
+function updateMoveHint() {
+  if (!ldraft || ldraft.kind !== 'finmove' || ldraft.dir !== 'push') return;
+  const m = $('fmMonth').value;
+  const ex = monthPlan(m);
+  $('fmHint').textContent = ex ? `لديك خطة لـ${monthName(m)}، ستُحدَّث.` : `ستُنشأ خطة جديدة لـ${monthName(m)}.`;
+  $('fmModeW').hidden = !ex;
+}
+function saveFinMove() {
+  const p = getFinPlan(ldraft.id);
+  if (ldraft.dir === 'pull') {
+    const src = getFinPlan($('fmSrc').value);
+    applyPlan(p, src, ldraft.mode);
+    save();
+    toast(`نُقلت «${src.name}» إلى ${planTitle(p)}`);
+    return true;
+  }
+  const m = $('fmMonth').value;
+  if (!m) { toast('اختر الشهر.'); return false; }
+  let target = monthPlan(m);
+  if (!target) { target = normalizeFinPlan({ kind: 'month', month: m, name: `خطة ${monthName(m)}`, income: [], fixed: [], periodic: [], accounts: [] }); S.finPlans.push(target); applyPlan(target, p, 'replace'); }
+  else applyPlan(target, p, ldraft.mode);
+  save();
+  finUi.plan = target.id;
+  toast(`نُقلت إلى ${monthName(m)}`);
+  return true;
+}
+
+// ---------- elegant Excel ----------
+function planSheet(p) {
+  const c = planCalc(p);
+  const R = [];
+  const add = (row) => { R.push(row); return R.length; };
+  const blank = () => add([]);
+  add([{ v: p.kind === 'month' ? planTitle(p) : p.name, s: 'title', span: 4 }]);
+  add([{ v: `${p.kind === 'month' ? (p.name && !/^خطة /.test(p.name) ? p.name : 'خطة شهرية') : 'خطة معنونة'} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })} · المبالغ بالـ${S.settings.currency || 'ريال'}`, s: 'sub', span: 4 }]);
+  blank();
+  const sumHead = add([{ v: 'الدخل', s: 'head' }, { v: 'المصاريف', s: 'head' }, { v: 'المتبقي للادخار', s: 'head' }, { v: 'نسبة الادخار', s: 'head' }]);
+  const sumRow = add([null, null, null, null]); // filled once the totals' cells are known
+  blank();
+  const twoCol = (title, h1, h2, list, key) => {
+    add([{ v: title, s: 'sec', span: 4 }]);
+    add([{ v: h1, s: 'head', span: 2 }, { v: h2, s: 'head', span: 2 }]);
+    const first = R.length + 1;
+    for (const x of list.filter((y) => y.name || y[key])) add([{ v: x.name, s: 'txt', span: 2 }, { v: x[key] || 0, s: 'num', span: 2 }]);
+    const last = R.length;
+    const tot = add([{ v: 'المجموع', s: 'tot', span: 2 }, { f: last >= first ? `SUM(C${first}:C${last})` : '0', v: sum(list, (x) => x[key]), s: 'totnum', span: 2 }]);
+    blank();
+    return `C${tot}`;
+  };
+  const inc = twoCol('الدخل', 'البند', 'المبلغ', p.income, 'amount');
+  const fix = twoCol('١- المصاريف الشهرية الثابتة', 'البند', 'المبلغ', p.fixed, 'amount');
+  add([{ v: '٢- المصاريف الدورية', s: 'sec', span: 4 }]);
+  add([{ v: 'البند', s: 'head' }, { v: 'كل كم شهر', s: 'head' }, { v: 'المبلغ', s: 'head' }, { v: 'المخصص الشهري', s: 'head' }]);
+  const pf = R.length + 1;
+  for (const x of p.periodic.filter((y) => y.name || y.amount)) { const r = R.length + 1; add([{ v: x.name, s: 'txt' }, { v: x.every || 12, s: 'num' }, { v: x.amount || 0, s: 'num' }, { f: `IFERROR(C${r}/B${r},0)`, v: (x.amount || 0) / (x.every || 12), s: 'num' }]); }
+  const pl = R.length;
+  const per = add([{ v: 'المخصص الشهري للمصاريف الدورية', s: 'tot', span: 3 }, { f: pl >= pf ? `SUM(D${pf}:D${pl})` : '0', v: c.periodic, s: 'totnum' }]);
+  add([{ v: 'مخصصها السنوي', s: 'tot', span: 3 }, { f: `D${per}*12`, v: c.periodicYear, s: 'totnum' }]);
+  blank();
+  add([{ v: '٣- الادخار وسيولة الطوارئ', s: 'sec', span: 4 }]);
+  const left = add([{ v: 'المتبقي للادخار', s: 'tot', span: 2 }, { f: `${inc}-${fix}-D${per}`, v: c.left, s: c.left < 0 ? 'bad' : 'good', span: 2 }]);
+  if (p.goal) {
+    const g = add([{ v: 'هدف الادخار', s: 'txt', span: 2 }, { v: p.goal, s: 'num', span: 2 }]);
+    add([{ v: 'عدد الأشهر لبلوغ الهدف', s: 'txt', span: 2 }, { f: `IFERROR(ROUNDUP(C${g}/C${left},0),"")`, v: c.left > 0 ? Math.ceil(p.goal / c.left) : '', s: 'num', span: 2 }]);
+  }
+  blank();
+  if (p.accounts.length) twoCol('الحسابات (الرصيد المتوفر)', 'الحساب', 'الرصيد', p.accounts, 'balance');
+  if (p.notes.trim()) { add([{ v: 'ملاحظات', s: 'sec', span: 4 }]); add([{ v: p.notes.trim(), s: 'note', span: 4 }]); }
+  R[sumRow - 1] = [{ f: inc, v: c.income, s: 'big' }, { f: `${fix}+D${per}`, v: c.fixed + c.periodic, s: 'big' }, { f: `C${left}`, v: c.left, s: c.left < 0 ? 'bad' : 'good' }, { f: `IFERROR(C${left}/${inc},0)`, v: c.income ? c.left / c.income : 0, s: 'pct' }];
+  return { name: p.kind === 'month' ? planTitle(p) : p.name, design: true, widths: [34, 16, 18, 18], rows: R };
+}
+function ledgerSheet(kind) {
+  const isDebt = kind === 'debts';
+  const list = isDebt ? S.finDebts : S.finRights;
+  const R = [[{ v: isDebt ? 'الديون' : 'الحقوق المالية', s: 'title', span: 8 }], [{ v: `${isDebt ? 'ما عليّ من ديون' : 'ما لي عند الآخرين'} · صُدّرت ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 8 }], []];
+  R.push([isDebt ? 'الدائن' : 'عند', isDebt ? 'الدَّين' : 'المبلغ', isDebt ? 'المسدد' : 'المستلم', 'الباقي', isDebt ? 'القسط الشهري' : 'التاريخ', isDebt ? 'الانتهاء المتوقع' : '', 'النسبة', 'ملاحظة'].map((v) => ({ v, s: 'head' })));
+  const first = R.length + 1;
+  for (const x of list) {
+    const r = R.length + 1;
+    const total = isDebt ? x.total : x.amount;
+    R.push([{ v: x.name, s: 'txt' }, { v: total, s: 'num' }, { v: paid(x), s: 'num' }, { f: `B${r}-C${r}`, v: total - paid(x), s: 'num' }, isDebt ? { v: x.monthly || '', s: 'num' } : { v: x.date ? fmtDate(x.date, { day: 'numeric', month: 'short', year: 'numeric' }) : '', s: 'txt' },
+      { v: isDebt && debtEnd(x) && debtLeft(x) ? fmtDate(debtEnd(x), { month: 'long', year: 'numeric' }) : '', s: 'txt' }, { f: `IFERROR(C${r}/B${r},0)`, v: total ? paid(x) / total : 0, s: 'pct' }, { v: x.note, s: 'txt' }]);
+  }
+  const last = R.length;
+  const tot = (col, v) => ({ f: last >= first ? `SUM(${col}${first}:${col}${last})` : '0', v, s: 'totnum' });
+  R.push([{ v: 'المجموع', s: 'tot' }, tot('B', sum(list, (x) => (isDebt ? x.total : x.amount))), tot('C', sum(list, paid)), tot('D', sum(list, isDebt ? debtLeft : rightLeft)), { v: '', s: 'tot' }, { v: '', s: 'tot' }, { v: '', s: 'tot' }, { v: '', s: 'tot' }]);
+  const pays = list.flatMap((x) => x.payments.map((p) => ({ ...p, who: x.name }))).sort((a, b) => a.d.localeCompare(b.d));
+  if (pays.length) {
+    R.push([], [{ v: isDebt ? 'سجل الدفعات المسددة' : 'سجل الدفعات المستلمة', s: 'sec', span: 8 }], ['التاريخ', isDebt ? 'الدائن' : 'من', 'المبلغ', 'ملاحظة'].map((v, i) => ({ v, s: 'head', span: i === 3 ? 5 : 1 })));
+    for (const p of pays) R.push([{ v: fmtDate(p.d, { day: 'numeric', month: 'short', year: 'numeric' }), s: 'txt' }, { v: p.who, s: 'txt' }, { v: p.amount, s: 'num' }, { v: p.note, s: 'txt', span: 5 }]);
+  }
+  return { name: isDebt ? 'الديون' : 'الحقوق', design: true, widths: [22, 13, 13, 13, 14, 16, 10, 26], rows: R };
+}
+function projectSheet(p) {
+  const cost = sum(p.items), fund = sum(p.funding);
+  const R = [[{ v: p.name, s: 'title', span: 4 }], [{ v: `مشروع مالي · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 4 }], []];
+  R.push(['التكلفة', 'المتوفر', 'الفرق', 'تم شراؤه'].map((v) => ({ v, s: 'head' })));
+  R.push([{ v: cost, s: 'big' }, { v: fund, s: 'big' }, { v: fund - cost, s: fund - cost < 0 ? 'bad' : 'good' }, { v: cost ? sum(p.items.filter((x) => x.done)) / cost : 0, s: 'pct' }], []);
+  R.push([{ v: 'البنود', s: 'sec', span: 4 }], [{ v: 'البند', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head' }, { v: 'تم', s: 'head' }]);
+  const f = R.length + 1;
+  for (const x of p.items) R.push([{ v: x.name, s: 'txt', span: 2 }, { v: x.amount, s: 'num' }, { v: x.done ? '✓' : '', s: 'txt' }]);
+  R.push([{ v: 'المجموع', s: 'tot', span: 2 }, { f: `SUM(C${f}:C${R.length})`, v: cost, s: 'totnum' }, { v: '', s: 'tot' }], []);
+  if (p.funding.length) {
+    R.push([{ v: 'مصادر التمويل', s: 'sec', span: 4 }], [{ v: 'المصدر', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head', span: 2 }]);
+    const g = R.length + 1;
+    for (const x of p.funding) R.push([{ v: x.name, s: 'txt', span: 2 }, { v: x.amount, s: 'num', span: 2 }]);
+    R.push([{ v: 'المجموع', s: 'tot', span: 2 }, { f: `SUM(C${g}:C${R.length})`, v: fund, s: 'totnum', span: 2 }]);
+  }
+  if (p.note.trim()) R.push([], [{ v: 'ملاحظات', s: 'sec', span: 4 }], [{ v: p.note.trim(), s: 'note', span: 4 }]);
+  return { name: p.name, design: true, widths: [30, 12, 16, 12], rows: R };
+}
+function spendSheet() {
+  const txs = S.finTx.slice().sort((a, b) => a.d.localeCompare(b.d));
+  const R = [[{ v: 'المصروف', s: 'title', span: 5 }], [{ v: `كل ما سجّلته · صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 5 }], [], ['التاريخ', 'النوع', 'البند', 'المبلغ', 'ملاحظة'].map((v) => ({ v, s: 'head' }))];
+  const f = R.length + 1;
+  for (const t of txs) R.push([{ v: fmtDate(t.d, { day: 'numeric', month: 'short', year: 'numeric' }), s: 'txt' }, { v: t.kind === 'in' ? 'دخل' : 'صرف', s: 'txt' }, { v: t.item, s: 'txt' }, { v: t.kind === 'in' ? t.amount : -t.amount, s: 'num' }, { v: t.note, s: 'txt' }]);
+  if (txs.length) R.push([{ v: 'الصافي', s: 'tot', span: 3 }, { f: `SUM(D${f}:D${R.length})`, v: sum(txs, (t) => (t.kind === 'in' ? t.amount : -t.amount)), s: 'totnum' }, { v: '', s: 'tot' }]);
+  return { name: 'المصروف', design: true, widths: [16, 9, 22, 14, 28], rows: R };
+}
+function summarySheet(plans) {
+  const R = [[{ v: 'الملخص المالي', s: 'title', span: 6 }], [{ v: `صُدّر ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, s: 'sub', span: 6 }], []];
+  if (plans.length) {
+    R.push([{ v: 'الخطط', s: 'sec', span: 6 }], ['الخطة', 'النوع', 'الدخل', 'المصاريف', 'المتبقي', 'نسبة الادخار'].map((v) => ({ v, s: 'head' })));
+    for (const p of plans) { const c = planCalc(p); R.push([{ v: p.kind === 'month' ? planTitle(p) : p.name, s: 'txt' }, { v: p.kind === 'month' ? 'شهرية' : 'معنونة', s: 'txt' }, { v: c.income, s: 'num' }, { v: c.fixed + c.periodic, s: 'num' }, { v: c.left, s: c.left < 0 ? 'bad' : 'good' }, { v: c.income ? c.left / c.income : 0, s: 'pct' }]); }
+    R.push([]);
+  }
+  R.push([{ v: 'الالتزامات والحقوق', s: 'sec', span: 6 }]);
+  R.push([{ v: 'الباقي من الديون', s: 'tot', span: 2 }, { v: sum(S.finDebts, debtLeft), s: 'bad', span: 2 }, { v: `${S.finDebts.filter(debtLeft).length} دَين`, s: 'txt', span: 2 }]);
+  R.push([{ v: 'الباقي من الحقوق (لي عند الناس)', s: 'tot', span: 2 }, { v: sum(S.finRights, rightLeft), s: 'good', span: 2 }, { v: `${S.finRights.filter(rightLeft).length} اسم`, s: 'txt', span: 2 }]);
+  return { name: 'الملخص', design: true, widths: [30, 12, 15, 15, 15, 13], rows: R };
+}
+// what: { summary, plans: [ids], debts, rights, projects: [ids], spend }
+function finWorkbook(what) {
+  const sheets = [];
+  const plans = (what.plans || []).map(getFinPlan).filter(Boolean);
+  if (what.summary) sheets.push(summarySheet(plans));
+  for (const p of plans) sheets.push(planSheet(p));
+  if (what.debts) sheets.push(ledgerSheet('debts'));
+  if (what.rights) sheets.push(ledgerSheet('rights'));
+  for (const id of what.projects || []) { const p = S.finProjects.find((x) => x.id === id); if (p) sheets.push(projectSheet(p)); }
+  if (what.spend && S.finTx.length) sheets.push(spendSheet());
+  return sheets;
+}
+function saveWorkbook(sheets, name) {
+  if (!sheets.length) { toast('اختر شيئاً لتصديره.'); return false; }
+  const url = URL.createObjectURL(Xlsx.build(sheets));
+  const a = document.createElement('a');
+  a.href = url; a.download = `${name}.xlsx`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('جُهّز ملف الإكسل. تجده في التنزيلات.');
+  return true;
+}
+function openFinExport() {
+  ldraft = { kind: 'finexp', id: 'x', isNew: true };
+  const months = S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''));
+  const titled = S.finPlans.filter((p) => p.kind !== 'month');
+  const box = (key, label, sub2 = '', on = true) => `<label class="switch"><input type="checkbox" data-exp="${key}"${on ? ' checked' : ''}><span><b>${label}</b>${sub2 ? `<small>${sub2}</small>` : ''}</span></label>`;
+  $('libForm').innerHTML = `${sheetHead('تصدير إلى إكسل')}
+    <p class="note-text">كل خطة في صفحة مستقلة منسّقة بأقسامها ومجاميعها (بمعادلات تعمل إن عدّلت الأرقام في الإكسل).</p>
+    <div class="btn-row"><button type="button" class="ghost" data-action="fin-exp-all" data-v="1">تحديد الكل</button><button type="button" class="ghost" data-action="fin-exp-all" data-v="0">إلغاء التحديد</button></div>
+    <div class="fin-exp">
+      ${box('summary', 'الملخص المالي', 'الخطط المختارة والديون والحقوق في صفحة واحدة')}
+      ${months.length ? `<h4>الخطط الشهرية</h4>${months.map((p) => box(`plan:${p.id}`, esc(planTitle(p)), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
+      ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
+      <h4>غيرها</h4>
+      ${S.finDebts.length ? box('debts', 'الديون', `${S.finDebts.length} · الباقي ${money(sum(S.finDebts, debtLeft))}`) : ''}
+      ${S.finRights.length ? box('rights', 'الحقوق المالية', `${S.finRights.length} · الباقي ${money(sum(S.finRights, rightLeft))}`) : ''}
+      ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), 'مشروع مالي')).join('')}
+      ${S.finTx.length ? box('spend', 'المصروف المسجّل', `${S.finTx.length} عملية`) : ''}
+    </div>
+    <div class="sheet-actions"><button type="submit" class="primary">${icon('sheet')} صدّر</button></div>`;
+  showLib();
+}
+function runFinExport() {
+  const what = { plans: [], projects: [] };
+  for (const c of $('libForm').querySelectorAll('[data-exp]')) {
+    if (!c.checked) continue;
+    const [k, id] = c.dataset.exp.split(':');
+    if (k === 'plan') what.plans.push(id); else if (k === 'proj') what.projects.push(id); else what[k] = true;
+  }
+  return saveWorkbook(finWorkbook(what), `mahami-finance-${today()}`);
+}
+
 // ---------- events ----------
 function finScope(scope, sid) { return scope === 'plan' ? getFinPlan(sid) : S.finProjects.find((x) => x.id === sid); }
 document.addEventListener('change', (e) => {
   const el = e.target;
+  if (el.id === 'fmMonth') { updateMoveHint(); return; }
   if (el.id === 'finImport') { const f = el.files && el.files[0]; el.value = ''; if (f) importWorkbook(f); return; }
   if (!el.dataset || !el.dataset.fin) return;
   const obj = finScope(el.dataset.fin, el.dataset.sid);
@@ -469,12 +758,14 @@ document.addEventListener('click', (e) => {
     case 'fin-tab': finUi.tab = v; finUi.plan = ''; finUi.proj = ''; render(); window.scrollTo({ top: 0 }); break;
     case 'fin-open': finUi.tab = 'plans'; finUi.plan = v; render(); window.scrollTo({ top: 0 }); break;
     case 'fin-close': finUi.plan = ''; finUi.proj = ''; render(); break;
-    case 'fin-new': {
-      const m = today().slice(0, 7);
-      const p = normalizeFinPlan({ name: `خطة ${monthName(m)}`, month: m, income: [{ name: 'الراتب', amount: 0 }], fixed: [{ name: '', amount: 0 }], periodic: [], accounts: [] });
-      S.finPlans.push(p); save(); finUi.plan = p.id; render();
-      break;
-    }
+    case 'fin-new': case 'fin-new-month': openFinNew('month'); break;
+    case 'fin-new-titled': openFinNew('scenario'); break;
+    case 'fin-pull': openFinMove('pull'); break;
+    case 'fin-push': openFinMove('push'); break;
+    case 'fin-export': openFinExport(); break;
+    case 'fin-xls-plan': saveWorkbook(finWorkbook({ plans: [v] }), `mahami-plan-${today()}`); break;
+    case 'fin-xls-one': saveWorkbook(finWorkbook({ [v]: true }), `mahami-${v}-${today()}`); break;
+    case 'fin-exp-all': for (const c of $('libForm').querySelectorAll('[data-exp]')) c.checked = v === '1'; break;
     case 'fin-copy': {
       const src = getFinPlan(v);
       const d = parse(`${src.month || today().slice(0, 7)}-01`); d.setMonth(d.getMonth() + 1);
@@ -497,6 +788,7 @@ document.addEventListener('click', (e) => {
     }
     case 'fin-row-del': { const obj = finScope(el.dataset.scope, el.dataset.sid); obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v); save(); render(); break; }
     case 'fin-month': finUi.month = v; render(); break;
+    case 'fin-mode': ldraft.mode = v; for (const b of $('fmMode').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
     case 'fin-txkind': finUi.txKind = v; for (const b of $('txKind').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
     case 'fin-tx-del': S.finTx = S.finTx.filter((t) => t.id !== v); save(); render(); break;
     case 'debt-new': openLedger('debt', null); break;

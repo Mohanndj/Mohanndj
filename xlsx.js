@@ -100,20 +100,95 @@ ${sheet.rows.length ? `<autoFilter ref="A1:${last}"/>` : ''}
 </worksheet>`;
   }
 
+  // style ids: 0 plain · 1 header (white on teal) · 2 wrap · 3 top
+  // designed sheets: 4 title · 5 subtitle · 6 section bar · 7 table head · 8 text · 9 number · 10 total label
+  // 11 total number · 12 good number · 13 bad number · 14 note · 15 percent · 16 big number · 17 date
   const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="2"><font><sz val="12"/><name val="Arial"/></font><font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Arial"/></font></fonts>
-<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0F766E"/><bgColor indexed="64"/></patternFill></fill></fills>
-<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.##"/></numFmts>
+<fonts count="9">
+<font><sz val="12"/><name val="Arial"/></font>
+<font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>
+<font><b/><sz val="20"/><color rgb="FF0F6E5E"/><name val="Arial"/></font>
+<font><sz val="11"/><color rgb="FF6B7A76"/><name val="Arial"/></font>
+<font><b/><sz val="12"/><color rgb="FF1D2422"/><name val="Arial"/></font>
+<font><b/><sz val="14"/><color rgb="FF1E7A45"/><name val="Arial"/></font>
+<font><b/><sz val="14"/><color rgb="FFB3261E"/><name val="Arial"/></font>
+<font><i/><sz val="11"/><color rgb="FF6B7A76"/><name val="Arial"/></font>
+<font><b/><sz val="14"/><color rgb="FF1D2422"/><name val="Arial"/></font>
+</fonts>
+<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF0F766E"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE3F1EE"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF4F6F5"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left style="thin"><color rgb="FFD5DBD9"/></left><right style="thin"><color rgb="FFD5DBD9"/></right><top style="thin"><color rgb="FFD5DBD9"/></top><bottom style="thin"><color rgb="FFD5DBD9"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="4">
+<cellXfs count="18">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" readingOrder="2"/></xf>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1" readingOrder="2"/></xf>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" readingOrder="2"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2"/></xf>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center" indent="1" readingOrder="2"/></xf>
+<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1" readingOrder="2"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1" readingOrder="2"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center" readingOrder="2"/></xf>
+<xf numFmtId="164" fontId="4" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="5" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="6" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="7" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="right" vertical="top" wrapText="1" readingOrder="2"/></xf>
+<xf numFmtId="9" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="8" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="14" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
+  const DS = { title: 4, sub: 5, sec: 6, head: 7, txt: 8, num: 9, tot: 10, totnum: 11, good: 12, bad: 13, note: 14, pct: 15, big: 16, date: 17 };
+
+  // designed sheet = { name, design: true, widths: [..], rows: [[cell, ...], ...] }
+  // cell: a value, or { v, s: style name, span: columns to merge, f: formula (v is its cached value) }; rows may be [] (blank)
+  function designXML(sheet) {
+    const merges = [];
+    const heights = [];
+    const body = sheet.rows.map((row, ri) => {
+      const r = ri + 1;
+      let c = 0;
+      const cells = row.map((x) => {
+        const o = x !== null && typeof x === 'object' ? x : { v: x };
+        const st = DS[o.s] ?? (typeof o.v === 'number' ? DS.num : o.v ? DS.txt : 0);
+        const span = o.span || 1;
+        const ref = `${col(c)}${r}`;
+        if (span > 1) merges.push(`${ref}:${col(c + span - 1)}${r}`);
+        if (o.s === 'title') heights[r] = 34;
+        if (o.s === 'sec') heights[r] = 24;
+        let out;
+        if (o.f) out = `<c r="${ref}" s="${st}"><f>${xml(o.f)}</f>${typeof o.v === 'number' && Number.isFinite(o.v) ? `<v>${o.v}</v>` : ''}</c>`;
+        else if (o.v === null || o.v === undefined || o.v === '') out = st ? `<c r="${ref}" s="${st}"/>` : '';
+        else if (typeof o.v === 'number' && Number.isFinite(o.v)) out = `<c r="${ref}" s="${st}"><v>${o.v}</v></c>`;
+        else out = `<c r="${ref}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${xml(o.v)}</t></is></c>`;
+        // merged cells keep their border/fill across the span
+        for (let k = 1; k < span; k++) out += `<c r="${col(c + k)}${r}" s="${st}"/>`;
+        c += span;
+        return out;
+      }).join('');
+      return `<row r="${r}"${heights[r] ? ` ht="${heights[r]}" customHeight="1"` : ''}>${cells}</row>`;
+    }).join('');
+    const cols = (sheet.widths || []).map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+<sheetViews><sheetView rightToLeft="1" showGridLines="0" workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="20"/>
+${cols ? `<cols>${cols}</cols>` : ''}
+<sheetData>${body}</sheetData>
+${merges.length ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}
+<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
+<pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/>
+</worksheet>`;
+  }
 
   function build(sheets) {
     const used = new Set();
@@ -142,10 +217,10 @@ ${named.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openx
 <Relationship Id="rId${named.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>` },
       { name: 'xl/styles.xml', data: STYLES },
-      ...named.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXML(s) })),
+      ...named.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: s.design ? designXML(s) : sheetXML(s) })),
     ];
     return new Blob([zip(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
-  return { build, zip };
+  return { build, zip, col };
 })();
