@@ -43,18 +43,24 @@ function bookReviewLine(b) {
 function bookPace(b) {
   if (!b.pages || !b.page) return null;
   const t0 = today();
-  const log = b.log.slice().sort((a, c) => a.d.localeCompare(c.d));
-  const from = log.find((e) => e.d >= addDays(t0, -14)) || null;
-  let rate = 0;
-  if (from && log.length > 1) {
-    const days = Math.max(1, daysBetween(from.d, t0));
-    const before = log.filter((e) => e.d < from.d).pop();
-    rate = (b.page - (before ? before.p : 0)) / Math.max(days, 1);
-  }
-  if (rate <= 0 && b.start) rate = b.page / Math.max(1, daysBetween(b.start, t0) + 1);
   const left = Math.max(0, b.pages - b.page);
-  return { pct: Math.min(100, Math.round((b.page / b.pages) * 100)), left, rate, eta: rate > 0 ? Math.ceil(left / rate) : null };
+  const pct = Math.min(100, Math.round((b.page / b.pages) * 100));
+  // a reading schedule decides the finish date: the remaining pages, session by session, on its days
+  if (b.status === 'reading' && b.rdays && b.rdays.length && b.rpages) {
+    let need = Math.ceil(left / b.rpages), d = t0;
+    for (let n = 0; need > 0 && n < 2000; n++) { if (b.rdays.includes(parse(d).getDay())) need--; if (need > 0) d = addDays(d, 1); }
+    return { pct, left, rate: (b.rpages * b.rdays.length) / 7, eta: left ? daysBetween(t0, d) : 0, byPlan: true };
+  }
+  // otherwise the pace you really kept: pages gained since a recorded page, over the days since then.
+  // The page written when the book was added is where you started, not pages read that day.
+  const log = b.log.slice().sort((a, c) => a.d.localeCompare(c.d));
+  const base = log.filter((e) => e.d < addDays(t0, -14)).pop() || log[0];
+  const days = base ? daysBetween(base.d, t0) : 0;
+  const gained = base ? b.page - base.p : 0;
+  const rate = days >= 1 && gained > 0 ? gained / days : 0;
+  return { pct, left, rate, eta: rate > 0 ? Math.ceil(left / rate) : null };
 }
+const paceLine = (pc) => (pc.eta == null ? 'سجّل صفحتك في الأيام القادمة ليُقدَّر موعد إنهائه' : pc.byPlan ? `بجدول قراءتك تنهيه ${pc.eta ? afterDays(pc.eta) : 'اليوم'}` : `بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}`);
 
 // yearly reading goal progress
 function readingGoalState() {
@@ -197,7 +203,7 @@ function viewNotes() {
 // ---------- books ----------
 function bookLine(b) {
   const t0 = today();
-  if (b.status === 'reading') return b.start ? `بدأت ${dateBoth(b.start, true)} · منذ ${daysWord(Math.max(0, daysBetween(b.start, t0)))}` : 'لم تحدد تاريخ البدء';
+  if (b.status === 'reading') return b.start ? `بدأت ${dateBoth(b.start, true)} · ${daysBetween(b.start, t0) > 0 ? `منذ ${daysWord(daysBetween(b.start, t0))}` : 'اليوم'}` : 'لم تحدد تاريخ البدء';
   if (b.status === 'read') {
     const parts = [];
     if (b.start) parts.push(`من ${dateBoth(b.start, true)}`);
@@ -217,7 +223,7 @@ function bookCard(b) {
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
     ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : ''}${libUi.bookTopic ? ` ${esc(BOOK_STATUS[b.status])}` : ''}${b.status === 'reading' && scheduleLine(b) ? ` 📅 ${esc(scheduleLine(b))}` : ''}</span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
-      <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null ? ` · بمعدّلك تنهيه ${afterDays(pace.eta)}` : ''}</span>` : ''}
+      <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null && pace.left ? ` · ${pace.byPlan ? 'بجدولك' : 'بمعدّلك'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
     ${b.summary ? `<p>${esc(excerpt(b.summary, 160))}</p>` : ''}
     ${n ? `<span class="book-line">${icon('bulb')}${n} ${n === 1 ? 'فائدة' : n === 2 ? 'فائدتان' : 'فوائد'}</span>` : ''}
@@ -344,7 +350,7 @@ function openLib(kind, id, preset = {}) {
         <label class="field"><span>عدد صفحات الكتاب</span><input type="number" id="lPages" min="1" inputmode="numeric" value="${b.pages}" placeholder="مثال: 320"></label>
         <label class="field"><span>وصلت إلى صفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${b.page || ''}" placeholder="مثال: 45"></label>
       </div>
-      ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.eta != null ? ` · بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}` : ''}</p>` : ''; })()}
+      ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.left ? ` · ${paceLine(pc)}` : ''}</p>` : ''; })()}
       ${bookReadingFieldsHTML(b)}
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       <div class="brv-box" id="lRvWrap">
