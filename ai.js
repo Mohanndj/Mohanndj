@@ -88,7 +88,7 @@ function aiContext() {
   ].filter(Boolean).join('\n');
 }
 
-const SYSTEM_AR = 'You are the built-in assistant of «مهامي», an Arabic personal productivity app. Always write user-facing text in clear Modern Standard Arabic (short, practical, no filler). Respect Islamic context naturally when relevant.';
+const SYSTEM_AR = 'You are the built-in assistant of «الوعي الشخصي», an Arabic personal productivity app. Always write user-facing text in clear Modern Standard Arabic (short, practical, no filler). Respect Islamic context naturally when relevant.';
 
 const nullable = (schema) => ({ anyOf: [schema, { type: 'null' }] });
 const PRAYER_NAMES = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];

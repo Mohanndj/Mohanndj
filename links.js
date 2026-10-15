@@ -7,22 +7,23 @@
 
 const curMonth = () => today().slice(0, 7);
 const inMonth = (list, m) => list.filter((x) => x.d.slice(0, 7) === m);
+const inPlanList = (list, p) => list.filter((x) => inPlan(p, x.d));
 function linkSrc(key) {
   const [kind, id] = String(key || '').split(':');
   const src = kind === 'sub' ? S.subs.find((s) => s.id === id) : kind === 'debt' ? S.finDebts.find((d) => d.id === id) : kind === 'fine' ? S.fines.find((f) => f.id === id) : null;
   return src ? { kind, src, pays: kind === 'sub' ? src.paid : src.payments } : null;
 }
-// what should be in the plan of month m
-function linkSources(m) {
+// what should be in plan p (its own period)
+function linkSources(p) {
   const out = [];
   for (const s of S.subs) if (s.active && s.amount) out.push({ key: `sub:${s.id}`, name: s.name, amount: s.amount, every: s.every });
   for (const d of S.finDebts) {
-    const paidIn = sum(inMonth(d.payments, m));
+    const paidIn = sum(inPlanList(d.payments, p));
     if (d.monthly && (debtLeft(d) > 0 || paidIn)) out.push({ key: `debt:${d.id}`, name: `قسط ${d.name}`, match: d.name, amount: Math.min(d.monthly, debtLeft(d) + paidIn), every: 1 });
   }
   // a traffic violation stays in the plan until it is paid
   for (const f of S.fines) {
-    const paidIn = sum(inMonth(f.payments, m));
+    const paidIn = sum(inPlanList(f.payments, p));
     if (fineLeft(f) > 0 || paidIn) out.push({ key: `fine:${f.id}`, name: fineName(f), amount: fineLeft(f) + paidIn, every: 1 });
   }
   return out;
@@ -30,9 +31,9 @@ function linkSources(m) {
 const normName = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 // keep a monthly plan of this month or later in step with its sources; past months stay as they were
 function syncPlanLinks(p) {
-  if (!p || p.kind !== 'month' || !p.month || p.month < curMonth()) return false;
+  if (!p || p.kind !== 'month' || !p.month || finRange(p).to < today()) return false;
   let changed = false;
-  const srcs = linkSources(p.month);
+  const srcs = linkSources(p);
   const all = () => [...p.fixed, ...p.periodic];
   for (const s of srcs) {
     if (p.unlinked.includes(s.key)) continue;
@@ -43,7 +44,7 @@ function syncPlanLinks(p) {
     if (!r) { r = row({ name: s.name, amount: s.amount, ...(list === 'periodic' ? { every: s.every } : {}), done: false }); r.link = s.key; p[list].push(r); changed = true; }
     else if (!p[list].includes(r)) { p.fixed = p.fixed.filter((x) => x !== r); p.periodic = p.periodic.filter((x) => x !== r); r = row({ ...r, ...(list === 'periodic' ? { every: s.every } : {}) }); r.link = s.key; p[list].push(r); changed = true; }
     const ls = linkSrc(s.key);
-    const done = sum(inMonth(ls.pays, p.month)) >= (s.every > 1 ? s.amount : s.amount) - 0.5;
+    const done = sum(inPlanList(ls.pays, p)) >= s.amount - 0.5;
     if (r.amount !== s.amount || (list === 'periodic' && r.every !== s.every) || !!r.done !== done) { r.amount = s.amount; if (list === 'periodic') r.every = s.every; r.done = done; changed = true; }
   }
   // a source that was deleted, stopped or paid off leaves the plan
@@ -58,8 +59,8 @@ function syncAllPlans() {
   for (const p of S.finPlans) if (syncPlanLinks(p)) changed = true;
   if (changed) save();
 }
-const rowOfLink = (key, m) => { const p = monthPlan(m); return p ? [...p.fixed, ...p.periodic].find((x) => x.link === key) : null; };
-const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : l.kind === 'fine' ? 'المخالفات المرورية' : `دَين «${l.src.name}»`) : ''; };
+const rowOfLink = (key, d) => { const p = planForDate(d); return p ? [...p.fixed, ...p.periodic].find((x) => x.link === key) : null; };
+const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : l.kind === 'fine' ? `المخالفات المرورية${discLine(l.src) ? ` · ${discLine(l.src)}` : ''}` : `دَين «${l.src.name}»`) : ''; };
 
 // one payment, recorded in its source and as one spending entry
 function payLink(key, amount, d, tx) {
@@ -68,7 +69,7 @@ function payLink(key, amount, d, tx) {
   const pay = { id: uid(), d, amount, note: '' };
   l.pays.push(pay);
   if (l.kind === 'sub') { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; }
-  const r = rowOfLink(key, d.slice(0, 7));
+  const r = rowOfLink(key, d);
   if (!tx) { tx = normalizeTx({ amount, kind: 'out', item: r ? r.name : l.src.name, d }); S.finTx.push(tx); }
   tx.src = `${key}:${pay.id}`;
   if (r) tx.ref = r.id;
@@ -88,11 +89,12 @@ function unpayTx(t) {
 function dropPayment(key, payId) {
   S.finTx = S.finTx.filter((t) => t.src !== `${key}:${payId}`);
 }
-// unticking a linked item: undo this month's payments for it
-function unpayLinkMonth(key, m) {
-  for (const t of S.finTx.filter((x) => x.src && x.src.startsWith(`${key}:`) && x.d.slice(0, 7) === m)) unpayTx(t);
-  S.finTx = S.finTx.filter((x) => !(x.src && x.src.startsWith(`${key}:`) && x.d.slice(0, 7) === m));
+// unticking a linked item: undo its payments within the plan's period
+function unpayLinkPlan(key, p) {
+  const mine = (x) => x.src && x.src.startsWith(`${key}:`) && inPlan(p, x.d);
+  for (const t of S.finTx.filter(mine)) unpayTx(t);
+  S.finTx = S.finTx.filter((x) => !mine(x));
   const l = linkSrc(key);
-  if (l) { const left = inMonth(l.pays, m); for (const p of left) l.pays.splice(l.pays.indexOf(p), 1); }
+  if (l) { const left = inPlanList(l.pays, p); for (const q of left) l.pays.splice(l.pays.indexOf(q), 1); }
   syncAllPlans();
 }

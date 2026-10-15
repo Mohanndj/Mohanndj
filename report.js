@@ -86,7 +86,7 @@ function reportExport(P) {
   const note = reportNote(P.id), prevNote = reportNote(prevP.id);
   const next = { week: 'الأسبوع القادم', month: 'الشهر القادم', year: 'العام القادم' }[P.type];
   const L = [];
-  L.push(`# تقرير ${{ week: 'أسبوعي', month: 'شهري', year: 'سنوي' }[P.type]} من تطبيق «مهامي»`);
+  L.push(`# تقرير ${{ week: 'أسبوعي', month: 'شهري', year: 'سنوي' }[P.type]} من تطبيق «الوعي الشخصي»`);
   L.push(`الفترة: ${P.title} (${P.sub})${P.current ? '، وهي لم تنتهِ بعد: البيانات حتى اليوم' : ''}`);
   L.push(`من ${P.start} إلى ${P.last} (${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')})`);
   L.push('');
@@ -157,7 +157,7 @@ async function reportImage() {
   x.textAlign = 'right'; x.fillStyle = '#ffffff';
   x.font = '700 64px "Aref Ruqaa", "Amiri", serif'; x.fillText(D(`تقرير ${P.title}`), W - Pd, 140);
   x.font = '400 36px "Amiri", serif'; x.fillText(D(P.sub), W - Pd, 205);
-  x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · مهامي` : 'مهامي', W - Pd, 260); x.globalAlpha = 1;
+  x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · الوعي الشخصي` : 'الوعي الشخصي', W - Pd, 260); x.globalAlpha = 1;
   const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'النشاط الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
   const cols = 3, gw = (W - Pd * 2 - 40) / cols, gh = 170;
   tiles.forEach(([v, l], i) => {

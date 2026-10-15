@@ -1425,3 +1425,8 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .cal-proj { display: flex; align-items: center; gap: 8px; text-align: start; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--pc); border-radius: 12px; padding: 10px 12px; }
 .cal-proj b { flex: 1; min-width: 0; }
 .cal-proj small { color: var(--muted); }
+
+/* ================= v40: plan periods, fine message, rename ================= */
+.fin-range-l { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; }
+.fin-payday select { max-width: 100%; }
+.fine-paste { width: 100%; font-size: .85rem; }

@@ -22,6 +22,8 @@ const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num
 function normalizeFinPlan(p) {
   return {
     id: p.id || uid(), name: String(p.name || 'خطة'), kind: p.kind === 'scenario' ? 'scenario' : 'month', month: p.month || '',
+    // the plan's own period (a salary day: 27 Sep → 26 Oct); empty means its calendar month
+    from: /^\d{4}-\d{2}-\d{2}$/.test(p.from || '') ? p.from : '', to: /^\d{4}-\d{2}-\d{2}$/.test(p.to || '') ? p.to : '',
     income: (p.income || []).map(row), fixed: (p.fixed || []).map(row), periodic: (p.periodic || []).map((x) => row({ ...x, every: x.every ?? 12 })),
     accounts: (p.accounts || []).map((x) => row({ ...x, balance: x.balance ?? 0 })), goal: num(p.goal), notes: String(p.notes || ''), unlinked: Array.isArray(p.unlinked) ? p.unlinked.map(String) : [],
     created: p.created || Date.now(), updated: p.updated || Date.now(),
@@ -76,7 +78,7 @@ function planRows(p) {
 }
 function planActual(p) {
   const c = planCalc(p);
-  const txs = p.kind === 'month' && p.month ? S.finTx.filter((t) => t.d.slice(0, 7) === p.month) : [];
+  const txs = p.kind === 'month' && p.month ? S.finTx.filter((t) => inPlan(p, t.d)) : [];
   const outs = txs.filter((t) => t.kind === 'out');
   const rows = planRows(p);
   for (const r of rows) {
@@ -98,7 +100,7 @@ function assignTx(t, ref, p) {
   if (ref === 'out' && !t.item) t.item = 'خارج المخطط';
   t.ref = ref;
   if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t); return; }
-  if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && y.d.slice(0, 7) === p.month)); if (r.plan && got >= r.plan - 0.5) r.x.done = true; }
+  if (r && !r.x.done) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && inPlan(p, y.d))); if (r.plan && got >= r.plan - 0.5) r.x.done = true; }
 }
 // what is left of a plan item this month, said plainly: «بقي ٢٥٠ من ٦٠٠ هذا الشهر» or an overrun
 function rowRemain(p, rowId, extra = 0) {
@@ -114,7 +116,7 @@ const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r
 
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
 function spendTodayHTML() {
-  const t0 = today(), p = monthPlan(t0.slice(0, 7));
+  const t0 = today(), p = planForDate(t0);
   if (syncPlanLinks(p)) save();
   const list = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
@@ -175,7 +177,7 @@ function viewFinance() {
   <section class="section">
     <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
     ${c ? `<button type="button" class="fin-top" data-action="fin-open" data-v="${ap.id}">
-      <small>${esc(ap.name)}${ap.month ? ` · ${esc(monthName(ap.month))}` : ''}</small>
+      <small>${esc(ap.name)}${ap.month ? ` · ${esc(rangeLabel(ap))}` : ''}</small>
       <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
     </button>` : ''}
     ${mini.length ? `<div class="fin-mini">${mini.map((k) => `<button type="button" data-action="fin-lg" data-v="${k}">${{ debt: 'عليّ ديون', owe: 'عليّ حقوق', right: 'لي عند غيري' }[k]}: <b>${money(lgTotal(k))}</b></button>`).join('')}</div>` : ''}
@@ -208,8 +210,9 @@ function finPlansHTML() {
   </section>
   <section class="section">
     <div class="section-head"><h2>الخطط الشهرية</h2>${addBtn('fin-new-month', 'خطة شهر')}</div>
+    <label class="field fin-payday"><span>يوم نزول الراتب</span><select id="setPayDay">${[0, ...Array.from({ length: 28 }, (_, i) => i + 1)].map((d) => `<option value="${d}"${(Number(S.settings.payDay) || 0) === d ? ' selected' : ''}>${d ? `يوم ${d} من كل شهر` : 'بداية الشهر (من ١ إلى آخره)'}</option>`).join('')}</select><small class="hint">تبدأ كل خطة شهرية جديدة من هذا اليوم وتنتهي في اليوم الذي قبله من الشهر التالي، وتستطيع تعديل أي خطة بنفسها.</small></label>
     ${months.length ? `<div class="book-list">${months.map((p) => { const c = planCalc(p); return `<button type="button" class="fin-card${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
-      <span class="row-between"><b>${esc(planTitle(p))}</b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' · ')}</small></span>
+      <span class="row-between"><b>${esc(planTitle(p))}<small class="fin-range-l"> ${esc(rangeLabel(p))}</small></b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' · ')}</small></span>
       ${splitBar(c)}
     </button>`; }).join('')}</div>`
       : emptyHTML('لا خطط شهرية بعد', 'أنشئ خطة لهذا الشهر: فارغة، أو من الشهر السابق، أو انقل إليها إحدى خططك المعنونة.', addBtn('fin-new-month', 'خطة هذا الشهر'))}
@@ -253,6 +256,10 @@ function planDetailHTML(p) {
       <div class="seg" role="group">${[['month', 'خطة شهرية'], ['scenario', 'خطة معنونة']].map(([v, l]) => `<button type="button" data-action="fin-kind" data-v="${v}" aria-pressed="${p.kind === v}">${l}</button>`).join('')}</div>
       ${p.kind === 'month' ? `<input type="month" id="fp-month" data-fin="plan" data-sid="${p.id}" data-k="month" value="${p.month}" aria-label="الشهر">` : ''}
     </div>
+    ${p.kind === 'month' ? `<div class="grid2 fin-range">
+      <label class="field"><span>تبدأ يوم</span><input type="date" id="fp-from" data-fin="plan" data-sid="${p.id}" data-k="from" value="${finRange(p).from}"></label>
+      <label class="field"><span>وتنتهي يوم</span><input type="date" id="fp-to" data-fin="plan" data-sid="${p.id}" data-k="to" value="${finRange(p).to}"></label>
+    </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</small>` : ''}
     ${splitBar(c)}
     ${p.kind === 'month' ? planActualHTML(p) : ''}
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${rowsHTML('plan', p.id, 'income', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.income, { addLabel: 'دخل' })}</div>
@@ -601,6 +608,29 @@ function applyPlan(target, src, mode) {
   target.updated = Date.now();
 }
 const monthPlan = (m) => S.finPlans.find((p) => p.kind === 'month' && p.month === m);
+// a monthly plan covers a period: its own dates if set, else its calendar month. Everything that asks
+// «which plan is this payment in?» goes by date, not by calendar month.
+function finRange(p) {
+  if (!p || p.kind !== 'month' || !p.month) return null;
+  if (p.from && p.to && p.from <= p.to) return { from: p.from, to: p.to };
+  const [y, m] = p.month.split('-').map(Number);
+  return { from: `${p.month}-01`, to: iso(new Date(y, m, 0)) };
+}
+const inPlan = (p, d) => { const r = finRange(p); return !!r && !!d && d >= r.from && d <= r.to; };
+const planForDate = (d) => S.finPlans.find((p) => p.kind === 'month' && inPlan(p, d)) || null;
+const currentPlan = () => planForDate(today());
+const planLen = (p) => { const r = finRange(p); return r ? daysBetween(r.from, r.to) + 1 : 30; };
+const rangeLabel = (p) => { const r = finRange(p); return r ? `${fmtDate(r.from, { day: 'numeric', month: 'long' })} – ${fmtDate(r.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : ''; };
+// the period a new plan for month m gets: the salary day if set (that day of month m to the day before it next month)
+function defaultRange(m) {
+  const day = Number(S.settings.payDay) || 0;
+  if (!day) return { from: '', to: '' };
+  const [y, mo] = m.split('-').map(Number);
+  const clamp = (yy, mm) => Math.min(day, new Date(yy, mm, 0).getDate());
+  const from = iso(new Date(y, mo - 1, clamp(y, mo)));
+  const to = addDays(iso(new Date(y, mo, clamp(mo === 12 ? y + 1 : y, mo === 12 ? 1 : mo + 1))), -1);
+  return { from, to };
+}
 function nextFreeMonth() {
   let d = parse(`${today().slice(0, 7)}-01`);
   for (let i = 0; i < 24; i++) { const m = iso(d).slice(0, 7); if (!monthPlan(m)) return m; d.setMonth(d.getMonth() + 1); }
@@ -632,7 +662,7 @@ function saveFinNew() {
   if (kind === 'month') {
     const m = $('fnMonth').value || today().slice(0, 7);
     if (monthPlan(m)) { toast(`لديك خطة لـ${monthName(m)} من قبل، افتحها أو انقل إليها خطة.`); return false; }
-    p = normalizeFinPlan({ kind: 'month', month: m, name: `خطة ${monthName(m)}`, income: [{ name: 'الراتب', amount: 0 }], fixed: [], periodic: [], accounts: [] });
+    p = normalizeFinPlan({ kind: 'month', month: m, ...defaultRange(m), name: `خطة ${monthName(m)}`, income: [{ name: 'الراتب', amount: 0 }], fixed: [], periodic: [], accounts: [] });
   } else {
     const name = $('fnName').value.trim();
     if (!name) { toast('اكتب عنوان الخطة.'); return false; }
@@ -865,6 +895,7 @@ function finScope(scope, sid) { return scope === 'plan' ? getFinPlan(sid) : S.fi
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.id === 'fmMonth') { updateMoveHint(); return; }
+  if (el.id === 'setPayDay') { S.settings.payDay = Number(el.value); save(); render(); toast(Number(el.value) ? `الخطط الجديدة تبدأ يوم ${el.value}` : 'الخطط الجديدة من بداية الشهر'); return; }
   if (el.id === 'finImport') { const f = el.files && el.files[0]; el.value = ''; if (f) importWorkbook(f); return; }
   if (!el.dataset || !el.dataset.fin) return;
   const obj = finScope(el.dataset.fin, el.dataset.sid);
@@ -872,9 +903,17 @@ document.addEventListener('change', (e) => {
   const k = el.dataset.k;
   const lrow = el.dataset.list && k === 'done' ? obj[el.dataset.list].find((x) => x.id === el.dataset.row) : null;
   if (lrow && lrow.link) {
-    if (el.checked) { const d = obj.month === curMonth() ? today() : obj.month < curMonth() ? iso(new Date(+obj.month.slice(0, 4), +obj.month.slice(5, 7), 0)) : `${obj.month}-01`; payLink(lrow.link, lrow.amount, d); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
-    else { unpayLinkMonth(lrow.link, obj.month); toast('أُلغي دفع هذا الشهر'); }
+    const r = finRange(obj);
+    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; payLink(lrow.link, lrow.amount, d); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
+    else { unpayLinkPlan(lrow.link, obj); toast('أُلغي دفعه في هذه الخطة'); }
     save(); render(); return;
+  }
+  if (el.dataset.k === 'from' || el.dataset.k === 'to') {
+    obj[el.dataset.k] = el.value;
+    const r = finRange({ ...obj, from: obj.from || finRange(obj).from, to: obj.to || finRange(obj).to });
+    if (!obj.from) obj.from = r.from; if (!obj.to) obj.to = r.to;
+    if (obj.from > obj.to) { toast('تاريخ النهاية قبل البداية.'); }
+    obj.updated = Date.now(); syncAllPlans(); save(); render(); return;
   }
   const val = el.type === 'checkbox' ? el.checked : ['amount', 'balance', 'every', 'goal', 'opening'].includes(k) ? num(el.value) : el.value;
   if (el.dataset.list) { const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row); if (r) r[k] = k === 'name' ? String(val).trim() : val; }
@@ -910,7 +949,9 @@ document.addEventListener('click', (e) => {
       const d = parse(`${src.month || today().slice(0, 7)}-01`); d.setMonth(d.getMonth() + 1);
       const m = src.kind === 'month' ? iso(d).slice(0, 7) : '';
       const clone = (l) => l.map((x) => ({ ...x, id: uid(), ...(x.done != null ? { done: false } : {}) }));
-      const p = normalizeFinPlan({ ...src, id: uid(), name: src.kind === 'month' ? `خطة ${monthName(m)}` : `${src.name} (نسخة)`, month: m, income: clone(src.income), fixed: clone(src.fixed), periodic: clone(src.periodic), accounts: clone(src.accounts), created: Date.now() });
+      // the next period follows on from this one's last day
+      const rg = src.kind === 'month' && src.from && src.to ? { from: addDays(src.to, 1), to: addDays(addMonths(addDays(src.to, 1), 1), -1) } : src.kind === 'month' ? defaultRange(m) : { from: '', to: '' };
+      const p = normalizeFinPlan({ ...src, ...rg, id: uid(), name: src.kind === 'month' ? `خطة ${monthName(m)}` : `${src.name} (نسخة)`, month: m, income: clone(src.income), fixed: clone(src.fixed), periodic: clone(src.periodic), accounts: clone(src.accounts), created: Date.now() });
       S.finPlans.push(p); save(); finUi.tab = 'plans'; finUi.plan = p.id; render(); toast('أُنشئت نسخة، عدّل ما تغيّر');
       break;
     }
@@ -970,10 +1011,10 @@ document.addEventListener('submit', (e) => {
   if (!amount) { $('tdAmt').focus(); toast('اكتب المبلغ.'); return; }
   const t = normalizeTx({ amount, kind: 'out', item: $('tdWhy').value.trim(), d: today() });
   S.finTx.push(t);
-  const p = monthPlan(t.d.slice(0, 7));
+  const p = planForDate(t.d);
   const named = !$('tdRef').value && p && planRows(p).find((r) => r.x.name && r.x.name === t.item);
   const ref = $('tdRef').value || (named ? named.x.id : '');
-  if (ref) assignTx(t, ref, monthPlan(t.d.slice(0, 7)));
+  if (ref) assignTx(t, ref, planForDate(t.d));
   save(); render();
   const rm = ref && rowRemain(p, ref);
   toast(`سُجّل ${money(amount)}${rm ? ` · «${rm.name}»: ${rm.text}` : ref ? '' : '. أضفه إلى بنده لاحقاً من الخطة'}`);
@@ -982,7 +1023,7 @@ document.addEventListener('submit', (e) => {
 function tdHintUpdate() {
   const el = $('tdHint');
   if (!el) return;
-  const p = monthPlan(curMonth());
+  const p = currentPlan();
   const why = ($('tdWhy').value || '').trim();
   const named = !$('tdRef').value && p && why && planRows(p).find((r) => r.x.name && r.x.name === why);
   const rm = rowRemain(p, $('tdRef').value || (named ? named.x.id : ''), num($('tdAmt').value));
@@ -1007,7 +1048,7 @@ document.addEventListener('submit', (e) => {
   if (!amount) { $('txAmount').focus(); toast('اكتب المبلغ.'); return; }
   const t = normalizeTx({ amount, kind: finUi.txKind || 'out', item: $('txItem').value.trim(), note: $('txNote').value.trim(), d: $('txDate').value || today() });
   S.finTx.push(t);
-  const p = monthPlan(t.d.slice(0, 7));
+  const p = planForDate(t.d);
   const r = t.kind === 'out' && p && planRows(p).find((y) => y.x.name && y.x.name === t.item);
   if (r) assignTx(t, r.x.id, p);
   const rm = r && rowRemain(p, r.x.id);

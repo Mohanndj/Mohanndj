@@ -9,10 +9,12 @@ const isSaving = (p) => p.kind === 'save';
 const savingProject = () => S.finProjects.find(isSaving);
 
 function saveCalc(p) {
-  const cur = curMonth();
-  const months = [...new Set(S.finPlans.filter((x) => x.kind === 'month' && x.month && x.month >= (p.from || '0000') && x.month <= cur).map((x) => x.month))].sort();
+  const t0 = today();
+  const plans = S.finPlans.filter((x) => x.kind === 'month' && x.month && x.month >= (p.from || '0000') && finRange(x).from <= t0).sort((a, b) => finRange(a).from.localeCompare(finRange(b).from));
+  const months = [...new Set(plans.map((x) => x.month))];
   const rows = months.map((m) => {
     const a = planActual(monthPlan(m));
+    const cur = inPlan(monthPlan(m), t0) ? m : '';
     const tracked = a.spent > 0;
     // a finished month: what was really left; this month: what is left after paying the rest of its plan
     const auto = Math.round((tracked ? (m === cur ? a.inHand - a.toPay : a.inHand) : a.left) * 100) / 100;

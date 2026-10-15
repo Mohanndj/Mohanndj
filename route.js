@@ -18,7 +18,7 @@ function routeSmart(text) {
     const amount = num(numFirst ? m[1] : m[2]);
     const what = String(numFirst ? m[2] : m[1]).replace(/^ال(?=ال)/, '').trim();
     if (!amount) return null;
-    const p = monthPlan(curMonth());
+    const p = currentPlan();
     if (p) syncPlanLinks(p);
     const nm = normName(what);
     const r = p && nm.length >= 2 ? planRows(p).find((y) => y.x.name && (normName(y.x.name) === nm || normName(y.x.name).includes(nm) || nm.includes(normName(y.x.name)))) : null;
@@ -39,7 +39,7 @@ function routeSmart(text) {
 }
 function routePreviewHTML(q) {
   const tag = (s, cls = '') => `<span class="tag ${cls}">${s}</span>`;
-  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(monthPlan(curMonth()), q.row.id, q.amount); return rm ? ` · ${remainAfter(rm)}` : ''; })()}`, (rowRemain(monthPlan(curMonth()), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(monthPlan(curMonth()) ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
+  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` · ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
     : q.type === 'shop' ? [tag(`${q.list.icon} ${esc(q.list.name)}`, 'title'), ...q.names.map((n) => tag(esc(n)))]
       : [tag('💡 فكرة', 'title'), tag(esc(excerpt(q.text, 50)))];
   return `<div class="parsed">${tags.join('')}</div>`;
@@ -48,9 +48,9 @@ function runRoute(q) {
   if (q.type === 'spend') {
     const t = normalizeTx({ amount: q.amount, kind: 'out', item: q.what, d: today() });
     S.finTx.push(t);
-    if (q.row) assignTx(t, q.row.id, monthPlan(curMonth()));
+    if (q.row) assignTx(t, q.row.id, currentPlan());
     save();
-    const rm = q.row && rowRemain(monthPlan(curMonth()), q.row.id);
+    const rm = q.row && rowRemain(currentPlan(), q.row.id);
     return `سُجّل ${money(q.amount)}${q.row ? ` في بند «${q.row.name}»` : ''}${rm ? `: ${rm.text}` : ''}`;
   }
   if (q.type === 'shop') { const n = addToShop(q.names, q.list.id); return n ? `أُضيف إلى «${q.list.name}»: ${q.names.join('، ')}` : 'موجود في القائمة'; }
@@ -68,6 +68,8 @@ function smartSettingsHTML() {
       <div class="seg seg-wrap">${[['tasks', 'للمهام والأهداف فقط'], ['all', 'لكل شيء']].map(([v, l]) => `<button type="button" data-action="set-smart" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
       <small class="hint">«لكل شيء»: اكتب «دفعت ١٥٠ بنزين» فيُسجَّل مصروفاً في بنده، و«اشتر حليب وخبز» فيُضاف إلى مشتريات البيت، و«فكرة: …» فتُحفظ في الأفكار. وتبقى بقية خانات الإضافة كما هي.</small>
     </div>
+    <label class="switch"><input type="checkbox" id="setPin"${S.settings.pin ? ' checked' : ''}><span>إشعار دائم في شريط الإشعارات: رمز التطبيق بجانب الساعة، وفيه ما بقي لليوم</span></label>
+    <small class="hint">إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.</small>
     <label class="field"><span>بطاقة «إغلاق اليوم» تظهر من الساعة</span>
       <select id="setCloseAt">${[[0, 'لا تُظهرها'], [18, '٦ مساءً'], [19, '٧ مساءً'], [20, '٨ مساءً'], [21, '٩ مساءً'], [22, '١٠ مساءً'], [23, '١١ مساءً']].map(([h, l]) => `<option value="${h}"${at === h ? ' selected' : ''}>${l}</option>`).join('')}</select>
     </label>
@@ -149,7 +151,41 @@ document.addEventListener('click', (e) => {
     save(); render(); toast('أغلقت يومك. تصبح على خير 🌙');
   }
 });
-document.addEventListener('change', (e) => {
+// ---------- the pinned notification ----------
+// A quiet notification that stays in the shade (and its icon by the clock) with what is left today.
+// A web app cannot forbid swiping it away; it comes back whenever the app is opened or something changes.
+function pinText() {
+  const t0 = today();
+  const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0).length;
+  const goals = S.tasks.filter((t) => isRepeat(t) && !goalEnded(t) && occursOn(t, t0) && !t.completions[t0]).length;
+  const lists = S.shop.filter((x) => x.need).length;
+  const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `القوائم ${lists}`].filter(Boolean);
+  return parts.length ? `باقٍ اليوم: ${parts.join(' · ')}` : 'لا شيء باقٍ لليوم ✓';
+}
+let pinTimer = null, pinLast = '';
+async function pinNotify(force) {
+  if (!S.settings.pin || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const body = digitsOut(pinText());
+  if (!force && body === pinLast) return;
+  pinLast = body;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.showNotification('الوعي الشخصي', { body, tag: 'pin', silent: true, renotify: false, requireInteraction: true, lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', data: { pin: true } });
+  } catch {}
+}
+const pinSoon = () => { clearTimeout(pinTimer); pinTimer = setTimeout(() => pinNotify(false), 1500); };
+async function pinOff() {
+  try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) for (const n of await reg.getNotifications({ tag: 'pin' })) n.close(); } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pinNotify(true); });
+setTimeout(() => pinNotify(true), 2000);
+
+document.addEventListener('change', async (e) => {
+  if (e.target.id === 'setPin') {
+    S.settings.pin = e.target.checked; save();
+    if (S.settings.pin) { await ensureNotifPermission(); pinNotify(true); toast('سيظهر رمز التطبيق بجانب الساعة'); } else { pinOff(); toast('أُزيل الإشعار الدائم'); }
+    return;
+  }
   if (e.target.id !== 'setCloseAt') return;
   S.settings.closeAt = Number(e.target.value);
   save(); render();

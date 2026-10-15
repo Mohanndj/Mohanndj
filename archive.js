@@ -1,6 +1,6 @@
 'use strict';
 // «الأرشيف»: things found elsewhere (links, videos, messages, ideas) kept to come back to.
-// Items arrive by sharing from any app to «مهامي» (Web Share Target) or are added by hand.
+// Items arrive by sharing from any app to «الوعي الشخصي» (Web Share Target) or are added by hand.
 
 const archUi = { q: '', filter: 'open', tag: '' };
 
@@ -70,14 +70,14 @@ function viewArchive() {
       <textarea id="archQuickText" rows="2" placeholder="معلومة سريعة أو رابط… (‎#وسم للتصنيف)" aria-label="معلومة سريعة"></textarea>
       <button type="submit" class="primary">${icon('plus')}احفظ</button>
     </form>
-    <p class="note-text">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «مهامي».</p>
+    <p class="note-text">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «الوعي الشخصي».</p>
     ${S.archive.length ? `<input type="search" id="archSearch" placeholder="ابحث في الأرشيف" aria-label="بحث" value="${esc(archUi.q)}">
       <div class="seg" role="group" aria-label="عرض">${seg}</div>
       ${tags.length ? `<div class="chips" role="group" aria-label="التصنيف"><button type="button" class="chip" data-action="arch-tag" data-v="" aria-pressed="${!archUi.tag}">الكل</button>${tags.map((t) => `<button type="button" class="chip" data-action="arch-tag" data-v="${esc(t)}" aria-pressed="${archUi.tag === t}">${esc(t)}</button>`).join('')}</div>` : ''}` : ''}
     ${list.length ? `<div class="book-list">${list.map(archCard).join('')}</div>`
       : S.archive.length ? emptyHTML(archUi.filter === 'open' && !q ? 'رجعت إلى كل شيء' : 'لا نتائج', archUi.filter === 'open' && !q ? 'لا شيء ينتظرك في الأرشيف.' : 'جرّب كلمة أخرى.')
-        : emptyHTML('الأرشيف فارغ', 'رأيت مقالاً أو مقطعاً أو رسالة تريد الرجوع إليها؟ اضغط «مشاركة» في ذلك التطبيق واختر «مهامي»، أو أضفه هنا بنفسك.', addBtn('arch-new', 'أضف أول عنصر'))}
-    <details class="howto"><summary>«مهامي» لا يظهر في قائمة المشاركة؟</summary>
+        : emptyHTML('الأرشيف فارغ', 'رأيت مقالاً أو مقطعاً أو رسالة تريد الرجوع إليها؟ اضغط «مشاركة» في ذلك التطبيق واختر «الوعي الشخصي»، أو أضفه هنا بنفسك.', addBtn('arch-new', 'أضف أول عنصر'))}
+    <details class="howto"><summary>«الوعي الشخصي» لا يظهر في قائمة المشاركة؟</summary>
       <ol>
         <li>يظهر فقط بعد تثبيت التطبيق على الشاشة الرئيسية من Chrome على أندرويد.</li>
         <li>إذا كان مثبتاً من قبل: احذف أيقونته من الشاشة الرئيسية، ثم افتح الرابط في Chrome وثبّته من جديد. بياناتك لا تُحذف.</li>

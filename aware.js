@@ -217,7 +217,7 @@ function awareStats(P) {
 
   // 💰 المالية: spending against the plans' expenses, prorated to the days that passed
   let plannedExp = 0;
-  for (const d of days) { const mp = monthPlan(d.slice(0, 7)); if (mp) { const c = planCalc(mp); const dim = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate(); plannedExp += (c.fixed + c.periodic) / dim; } }
+  for (const d of days) { const mp = planForDate(d); if (mp) { const c = planCalc(mp); plannedExp += (c.fixed + c.periodic) / planLen(mp); } }
   const outs = S.finTx.filter((t) => t.kind === 'out' && inP(t.d));
   const spent = sum(outs), outside = sum(outs.filter((t) => t.ref === 'out'));
   const income = sum(S.finTx.filter((t) => t.kind === 'in' && inP(t.d)));

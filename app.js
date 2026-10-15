@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 39;
+const APP_VERSION = 40;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -220,6 +220,7 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
   if (typeof Sync !== 'undefined') Sync.schedule();
+  if (typeof pinSoon === 'function' && S.settings.pin) pinSoon();
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
 const getProject = (id) => S.projects.find((p) => p.id === id);
@@ -1014,7 +1015,7 @@ function viewSettings() {
         ['naskh', 'نسخ', 'خط النسخ في كل التطبيق', '"Amiri"', '"Amiri"'],
         ['ruqaa', 'رقعة', 'خط الرقعة في كل التطبيق', '"Aref Ruqaa"', '"Aref Ruqaa"'],
       ].map(([v, name, desc, fd, fb]) => `<button type="button" data-action="font" data-v="${v}" aria-pressed="${(st.font || 'mix') === v}">
-        <span class="big" style="font-family:${esc(fd)}, serif">${name}: مهامي اليوم</span>
+        <span class="big" style="font-family:${esc(fd)}, serif">${name}: الوعي الشخصي</span>
         <small style="font-family:${esc(fb)}, serif">${desc} · اتصل بأبي الساعة 5 العصر</small></button>`).join('')}</div>
     </div>
     <div class="field"><span>الأرقام</span>
@@ -1616,7 +1617,7 @@ async function systemNotify(title, body, key, id) {
   title = digitsOut(title); body = digitsOut(body);
   const opts = {
     body, tag: key, renotify: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
-    icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', vibrate: [200, 100, 200, 100, 400],
+    icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', vibrate: [200, 100, 200, 100, 400],
     data: { id, key },
     actions: [{ action: 'done', title: 'تمت' }, { action: 'snooze', title: `غفوة ${SNOOZE_MIN} دقائق` }],
   };
@@ -1741,7 +1742,7 @@ function importData(file) {
       render();
       toast('تم الاستيراد');
     } catch {
-      toast('الملف غير صالح. اختر ملفاً صدّرته من «مهامي».');
+      toast('الملف غير صالح. اختر ملفاً صدّرته من «الوعي الشخصي».');
     }
   };
   reader.readAsText(file);
@@ -1867,7 +1868,7 @@ async function countdownEnded(tm, endTs) {
       const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
       const title = digitsOut(tm.phase === 'break' ? 'انتهت الاستراحة' : `انتهى الوقت: ${timerTitle(tm)}`);
       const body = digitsOut(tm.phase === 'break' ? 'جاهز لجولة جديدة؟' : `أنهيت ${fmtDur(tm.planned)} من التركيز`);
-      const opts = { body, tag: 'timer-end', requireInteraction: true, vibrate: [400, 200, 400, 200, 600], lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+      const opts = { body, tag: 'timer-end', requireInteraction: true, vibrate: [400, 200, 400, 200, 600], lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/badge-96.png' };
       if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
     } catch {}
   }
@@ -1909,7 +1910,7 @@ async function applyPendingTimerActions() {
 function timerNotifNote() {
   if (!('Notification' in window)) return '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
   if (Notification.permission === 'granted') return '<p class="note-text">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
-  if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← مهامي (أو Chrome) ← الإشعارات.</p>';
+  if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← الوعي الشخصي (أو Chrome) ← الإشعارات.</p>';
   return '<div class="warn-box"><span>ليبقى المؤقت ظاهراً في شريط الإشعارات بعد خروجك من التطبيق، فعّل الإشعارات.</span><button type="button" class="primary" data-action="notif-timer">تفعيل الإشعارات</button></div>';
 }
 
@@ -2211,7 +2212,7 @@ document.addEventListener('click', (e) => {
       alarmQueue.unshift({ id: '__test', key: '__test' });
       showAlarm();
       setTimeout(beep, 50);
-      systemNotify('منبه تجريبي من «مهامي»', 'هكذا ستصلك التنبيهات', '__test', '');
+      systemNotify('منبه تجريبي من «الوعي الشخصي»', 'هكذا ستصلك التنبيهات', '__test', '');
       break;
     case 'alarm-done':
     case 'alarm-snooze':

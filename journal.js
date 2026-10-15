@@ -6,7 +6,7 @@
 // Entries export to Word: each entry as one text, with a separator between entries.
 
 const MOODS = [['😞', 'صعب'], ['😕', 'متعب'], ['😐', 'عادي'], ['🙂', 'جيد'], ['😄', 'رائع']];
-const JBLOCKS = { mood: 'المزاج', plan: 'خطة اليوم من مهامي', done: 'ما أنجزته اليوم', habits: 'عاداتي اليوم', focus: 'وقت التركيز' };
+const JBLOCKS = { mood: 'المزاج', plan: 'خطة اليوم', done: 'ما أنجزته اليوم', habits: 'عاداتي اليوم', focus: 'وقت التركيز' };
 const JWHEN = { any: 'أي وقت', morning: 'الصباح', evening: 'المساء', week: 'نهاية الأسبوع' };
 const jUi = { q: '', month: '', manage: false };
 
