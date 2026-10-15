@@ -80,14 +80,14 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
 
 // ---------- page ----------
 function viewFinance() {
-  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['debts', 'الديون'], ['rights', 'الحقوق'], ['projects', 'المشاريع']];
+  const tabs = [['plans', 'الخطط'], ['spend', 'المصروف'], ['bills', 'الاشتراكات والفواتير'], ['debts', 'الديون'], ['rights', 'الحقوق'], ['projects', 'المشاريع'], ['later', 'الشراء المؤجّل']];
   const ap = activePlan();
   const c = ap ? planCalc(ap) : null;
   const debts = sum(S.finDebts, debtLeft), rights = sum(S.finRights, rightLeft);
-  const body = { plans: finPlansHTML, spend: finSpendHTML, debts: finDebtsHTML, rights: finRightsHTML, projects: finProjectsHTML }[finUi.tab]();
+  const body = ({ plans: finPlansHTML, spend: finSpendHTML, bills: finBillsHTML, debts: finDebtsHTML, rights: finRightsHTML, projects: finProjectsHTML, later: finLaterHTML }[finUi.tab] || finPlansHTML)();
   return `${moreCrumb()}
   <section class="section">
-    <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
+    <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
     ${c ? `<button type="button" class="fin-top" data-action="fin-open" data-v="${ap.id}">
       <small>${esc(ap.name)}${ap.month ? ` · ${esc(monthName(ap.month))}` : ''}</small>
       <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
@@ -683,6 +683,8 @@ function finWorkbook(what) {
   if (what.debts) sheets.push(ledgerSheet('debts'));
   if (what.rights) sheets.push(ledgerSheet('rights'));
   for (const id of what.projects || []) { const p = S.finProjects.find((x) => x.id === id); if (p) sheets.push(projectSheet(p)); }
+  if (what.subs && S.subs.length) sheets.push(subsSheet());
+  if (what.later && S.later.length) sheets.push(laterSheet());
   if (what.spend && S.finTx.length) sheets.push(spendSheet());
   return sheets;
 }
@@ -712,6 +714,8 @@ function openFinExport() {
       ${S.finDebts.length ? box('debts', 'الديون', `${S.finDebts.length} · الباقي ${money(sum(S.finDebts, debtLeft))}`) : ''}
       ${S.finRights.length ? box('rights', 'الحقوق المالية', `${S.finRights.length} · الباقي ${money(sum(S.finRights, rightLeft))}`) : ''}
       ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), 'مشروع مالي')).join('')}
+      ${S.subs.length ? box('subs', 'الاشتراكات والفواتير', `${money(sum(S.subs.filter((s) => s.active), subMonthly))} شهرياً`) : ''}
+      ${S.later.length ? box('later', 'الشراء المؤجّل', `${S.later.length} · وفّرت ${money(sum(S.later.filter((x) => x.decision === 'dropped'), (x) => x.price))}`) : ''}
       ${S.finTx.length ? box('spend', 'المصروف المسجّل', `${S.finTx.length} عملية`) : ''}
     </div>
     <div class="sheet-actions"><button type="submit" class="primary">${icon('sheet')} صدّر</button></div>`;
