@@ -127,6 +127,7 @@ function awareStats(m) {
     rightGot && `استلمت من حقوقك ${money(rightGot)}`,
     subsPaid && `دفعت ${subsPaid} ${subsPaid === 1 ? 'اشتراكاً أو فاتورة' : 'اشتراكات وفواتير'}`,
     saved && `وفّرت بالشراء المؤجّل ${money(saved)}`,
+    savingProject() && `نقدك المدخر ${money(saveCalc(savingProject()).cash)}`,
   ]);
 
   // الأفكار وقائمة الشراء: حقائق بلا درجة

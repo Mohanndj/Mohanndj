@@ -1381,3 +1381,17 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .close-list li > span:nth-child(2) { flex: 1; min-width: 0; }
 .close-list li.ok > span:nth-child(2) { color: var(--muted); }
 .close-done { width: 100%; margin-top: 4px; }
+
+/* ================= v32: savings project ================= */
+.save-card { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.save-new { border-style: dashed; width: 100%; text-align: start; }
+.save-hero { display: grid; gap: 2px; text-align: center; background: var(--accent-soft); border-radius: 16px; padding: 14px 12px; }
+.save-hero b { font-size: 1.8rem; color: var(--accent); }
+.save-hero b.neg { color: var(--high); }
+.save-hero small { color: var(--muted); }
+.save-months { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.save-months li { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 6px; align-items: center; }
+.save-months li > span { display: grid; min-width: 0; }
+.save-months li small { color: var(--muted); font-size: .76rem; }
+.save-months li.pending { opacity: .75; }
+.save-link { width: 100%; text-align: start; white-space: normal; }

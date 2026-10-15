@@ -37,7 +37,10 @@ const LEDGERS = {
 const lgLeft = (kind) => (kind === 'debt' ? debtLeft : rightLeft);
 const lgTotal = (kind) => sum(LEDGERS[kind].list(), lgLeft(kind));
 function normalizeFinProject(p) {
-  return { id: p.id || uid(), name: String(p.name || 'مشروع'), items: (p.items || []).map((x) => row({ ...x, done: !!x.done })), funding: (p.funding || []).map(row), paidFrom: p.paidFrom === 'funding' ? 'funding' : 'outside', note: String(p.note || ''), created: p.created || Date.now() };
+  return { id: p.id || uid(), name: String(p.name || 'مشروع'), items: (p.items || []).map((x) => row({ ...x, done: !!x.done })), funding: (p.funding || []).map(row), paidFrom: p.paidFrom === 'funding' ? 'funding' : 'outside', note: String(p.note || ''), created: p.created || Date.now(),
+    // «الادخار» (savings.js): fed by the monthly plans
+    kind: p.kind === 'save' ? 'save' : 'cost', opening: num(p.opening), from: String(p.from || ''), goal: num(p.goal), moves: payments(p.moves),
+    overrides: Object.fromEntries(Object.entries(p.overrides && typeof p.overrides === 'object' ? p.overrides : {}).filter(([m]) => /^\d{4}-\d{2}$/.test(m)).map(([m, v]) => [m, num(v)])) };
 }
 // what is bought no longer needs money: the need is what is left to buy. If the purchases were paid
 // out of the project's funding sources, that money is gone from what is available too.
@@ -245,6 +248,7 @@ function planDetailHTML(p) {
     <div class="panel"><h3>٣- الادخار وسيولة الطوارئ</h3>
       <div class="fin-left ${c.left < 0 ? 'neg' : 'pos'}"><span>${c.left < 0 ? 'العجز' : 'المتبقي للادخار'}</span><b>${money(Math.abs(c.left))}</b></div>
       <p class="note-text">أولى مبالغ الادخار تكون لبناء سيولة الطوارئ.</p>
+      ${p.kind === 'month' && savingProject() ? `<button type="button" class="ghost save-link" data-action="proj-open" data-v="${savingProject().id}">💰 ما يبقى من هذا الشهر يذهب إلى «${esc(savingProject().name)}» · نقدك الآن ${money(saveCalc(savingProject()).cash)}</button>` : ''}
       <label class="field"><span>هدف الادخار</span><input type="text" inputmode="decimal" class="num-in" id="fp-goal" data-fin="plan" data-sid="${p.id}" data-k="goal" value="${p.goal || ''}" placeholder="مثال: 15000" data-novoice></label>
       ${p.goal && c.left > 0 ? `<p class="note-text">بمعدل ${money(c.left)} شهرياً تبلغ هدفك بعد ${Math.ceil(p.goal / c.left)} ${Math.ceil(p.goal / c.left) <= 10 ? 'أشهر' : 'شهراً'}.</p>` : ''}
       <h4>الحسابات (الرصيد المتوفر) <small>${money(c.accounts)}</small></h4>
@@ -325,6 +329,7 @@ function finLedgerHTML() {
 // --- cost projects
 function finProjectsHTML() {
   const p = finUi.proj && S.finProjects.find((x) => x.id === finUi.proj);
+  if (p && isSaving(p)) return savingDetailHTML(p);
   if (p) {
     const c = projCalc(p);
     return `<section class="section fin-plan">
@@ -345,8 +350,9 @@ function finProjectsHTML() {
   }
   return `<section class="section">
     <div class="section-head"><h2>المشاريع المالية</h2>${addBtn('proj-new', 'مشروع')}</div>
-    <p class="note-text">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك.</p>
-    ${S.finProjects.length ? `<div class="book-list">${S.finProjects.map((x) => { const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
+    <p class="note-text">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك. و«الادخار» يجمع ما يبقى من كل خطة شهرية.</p>
+    ${savingProject() ? '' : `<button type="button" class="fin-card save-card save-new" data-action="proj-new-save"><span class="row-between"><b>💰 أنشئ مشروع الادخار</b><b>${icon('plus')}</b></span><small>يصل إليه ما يبقى من دخلك كل شهر من خططك الشهرية تلقائياً، فتعرف كم تملك من النقد.</small></button>`}
+    ${S.finProjects.length ? `<div class="book-list">${S.finProjects.slice().sort((a, b) => isSaving(b) - isSaving(a)).map((x) => { if (isSaving(x)) return savingCardHTML(x); const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
       <span class="row-between"><b>${esc(x.name)}</b><b class="${c.gap < 0 ? 'late' : 'ok'}">${c.gap < 0 ? `ينقص ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى'}</b></span>
       <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} · المتبقي شراؤه ${money(c.left)} · المتوفر ${money(c.avail)}${c.bought ? ` · اشتريت ${c.pct}٪` : ''}</small>
       <div class="progress-line"><i style="width:${c.cost ? Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100)) : 0}%"></i></div>
@@ -788,7 +794,7 @@ function finWorkbook(what) {
   if (what.debts) sheets.push(ledgerSheet('debts'));
   if (what.owes) sheets.push(ledgerSheet('owes'));
   if (what.rights) sheets.push(ledgerSheet('rights'));
-  for (const id of what.projects || []) { const p = S.finProjects.find((x) => x.id === id); if (p) sheets.push(projectSheet(p)); }
+  for (const id of what.projects || []) { const p = S.finProjects.find((x) => x.id === id); if (p) sheets.push(isSaving(p) ? savingSheet(p) : projectSheet(p)); }
   if (what.subs && S.subs.length) sheets.push(subsSheet());
   if (what.later && S.later.length) sheets.push(laterSheet());
   if (what.spend && S.finTx.length) sheets.push(spendSheet());
@@ -818,7 +824,7 @@ function openFinExport() {
       ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
       <h4>غيرها</h4>
       ${[['debts', 'debt'], ['owes', 'owe'], ['rights', 'right']].map(([key, k]) => (LEDGERS[k].list().length ? box(key, LEDGERS[k].title, `${LEDGERS[k].list().length} · الباقي ${money(lgTotal(k))}`) : '')).join('')}
-      ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), 'مشروع مالي')).join('')}
+      ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), isSaving(p) ? `ادخار · ${money(saveCalc(p).cash)}` : 'مشروع مالي')).join('')}
       ${S.subs.length ? box('subs', 'الاشتراكات والفواتير', `${money(sum(S.subs.filter((s) => s.active), subMonthly))} شهرياً`) : ''}
       ${S.later.length ? box('later', 'الشراء المؤجّل', `${S.later.length} · وفّرت ${money(sum(S.later.filter((x) => x.decision === 'dropped'), (x) => x.price))}`) : ''}
       ${S.finTx.length ? box('spend', 'المصروف المسجّل', `${S.finTx.length} عملية`) : ''}
@@ -852,7 +858,7 @@ document.addEventListener('change', (e) => {
     else { unpayLinkMonth(lrow.link, obj.month); toast('أُلغي دفع هذا الشهر'); }
     save(); render(); return;
   }
-  const val = el.type === 'checkbox' ? el.checked : ['amount', 'balance', 'every', 'goal'].includes(k) ? num(el.value) : el.value;
+  const val = el.type === 'checkbox' ? el.checked : ['amount', 'balance', 'every', 'goal', 'opening'].includes(k) ? num(el.value) : el.value;
   if (el.dataset.list) { const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row); if (r) r[k] = k === 'name' ? String(val).trim() : val; }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
   obj.updated = Date.now();
@@ -927,7 +933,14 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'proj-new': { const p = normalizeFinProject({ name: 'مشروع جديد', items: [{ name: '', amount: 0 }], funding: [] }); S.finProjects.push(p); save(); finUi.proj = p.id; render(); break; }
-    case 'proj-open': finUi.proj = v; render(); window.scrollTo({ top: 0 }); break;
+    case 'proj-new-save': {
+      const first = S.finPlans.filter((x) => x.kind === 'month' && x.month).map((x) => x.month).sort()[0] || curMonth();
+      const p = normalizeFinProject({ kind: 'save', name: 'الادخار', from: first });
+      S.finProjects.unshift(p); save(); finUi.proj = p.id; render(); window.scrollTo({ top: 0 });
+      toast('أُنشئ. اكتب رصيد البداية إن كان معك مدخرات قبل أول شهر');
+      break;
+    }
+    case 'proj-open': finUi.tab = 'projects'; finUi.proj = v; render(); window.scrollTo({ top: 0 }); break;
     case 'proj-paid': { const p = S.finProjects.find((x) => x.id === el.dataset.sid); if (p) { p.paidFrom = v; save(); render(); } break; }
     case 'proj-del': if (!armed()) break; S.finProjects = S.finProjects.filter((p) => p.id !== v); finUi.proj = ''; save(); render(); break;
   }
