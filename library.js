@@ -153,7 +153,7 @@ function moreTiles() {
     ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
     ['archive', 'archive', 'الأرشيف', S.archive.length ? `${S.archive.filter((a) => !a.revisitedAt).length} تنتظر رجوعك` : 'ما تجده وتريد العودة إليه'],
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `${S.inspire.length} عبارة وصورة` : 'عبارات تحفيزية وتوكيدية وصور'],
-    ['report', 'sheet', 'التقرير الشهري', 'خلاصة شهرك، صورة أو PDF'],
+    ['report', 'sheet', 'التقارير', 'أسبوعي وشهري وسنوي، ونسخة كاملة لتحليلها'],
     ['stats', 'chart', 'الإحصائيات', 'إنجازك ومشاريعك وأهدافك وقراءتك'],
   ];
 }

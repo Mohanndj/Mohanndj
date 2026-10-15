@@ -1,237 +1,227 @@
 'use strict';
-// Monthly report: what you achieved in a month, shareable as an image or saved as PDF,
-// with an optional AI-written summary.
+// «التقارير»: weekly, monthly and yearly. Each measures activity in every area (aware.js), keeps the
+// user's own notes for the period (a summary, and obstacles with their solutions — often written by
+// an outside AI from the full copy this page exports), and reminds them of the last period's solutions.
 
-const repUi = { month: '', ai: {} }; // month is set on first open (app.js loads after this file)
+const repUi = { type: 'week', key: '', journal: false };
 
-function monthStats(m) {
-  const [y, mo] = m.split('-').map(Number);
-  const start = `${m}-01`;
-  const end = iso(new Date(y, mo, 0));
-  const t0 = today();
-  const last = end < t0 ? end : t0;
-  const inM = (d) => d && d >= start && d <= end;
-  const dayOf = (ts) => (ts ? iso(new Date(ts)) : '');
+function normalizeReport(r) {
+  return { id: String(r.id || ''), summary: String(r.summary || ''), solutions: String(r.solutions || ''), updated: r.updated || Date.now() };
+}
+const reportNote = (id) => S.reports.find((r) => r.id === id);
 
+// the headline numbers of a period
+function periodStats(P) {
+  const inP = (d) => !!d && d >= P.start && d <= P.last;
+  const ev = completionEvents().filter((e) => inP(e.d));
   const byDay = {};
-  const bump = (d) => { byDay[d] = (byDay[d] || 0) + 1; };
-  const tasksDone = S.tasks.filter((t) => !isGoal(t) && t.done && inM(dayOf(t.doneAt)));
-  tasksDone.forEach((t) => bump(dayOf(t.doneAt)));
-  let steps = 0;
-  for (const t of S.tasks) for (const s of t.subtasks) if (s.done && inM(dayOf(s.doneAt))) steps++;
-
-  const goals = [];
-  let goalDays = 0;
-  for (const t of S.tasks.filter((x) => isRepeat(x))) {
-    let total = 0, hit = 0;
-    for (let d = start; d <= last; d = addDays(d, 1)) {
-      if (!occursOn(t, d)) continue;
-      total++;
-      if (t.completions[d]) { hit++; bump(d); }
-    }
-    goalDays += hit;
-    if (total && !isHabit(t)) goals.push({ title: t.title, total, hit, rate: pct(hit, total) }); // habits have their own section
-  }
-  const goalsAchieved = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && t.done && inM(dayOf(t.doneAt)));
-  goalsAchieved.forEach((t) => bump(dayOf(t.doneAt)));
-
+  for (const e of ev) if (e.type !== 'step') byDay[e.d] = (byDay[e.d] || 0) + 1;
+  const best = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0] || null;
+  const sess = S.sessions.filter((x) => inP(sessionDay(x)));
   const projects = S.projects.map((p) => {
     const st = projectStats(p.id);
-    const doneIn = tasksOf(p.id).filter((t) => t.done && inM(dayOf(t.doneAt))).length;
-    return { name: p.name, color: p.color, progress: st.progress, doneIn, total: st.total };
-  }).filter((p) => p.total);
-
-  const sessions = S.sessions.filter((x) => inM(sessionDay(x)));
-  const focusMs = sessions.reduce((n, x) => n + x.ms, 0);
-  const focusBy = {};
-  for (const x of sessions) focusBy[x.taskId] = (focusBy[x.taskId] || 0) + x.ms;
-  const focusTop = Object.entries(focusBy).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, ms]) => ({ title: (getTask(id) || {}).title || 'مهمة محذوفة', ms }));
-
-  const booksRead = S.books.filter((b) => b.status === 'read' && inM(b.end));
-  const booksStarted = S.books.filter((b) => inM(b.start));
-  let pages = 0;
-  for (const b of S.books) {
-    const log = (b.log || []).slice().sort((a, c) => a.d.localeCompare(c.d));
-    let prev = 0;
-    for (const e of log) { if (inM(e.d)) pages += Math.max(0, e.p - prev); prev = e.p; }
-  }
-  const benefits = S.benefits.filter((f) => inM(dayOf(f.created)));
-  const notes = S.memos.filter((n) => inM(dayOf(n.created))).length;
-
-  const days = Object.entries(byDay);
-  const best = days.sort((a, b) => b[1] - a[1])[0] || null;
-  const cats = {};
-  for (const t of tasksDone) { const c = t.category || 'بلا تصنيف'; cats[c] = (cats[c] || 0) + 1; }
-
+    return { name: p.name, color: p.color, progress: st.progress, total: st.total, doneIn: tasksOf(p.id).filter((t) => t.done && inP(dayOfTs(t.doneAt))).length };
+  }).filter((p) => p.total && (p.doneIn || P.current));
   return {
-    m, start, end, tasksDone: tasksDone.length, steps, goals, goalDays, goalsAchieved: goalsAchieved.map((t) => t.title),
-    projects, focusMs, focusTop, booksRead: booksRead.map((b) => b.title), booksStarted: booksStarted.length, pages,
-    benefits: benefits.length, topBenefit: benefits[0] ? benefits[0].title : '', notes,
-    activeDays: Object.keys(byDay).length, best, cats: Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 4),
-    done: tasksDone.length + goalDays + goalsAchieved.length,
+    tasks: ev.filter((e) => e.type === 'task').length,
+    goalDays: ev.filter((e) => e.type === 'goal').length,
+    steps: ev.filter((e) => e.type === 'step').length,
+    focusMs: sum(sess, (x) => x.ms),
+    pages: S.books.reduce((n, b) => n + pagesIn(b, P.start, P.last), 0),
+    books: S.books.filter((b) => b.status === 'read' && inP(b.end)).length,
+    benefits: S.benefits.filter((f) => inP(dayOfTs(f.created))).length,
+    activeDays: Object.keys(byDay).length,
+    best, projects,
   };
 }
 
-const monthTitle = (m) => parse(`${m}-01`).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
-function monthHijri(m) {
-  const [y, mo] = m.split('-').map(Number);
-  const a = fmtHijri(`${m}-01`, { month: 'long', year: 'numeric' });
-  const b = fmtHijri(iso(new Date(y, mo, 0)), { month: 'long', year: 'numeric' });
-  return a === b ? a : `${fmtHijri(`${m}-01`, { month: 'long' })} – ${b}`;
-}
-
 function viewReport() {
-  if (!repUi.month) repUi.month = today().slice(0, 7);
-  const st = monthStats(repUi.month);
-  const isNow = repUi.month === today().slice(0, 7);
+  const P = periodOf(repUi.type, repUi.key);
+  repUi.key = P.key;
+  const st = periodStats(P);
+  const prevP = periodOf(P.type, P.prev);
+  const prevStats = awareStats(prevP);
+  const note = reportNote(P.id) || normalizeReport({ id: P.id });
+  const prevNote = reportNote(prevP.id);
   const tile = (v, l) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`;
-  const focusH = st.focusMs ? fmtDur(st.focusMs) : '0 د';
-  const ai = repUi.ai[repUi.month];
   return `${moreCrumb()}
+  <div class="seg rep-types" role="group" aria-label="نوع التقرير">${[['week', 'أسبوعي'], ['month', 'شهري'], ['year', 'سنوي']].map(([v, l]) => `<button type="button" data-action="rep-type" data-v="${v}" aria-pressed="${P.type === v}">${l}</button>`).join('')}</div>
   <div class="cal-head">
-    <div class="nav"><button type="button" data-action="rep-move" data-v="-1" aria-label="الشهر السابق">${icon('prev')}</button></div>
-    <div class="titles"><h2>تقرير ${esc(monthTitle(repUi.month))}</h2><small>${esc(monthHijri(repUi.month))}</small></div>
-    <div class="nav"><button type="button" data-action="rep-move" data-v="1" aria-label="الشهر التالي"${isNow ? ' disabled' : ''}>${icon('next')}</button></div>
+    <div class="nav"><button type="button" data-action="rep-move" data-v="${P.prev}" aria-label="السابق">${icon('prev')}</button></div>
+    <div class="titles"><h2>${esc(P.title)}</h2><small>${esc(P.sub)}${P.current ? ` · حتى اليوم` : ''}</small></div>
+    <div class="nav"><button type="button" data-action="rep-move" data-v="${P.next}" aria-label="التالي"${P.current ? ' disabled' : ''}>${icon('next')}</button></div>
   </div>
   <div class="report" id="report">
     <div class="tiles">
-      ${tile(st.tasksDone, 'مهمة منجزة')}${tile(st.steps, 'خطوة')}${tile(st.goalDays, 'يوم التزام بالأهداف')}${tile(focusH, 'وقت التركيز')}
-      ${tile(st.booksRead.length, 'كتاب أنهيته')}${tile(st.pages, 'صفحة قرأتها')}${tile(st.benefits, 'فائدة')}${tile(st.activeDays, 'يوم نشط')}
+      ${tile(st.tasks, 'مهمة منجزة')}${tile(st.goalDays, 'مرة التزام بهدف')}${tile(st.focusMs ? fmtDur(st.focusMs) : '٠', 'وقت التركيز')}${tile(st.activeDays, `يوم نشط من ${P.days.length}`)}
+      ${tile(st.pages, 'صفحة قرأتها')}${tile(st.books, 'كتاب أنهيته')}${tile(st.benefits, 'فائدة')}${tile(st.steps, 'خطوة')}
     </div>
-    ${awareReportHTML(repUi.month)}
-    ${st.best ? `<p class="note-text">أفضل أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
-    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%`, p.progress, p.color)).join('')}</ul>
-      <p class="note-text">${st.projects.filter((p) => p.doneIn).map((p) => `${esc(p.name)}: ${p.doneIn} مهام هذا الشهر`).join(' · ') || 'لم تُنجز مهام مشاريع هذا الشهر.'}</p></section>` : ''}
-    ${st.goals.length || st.goalsAchieved.length ? `<section class="panel"><h2>الأهداف</h2>
-      ${st.goals.length ? `<ul class="hbars">${st.goals.map((g) => hbar(esc(g.title), `${g.rate}%`, g.rate)).join('')}</ul>` : ''}
-      ${st.goalsAchieved.length ? `<p class="note-text">حققت: ${st.goalsAchieved.map(esc).join('، ')}</p>` : ''}</section>` : ''}
-    ${habitsReportHTML(repUi.month)}
-    ${st.booksRead.length || st.pages || st.benefits ? `<section class="panel"><h2>القراءة</h2>
-      <p class="note-text">${st.booksRead.length ? `أنهيت: ${st.booksRead.map((t) => `«${esc(t)}»`).join('، ')}.` : 'لم تُنهِ كتاباً هذا الشهر.'} ${st.pages ? `قرأت ${st.pages} صفحة.` : ''} ${st.benefits ? `سجّلت ${st.benefits} فائدة${st.topBenefit ? `، منها «${esc(st.topBenefit)}»` : ''}.` : ''}</p></section>` : ''}
-    ${st.focusTop.length ? `<section class="panel"><h2>أكثر ما ركّزت عليه</h2><ul class="hbars">${st.focusTop.map((x) => hbar(esc(x.title), fmtDur(x.ms), (x.ms / st.focusTop[0].ms) * 100)).join('')}</ul></section>` : ''}
-    <section class="panel ai-summary">
-      <div class="section-head"><h2>${icon('spark')} الخلاصة</h2>${AI.on() ? `<button type="button" class="ai-btn" data-action="rep-ai">${icon('spark')}${ai ? 'أعد الكتابة' : 'اكتب لي خلاصة الشهر'}</button>` : ''}</div>
-      ${ai ? `<div class="ai-text">${esc(ai).replace(/\n/g, '<br>')}</div>` : `<p class="note-text">${AI.on() ? 'يكتب لك الذكاء الاصطناعي ملخصاً لشهرك مع ثلاث نصائح للشهر القادم.' : 'فعّل الذكاء الاصطناعي من الإعدادات ليكتب لك خلاصة الشهر ونصائح للشهر القادم.'}</p>`}
+    ${awareReportHTML(P, prevStats)}
+    ${st.best && st.best[1] > 1 ? `<p class="note-text">أنشط أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
+    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%${p.doneIn ? ` · +${p.doneIn}` : ''}`, p.progress, p.color)).join('')}</ul></section>` : ''}
+    ${prevNote && prevNote.solutions.trim() ? `<section class="panel rep-prev"><h2>حلول اتفقت عليها في ${esc(prevP.title)}</h2><div class="ai-text">${esc(prevNote.solutions).replace(/\n/g, '<br>')}</div><p class="note-text">قارنها بدرجات هذا ${P.word}: هل نفعت؟</p></section>` : ''}
+    <section class="panel rep-notes">
+      <h2>${icon('spark')} خلاصاتي لهذا ${P.word}</h2>
+      <label class="field"><span>الخلاصة</span><textarea id="repSummary" data-rep="summary" rows="5" placeholder="ما الذي جرى في هذا ${P.word}؟ ما أبرز إنجازاتك؟">${esc(note.summary)}</textarea></label>
+      <label class="field"><span>العوائق وحلولها</span><textarea id="repSolutions" data-rep="solutions" rows="5" placeholder="ما الذي عاقك؟ وما الحل الذي ستجربه في ${P.type === 'week' ? 'الأسبوع' : P.type === 'month' ? 'الشهر' : 'العام'} القادم؟">${esc(note.solutions)}</textarea></label>
+      <p class="note-text">تُحفظ وحدها. وتظهر حلولك في تقرير ${P.type === 'week' ? 'الأسبوع' : P.type === 'month' ? 'الشهر' : 'العام'} القادم لتقارن بها.</p>
+      ${AI.on() ? `<button type="button" class="ai-btn" data-action="rep-ai">${icon('spark')} اكتبها لي بالذكاء الاصطناعي</button>` : ''}
     </section>
   </div>
+  <section class="panel rep-export">
+    <h2>نسخة كاملة لتحليلها</h2>
+    <p class="note-text">نسخة نصية كاملة لهذا ${P.word}: كل الجوانب وتفاصيلها، ومقارنة بما قبله، وخلاصاتك السابقة، ومعها طلب جاهز. الصقها في أي برنامج ذكاء اصطناعي، ثم ضع ما يعطيك في الخانتين أعلاه.</p>
+    <label class="switch"><input type="checkbox" id="repJournal"${repUi.journal ? ' checked' : ''}><span>أضف نصوص يومياتي (خاصة، اخترها إن أردت تحليلاً أعمق)</span></label>
+    <div class="btn-row"><button type="button" class="primary" data-action="rep-copy">${icon('sheet')} انسخ النسخة الكاملة</button><button type="button" class="ghost" data-action="rep-file">نزّلها ملفاً</button></div>
+  </section>
   <div class="btn-row report-actions">
-    <button type="button" class="primary" data-action="rep-image">${icon('sheet')} مشاركة كصورة</button>
-    <button type="button" class="ghost" data-action="rep-pdf">حفظ PDF</button>
-  </div>
-  ${st.done === 0 && !st.pages && !st.benefits ? '<p class="note-text">لا توجد إنجازات مسجلة في هذا الشهر بعد.</p>' : ''}`;
+    <button type="button" class="ghost" data-action="rep-image">${icon('sheet')} مشاركة كصورة</button>
+  </div>`;
 }
 
-// ---------- AI summary ----------
+// ---------- the full copy for an outside AI ----------
+function reportExport(P) {
+  const S1 = awareStats(P), prevP = periodOf(P.type, P.prev), S0 = awareStats(prevP);
+  const st = periodStats(P);
+  const note = reportNote(P.id), prevNote = reportNote(prevP.id);
+  const next = { week: 'الأسبوع القادم', month: 'الشهر القادم', year: 'العام القادم' }[P.type];
+  const L = [];
+  L.push(`# تقرير ${{ week: 'أسبوعي', month: 'شهري', year: 'سنوي' }[P.type]} من تطبيق «مهامي»`);
+  L.push(`الفترة: ${P.title} (${P.sub})${P.current ? '، وهي لم تنتهِ بعد: البيانات حتى اليوم' : ''}`);
+  L.push(`من ${P.start} إلى ${P.last} (${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')})`);
+  L.push('');
+  L.push('## المطلوب منك');
+  L.push(`أنت مستشار شخصي حكيم. هذه بيانات نشاطي الفعلي في كل جوانب حياتي التي أتابعها. اقرأها بدقة ثم اكتب بالعربية، بإيجاز ودون مبالغة، تحت عنوانين بالضبط:`);
+  L.push(`«الخلاصة»: خمسة أسطر على الأكثر عن ${P.word}: ما تحسّن وما تراجع مقارنة بالفترة السابقة، بأرقام محددة.`);
+  L.push(`«العوائق وحلولها»: أبرز ثلاثة عوائق تظهر من البيانات، وسبباً محتملاً لكل منها، وحلاً عملياً صغيراً أبدأ به في ${next}${prevNote && prevNote.solutions.trim() ? '، مع تقييم: هل نفعت حلول الفترة السابقة المذكورة أدناه؟' : ''}.`);
+  L.push('لا تخترع شيئاً غير موجود في البيانات. الجانب بلا درجة معناه أنه لا يوجد فيه ما يُقاس، لا أنه صفر.');
+  L.push('');
+  L.push(`## مؤشر النشاط الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
+  L.push(`أرقام عامة: ${st.tasks} مهمة منجزة، ${st.goalDays} مرة التزام بهدف، ${st.steps} خطوة، تركيز ${Math.round(st.focusMs / 60000)} دقيقة، ${st.activeDays} يوماً نشطاً من ${P.days.length}، ${st.pages} صفحة، ${st.books} كتاب أُنهي، ${st.benefits} فائدة.`);
+  L.push('');
+  L.push('## الجوانب');
+  for (const a of S1.aspects) {
+    const before = (S0.aspects.find((x) => x.key === a.key) || {}).score;
+    L.push(`### ${a.title}: ${a.score != null ? `${a.score}٪` : 'بلا درجة'}${before != null ? ` (السابقة ${before}٪)` : ''}`);
+    for (const f of a.facts) L.push(`- ${f}`);
+    for (const d of a.detail) if (!a.facts.some((f) => d.startsWith(f))) L.push(`- ${d}`);
+  }
+  if (st.projects.length) { L.push(''); L.push('## المشاريع'); for (const p of st.projects) L.push(`- ${p.name}: ${p.progress}٪ مكتمل، أُنجز منه ${p.doneIn} في هذه الفترة`); }
+  const prioWeeks = S.weeks.filter((w) => w.id >= addDays(P.start, -6) && w.id <= P.last && w.focus.some(Boolean));
+  if (prioWeeks.length) { L.push(''); L.push('## أولوياتي التي حددتها'); for (const w of prioWeeks) L.push(`- أسبوع ${w.id}: ${w.focus.filter(Boolean).join('، ')}`); }
+  if (prevNote && (prevNote.summary.trim() || prevNote.solutions.trim())) {
+    L.push(''); L.push(`## ما كتبته عن الفترة السابقة (${prevP.title})`);
+    if (prevNote.summary.trim()) L.push(`الخلاصة: ${prevNote.summary.trim()}`);
+    if (prevNote.solutions.trim()) L.push(`العوائق والحلول التي اتفقت عليها: ${prevNote.solutions.trim()}`);
+  }
+  if (note && (note.summary.trim() || note.solutions.trim())) {
+    L.push(''); L.push('## ملاحظاتي على هذه الفترة حتى الآن');
+    if (note.summary.trim()) L.push(note.summary.trim());
+    if (note.solutions.trim()) L.push(note.solutions.trim());
+  }
+  if (repUi.journal) {
+    const js = S.journal.filter((j) => j.date >= P.start && j.date <= P.last && !jEmpty(j)).sort((a, b) => a.date.localeCompare(b.date));
+    if (js.length) { L.push(''); L.push('## يومياتي'); for (const j of js) L.push(`- ${j.date}${j.mood ? ` (${MOODS[j.mood - 1][1] || ''})` : ''}: ${jText(j).replace(/\s+/g, ' ').trim()}`); }
+  }
+  return L.join('\n');
+}
+
 async function reportAI(btn) {
-  const st = monthStats(repUi.month);
-  const facts = [
-    `Month: ${monthTitle(repUi.month)} (${monthHijri(repUi.month)})`,
-    `Tasks completed: ${st.tasksDone}; steps completed: ${st.steps}; active days: ${st.activeDays}`,
-    st.goals.length ? `Recurring goals adherence: ${st.goals.map((g) => `${g.title} ${g.rate}% (${g.hit}/${g.total})`).join('; ')}` : 'No recurring goals.',
-    st.goalsAchieved.length ? `One-time goals achieved: ${st.goalsAchieved.join('; ')}` : '',
-    habitsMonthStats(repUi.month).length ? `Habits being built (max 3): ${habitsMonthStats(repUi.month).map((h) => `${h.title}: done ${h.hit}/${h.total} days this month, strength ${h.strength}%, stage ${h.stage}`).join('; ')}` : '',
-    st.projects.length ? `Projects progress: ${st.projects.map((p) => `${p.name} ${p.progress}% (+${p.doneIn} tasks this month)`).join('; ')}` : '',
-    `Focus time: ${Math.round(st.focusMs / 60000)} minutes${st.focusTop.length ? ` (top: ${st.focusTop.map((x) => x.title).join(', ')})` : ''}`,
-    `Books finished: ${st.booksRead.join('; ') || 'none'}; pages read: ${st.pages}; benefits recorded: ${st.benefits}`,
-    st.cats.length ? `Top categories: ${st.cats.map(([c, n]) => `${c} ${n}`).join(', ')}` : '',
-    awareFacts(repUi.month),
-  ].filter(Boolean).join('\n');
-  const text = await withAI(btn, 'جارٍ الكتابة…', () => AI.ask({
-    system: SYSTEM_AR,
-    effort: 'medium',
-    prompt: `Write the user's monthly review in Arabic from these facts, covering all areas of life the app tracks (tasks, memorisation, books, journal, family and friends, decisions, habits to quit, nutrition, money). Structure: one short paragraph celebrating what went well (specific numbers), one short paragraph on what slipped, then exactly three concrete suggestions for next month as lines starting with "• ". Warm, honest, no exaggeration, under 220 words. Plain text only.\n\n${facts}`,
+  const P = periodOf(repUi.type, repUi.key);
+  const out = await withAI(btn, 'جارٍ الكتابة…', () => AI.ask({
+    system: SYSTEM_AR, effort: 'medium', maxTokens: 4000,
+    prompt: `${reportExport(P)}\n\nReturn the two sections as JSON fields in Arabic, plain text with line breaks; solutions as lines starting with "• ".`,
+    schema: { type: 'object', additionalProperties: false, required: ['summary', 'solutions'], properties: { summary: { type: 'string' }, solutions: { type: 'string' } } },
   }));
-  if (text) { repUi.ai[repUi.month] = text; render(); }
+  if (!out) return;
+  const r = reportNote(P.id) || (S.reports.push(normalizeReport({ id: P.id })), reportNote(P.id));
+  Object.assign(r, { summary: out.summary, solutions: out.solutions, updated: Date.now() });
+  save(); render();
 }
 
 // ---------- shareable image ----------
 async function reportImage() {
-  const st = monthStats(repUi.month);
+  const P = periodOf(repUi.type, repUi.key);
+  const st = periodStats(P);
+  const { aspects, overall } = awareStats(P);
   try { await Promise.all([document.fonts.load('700 60px "Aref Ruqaa"'), document.fonts.load('400 36px "Amiri"'), document.fonts.load('700 36px "Amiri"')]); } catch {}
-  const W = 1080, H = 1350, P = 72;
+  const W = 1080, H = 1350, Pd = 72;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const x = c.getContext('2d');
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue('--accent').trim() || '#0f766e';
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0f766e';
   const D = (s) => digitsOut(String(s));
   x.direction = 'rtl';
   x.fillStyle = '#f6f8f7'; x.fillRect(0, 0, W, H);
   x.fillStyle = accent; x.fillRect(0, 0, W, 300);
-  x.textAlign = 'right';
-  x.fillStyle = '#ffffff';
-  x.font = '700 76px "Aref Ruqaa", "Amiri", serif';
-  x.fillText(D(`تقرير ${monthTitle(repUi.month)}`), W - P, 150);
-  x.font = '400 38px "Amiri", serif';
-  x.fillText(D(monthHijri(repUi.month)), W - P, 215);
-  x.font = '400 30px "Amiri", serif';
-  x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · مهامي` : 'مهامي', W - P, 265); x.globalAlpha = 1;
-
-  const tiles = [
-    [st.tasksDone, 'مهمة منجزة'], [st.steps, 'خطوة'], [st.goalDays, 'يوم التزام'],
-    [st.focusMs ? fmtDur(st.focusMs) : '0 د', 'تركيز'], [st.booksRead.length, 'كتاب'], [st.benefits, 'فائدة'],
-  ];
-  const cols = 3, gw = (W - P * 2 - 40) / cols, gh = 170;
+  x.textAlign = 'right'; x.fillStyle = '#ffffff';
+  x.font = '700 64px "Aref Ruqaa", "Amiri", serif'; x.fillText(D(`تقرير ${P.title}`), W - Pd, 140);
+  x.font = '400 36px "Amiri", serif'; x.fillText(D(P.sub), W - Pd, 205);
+  x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · مهامي` : 'مهامي', W - Pd, 260); x.globalAlpha = 1;
+  const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'النشاط الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
+  const cols = 3, gw = (W - Pd * 2 - 40) / cols, gh = 170;
   tiles.forEach(([v, l], i) => {
     const col = i % cols, row = Math.floor(i / cols);
-    const bx = W - P - (col + 1) * gw - col * 20, by = 350 + row * (gh + 24);
-    x.fillStyle = '#ffffff';
-    x.beginPath(); x.roundRect ? x.roundRect(bx, by, gw, gh, 24) : x.rect(bx, by, gw, gh); x.fill();
-    x.fillStyle = '#16211e'; x.textAlign = 'center';
-    x.font = '700 64px "Amiri", serif'; x.fillText(D(v), bx + gw / 2, by + 92);
-    x.fillStyle = '#5b6a66'; x.font = '400 32px "Amiri", serif'; x.fillText(D(l), bx + gw / 2, by + 140);
+    const bx = W - Pd - (col + 1) * gw - col * 20, by = 350 + row * (gh + 24);
+    x.fillStyle = '#ffffff'; x.beginPath(); x.roundRect ? x.roundRect(bx, by, gw, gh, 24) : x.rect(bx, by, gw, gh); x.fill();
+    x.fillStyle = '#16211e'; x.textAlign = 'center'; x.font = '700 60px "Amiri", serif'; x.fillText(D(v), bx + gw / 2, by + 92);
+    x.fillStyle = '#5b6a66'; x.font = '400 30px "Amiri", serif'; x.fillText(D(l), bx + gw / 2, by + 140);
   });
   x.textAlign = 'right';
   let y = 790;
-  const line = (label, value, color) => {
-    if (y > H - 120) return;
-    x.fillStyle = '#16211e'; x.font = '700 34px "Amiri", serif';
-    x.fillText(D(label), W - P, y);
-    if (value != null) {
-      const bw = 360, bx = P + 90, bh = 18;
-      x.fillStyle = '#dde5e2'; x.fillRect(bx, y - 22, bw, bh);
-      x.fillStyle = color || accent; x.fillRect(bx + bw - (bw * value) / 100, y - 22, (bw * value) / 100, bh);
-      x.fillStyle = '#5b6a66'; x.font = '400 30px "Amiri", serif'; x.textAlign = 'left';
-      x.fillText(D(`${value}%`), P, y); x.textAlign = 'right';
-    }
+  for (const a of aspects.filter((z) => z.score != null).slice(0, 8)) {
+    x.fillStyle = '#16211e'; x.font = '700 34px "Amiri", serif'; x.fillText(D(a.title), W - Pd, y);
+    const bw = 360, bx = Pd + 90;
+    x.fillStyle = '#dde5e2'; x.fillRect(bx, y - 22, bw, 18);
+    x.fillStyle = accent; x.fillRect(bx + bw - (bw * a.score) / 100, y - 22, (bw * a.score) / 100, 18);
+    x.fillStyle = '#5b6a66'; x.font = '400 30px "Amiri", serif'; x.textAlign = 'left'; x.fillText(D(`${a.score}%`), Pd, y); x.textAlign = 'right';
     y += 62;
-  };
-  if (st.projects.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('المشاريع', W - P, y); y += 60; st.projects.slice(0, 3).forEach((p) => line(p.name, p.progress, p.color)); }
-  const hs = habitsMonthStats(repUi.month);
-  if (hs.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('العادات (القوة)', W - P, y); y += 60; hs.forEach((h) => line(h.title, h.strength)); }
-  if (st.goals.length) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('الأهداف', W - P, y); y += 60; st.goals.slice(0, 3).forEach((g) => line(g.title, g.rate)); }
-  if (st.booksRead.length && y < H - 160) { x.fillStyle = accent; x.font = '700 40px "Aref Ruqaa", serif'; x.fillText('أنهيت قراءة', W - P, y); y += 56; x.fillStyle = '#16211e'; x.font = '400 34px "Amiri", serif'; x.fillText(D(st.booksRead.slice(0, 3).map((t) => `«${t}»`).join('، ')), W - P, y); }
+  }
   x.fillStyle = '#5b6a66'; x.font = '400 26px "Amiri", serif'; x.textAlign = 'center';
   x.fillText(D(`أُنشئ في ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`), W / 2, H - 50);
-
   const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
-  const file = new File([blob], `mahami-report-${repUi.month}.png`, { type: 'image/png' });
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: `تقرير ${monthTitle(repUi.month)}` });
-      return;
-    }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = file.name;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  const file = new File([blob], `mahami-report-${P.type}-${P.key}.png`, { type: 'image/png' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: `تقرير ${P.title}` }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  downloadBlob(blob, file.name);
   toast('حُفظت صورة التقرير في التنزيلات');
 }
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-action^="rep-"]');
   if (!b) return;
   const a = b.dataset.action;
-  if (a === 'rep-move') {
-    const [y, m] = repUi.month.split('-').map(Number);
-    const next = iso(new Date(y, m - 1 + Number(b.dataset.v), 1)).slice(0, 7);
-    if (next <= today().slice(0, 7)) { repUi.month = next; render(); }
-  }
+  if (a === 'rep-type') { repUi.type = b.dataset.v; repUi.key = ''; render(); }
+  if (a === 'rep-move') { const P = periodOf(repUi.type, b.dataset.v); if (!P.future) { repUi.key = P.key; render(); } }
   if (a === 'rep-ai') reportAI(b);
   if (a === 'rep-image') reportImage();
-  if (a === 'rep-pdf') { document.body.classList.add('printing-report'); setTimeout(() => { window.print(); document.body.classList.remove('printing-report'); }, 50); }
+  if (a === 'rep-copy') {
+    const text = reportExport(periodOf(repUi.type, repUi.key));
+    try { await navigator.clipboard.writeText(text); toast('نُسخت. الصقها في برنامج الذكاء الاصطناعي'); }
+    catch { downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `mahami-report-${repUi.type}-${repUi.key}.txt`); toast('لم يسمح الجوال بالنسخ، فنُزّلت ملفاً'); }
+  }
+  if (a === 'rep-file') {
+    const text = reportExport(periodOf(repUi.type, repUi.key));
+    downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `mahami-report-${repUi.type}-${repUi.key}.txt`);
+    toast('نُزّلت في التنزيلات');
+  }
 });
+// notes save as you type; the journal choice is remembered
+document.addEventListener('input', (e) => {
+  const k = e.target.dataset && e.target.dataset.rep;
+  if (!k) return;
+  const P = periodOf(repUi.type, repUi.key);
+  let r = reportNote(P.id);
+  if (!r) { r = normalizeReport({ id: P.id }); S.reports.push(r); }
+  r[k] = e.target.value; r.updated = Date.now();
+  clearTimeout(repUi.t); repUi.t = setTimeout(save, 500);
+});
+document.addEventListener('change', (e) => { if (e.target.id === 'repJournal') repUi.journal = e.target.checked; });
 
 Object.assign(LibraryViews, { report: viewReport });
