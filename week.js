@@ -1,11 +1,13 @@
 'use strict';
-// «التخطيط الأسبوعي»: the week (Saturday to Friday) as seven short rows. One day opens at a time,
+// «التخطيط الأسبوعي»: the week (Sunday to Saturday) as seven short rows. One day opens at a time,
 // so the page never gets crowded: its tasks, moving a task to another day, adding one. Recurring
 // goals are summed up in one line. Undated and overdue tasks wait in a tray to be given a day.
 
 const weekUi = { start: '', open: '', move: '' };
-const weekStartOf = (d) => addDays(d, -((parse(d).getDay() + 1) % 7)); // Saturday
-function normalizeWeek(w) { return { id: w.id || weekStartOf(today()), focus: [0, 1, 2].map((i) => String((w.focus || [])[i] || '')), note: String(w.note || '') }; }
+const weekStartOf = (d) => addDays(d, -parse(d).getDay()); // Sunday
+// weeks used to start on Saturday (until v43): an old id moves to its Sunday so the week keeps its notes
+const sundayId = (id) => (/^\d{4}-\d{2}-\d{2}$/.test(id) && parse(id).getDay() === 6 ? addDays(id, 1) : id);
+function normalizeWeek(w) { return { id: w.id ? sundayId(w.id) : weekStartOf(today()), focus: [0, 1, 2].map((i) => String((w.focus || [])[i] || '')), note: String(w.note || '') }; }
 const weekRec = (start) => S.weeks.find((w) => w.id === start);
 const tasksOnDay = (d) => S.tasks.filter((t) => !isGoal(t) && t.due === d).sort((a, b) => a.done - b.done || (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999));
 const goalsOnDay = (d) => S.tasks.filter((t) => isGoal(t) && isRepeat(t) && occursOn(t, d));

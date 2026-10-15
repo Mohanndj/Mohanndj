@@ -92,7 +92,7 @@ function hzTextHTML(h, mode) {
 }
 
 // ---------- memorisation plans: the whole text, a set amount per session, on chosen days ----------
-const WEEK_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday first
+const WEEK_ORDER = [0, 1, 2, 3, 4, 5, 6]; // Sunday first
 const UNIT = { quran: ['آية', 'آيات', 'آيتان'], poem: ['بيت', 'أبيات', 'بيتان'], hadith: ['سطر', 'أسطر', 'سطران'], other: ['سطر', 'أسطر', 'سطران'] };
 const unitWord = (type, n) => { const u = UNIT[type]; return n === 1 ? `${u[0]} واحد${type === 'quran' ? 'ة' : ''}` : n === 2 ? u[2] : n <= 10 ? `${n} ${u[1]}` : `${n} ${type === 'quran' ? 'آيةً' : `${u[0]}اً`}`; };
 const etaText = (eta) => `تنتهي تقريباً ${daysBetween(today(), eta.end) <= 1 ? relDate(eta.end) : `في ${fmtDate(eta.end, { day: 'numeric', month: 'long' })}`}`;

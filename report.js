@@ -6,7 +6,8 @@
 const repUi = { type: 'week', key: '', journal: false };
 
 function normalizeReport(r) {
-  return { id: String(r.id || ''), summary: String(r.summary || ''), solutions: String(r.solutions || ''), updated: r.updated || Date.now() };
+  const id = String(r.id || '');
+  return { id: id.startsWith('w:') ? `w:${sundayId(id.slice(2))}` : id, summary: String(r.summary || ''), solutions: String(r.solutions || ''), updated: r.updated || Date.now() };
 }
 const reportNote = (id) => S.reports.find((r) => r.id === id);
 

@@ -209,7 +209,7 @@ async function aiWeek(btn, dowOnly) {
       hUi.day = dowOnly;
       save(); render(); toast(`خُطّط ${AR_DAYS[dowOnly]}`);
     } else {
-      const out = await AI.ask({ system: H_SYSTEM, effort: 'medium', maxTokens: 16000, prompt: `${healthBrief()}\n\nPlan a full week, Saturday to Friday. Add 2-4 short Arabic tips about this week's balance.`, schema: WEEK_SCHEMA });
+      const out = await AI.ask({ system: H_SYSTEM, effort: 'medium', maxTokens: 16000, prompt: `${healthBrief()}\n\nPlan a full week, Sunday to Saturday. Add 2-4 short Arabic tips about this week's balance.`, schema: WEEK_SCHEMA });
       const meals = toMeals(out.days);
       if (!meals.length) throw new Error('empty');
       S.meals = meals;

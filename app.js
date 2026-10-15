@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 42;
+const APP_VERSION = 43;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -9,7 +9,7 @@ const LOCALE = 'ar-u-nu-latn';
 const HIJRI = 'ar-SA-u-ca-islamic-umalqura-nu-latn';
 const PRI = { high: 3, mid: 2, low: 1 };
 const PRI_LABEL = { high: 'عالية', mid: 'متوسطة', low: 'منخفضة' };
-const DAY_ORDER = [6, 0, 1, 2, 3, 4, 5]; // Saturday first
+const DAY_ORDER = [0, 1, 2, 3, 4, 5, 6]; // Sunday first
 const DAY_SHORT = { 6: 'سبت', 0: 'أحد', 1: 'اثنين', 2: 'ثلاثاء', 3: 'أربعاء', 4: 'خميس', 5: 'جمعة' };
 const ACCENTS = {
   teal: { name: 'أخضر مزرق', light: '#0f766e', dark: '#3fb8a9' },
@@ -675,7 +675,7 @@ function markOf(t, d) {
 function viewCalendar() {
   const [y, m] = ui.calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
-  const lead = (first.getDay() - 6 + 7) % 7; // weeks start on Saturday
+  const lead = first.getDay(); // weeks start on Sunday
   const daysIn = new Date(y, m, 0).getDate();
   const total = Math.ceil((lead + daysIn) / 7) * 7;
   const t0 = today();

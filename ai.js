@@ -81,7 +81,7 @@ const AR_DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأرب
 function aiContext() {
   const t0 = today();
   return [
-    `Today is ${t0} (${AR_DAYS[parse(t0).getDay()]}), Hijri ${fmtHijri(t0)}. Weekday numbers: 0=Sunday … 6=Saturday. The user's week starts on Saturday; work days are Sunday–Thursday.`,
+    `Today is ${t0} (${AR_DAYS[parse(t0).getDay()]}), Hijri ${fmtHijri(t0)}. Weekday numbers: 0=Sunday … 6=Saturday. The user's week starts on Sunday; work days are Sunday–Thursday.`,
     S.settings.prayer ? `The user's prayer times are known (city: ${S.settings.prayer.label || S.settings.prayer.city}), so times relative to a prayer are allowed.` : 'Prayer times are not set up; prefer clock times.',
     S.projects.length ? `Existing projects: ${S.projects.map((p) => p.name).join('، ')}.` : 'No projects yet.',
     categories().length ? `Existing categories: ${categories().join('، ')}.` : '',
