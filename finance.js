@@ -311,7 +311,7 @@ function planDetailHTML(p) {
     ${p.kind === 'month' ? `<div class="grid2 fin-range">
       <label class="field"><span>تبدأ يوم</span><input type="date" id="fp-from" data-fin="plan" data-sid="${p.id}" data-k="from" value="${finRange(p).from}"></label>
       <label class="field"><span>وتنتهي يوم</span><input type="date" id="fp-to" data-fin="plan" data-sid="${p.id}" data-k="to" value="${finRange(p).to}"></label>
-    </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}<span class="explain">. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</span></small>` : ''}
+    </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}${finRange(p).to < today() ? ' | <b class="late">انتهت فترتها</b>: ما تؤشّره هنا يُسجَّل في آخر يوم منها' : inPlan(p, today()) ? ' | <b class="ok">خطة الفترة الحالية</b>' : ' | لم تبدأ بعد'}<span class="explain">. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</span></small>` : ''}
     ${splitBar(c)}
     ${p.kind === 'month' ? planActualHTML(p) : ''}
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${rowsHTML('plan', p.id, 'income', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.income, { addLabel: 'دخل' })}</div>

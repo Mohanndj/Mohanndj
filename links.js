@@ -32,7 +32,19 @@ function linkSources(p) {
 const normName = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 // keep a monthly plan of this month or later in step with its sources; past months stay as they were
 function syncPlanLinks(p) {
-  if (!p || p.kind !== 'month' || !p.month || finRange(p).to < today()) return false;
+  if (!p || p.kind !== 'month' || !p.month) return false;
+  // a past plan keeps its items as they were; only its linked items' «دُفع» follows the payments made in it
+  if (finRange(p).to < today()) {
+    let ch = false;
+    for (const r of [...p.fixed, ...p.periodic]) {
+      if (!r.link) continue;
+      const ls = linkSrc(r.link);
+      if (!ls) continue;
+      const done = sum(inPlanList(ls.pays, p)) >= r.amount - 0.5;
+      if (!!r.done !== done) { r.done = done; ch = true; }
+    }
+    return ch;
+  }
   let changed = false;
   const srcs = linkSources(p);
   const all = () => [...p.fixed, ...p.periodic];
