@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 19;
+const APP_VERSION = 20;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -58,6 +58,8 @@ const ICONS = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
   archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
+  wallet: 'M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zM16 14h.01',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
   heart: 'M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z',
   scale: 'M12 3v18M8 21h8M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z',
   journal: 'M5 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM9 3v18M12 8h4M12 12h4',
@@ -178,6 +180,12 @@ function load() {
   s.jtemplates = (Array.isArray(s.jtemplates) ? s.jtemplates : DEFAULT_TEMPLATES).map(normalizeJTemplate);
   s.hifz = (Array.isArray(s.hifz) ? s.hifz : []).map(normalizeHifz);
   s.hplans = (Array.isArray(s.hplans) ? s.hplans : []).map(normalizeHPlan);
+  s.finPlans = (Array.isArray(s.finPlans) ? s.finPlans : []).map(normalizeFinPlan);
+  s.finDebts = (Array.isArray(s.finDebts) ? s.finDebts : []).map(normalizeDebt);
+  s.finRights = (Array.isArray(s.finRights) ? s.finRights : []).map(normalizeRight);
+  s.finProjects = (Array.isArray(s.finProjects) ? s.finProjects : []).map(normalizeFinProject);
+  s.finTx = (Array.isArray(s.finTx) ? s.finTx : []).map(normalizeTx);
+  s.cvs = (Array.isArray(s.cvs) ? s.cvs : []).map(normalizeCV);
   s.people = (Array.isArray(s.people) ? s.people : []).map(normalizePerson);
   s.decisions = (Array.isArray(s.decisions) ? s.decisions : []).map(normalizeDecision);
   s.quits = (Array.isArray(s.quits) ? s.quits : []).map(normalizeQuit);
@@ -1022,7 +1030,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1069,7 +1077,8 @@ const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const toArabicDigits = (s) => s.replace(/(https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+)|[0-9]/g, (m, keep) => keep || AR_DIGITS[m]).replace(/([٠-٩])\s?%/g, '$1٪');
 const digitsOut = (s) => (S.settings.digits === 'arab' ? toArabicDigits(String(s)) : String(s));
 const SKIP_DIGITS = new Set(['TEXTAREA', 'SCRIPT', 'STYLE', 'TITLE']);
-const inEditable = (n) => { const el = n.nodeType === 1 ? n : n.parentNode; return !!(el && el.closest && el.closest('[contenteditable]')); };
+// editable text, and anything marked data-latin (an English CV, phone numbers), keeps its digits
+const inEditable = (n) => { const el = n.nodeType === 1 ? n : n.parentNode; return !!(el && el.closest && el.closest('[contenteditable], [data-latin]')); };
 function localizeDigits(root) {
   if (S.settings.digits !== 'arab' || !root) return;
   if (root.nodeType === 3) {
@@ -1663,7 +1672,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1683,7 +1692,7 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2183,7 +2192,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }

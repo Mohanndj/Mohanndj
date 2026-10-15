@@ -132,6 +132,8 @@ function viewMore() {
   const tiles = [
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
     ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
+    ['finance', 'wallet', 'المالية', S.finPlans.length ? (() => { const p = activePlan(), c = p && planCalc(p); return c ? `المتبقي للادخار ${money(c.left)}` : `${S.finPlans.length} خطة`; })() : 'ميزانيتك وديونك وحقوقك'],
+    ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : 'سيرة مرنة تصدّرها وورد وPDF'],
     ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم · ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
     ['people', 'heart', 'الأحبّة', S.people.length ? `${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'} حان التواصل معه` : 'صلة الرحم والأصدقاء'],
     ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `${decDue().length} للمراجعة · ` : ''}${S.decisions.length} قرار` : 'قرّر، ثم راجع: هل أصبت؟'],
@@ -446,6 +448,8 @@ function deleteLib() {
   if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);
   if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
   if (kind === 'hifz') S.hifz = S.hifz.filter((x) => x.id !== id);
+  if (kind === 'debt') S.finDebts = S.finDebts.filter((x) => x.id !== id);
+  if (kind === 'right') S.finRights = S.finRights.filter((x) => x.id !== id);
   if (kind === 'hplan') { S.hplans = S.hplans.filter((x) => x.id !== id); for (const h of S.hifz) if (h.planId === id) h.planId = ''; }
   if (kind === 'person') S.people = S.people.filter((x) => x.id !== id);
   if (kind === 'decision') S.decisions = S.decisions.filter((x) => x.id !== id);
@@ -561,6 +565,24 @@ function excelSheets(kind) {
       { title: 'الثقة', width: 8 }, { title: 'الحالة وقتها', width: 10 }, { title: 'ما حدث', width: 30, wrap: true }, { title: 'النتيجة', width: 10 }, { title: 'الدرس', width: 30, wrap: true },
     ], S.decisions.slice().sort((a, b) => b.date.localeCompare(a.date)).map((x) => [x.title, x.date, x.reasons, x.expect, `${x.confidence}%`, DEC_STATE[x.state] || '', x.outcome, x.result ? DEC_RESULT[x.result][0] : '', x.lesson]));
   }
+  if (kind === 'all' || kind === 'finance') {
+    const flat = [];
+    for (const p of S.finPlans) {
+      const c = planCalc(p);
+      flat.push([p.name, 'الدخل', '', '', c.income]);
+      for (const x of p.income) flat.push([p.name, 'دخل', x.name, '', x.amount]);
+      for (const x of p.fixed) flat.push([p.name, 'مصاريف شهرية ثابتة', x.name, '', x.amount]);
+      for (const x of p.periodic) flat.push([p.name, 'مصاريف دورية', x.name, x.every, Math.round((x.amount / (x.every || 12)) * 100) / 100]);
+      flat.push([p.name, 'المتبقي للادخار', '', '', Math.round(c.left * 100) / 100]);
+    }
+    add('الميزانيات', [{ title: 'الخطة', width: 26 }, { title: 'القسم', width: 18 }, { title: 'البند', width: 24 }, { title: 'كل كم شهر', width: 10 }, { title: 'المبلغ الشهري', width: 14 }], flat);
+    add('الديون', [{ title: 'الدائن', width: 22 }, { title: 'الدَّين', width: 12 }, { title: 'المسدد', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'القسط', width: 10 }, { title: 'الانتهاء المتوقع', width: 14 }, { title: 'ملاحظة', width: 30 }],
+      S.finDebts.map((d) => [d.name, d.total, paid(d), debtLeft(d), d.monthly, debtEnd(d), d.note]));
+    add('الحقوق', [{ title: 'عند', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'المستلم', width: 12 }, { title: 'الباقي', width: 12 }, { title: 'ملاحظة', width: 30 }],
+      S.finRights.map((r) => [r.name, r.amount, paid(r), rightLeft(r), r.note]));
+    add('المصروف', [{ title: 'التاريخ', width: 12 }, { title: 'النوع', width: 8 }, { title: 'البند', width: 22 }, { title: 'المبلغ', width: 12 }, { title: 'ملاحظة', width: 30 }],
+      S.finTx.slice().sort((a, b) => b.d.localeCompare(a.d)).map((t) => [t.d, t.kind === 'in' ? 'دخل' : 'صرف', t.item, t.amount, t.note]));
+  }
   if (kind === 'all' || kind === 'inspire') {
     add('العبارات', [
       { title: 'العبارة', width: 60, wrap: true }, { title: 'النوع', width: 16 }, { title: 'القائل أو المصدر', width: 24 },
@@ -570,7 +592,7 @@ function excelSheets(kind) {
   return sheets;
 }
 
-const XLS_NAMES = { hifz: 'mahami-hifz', people: 'mahami-people', decisions: 'mahami-decisions', ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
+const XLS_NAMES = { finance: 'mahami-finance', hifz: 'mahami-hifz', people: 'mahami-people', decisions: 'mahami-decisions', ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
 function exportExcel(kind) {
   const blob = Xlsx.build(excelSheets(kind));
   const url = URL.createObjectURL(blob);
@@ -700,8 +722,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, debt: saveLedger, right: saveLedger, pay: savePayment, finimport: runFinImport, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();
