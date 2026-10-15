@@ -66,6 +66,16 @@ function syncReading() {
   for (const b of S.books) syncBookGoal(b);
   for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t) && !goalEnded(t) && !getBook(t.bookId))) endGoal(g);
   for (const p of S.projects.filter((x) => x.topic)) syncTopicProject(p);
+  // a book's reading task left outside its reading project (the project deleted, or the topic
+  // changed) is a duplicate: the book already shows as its goal or in its current project
+  const n = S.tasks.length;
+  S.tasks = S.tasks.filter((t) => {
+    if (!t.bookId || isRepeat(t) || t.done) return true;
+    const p = t.projectId && S.projects.find((x) => x.id === t.projectId);
+    const b = getBook(t.bookId);
+    return !!(p && p.topic && b && b.topic === p.topic);
+  });
+  if (S.tasks.length !== n) readingChanged = true;
   if (readingChanged) save();
 }
 

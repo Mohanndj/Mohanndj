@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 35;
+const APP_VERSION = 36;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -512,6 +512,7 @@ function smartPreviewHTML() {
 }
 
 function viewToday() {
+  syncReading(); // books' reading goals and project tasks, before today's list is read
   const d = today();
   const items = S.tasks.filter((t) => {
     if (isRepeat(t)) return occursOn(t, d);
@@ -524,7 +525,6 @@ function viewToday() {
   const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
-  syncReading();
   const parts = {
     close: closeTodayHTML,
     quote: dailyQuoteHTML,
@@ -2081,6 +2081,9 @@ document.addEventListener('click', (e) => {
       }
       projArmed = false;
       const pid = pdraft.id;
+      // a reading project's book tasks go with it (the books stay); other tasks become general tasks
+      const wasReading = !!(S.projects.find((p) => p.id === pid) || {}).topic;
+      if (wasReading) S.tasks = S.tasks.filter((t) => !(t.projectId === pid && t.bookId));
       for (const t of S.tasks) if (t.projectId === pid) t.projectId = '';
       S.projects = S.projects.filter((p) => p.id !== pid);
       save();
