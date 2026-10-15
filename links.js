@@ -24,7 +24,8 @@ function linkSources(p) {
   // a traffic violation stays in the plan until it is paid
   for (const f of S.fines) {
     const paidIn = sum(inPlanList(f.payments, p));
-    if (fineLeft(f) > 0 || paidIn) out.push({ key: `fine:${f.id}`, name: fineName(f), amount: fineLeft(f) + paidIn, every: 1 });
+    // each violation is its own item (never joined to another row): its kind, place and date
+    if (fineLeft(f) > 0 || paidIn) out.push({ key: `fine:${f.id}`, name: `${fineName(f)} (${fmtDate(f.date, { day: 'numeric', month: 'short' })})`, amount: fineLeft(f) + paidIn, every: 1, own: true });
   }
   return out;
 }
@@ -39,12 +40,13 @@ function syncPlanLinks(p) {
     if (p.unlinked.includes(s.key)) continue;
     let r = all().find((x) => x.link === s.key);
     // a row the user already wrote for it (from their sheet, say) is linked rather than duplicated
-    if (!r) { const want = normName(s.match || s.name); r = want.length >= 3 && all().find((x) => !x.link && x.name && (normName(x.name).includes(want) || (normName(x.name).length >= 3 && want.includes(normName(x.name))))); if (r) { r.link = s.key; changed = true; } }
+    if (!r && !s.own) { const want = normName(s.match || s.name); r = want.length >= 3 && all().find((x) => !x.link && x.name && (normName(x.name).includes(want) || (normName(x.name).length >= 3 && want.includes(normName(x.name))))); if (r) { r.link = s.key; changed = true; } }
     const list = s.every > 1 ? 'periodic' : 'fixed';
     if (!r) { r = row({ name: s.name, amount: s.amount, ...(list === 'periodic' ? { every: s.every } : {}), done: false }); r.link = s.key; p[list].push(r); changed = true; }
     else if (!p[list].includes(r)) { p.fixed = p.fixed.filter((x) => x !== r); p.periodic = p.periodic.filter((x) => x !== r); r = row({ ...r, ...(list === 'periodic' ? { every: s.every } : {}) }); r.link = s.key; p[list].push(r); changed = true; }
     const ls = linkSrc(s.key);
     const done = sum(inPlanList(ls.pays, p)) >= s.amount - 0.5;
+    if (s.own && r.name !== s.name) { r.name = s.name; changed = true; }
     if (r.amount !== s.amount || (list === 'periodic' && r.every !== s.every) || !!r.done !== done) { r.amount = s.amount; if (list === 'periodic') r.every = s.every; r.done = done; changed = true; }
   }
   // a source that was deleted, stopped or paid off leaves the plan

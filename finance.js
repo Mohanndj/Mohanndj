@@ -126,20 +126,41 @@ function spendRowsOf(p) {
   return sp.length ? sp : rs;
 }
 const spendOptions = (p, cur) => `${spendRowsOf(p).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('')}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
+// two kinds of money going out (agreed with the user):
+// «المصروفات»: spending from «مصروف …» items, or spending with no item at all (outside the items);
+// «المدفوعات لمرة واحدة»: every other item — a debt instalment, a bill, rent — paid once and ticked «دُفع».
+function isPayTx(t) {
+  if (!t || t.kind !== 'out') return false;
+  if (t.src) return true;
+  if (!t.ref || t.ref === 'out') return false;
+  const p = planForDate(t.d);
+  const r = p && planRows(p).find((y) => y.x.id === t.ref);
+  return !!r && !isSpendRow(r);
+}
+function planSplit(p) {
+  const a = planActual(p);
+  const spendRows = a.rows.filter(isSpendRow), payRows = a.rows.filter((r) => !isSpendRow(r));
+  const budget = sum(spendRows, (r) => r.plan), fromItems = sum(spendRows, (r) => r.spent);
+  const outside = sum(a.outside) + sum(a.loose);
+  return { a, spendRows, payRows, budget, fromItems, outside, spendLeft: budget - fromItems - outside,
+    payTotal: sum(payRows, (r) => r.plan), payPaid: sum(payRows, (r) => r.paid), payLeft: sum(payRows, (r) => r.left) };
+}
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
 function spendTodayHTML() {
   const t0 = today(), p = planForDate(t0);
   if (syncPlanLinks(p)) save();
-  const list = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
+  const all = S.finTx.filter((t) => t.d === t0 && t.kind === 'out').sort((a, b) => a.created - b.created);
+  const list = all.filter((t) => !isPayTx(t)), paysToday = all.filter(isPayTx);
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
       <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
       <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${spendOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
       <small class="td-hint" id="tdHint"></small>
     </form>
     ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
-      <p class="note-text">دفعت اليوم ${money(sum(list))}</p>` : ''}`);
+      <p class="note-text">صرفت اليوم ${money(sum(list))}</p>` : ''}
+    ${paysToday.length ? `<p class="note-text">ومدفوعات لمرة واحدة اليوم: ${paysToday.map((t) => `${esc(t.item || 'بلا بند')} ${money(t.amount)}`).join('، ')}</p>` : ''}`);
 }
 const paid = (d) => sum(d.payments);
 const debtLeft = (d) => Math.max(0, d.total - paid(d));
@@ -233,13 +254,30 @@ function finPlansHTML() {
   </section>`;
 }
 
+// the two parts of a plan's month: spending (budget, spent from items, spent outside them, left)
+// and one-time payments (total, paid, left)
+function splitHTML(p, sp = planSplit(p)) {
+  const over = (r) => r.spent > r.plan + 0.5;
+  const sBars = sp.spendRows.filter((r) => r.spent).map((r) => hbar(`${esc(r.x.name)}${over(r) ? ' ⚠️' : ''}`, `${money(r.spent)} من ${money(r.plan)}`, r.plan ? Math.min(100, Math.round((r.spent / r.plan) * 100)) : 100, over(r) ? 'var(--high)' : undefined)).join('');
+  const spending = sp.budget || sp.fromItems || sp.outside ? `<div class="fin-part">
+      <h4>المصروفات</h4>
+      <div class="fin-tiles"><span><b>${money(sp.budget)}</b>مجموع بنود المصروف</span><span><b>${money(sp.fromItems + sp.outside)}</b>صُرف منها</span><span class="${sp.spendLeft < 0 ? 'neg' : 'pos'}"><b>${money(sp.spendLeft)}</b>${sp.spendLeft < 0 ? 'تجاوزت' : 'الباقي'}</span></div>
+      <p class="fin-split-l">الذي صُرف: من البنود <b>${money(sp.fromItems)}</b> | خارج البنود <b class="${sp.outside ? 'late' : ''}">${money(sp.outside)}</b></p>
+      ${sBars ? `<ul class="hbars">${sBars}</ul>` : ''}
+    </div>` : '';
+  const payments = sp.payRows.length ? `<div class="fin-part">
+      <h4>المدفوعات لمرة واحدة</h4>
+      <div class="fin-tiles"><span><b>${money(sp.payTotal)}</b>مجموعها</span><span><b>${money(sp.payPaid)}</b>دُفع</span><span class="${sp.payLeft ? '' : 'pos'}"><b>${money(sp.payLeft)}</b>باقٍ دفعه</span></div>
+      <ul class="fin-pays">${sp.payRows.map((r) => `<li class="${r.left ? '' : 'ok'}"><span>${r.left ? '○' : '✓'} ${esc(r.x.name)}</span><b>${r.left ? `${money(r.left)} باقٍ` : money(r.paid)}</b></li>`).join('')}</ul>
+    </div>` : '';
+  return spending + payments;
+}
 function planActualHTML(p) {
   const a = planActual(p);
   const planned = a.fixed + a.periodic;
   if (!planned && !a.spent) return '';
   const pct = planned ? Math.min(100, (a.paidPlan / planned) * 100) : 0;
-  const over = (r) => r.list === 'fixed' && r.spent > r.plan + 0.5;
-  const bars = a.rows.filter((r) => r.paid || r.spent).map((r) => hbar(`${esc(r.x.name)}${over(r) ? ' ⚠️' : ''}`, `${money(r.paid)} من ${money(r.plan)}`, r.plan ? Math.min(100, Math.round((r.paid / r.plan) * 100)) : 100, over(r) ? 'var(--high)' : undefined)).join('');
+  const sp = planSplit(p);
   return `<div class="panel fin-paid">
     <h3>الفعلي هذا الشهر <small>${Math.round(pct)}٪ من المخطط</small></h3>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
@@ -247,9 +285,8 @@ function planActualHTML(p) {
       <div><small>على الورق</small><span>المصاريف <b>${money(planned)}</b></span><span>المتبقي من الدخل <b>${money(a.left)}</b></span></div>
       <div><small>في الواقع</small><span>صرفت <b>${money(a.spent)}</b></span><span class="${a.inHand < 0 ? 'neg' : 'pos'}">المتبقي من الدخل <b>${money(a.inHand)}</b></span></div>
     </div>
-    <div class="fin-tiles"><span><b>${money(a.paidPlan)}</b>دُفع من المخطط</span><span><b>${money(a.toPay)}</b>باقٍ دفعه</span><span class="${sum(a.outside) ? 'neg' : ''}"><b>${money(sum(a.outside))}</b>خارج المخطط</span></div>
     ${a.extra ? `<p class="note-text">ومعه دخل إضافي هذا الشهر ${money(a.extra)}.</p>` : ''}
-    ${bars ? `<ul class="hbars">${bars}${sum(a.outside) ? hbar('خارج المخطط', money(sum(a.outside)), 100, 'var(--mid)') : ''}</ul>` : ''}
+    ${splitHTML(p, sp)}
     ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
       <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
         <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
@@ -310,11 +347,10 @@ function finSpendHTML() {
   const m = finUi.month || nowKey;
   const ap = S.finPlans.find((x) => x.kind === 'month' && x.month === m) || null;
   const txs = S.finTx.filter((t) => (ap ? inPlan(ap, t.d) : t.d.slice(0, 7) === m)).sort((a, b) => b.d.localeCompare(a.d) || b.created - a.created);
-  const out = sum(txs.filter((t) => t.kind === 'out')), inn = sum(txs.filter((t) => t.kind === 'in'));
+  const payT = txs.filter(isPayTx), spendT = txs.filter((t) => !isPayTx(t));
+  const out = sum(spendT.filter((t) => t.kind === 'out')), inn = sum(txs.filter((t) => t.kind === 'in'));
   const items = ap ? [...ap.fixed.map((x) => [x.name, x.amount]), ...ap.periodic.map((x) => [x.name, x.amount / (x.every || 12)])].filter(([n]) => n) : [];
-  const spentOn = (name) => sum(txs.filter((t) => t.kind === 'out' && t.item === name));
-  const other = sum(txs.filter((t) => t.kind === 'out' && !items.some(([n]) => n === t.item)));
-  const days = [...new Set(txs.map((t) => t.d))];
+  const days = [...new Set(spendT.map((t) => t.d))];
   const prev = (k) => { const d = parse(`${m}-01`); d.setMonth(d.getMonth() + k); return iso(d).slice(0, 7); };
   return `<section class="section">
     <div class="cal-head">
@@ -332,10 +368,11 @@ function finSpendHTML() {
       <div class="fin-tx-row"><input type="text" id="txNote" placeholder="ملاحظة (اختياري)" aria-label="ملاحظة"><input type="date" id="txDate" value="${m === nowKey ? today() : ap ? finRange(ap).from : `${m}-01`}" aria-label="التاريخ"></div>
       <button type="submit" class="primary">سجّل</button>
     </form>
-    <div class="fin-tiles"><span><b>${money(out)}</b>صرفت</span>${inn ? `<span><b>${money(inn)}</b>دخل إضافي</span>` : ''}${ap ? `<span class="${planCalc(ap).fixed + planCalc(ap).periodic - out < 0 ? 'neg' : 'pos'}"><b>${money(planCalc(ap).fixed + planCalc(ap).periodic - out)}</b>المتبقي من المخطط</span>` : ''}</div>
-    ${items.length && txs.length ? `<div class="panel"><h3>المخطط والفعلي</h3><ul class="hbars">${items.filter(([n]) => spentOn(n)).map(([n, plan]) => { const s = spentOn(n); return hbar(`${esc(n)}${s > plan ? ' ⚠️' : ''}`, `${money(s)} من ${money(plan)}`, Math.min(100, plan ? Math.round((s / plan) * 100) : 100), s > plan ? 'var(--high)' : undefined); }).join('')}${other ? hbar('خارج الخطة', money(other), 100, 'var(--mid)') : ''}</ul></div>` : ''}
-    ${days.length ? days.map((d) => `<h3 class="j-month">${esc(relDate(d))}</h3><ul class="fin-txs">${txs.filter((t) => t.d === d).map((t) => `<li class="${t.kind}"><span><b>${t.kind === 'in' ? '+' : '−'}${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>`).join('')
+    ${ap ? `<div class="panel">${splitHTML(ap)}${inn ? `<p class="note-text">ودخل إضافي ${money(inn)}.</p>` : ''}</div>` : `<div class="fin-tiles"><span><b>${money(out)}</b>صرفت</span>${inn ? `<span><b>${money(inn)}</b>دخل إضافي</span>` : ''}</div>`}
+    <h3 class="fin-sec-h">المصروفات</h3>
+    ${days.length ? days.map((d) => `<h3 class="j-month">${esc(relDate(d))}</h3><ul class="fin-txs">${spendT.filter((t) => t.d === d).map((t) => `<li class="${t.kind}"><span><b>${t.kind === 'in' ? '+' : '−'}${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>`).join('')
       : emptyHTML('لا مصروفات مسجلة', 'سجّل ما تصرفه أولاً بأول، ويقارنه التطبيق بما خططت له لكل بند.')}
+    ${payT.length ? `<details class="shop-done fin-paylist"><summary>المدفوعات لمرة واحدة (${payT.length}) | ${money(sum(payT))}</summary><ul class="fin-txs">${payT.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')} <small>${esc(relDate(t.d))}</small></span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></details>` : ''}
   </section>`;
 }
 

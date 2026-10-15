@@ -277,8 +277,8 @@ function awareStats(P) {
   // facts only: spending is not a count of things to finish, so it gets no progress score
   add('finance', '💰', 'المالية', 'finance', null, [
     ...spendLines,
-    outsideSpend && `خارج مخصص المصروفات: ${money(outsideSpend)}`,
-    duties.length && `التزامات دُفعت: ${list(duties.map((e) => `${e.r.x.name} (${money(e.amount)})`), 6)}`,
+    outsideSpend && `مصروف خارج البنود: ${money(outsideSpend)}`,
+    duties.length && `مدفوعات لمرة واحدة دُفعت: ${list(duties.map((e) => `${e.r.x.name} (${money(e.amount)})`), 6)}`,
     spent && (spendLines.length + (outsideSpend ? 1 : 0) + (duties.length ? 1 : 0) > 1) && `مجموع ما دفعت: ${money(spent)}`,
     income && `دخل إضافي: ${money(income)}`,
     debtPaid && `سدّدت من الديون: ${money(debtPaid)}`,
