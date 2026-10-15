@@ -56,7 +56,10 @@ function planCalc(p) {
   const income = sum(p.income), fixed = sum(p.fixed);
   const periodic = sum(p.periodic, (x) => x.amount / (x.every || 12));
   const left = income - fixed - periodic;
-  return { income, fixed, periodic, periodicYear: periodic * 12, left, accounts: sum(p.accounts, (x) => x.balance) };
+  // in a monthly plan each expense can be ticked «دُفع»: what was paid, what is still to pay, and
+  // what is really left of the income right now
+  const paidOut = sum(p.fixed.filter((x) => x.done)) + sum(p.periodic.filter((x) => x.done), (x) => x.amount / (x.every || 12));
+  return { income, fixed, periodic, periodicYear: periodic * 12, left, accounts: sum(p.accounts, (x) => x.balance), paidOut, toPay: fixed + periodic - paidOut, inHand: income - paidOut };
 }
 const paid = (d) => sum(d.payments);
 const debtLeft = (d) => Math.max(0, d.total - paid(d));
@@ -86,7 +89,7 @@ function rowsHTML(scope, sid, list, cols, items, opts = {}) {
   const inp = (x, c) => {
     const id = `f-${list}-${x.id}-${c.k}`;
     if (c.k === 'every') return `<select id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="every" aria-label="التكرار">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select>`;
-    if (c.k === 'done') return `<label class="fin-chk"><input type="checkbox" id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="done"${x.done ? ' checked' : ''}><span>تم</span></label>`;
+    if (c.k === 'done') return `<label class="fin-chk"><input type="checkbox" id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="done"${x.done ? ' checked' : ''}><span>${c.label || 'تم'}</span></label>`;
     return `<input type="${c.num ? 'text' : 'text'}" ${c.num ? 'inputmode="decimal" class="num-in"' : ''} id="${id}" data-fin="${scope}" data-sid="${sid}" data-list="${list}" data-row="${x.id}" data-k="${c.k}" value="${esc(c.num ? (x[c.k] || '') : x[c.k])}" placeholder="${c.ph}" aria-label="${c.ph}" autocomplete="off"${c.num ? ' data-novoice' : ''}>`;
   };
   return `<div class="fin-rows c${cols.length}">
@@ -162,13 +165,20 @@ function planDetailHTML(p) {
       ${p.kind === 'month' ? `<input type="month" id="fp-month" data-fin="plan" data-sid="${p.id}" data-k="month" value="${p.month}" aria-label="الشهر">` : ''}
     </div>
     ${splitBar(c)}
+    ${p.kind === 'month' && c.fixed + c.periodic ? `<div class="panel fin-paid">
+      <h3>المدفوع هذا الشهر <small>${Math.round((c.paidOut / (c.fixed + c.periodic)) * 100)}٪</small></h3>
+      <div class="progress-line"><i style="width:${Math.min(100, (c.paidOut / (c.fixed + c.periodic)) * 100)}%"></i></div>
+      <div class="fin-tiles"><span><b>${money(c.paidOut)}</b>دُفع</span><span><b>${money(c.toPay)}</b>باقٍ دفعه</span><span class="${c.inHand < 0 ? 'neg' : 'pos'}"><b>${money(c.inHand)}</b>المتبقي فعلياً من الدخل</span></div>
+      <p class="note-text">ضع علامة «دُفع» أمام كل مصروف تدفعه، فيُخصم من دخلك هنا. وبعد دفع الباقي يبقى لك ${money(c.left)}.</p>
+    </div>` : ''}
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${rowsHTML('plan', p.id, 'income', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.income, { addLabel: 'دخل' })}</div>
     <div class="panel"><h3>١- المصاريف الشهرية الثابتة <small>${money(c.fixed)}</small></h3>
       <p class="note-text">مبالغ تُدفع كل شهر بشكل ثابت ومكرر.</p>
-      ${rowsHTML('plan', p.id, 'fixed', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.fixed)}</div>
+      ${rowsHTML('plan', p.id, 'fixed', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }, ...(p.kind === 'month' ? [{ k: 'done', label: 'دُفع' }] : [])], p.fixed)}</div>
     <div class="panel"><h3>٢- المصاريف الدورية <small>${money(c.periodic)} شهرياً</small></h3>
       <p class="note-text">مبالغ لا تُدفع كل شهر (كل سنة أو كل بضعة أشهر)، يُخصَّص لها كل شهر جزء. سنوياً: ${money(c.periodicYear)}.</p>
-      ${rowsHTML('plan', p.id, 'periodic', [{ k: 'name', ph: 'البند' }, { k: 'every' }, { k: 'amount', ph: 'المبلغ', num: true }], p.periodic, { extra: (x) => `${money(x.amount / (x.every || 12))} شهرياً` })}</div>
+      ${p.kind === 'month' ? '<p class="note-text">علامة «دُفع» هنا تعني أنك دفعته أو خصّصت جزء هذا الشهر منه.</p>' : ''}
+      ${rowsHTML('plan', p.id, 'periodic', [{ k: 'name', ph: 'البند' }, { k: 'every' }, { k: 'amount', ph: 'المبلغ', num: true }, ...(p.kind === 'month' ? [{ k: 'done', label: 'دُفع' }] : [])], p.periodic, { extra: (x) => `${money(x.amount / (x.every || 12))} شهرياً` })}</div>
     <div class="panel"><h3>٣- الادخار وسيولة الطوارئ</h3>
       <div class="fin-left ${c.left < 0 ? 'neg' : 'pos'}"><span>${c.left < 0 ? 'العجز' : 'المتبقي للادخار'}</span><b>${money(Math.abs(c.left))}</b></div>
       <p class="note-text">أولى مبالغ الادخار تكون لبناء سيولة الطوارئ.</p>
@@ -602,12 +612,16 @@ function planSheet(p) {
   blank();
   const sumHead = add([{ v: 'الدخل', s: 'head' }, { v: 'المصاريف', s: 'head' }, { v: 'المتبقي للادخار', s: 'head' }, { v: 'نسبة الادخار', s: 'head' }]);
   const sumRow = add([null, null, null, null]); // filled once the totals' cells are known
+  if (p.kind === 'month' && c.paidOut) {
+    add([{ v: 'دُفع حتى الآن', s: 'head' }, { v: 'باقٍ دفعه', s: 'head' }, { v: 'المتبقي فعلياً من الدخل', s: 'head', span: 2 }]);
+    add([{ v: c.paidOut, s: 'num' }, { v: c.toPay, s: 'num' }, { v: c.inHand, s: c.inHand < 0 ? 'bad' : 'good', span: 2 }]);
+  }
   blank();
   const twoCol = (title, h1, h2, list, key) => {
     add([{ v: title, s: 'sec', span: 4 }]);
     add([{ v: h1, s: 'head', span: 2 }, { v: h2, s: 'head', span: 2 }]);
     const first = R.length + 1;
-    for (const x of list.filter((y) => y.name || y[key])) add([{ v: x.name, s: 'txt', span: 2 }, { v: x[key] || 0, s: 'num', span: 2 }]);
+    for (const x of list.filter((y) => y.name || y[key])) add([{ v: x.done && p.kind === 'month' ? `${x.name} ✓ دُفع` : x.name, s: 'txt', span: 2 }, { v: x[key] || 0, s: 'num', span: 2 }]);
     const last = R.length;
     const tot = add([{ v: 'المجموع', s: 'tot', span: 2 }, { f: last >= first ? `SUM(C${first}:C${last})` : '0', v: sum(list, (x) => x[key]), s: 'totnum', span: 2 }]);
     blank();
@@ -618,7 +632,7 @@ function planSheet(p) {
   add([{ v: '٢- المصاريف الدورية', s: 'sec', span: 4 }]);
   add([{ v: 'البند', s: 'head' }, { v: 'كل كم شهر', s: 'head' }, { v: 'المبلغ', s: 'head' }, { v: 'المخصص الشهري', s: 'head' }]);
   const pf = R.length + 1;
-  for (const x of p.periodic.filter((y) => y.name || y.amount)) { const r = R.length + 1; add([{ v: x.name, s: 'txt' }, { v: x.every || 12, s: 'num' }, { v: x.amount || 0, s: 'num' }, { f: `IFERROR(C${r}/B${r},0)`, v: (x.amount || 0) / (x.every || 12), s: 'num' }]); }
+  for (const x of p.periodic.filter((y) => y.name || y.amount)) { const r = R.length + 1; add([{ v: x.done && p.kind === 'month' ? `${x.name} ✓ دُفع` : x.name, s: 'txt' }, { v: x.every || 12, s: 'num' }, { v: x.amount || 0, s: 'num' }, { f: `IFERROR(C${r}/B${r},0)`, v: (x.amount || 0) / (x.every || 12), s: 'num' }]); }
   const pl = R.length;
   const per = add([{ v: 'المخصص الشهري للمصاريف الدورية', s: 'tot', span: 3 }, { f: pl >= pf ? `SUM(D${pf}:D${pl})` : '0', v: c.periodic, s: 'totnum' }]);
   add([{ v: 'مخصصها السنوي', s: 'tot', span: 3 }, { f: `D${per}*12`, v: c.periodicYear, s: 'totnum' }]);
@@ -799,7 +813,7 @@ document.addEventListener('click', (e) => {
       const src = getFinPlan(v);
       const d = parse(`${src.month || today().slice(0, 7)}-01`); d.setMonth(d.getMonth() + 1);
       const m = src.kind === 'month' ? iso(d).slice(0, 7) : '';
-      const clone = (l) => l.map((x) => ({ ...x, id: uid() }));
+      const clone = (l) => l.map((x) => ({ ...x, id: uid(), ...(x.done != null ? { done: false } : {}) }));
       const p = normalizeFinPlan({ ...src, id: uid(), name: src.kind === 'month' ? `خطة ${monthName(m)}` : `${src.name} (نسخة)`, month: m, income: clone(src.income), fixed: clone(src.fixed), periodic: clone(src.periodic), accounts: clone(src.accounts), created: Date.now() });
       S.finPlans.push(p); save(); finUi.tab = 'plans'; finUi.plan = p.id; render(); toast('أُنشئت نسخة، عدّل ما تغيّر');
       break;

@@ -1343,3 +1343,15 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .j-strip i.on { background: var(--accent); }
 .j-strip i.now { outline: 2px solid var(--accent); outline-offset: 1px; }
 .shop-cats button { flex: 1 1 40%; padding: 6px 8px; font-size: .88rem; white-space: normal; }
+
+/* ================= v29: paid ticks in monthly plans ================= */
+.fin-rows.c4 .fin-row { grid-template-columns: minmax(0, 1fr) 104px 96px auto 34px; }
+.fin-rows.c3 .fin-row:has(.fin-chk) { grid-template-columns: minmax(0, 1fr) 104px auto 34px; }
+.fin-row.done .fin-chk { color: var(--low); font-weight: 700; }
+.fin-paid .fin-tiles span.pos b { color: var(--low); }
+@media (max-width: 420px) {
+  .fin-rows.c4 .fin-row { grid-template-columns: minmax(0, 1fr) 90px auto 34px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+  .fin-rows.c4 .fin-row > input[data-k="name"] { grid-column: 1 / -1; }
+  .fin-rows.c3 .fin-row:has(.fin-chk) { grid-template-columns: minmax(0, 1fr) auto 34px; }
+  .fin-rows.c3 .fin-row:has(.fin-chk) > input[data-k="name"] { grid-column: 1 / -1; }
+}
