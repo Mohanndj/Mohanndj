@@ -23,7 +23,18 @@ function normalizeBook(b) {
     summary: String(b.summary || ''), created: b.created || Date.now(),
     pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
     log: Array.isArray(b.log) ? b.log.filter((e) => e && e.d && Number.isFinite(e.p)) : [],
+    // spaced recall of a finished book
+    rv: !!b.rv, rvPoints: String(b.rvPoints || ''), rvStep: Number(b.rvStep) || 0, rvDue: b.rvDue || '',
+    rvLog: Array.isArray(b.rvLog) ? b.rvLog.filter((e) => e && e.d) : [],
   };
+}
+
+const BOOK_RV = [7, 30, 90, 180, 365];
+const booksDue = () => S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= today());
+function bookReviewLine(b) {
+  if (!b.rv || b.status !== 'read' || !b.rvDue) return '';
+  const n = daysBetween(today(), b.rvDue);
+  return n <= 0 ? '🔁 حان استذكاره' : `🔁 الاستذكار ${b.rvLog.length ? `رقم ${b.rvLog.length + 1} ` : ''}${afterDays(n)}`;
 }
 
 // reading speed (pages/day) from recent progress, and days left at that pace
@@ -121,6 +132,9 @@ function viewMore() {
   const tiles = [
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
     ['journal', 'journal', 'يومياتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} · ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
+    ['hifz', 'book', 'الحفظ', S.hifz.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم · ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
+    ['people', 'heart', 'الأحبّة', S.people.length ? `${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'} حان التواصل معه` : 'صلة الرحم والأصدقاء'],
+    ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `${decDue().length} للمراجعة · ` : ''}${S.decisions.length} قرار` : 'قرّر، ثم راجع: هل أصبت؟'],
     ['notes', 'note', 'الملاحظات', S.memos.length ? `${S.memos.length} ملاحظة` : 'لا ملاحظات بعد'],
     ['books', 'book', 'الكتب', S.books.length ? `${S.books.length} كتاب · قرأت ${readThisYear} هذا العام` : 'سجّل قراءاتك'],
     ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
@@ -191,10 +205,11 @@ function bookCard(b) {
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
-      <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null ? ` · بمعدّلك تنهيه بعد ${daysWord(pace.eta)}` : ''}</span>` : ''}
+      <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null ? ` · بمعدّلك تنهيه ${afterDays(pace.eta)}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
     ${b.summary ? `<p>${esc(excerpt(b.summary, 160))}</p>` : ''}
     ${n ? `<span class="book-line">${icon('bulb')}${n} ${n === 1 ? 'فائدة' : n === 2 ? 'فائدتان' : 'فوائد'}</span>` : ''}
+    ${bookReviewLine(b) ? `<span class="book-line${b.rvDue <= today() ? ' late' : ''}">${esc(bookReviewLine(b))}</span>` : ''}
   </button>`;
 }
 
@@ -215,6 +230,7 @@ function viewBooks() {
   <section class="section">
     <div class="section-head"><h2>الكتب</h2><div class="btn-row">${S.books.length ? xlsBtn('books') : ''}${addBtn('lib-new-book', 'كتاب')}</div></div>
     ${readingGoalHTML()}
+    ${booksDue().length ? `<div class="brv-due"><b>🔁 حان استذكار ${booksDue().length === 1 ? 'كتاب' : `${booksDue().length} كتب`}</b>${booksDue().map((b) => `<button type="button" class="ghost" data-action="lib-book-review" data-v="${b.id}">${esc(b.title)}</button>`).join('')}</div>` : ''}
     <div class="seg seg-wrap" role="group" aria-label="حالة الكتب">${seg}</div>
     ${S.books.length > 5 ? `<input type="search" id="bookSearch" placeholder="ابحث في كل الكتب" aria-label="بحث" value="${esc(libUi.bookQ)}">` : ''}
     ${list.length ? `<div class="book-list">${list.map(bookCard).join('')}</div>`
@@ -313,8 +329,14 @@ function openLib(kind, id, preset = {}) {
         <label class="field"><span>عدد صفحات الكتاب</span><input type="number" id="lPages" min="1" inputmode="numeric" value="${b.pages}" placeholder="مثال: 320"></label>
         <label class="field"><span>وصلت إلى صفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${b.page || ''}" placeholder="مثال: 45"></label>
       </div>
-      ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.eta != null ? ` · بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه بعد ${daysWord(pc.eta)}` : ''}</p>` : ''; })()}
+      ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.eta != null ? ` · بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}` : ''}</p>` : ''; })()}
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
+      <div class="brv-box" id="lRvWrap">
+        <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ضعه في المراجعة المتباعدة (اختياري)</span></label>
+        <p class="note-text">يذكّرك التطبيق بالعودة إليه بعد أسبوع، ثم شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
+        <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
+        ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} · ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` · استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
+      </div>
       ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
@@ -354,6 +376,7 @@ function updateBookEnd() {
   if (!ldraft || ldraft.kind !== 'book') return;
   $('lEndWrap').hidden = !['read', 'stalled'].includes(ldraft.status);
   $('lEndWrap').querySelector('span').textContent = ldraft.status === 'stalled' ? 'تاريخ التوقف' : 'تاريخ الانتهاء';
+  if ($('lRvWrap')) $('lRvWrap').hidden = ldraft.status !== 'read';
 }
 
 function closeLib() {
@@ -387,7 +410,10 @@ function saveLib() {
     // finishing the last page completes the book
     let status = ldraft.status;
     if (pages && page >= pages && status === 'reading') { status = 'read'; end = end || today(); setTimeout(() => toast(`أحسنت! أنهيت «${title}»`), 300); }
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log });
+    const rv = status === 'read' && $('lRv').checked;
+    const rvFields = { rv, rvPoints: $('lRvPoints').value.trim() };
+    if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: addDays(today(), BOOK_RV[0]) });
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log, ...rvFields });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
@@ -419,6 +445,10 @@ function deleteLib() {
   if (kind === 'arch') S.archive = S.archive.filter((x) => x.id !== id);
   if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);
   if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
+  if (kind === 'hifz') S.hifz = S.hifz.filter((x) => x.id !== id);
+  if (kind === 'person') S.people = S.people.filter((x) => x.id !== id);
+  if (kind === 'decision') S.decisions = S.decisions.filter((x) => x.id !== id);
+  if (kind === 'quit') S.quits = S.quits.filter((x) => x.id !== id);
   save();
 }
 
@@ -512,6 +542,24 @@ function excelSheets(kind) {
     ], S.journal.filter((j) => !jEmpty(j)).sort((a, b) => b.date.localeCompare(a.date)).map((j) => [j.date, hijriOf(j.date), AR_DAYS[parse(j.date).getDay()], j.tplName, j.mood ? MOODS[j.mood - 1][1] : '',
       [...j.answers.filter((a) => a.a.trim()).map((a) => `${a.q}\n${a.a.trim()}`), j.body.trim()].filter(Boolean).join('\n\n'), wordCount(jText(j))]));
   }
+  if (kind === 'all' || kind === 'hifz') {
+    add('الحفظ', [
+      { title: 'النوع', width: 10 }, { title: 'العنوان', width: 28, wrap: true }, { title: 'المصدر', width: 24 }, { title: 'النص', width: 70, wrap: true },
+      { title: 'الحالة', width: 12 }, { title: 'المراجعة القادمة', width: 14 }, { title: 'مرات المراجعة', width: 10 }, { title: 'مرات النسيان', width: 10 },
+    ], S.hifz.map((h) => [HIFZ_TYPES[h.type][0], hzTitle(h), h.source, h.text, h.state === 'learn' ? 'أحفظه' : hzFirm(h) ? 'ثابت' : 'في المراجعة', h.due, h.reps, h.lapses]));
+  }
+  if (kind === 'all' || kind === 'people') {
+    add('الأحبّة', [
+      { title: 'الاسم', width: 20 }, { title: 'الصلة', width: 14 }, { title: 'الجوال', width: 14 }, { title: 'آخر تواصل', width: 12 }, { title: 'كم مرة تواصلت', width: 10 },
+      { title: 'المناسبة', width: 12 }, { title: 'ما يحبه', width: 30, wrap: true }, { title: 'أفكار هدايا', width: 30, wrap: true }, { title: 'ملاحظات', width: 30, wrap: true },
+    ], S.people.map((p) => [p.name, REL[p.rel], p.phone, lastContact(p), p.contacts.length, p.birthday, p.likes, p.gifts, p.notes]));
+  }
+  if (kind === 'all' || kind === 'decisions') {
+    add('القرارات', [
+      { title: 'القرار', width: 30, wrap: true }, { title: 'التاريخ', width: 12 }, { title: 'لماذا', width: 40, wrap: true }, { title: 'التوقع', width: 30, wrap: true },
+      { title: 'الثقة', width: 8 }, { title: 'الحالة وقتها', width: 10 }, { title: 'ما حدث', width: 30, wrap: true }, { title: 'النتيجة', width: 10 }, { title: 'الدرس', width: 30, wrap: true },
+    ], S.decisions.slice().sort((a, b) => b.date.localeCompare(a.date)).map((x) => [x.title, x.date, x.reasons, x.expect, `${x.confidence}%`, DEC_STATE[x.state] || '', x.outcome, x.result ? DEC_RESULT[x.result][0] : '', x.lesson]));
+  }
   if (kind === 'all' || kind === 'inspire') {
     add('العبارات', [
       { title: 'العبارة', width: 60, wrap: true }, { title: 'النوع', width: 16 }, { title: 'القائل أو المصدر', width: 24 },
@@ -521,7 +569,7 @@ function excelSheets(kind) {
   return sheets;
 }
 
-const XLS_NAMES = { ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
+const XLS_NAMES = { hifz: 'mahami-hifz', people: 'mahami-people', decisions: 'mahami-decisions', ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
 function exportExcel(kind) {
   const blob = Xlsx.build(excelSheets(kind));
   const url = URL.createObjectURL(blob);
@@ -578,6 +626,10 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'lib-xls': exportExcel(v); break;
+    case 'lib-book-review': openBookReview(v); break;
+    case 'lib-rv-show': $('brvShow').hidden = false; el.hidden = true; $('brvDone').hidden = false; break;
+    case 'lib-rv-later': { const b = getBook(ldraft.id); b.rvDue = addDays(today(), 7); save(); closeLib(); render(); toast('سأذكّرك بعد أسبوع'); break; }
+    case 'lib-rv-stop': { const b = getBook(ldraft.id); b.rv = false; save(); closeLib(); render(); toast('أُخرج من المراجعة'); break; }
     case 'lib-reviewed': {
       const f = getBenefit(v);
       if (f) { f.lastReview = today(); f.reviews = (f.reviews || 0) + 1; save(); render(); toast('أحسنت! ستظهر لك فائدة أخرى غداً'); }
@@ -599,6 +651,43 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// recall a finished book: first try to remember, then compare with what you wrote down
+function openBookReview(id) {
+  const b = getBook(id);
+  ldraft = { kind: 'brev', id, isNew: false };
+  const fx = benefitsOf(id);
+  const pts = b.rvPoints.split('\n').map((x) => x.trim()).filter(Boolean);
+  $('libForm').innerHTML = `
+    <div class="sheet-head"><h2>🔁 استذكار «${esc(b.title)}»</h2>
+      <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="note-text">${b.author ? `${esc(b.author)} · ` : ''}أنهيته ${esc(b.end ? relDate(b.end) : '')}${b.rvLog.length ? ` · الاستذكار رقم ${b.rvLog.length + 1}` : ' · الاستذكار الأول'}</p>
+    <label class="field"><span>قبل أن ترى ما سجّلته: ماذا تتذكر من هذا الكتاب؟</span><textarea id="brvRecall" rows="4" placeholder="اكتب ما يحضرك من أفكاره (اختياري)"></textarea></label>
+    <button type="button" class="ghost" data-action="lib-rv-show">أظهر ما سجّلته</button>
+    <div id="brvShow" class="brv-show" hidden>
+      ${pts.length ? `<h3>ما أردت أن أتذكره</h3><ul>${pts.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${b.summary ? `<h3>فكرته</h3><p>${esc(b.summary)}</p>` : ''}
+      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>ص ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}</li>`).join('')}</ul>` : ''}
+      ${!pts.length && !b.summary && !fx.length ? '<p class="note-text">لم تسجّل شيئاً من هذا الكتاب بعد. أضف نقاطاً أو فوائد لتستذكرها في المرة القادمة.</p>' : ''}
+      ${b.rvLog.filter((e) => e.recall).length ? `<details class="howto"><summary>ما تذكرته في المرات السابقة</summary>${b.rvLog.filter((e) => e.recall).map((e) => `<p><small>${esc(dateBoth(e.d, true))}</small><br>${esc(e.recall)}</p>`).join('')}</details>` : ''}
+    </div>
+    <div class="sheet-actions">
+      <button type="submit" class="primary" id="brvDone" hidden>✓ استذكرته</button>
+      <button type="button" class="ghost" data-action="lib-rv-later">بعد أسبوع</button>
+      <button type="button" class="ghost" data-action="lib-rv-stop">أخرجه من المراجعة</button>
+    </div>`;
+  const d = lsheet();
+  if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+}
+function saveBookReview() {
+  const b = getBook(ldraft.id);
+  b.rvLog.push({ d: today(), recall: $('brvRecall').value.trim() });
+  b.rvStep = Math.min(b.rvStep + 1, BOOK_RV.length - 1);
+  b.rvDue = addDays(today(), BOOK_RV[b.rvStep]);
+  save();
+  toast(`أحسنت! الاستذكار القادم ${afterDays(BOOK_RV[b.rvStep])}`);
+  return true;
+}
+
 document.addEventListener('submit', (e) => {
   if (e.target.id !== 'libForm') return;
   e.preventDefault();
@@ -610,11 +699,12 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();
-  toast(kind === 'idea' && wasNew ? (quick ? 'حُفظت الفكرة في «الأفكار»' : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+  if (!silent) toast(kind === 'idea' && wasNew ? (quick ? 'حُفظت الفكرة في «الأفكار»' : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
 });
 
 document.addEventListener('input', (e) => {
@@ -625,6 +715,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const id = e.target.id;
+  if (id === 'lRv') $('lRvPointsW').hidden = !e.target.checked;
   if (id === 'benefitBook') { libUi.benefitBook = e.target.value; render(); }
   if (id === 'lStart' && $('lStartH')) $('lStartH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
   if (id === 'lEnd' && $('lEndH')) $('lEndH').textContent = e.target.value ? fmtHijri(e.target.value) : '';

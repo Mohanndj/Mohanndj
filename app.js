@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -58,6 +58,8 @@ const ICONS = {
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   sheet: 'M4 3h16v18H4zM4 9h16M4 15h16M10 3v18',
   archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4',
+  heart: 'M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z',
+  scale: 'M12 3v18M8 21h8M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z',
   journal: 'M5 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM9 3v18M12 8h4M12 12h4',
   link: 'M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
   micro: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM19 11a7 7 0 0 1-14 0M12 18v3',
@@ -102,6 +104,10 @@ function relDateH(s) {
   return `${r} · ${fmtHijri(s, { day: 'numeric', month: 'long' })}`;
 }
 const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
+// «بعد يومين»، «متأخر يومين»: the dual after a word takes the accusative/genitive form
+const afterDays = (n) => (n === 1 ? 'غداً' : n === 2 ? 'بعد يومين' : `بعد ${daysWord(n)}`);
+const lateDays = (n) => (n === 2 ? 'متأخر يومين' : `متأخر ${daysWord(n)}`);
+const heldDays = (n) => (n === 2 ? 'صمدت يومين' : `صمدت ${daysWord(n)}`);
 const daysWord = (n) => (n === 0 ? '0 يوم' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
 const minsWord = (n) => (n === 15 ? 'ربع ساعة' : n === 30 ? 'نصف ساعة' : n % 1440 === 0 ? plural(n / 1440, 'يوم', 'يومين', 'أيام', 'يوماً')
   : n % 60 === 0 ? plural(n / 60, 'ساعة', 'ساعتين', 'ساعات', 'ساعة') : plural(n, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'));
@@ -170,6 +176,10 @@ function load() {
   s.ideas = (Array.isArray(s.ideas) ? s.ideas : []).map(normalizeIdea);
   s.journal = (Array.isArray(s.journal) ? s.journal : []).map(normalizeJournal);
   s.jtemplates = (Array.isArray(s.jtemplates) ? s.jtemplates : DEFAULT_TEMPLATES).map(normalizeJTemplate);
+  s.hifz = (Array.isArray(s.hifz) ? s.hifz : []).map(normalizeHifz);
+  s.people = (Array.isArray(s.people) ? s.people : []).map(normalizePerson);
+  s.decisions = (Array.isArray(s.decisions) ? s.decisions : []).map(normalizeDecision);
+  s.quits = (Array.isArray(s.quits) ? s.quits : []).map(normalizeQuit);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -500,6 +510,7 @@ function viewToday() {
       <span class="muted">${late ? `<span class="late">${late} متأخرة</span> · ` : ''}${esc(fmtHijri(d))}</span>
     </div>
   </div>
+  ${remindersHTML()}
   ${todayHabitsHTML()}
   ${journalTodayHTML()}
   ${prayerStripHTML()}
@@ -745,6 +756,7 @@ function viewGoals() {
   const finished = goals.filter((t) => goalEnded(t) && !(isHabit(t) && habitStats(t).graduated));
   return `
   ${habitsSectionHTML()}
+  ${quitsSectionHTML()}
   <section class="section">
     <div class="section-head"><h2>أهداف متكررة</h2>${addBtn('new-goal', 'هدف متكرر')}</div>
     ${recurring.length ? `<ul class="list">${recurring.map(recurringGoalHTML).join('')}</ul>`
@@ -1009,7 +1021,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'ideas', 'journal', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1650,7 +1662,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, people: S.people, decisions: S.decisions, quits: S.quits, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1670,6 +1682,7 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
+      for (const [k, f] of [['hifz', normalizeHifz], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
@@ -2169,7 +2182,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.people = []; S.decisions = []; S.quits = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
@@ -2280,6 +2293,7 @@ function stayInApp() {
 function closeTopLayer() {
   if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
   if (typeof jstate !== 'undefined' && jstate) { closeJournal(); return true; }
+  if (typeof hzs !== 'undefined' && hzs) { closeStudy(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
   if ($('aiSheet').open) { closeAIPreview(); return true; }
   if ($('libSheet').open) { closeLib(); return true; }
@@ -2314,6 +2328,7 @@ for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () =>
 $('memoEditor').addEventListener('close', () => { if (mstate) { saveMemoNow(); mstate = null; render(); } });
 $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
 $('jEditor').addEventListener('close', () => { if (jstate) { saveJNow(); jstate = null; render(); } });
+$('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); } });
 
 // ---------- boot ----------
 (function boot() {
