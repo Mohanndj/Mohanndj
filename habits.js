@@ -178,13 +178,14 @@ function todayHabitsHTML() {
   return `<section class="habits-today" aria-label="عاداتي اليوم">
     <div class="tblock-h"><h2>بناء العادات <small class="num">${done} من ${habits.length}</small></h2><button type="button" class="tblock-go" data-tab="goals">الأهداف ${icon('next')}</button></div>
     <ul>${habits.map((t) => {
-      const st = habitStats(t);
+      // today only: how much of today's habit is done (its strength and journey live in «الأهداف»)
       const isDone = !!t.completions[t0];
+      const dayPct = isDone ? 100 : isCounted(t) ? Math.round((countOn(t, t0) / t.target) * 100) : 0;
       return `<li class="ht-row${isDone ? ' done' : ''}">
-        <div class="habit-ring small" style="--p:${st.strength}"><span><b>${st.strength}%</b></span></div>
+        <div class="habit-ring small" style="--p:${dayPct}"><span><b>${dayPct}%</b></span></div>
         <button type="button" class="t-main" data-action="open" data-id="${t.id}">
           <span class="t-title">${esc(t.title)}</span>
-          <span class="meta"><span>${esc(st.graduated ? 'راسخة' : st.stage[0])}</span><span class="num">يوم ${Math.min(st.hit, t.habit.days)} من ${t.habit.days}</span>${st.streak ? `<span class="num">سلسلة ${st.streak}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, t0))}</span>` : ''}${!isDone && t.habit.tiny ? `<span>الأصغر: ${esc(t.habit.tiny)}</span>` : ''}</span>
+          <span class="meta">${isCounted(t) ? `<span class="num">${countOn(t, t0)} من ${t.target}${t.unit ? ` ${esc(t.unit)}` : ''}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, t0))}</span>` : ''}${!isDone && t.habit.tiny ? `<span>الأصغر: ${esc(t.habit.tiny)}</span>` : ''}</span>
         </button>
         ${checkButton(t, t0, isDone)}
       </li>`;

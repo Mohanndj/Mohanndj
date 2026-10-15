@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 53;
+const APP_VERSION = 54;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -414,7 +414,8 @@ function itemHTML(t, date, opts) {
   const d = date || today();
   const done = doneOn(t, d);
   const p = projectOf(t);
-  const bk = t.bookId && !isRepeat(t) ? getBook(t.bookId) : null;
+  // (the book's pages and sessions are shown in its project and calendar, not on «اليوم», which is today only)
+  const bk = t.bookId && !isRepeat(t) && ui.tab !== 'today' ? getBook(t.bookId) : null;
   const steps = !t.done && (t.subtasks.length || (bk && bk.pages)) ? `<span class="mini-progress" aria-hidden="true"><i style="width:${taskProgress(t) * 100}%"></i></span>` : '';
   // a book's task: where the reading stands and its last sessions
   const sess = bk ? Object.keys(t.completions || {}).sort() : [];

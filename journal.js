@@ -165,23 +165,14 @@ function viewJournal() {
 `;
 }
 
-// «اليوم»: a small invitation to write, or a link to today's entry
-// «اليوم»: only how steady the writing is: the last 30 days as a strip (a filled cell for each day
-// written), a percentage and the streak. Nothing of what was written is shown here.
+// «اليوم»: today only (as the user asked): written today or not, 100% or 0%. Nothing of what was
+// written is shown here; the history and the streak live in the journal page and the reports.
 function journalTodayHTML() {
   if (!S.journal.some((j) => !jEmpty(j))) return '';
-  const t0 = today();
-  const written = new Set(S.journal.filter((j) => !jEmpty(j)).map((j) => j.date));
-  const first = [...written].sort()[0];
-  const days = [];
-  for (let i = 29; i >= 0; i--) { const d = addDays(t0, -i); if (d >= first) days.push(d); }
-  const n = days.filter((d) => written.has(d)).length;
-  const pctW = Math.round((n / days.length) * 100);
-  const streak = jStreak();
-  return `<button type="button" class="j-commit" data-tab="journal" aria-label="التزامك بالكتابة ${pctW}٪">
-    <span class="row-between"><b>${written.has(t0) ? 'كتبت اليوم ✓' : 'لم تكتب اليوم بعد'}</b><b class="num">${pctW}٪</b></span>
-    <span class="j-strip" style="--n:${days.length}">${days.map((d) => `<i class="${written.has(d) ? 'on' : ''}${d === t0 ? ' now' : ''}"></i>`).join('')}</span>
-    <small>كتبت في ${plural(n, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} من آخر ${plural(days.length, 'يوم', 'يومين', 'أيام', 'يوماً')}${streak > 1 ? ` | سلسلة ${plural(streak, 'يوم', 'يومين', 'أيام', 'يوماً')} متتالية` : ''}</small>
+  const done = S.journal.some((j) => j.date === today() && !jEmpty(j));
+  return `<button type="button" class="j-commit" data-tab="journal" aria-label="${done ? 'كتبت اليوم' : 'لم تكتب اليوم بعد'}">
+    <span class="row-between"><b>${done ? 'كتبت اليوم ✓' : 'لم تكتب اليوم بعد'}</b><b class="num">${done ? 100 : 0}٪</b></span>
+    <span class="progress-line"><i style="width:${done ? 100 : 0}%"></i></span>
   </button>`;
 }
 
