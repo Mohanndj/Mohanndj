@@ -94,9 +94,10 @@ function reportExport(P) {
   L.push(`أنت مستشار شخصي حكيم. هذه بيانات نشاطي الفعلي في كل جوانب حياتي التي أتابعها. اقرأها بدقة ثم اكتب بالعربية، بإيجاز ودون مبالغة، تحت عنوانين بالضبط:`);
   L.push(`«الخلاصة»: خمسة أسطر على الأكثر عن ${P.word}: ما تحسّن وما تراجع مقارنة بالفترة السابقة، بأرقام محددة.`);
   L.push(`«العوائق وحلولها»: أبرز ثلاثة عوائق تظهر من البيانات، وسبباً محتملاً لكل منها، وحلاً عملياً صغيراً أبدأ به في ${next}${prevNote && prevNote.solutions.trim() ? '، مع تقييم: هل نفعت حلول الفترة السابقة المذكورة أدناه؟' : ''}.`);
-  L.push('لا تخترع شيئاً غير موجود في البيانات. الجانب بلا درجة معناه أنه لا يوجد فيه ما يُقاس، لا أنه صفر.');
+  L.push('لا تخترع شيئاً غير موجود في البيانات. النسبة هي التقدّم: ما أُنجز من كل المطلوب في الفترة كاملة (كل مرة مطلوبة حصة متساوية)، فإن لم تنتهِ الفترة فالباقي لم يفُت بعد. الجانب بلا نسبة معناه أنه لا يوجد فيه ما يُعدّ، لا أنه صفر.');
+  if (P.current) L.push(`مضى ${P.days.length} من ${P.all.length} يوماً من هذه الفترة.`);
   L.push('');
-  L.push(`## مؤشر النشاط الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
+  L.push(`## مؤشر التقدم الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
   L.push(`أرقام عامة: ${st.tasks} مهمة منجزة، ${st.goalDays} مرة التزام بهدف، ${st.steps} خطوة، تركيز ${Math.round(st.focusMs / 60000)} دقيقة، ${st.activeDays} يوماً نشطاً من ${P.days.length}، ${st.pages} صفحة، ${st.books} كتاب أُنهي، ${st.benefits} فائدة.`);
   L.push('');
   L.push('## الجوانب');
@@ -158,7 +159,7 @@ async function reportImage() {
   x.font = '700 64px "Aref Ruqaa", "Amiri", serif'; x.fillText(D(`تقرير ${P.title}`), W - Pd, 140);
   x.font = '400 36px "Amiri", serif'; x.fillText(D(P.sub), W - Pd, 205);
   x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} · الوعي الشخصي` : 'الوعي الشخصي', W - Pd, 260); x.globalAlpha = 1;
-  const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'النشاط الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
+  const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'التقدم الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
   const cols = 3, gw = (W - Pd * 2 - 40) / cols, gh = 170;
   tiles.forEach(([v, l], i) => {
     const col = i % cols, row = Math.floor(i / cols);
