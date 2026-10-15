@@ -9,7 +9,7 @@ const weekStartOf = (d) => addDays(d, -parse(d).getDay()); // Sunday
 const sundayId = (id) => (/^\d{4}-\d{2}-\d{2}$/.test(id) && parse(id).getDay() === 6 ? addDays(id, 1) : id);
 function normalizeWeek(w) { return { id: w.id ? sundayId(w.id) : weekStartOf(today()), focus: [0, 1, 2].map((i) => String((w.focus || [])[i] || '')), note: String(w.note || '') }; }
 const weekRec = (start) => S.weeks.find((w) => w.id === start);
-const tasksOnDay = (d) => S.tasks.filter((t) => !isGoal(t) && t.due === d).sort((a, b) => a.done - b.done || (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999));
+const tasksOnDay = (d) => S.tasks.filter((t) => !isGoal(t) && (t.due === d || !!(t.bookId && t.completions && t.completions[d]))).sort((a, b) => doneOn(a, d) - doneOn(b, d) || (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999));
 const goalsOnDay = (d) => S.tasks.filter((t) => isGoal(t) && isRepeat(t) && occursOn(t, d));
 
 function dayChips(taskId, cur, start) {
@@ -17,10 +17,11 @@ function dayChips(taskId, cur, start) {
 }
 function wkTaskRow(t, d, start, showDate) {
   const moving = weekUi.move === t.id;
-  const late = !t.done && t.due && t.due < today();
-  return `<li class="wk-task${t.done ? ' done' : ''}${late ? ' is-late' : ''}">
-    <div class="wk-line">${checkButton(t, d, t.done)}<button type="button" class="t-main" data-action="open" data-id="${t.id}"><span class="t-title">${esc(t.title)}</span>${hasTime(t) || showDate ? `<span class="meta">${showDate ? `<span class="late">${esc(relDate(t.due))}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, d))}</span>` : ''}</span>` : ''}</button>
-      ${t.done ? '' : `<button type="button" class="ghost sm" data-action="wk-move" data-v="${t.id}" aria-expanded="${moving}">نقل</button>`}</div>
+  const done = doneOn(t, d);
+  const late = !done && t.due && t.due < today();
+  return `<li class="wk-task${done ? ' done' : ''}${late ? ' is-late' : ''}">
+    <div class="wk-line">${checkButton(t, d, done)}<button type="button" class="t-main" data-action="open" data-id="${t.id}"><span class="t-title">${esc(t.title)}</span>${hasTime(t) || showDate ? `<span class="meta">${showDate ? `<span class="late">${esc(relDate(t.due))}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, d))}</span>` : ''}</span>` : ''}</button>
+      ${done ? '' : `<button type="button" class="ghost sm" data-action="wk-move" data-v="${t.id}" aria-expanded="${moving}">نقل</button>`}</div>
     ${moving ? dayChips(t.id, d, start) : ''}
   </li>`;
 }
@@ -50,7 +51,7 @@ function viewWeek() {
     </div>
     <ul class="wk-days">${days.map((d) => {
       const tasks = tasksOnDay(d), goals = goalsOnDay(d);
-      const left = tasks.filter((t) => !t.done).length;
+      const left = tasks.filter((t) => !doneOn(t, d)).length;
       const isOpen = d === open;
       return `<li class="wk-day${d === t0 ? ' today' : ''}${d < t0 ? ' past' : ''}${isOpen ? ' open' : ''}">
         <button type="button" class="wk-head" data-action="wk-open" data-v="${d}" aria-expanded="${isOpen}">

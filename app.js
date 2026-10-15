@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -306,6 +306,9 @@ function goalStats(t) {
 // progress of a task counting its steps; a done task counts as complete
 function taskProgress(t) {
   if (t.done) return 1;
+  // a book's task in a reading project progresses with its pages
+  const bk = t.bookId && !isRepeat(t) && typeof getBook === 'function' ? getBook(t.bookId) : null;
+  if (bk && bk.pages) return Math.min(1, (bk.page || 0) / bk.pages);
   if (!t.subtasks.length) return 0;
   return t.subtasks.filter((s) => s.done).length / t.subtasks.length;
 }
@@ -411,12 +414,17 @@ function itemHTML(t, date, opts) {
   const d = date || today();
   const done = doneOn(t, d);
   const p = projectOf(t);
-  const steps = !t.done && t.subtasks.length ? `<span class="mini-progress" aria-hidden="true"><i style="width:${taskProgress(t) * 100}%"></i></span>` : '';
+  const bk = t.bookId && !isRepeat(t) ? getBook(t.bookId) : null;
+  const steps = !t.done && (t.subtasks.length || (bk && bk.pages)) ? `<span class="mini-progress" aria-hidden="true"><i style="width:${taskProgress(t) * 100}%"></i></span>` : '';
+  // a book's task: where the reading stands and its last sessions
+  const sess = bk ? Object.keys(t.completions || {}).sort() : [];
+  const readLine = bk ? `<span class="meta">${[bk.pages ? `صفحة ${bk.page || 0} من ${bk.pages}` : bk.page ? `صفحة ${bk.page}` : '', sess.length ? `${plural(sess.length, 'جلسة واحدة', 'جلستان', 'جلسات', 'جلسة')}، آخرها ${esc(relDate(sess[sess.length - 1]))}` : ''].filter(Boolean).join(' | ')}</span>` : '';
   return `<li class="task p-${t.priority}${done ? ' done' : ''}${isGoal(t) ? ' is-goal' : ''}"${p ? ` style="--pc:${p.color}"` : ''}>
     ${checkButton(t, d, done)}
     <button type="button" class="t-main" data-action="open" data-id="${t.id}">
       <span class="t-title">${esc(t.title)}</span>
       <span class="meta">${metaHTML(t, d, opts)}</span>
+      ${readLine}
       ${steps}
     </button>
   </li>`;
@@ -427,7 +435,8 @@ const emptyHTML = (title, text, action) =>
 const addBtn = (action, label, extra = '') => `<button type="button" class="add-btn" data-action="${action}"${extra}>${icon('plus')}${label}</button>`;
 
 function itemsOn(d) {
-  return S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, d) : t.due === d));
+  // (a book task also shows on the days it held a reading session, though its date has moved on)
+  return S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, d) : t.due === d || !!(t.bookId && t.completions && t.completions[d])));
 }
 
 const byTime = (d) => (a, b) =>
