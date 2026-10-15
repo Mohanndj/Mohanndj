@@ -1430,3 +1430,6 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .fin-range-l { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; }
 .fin-payday select { max-width: 100%; }
 .fine-paste { width: 100%; font-size: .85rem; }
+
+/* v41: explanations are optional (Settings), hidden by default */
+html:not(.show-explain) .explain { display: none !important; }

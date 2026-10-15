@@ -156,7 +156,7 @@ function bookReadingFieldsHTML(b) {
   return `<label class="field"><span>الموضوع (اختياري)</span><input type="text" id="lTopic" value="${esc(b.topic)}" list="bookTopicList" autocomplete="off" placeholder="مثل: سيرة، فقه، إدارة"><datalist id="bookTopicList">${bookTopics().map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
     <div class="brv-box">
       <b>📅 أيام القراءة</b>
-      <p class="note-text">اختر أيامه وعدد الصفحات، فيظهر هدفاً في «اليوم» في هذه الأيام فقط ما دام «أقرؤه الآن»، وكل مرة تُنجزه تتقدم صفحتك.</p>
+      <p class="note-text explain">اختر أيامه وعدد الصفحات، فيظهر هدفاً في «اليوم» في هذه الأيام فقط ما دام «أقرؤه الآن»، وكل مرة تُنجزه تتقدم صفحتك.</p>
       <div class="chips" role="group" aria-label="أيام القراءة">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="rd-day" data-v="${d}" aria-pressed="${b.rdays.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div>
       <label class="field"><span>الصفحات في كل مرة</span><input type="number" id="lRpages" min="1" inputmode="numeric" value="${b.rpages || ''}" placeholder="مثال: 20"></label>
     </div>`;

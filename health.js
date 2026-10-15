@@ -88,7 +88,7 @@ function viewHealth() {
     <div class="section-head"><h2>الصحة: الطعام</h2><div class="btn-row"><label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="hImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>${addBtn('h-new', 'وجبة')}</div></div>
     <details class="panel h-prof"${S.meals.length ? '' : ' open'}><summary><b>هدفي وتفضيلاتي</b><small>${H_GOALS[prof.goal]}${prof.kcal ? ` · ${prof.kcal} سعرة يومياً` : ''}</small></summary>
       <div class="seg seg-wrap" role="group">${Object.entries(H_GOALS).map(([k, l]) => `<button type="button" data-action="h-goal" data-v="${k}" aria-pressed="${prof.goal === k}">${l}</button>`).join('')}</div>
-      ${prof.goal === 'balance' ? '<p class="note-text">التكامل الغذائي: أن يغطي طعامك المجموعات الغذائية كلها كل أسبوع (الخضروات، الفواكه، الحبوب الكاملة، البروتين، الأسماك، البقوليات، الألبان، الدهون الصحية) دون التركيز على الوزن.</p>' : ''}
+      ${prof.goal === 'balance' ? '<p class="note-text explain">التكامل الغذائي: أن يغطي طعامك المجموعات الغذائية كلها كل أسبوع (الخضروات، الفواكه، الحبوب الكاملة، البروتين، الأسماك، البقوليات، الألبان، الدهون الصحية) دون التركيز على الوزن.</p>' : ''}
       <div class="grid2">
         <label class="field"><span>السعرات اليومية (اختياري)</span><input type="text" inputmode="numeric" class="num-in" id="hpKcal" data-hp="kcal" value="${prof.kcal || ''}" placeholder="مثال: 2000" data-novoice></label>
         <label class="field"><span>البروتين اليومي غ (اختياري)</span><input type="text" inputmode="numeric" class="num-in" id="hpProtein" data-hp="protein" value="${prof.protein || ''}" placeholder="مثال: 120" data-novoice></label>
@@ -103,7 +103,7 @@ function viewHealth() {
     </div>` : '<p class="note-text">فعّل الذكاء الاصطناعي من الإعدادات ليخطط لك أسبوعاً متكاملاً بقيمه الغذائية، أو أضف وجباتك بنفسك، أو استورد خطتك من ملف إكسل.</p>'}
     <div class="chips h-days" role="tablist" aria-label="أيام الأسبوع">${WEEK_ORDER.map((w) => `<button type="button" class="chip${w === dowToday ? ' is-today' : ''}" role="tab" data-action="h-day" data-v="${w}" aria-pressed="${w === d}">${AR_DAYS[w]}${mealsOf(w).length ? ` <small>${dayTotals(mealsOf(w)).kcal}</small>` : ''}</button>`).join('')}</div>
     ${list.length ? `${totalsBar(dayTotals(list), prof, isToday ? sumItems(list.flatMap((m) => m.items).filter((x) => eatenIds.includes(x.id))) : null)}
-      ${isToday ? '<p class="note-text">اليوم: أشّر على ما أكلته فعلاً من كل وجبة.</p>' : ''}
+      ${isToday ? '<p class="note-text explain">اليوم: أشّر على ما أكلته فعلاً من كل وجبة.</p>' : ''}
       <div class="book-list">${list.map((m) => mealCard(m, isToday)).join('')}</div>`
       : emptyHTML(`لا وجبات لـ${AR_DAYS[d]}`, AI.on() ? 'اضغط «خطط أسبوعاً متنوعاً» أو أضف وجبة بنفسك.' : 'أضف وجبات هذا اليوم بأصنافها وقيمها الغذائية.', addBtn('h-new', 'وجبة'))}
     ${S.meals.length ? `${coverageHTML()}<div class="panel"><h3>الأسبوع كله</h3>
@@ -326,7 +326,7 @@ async function importMealPlan(file) {
   $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
     <p class="note-text">${via === 'ai' ? 'قرأها الذكاء الاصطناعي من ملفك.' : 'قُرئت من ملفك مباشرة.'} وجدت ${plural(meals.length, 'وجبة واحدة', 'وجبتين', 'وجبات', 'وجبة')} في ${plural(new Set(meals.map((m) => m.dow)).size, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}:</p>
     <ul class="fin-imp">${WEEK_ORDER.filter((w) => meals.some((m) => m.dow === w)).map((w) => `<li><b>${AR_DAYS[w]}</b><small>${meals.filter((m) => m.dow === w).sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)).map((m) => `${SLOTS[m.slot][0]}: ${m.items.map((x) => x.name).join('، ')}`).map(esc).join(' · ')}</small></li>`).join('')}</ul>
-    ${!via || via === 'file' ? '<p class="note-text">القيم الغذائية غير موجودة في الملف؟ افتح أي وجبة واضغط «احسب القيم الغذائية»، أو فعّل الذكاء الاصطناعي ثم استورد الملف من جديد.</p>' : ''}
+    ${!via || via === 'file' ? '<p class="note-text explain">القيم الغذائية غير موجودة في الملف؟ افتح أي وجبة واضغط «احسب القيم الغذائية»، أو فعّل الذكاء الاصطناعي ثم استورد الملف من جديد.</p>' : ''}
     <div class="seg" id="miMode" role="group"><button type="button" data-action="h-imp-mode" data-v="replace" aria-pressed="true">استبدل خطتي بها</button><button type="button" data-action="h-imp-mode" data-v="add" aria-pressed="false">أضفها إلى خطتي</button></div>
     <div class="sheet-actions"><button type="submit" class="primary">اعتمد الخطة</button></div>`;
   ldraft.mode = 'replace';

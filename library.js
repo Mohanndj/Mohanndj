@@ -167,7 +167,7 @@ function viewMore() {
   </section>
   <section class="panel">
     <h2>تصدير إلى إكسل</h2>
-    <p class="note-text">ملف إكسل واحد فيه صفحة لكل قسم: المهام والمشاريع والأهداف والأفكار واليوميات والملاحظات والكتب والفوائد والأرشيف والعبارات. يفتح في Excel وGoogle Sheets.</p>
+    <p class="note-text explain">ملف إكسل واحد فيه صفحة لكل قسم: المهام والمشاريع والأهداف والأفكار واليوميات والملاحظات والكتب والفوائد والأرشيف والعبارات. يفتح في Excel وGoogle Sheets.</p>
     <div class="btn-row">
       <button type="button" class="primary" data-action="lib-xls" data-v="all">${icon('sheet')} تصدير الكل</button>
       <button type="button" class="ghost" data-action="lib-xls" data-v="tasks">المهام والمشاريع</button>
@@ -355,7 +355,7 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       <div class="brv-box" id="lRvWrap">
         <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ضعه في المراجعة المتباعدة (اختياري)</span></label>
-        <p class="note-text">يذكّرك التطبيق بالعودة إليه بعد أسبوع، ثم شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
+        <p class="note-text explain">يذكّرك التطبيق بالعودة إليه بعد أسبوع، ثم شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} · ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` · استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
@@ -692,7 +692,7 @@ document.addEventListener('click', (e) => {
       f.innerHTML = `<div class="sheet-head"><h2>هدف القراءة لعام ${today().slice(0, 4)}</h2>
         <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
         <label class="field"><span>كم كتاباً تريد أن تقرأ هذا العام؟</span><input type="number" id="lGoal" min="0" max="500" inputmode="numeric" value="${S.settings.readingGoal || ''}" placeholder="مثال: 24"></label>
-        <p class="note-text">نقارن ما أنهيته بما يُفترض أن تكون وصلت إليه حتى اليوم، لتعرف هل أنت متقدّم أو متأخر. اكتب ٠ لإلغاء الهدف.</p>
+        <p class="note-text explain">نقارن ما أنهيته بما يُفترض أن تكون وصلت إليه حتى اليوم، لتعرف هل أنت متقدّم أو متأخر. اكتب ٠ لإلغاء الهدف.</p>
         <div class="sheet-actions"><button type="submit" class="primary">حفظ</button></div>`;
       const d = lsheet();
       if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');

@@ -64,13 +64,13 @@ function viewReport() {
       <h2>${icon('spark')} خلاصاتي لهذا ${P.word}</h2>
       <label class="field"><span>الخلاصة</span><textarea id="repSummary" data-rep="summary" rows="5" placeholder="ما الذي جرى في هذا ${P.word}؟ ما أبرز إنجازاتك؟">${esc(note.summary)}</textarea></label>
       <label class="field"><span>العوائق وحلولها</span><textarea id="repSolutions" data-rep="solutions" rows="5" placeholder="ما الذي عاقك؟ وما الحل الذي ستجربه في ${P.type === 'week' ? 'الأسبوع' : P.type === 'month' ? 'الشهر' : 'العام'} القادم؟">${esc(note.solutions)}</textarea></label>
-      <p class="note-text">تُحفظ وحدها. وتظهر حلولك في تقرير ${P.type === 'week' ? 'الأسبوع' : P.type === 'month' ? 'الشهر' : 'العام'} القادم لتقارن بها.</p>
+      <p class="note-text explain">تُحفظ وحدها. وتظهر حلولك في تقرير ${P.type === 'week' ? 'الأسبوع' : P.type === 'month' ? 'الشهر' : 'العام'} القادم لتقارن بها.</p>
       ${AI.on() ? `<button type="button" class="ai-btn" data-action="rep-ai">${icon('spark')} اكتبها لي بالذكاء الاصطناعي</button>` : ''}
     </section>
   </div>
   <section class="panel rep-export">
     <h2>نسخة كاملة لتحليلها</h2>
-    <p class="note-text">نسخة نصية كاملة لهذا ${P.word}: كل الجوانب وتفاصيلها، ومقارنة بما قبله، وخلاصاتك السابقة، ومعها طلب جاهز. الصقها في أي برنامج ذكاء اصطناعي، ثم ضع ما يعطيك في الخانتين أعلاه.</p>
+    <p class="note-text explain">نسخة نصية كاملة لهذا ${P.word}: كل الجوانب وتفاصيلها، ومقارنة بما قبله، وخلاصاتك السابقة، ومعها طلب جاهز. الصقها في أي برنامج ذكاء اصطناعي، ثم ضع ما يعطيك في الخانتين أعلاه.</p>
     <label class="switch"><input type="checkbox" id="repJournal"${repUi.journal ? ' checked' : ''}><span>أضف نصوص يومياتي (خاصة، اخترها إن أردت تحليلاً أعمق)</span></label>
     <div class="btn-row"><button type="button" class="primary" data-action="rep-copy">${icon('sheet')} انسخ النسخة الكاملة</button><button type="button" class="ghost" data-action="rep-file">نزّلها ملفاً</button></div>
   </section>

@@ -186,7 +186,7 @@ function openPlan(id) {
       ${p.pos ? '<button type="button" class="ghost" data-action="hz-plan-back">تراجع مقداراً</button>' : ''}
       <button type="button" class="danger" data-action="lib-delete">حذف الخطة</button>
     </div>
-    <p class="note-text">حذف الخطة لا يحذف ما حفظته منها، فهو باقٍ في المراجعة.</p>`;
+    <p class="note-text explain">حذف الخطة لا يحذف ما حفظته منها، فهو باقٍ في المراجعة.</p>`;
   libArmed = false;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -422,7 +422,7 @@ function renderStudy() {
   const grades = [['again', 'نسيت'], ['hard', 'صعب'], ['good', 'جيد'], ['easy', 'سهل']];
   $('hzBody').innerHTML = `
     <div class="seg seg-wrap hz-views" role="group" aria-label="طريقة العرض">${views.map(([v, l]) => `<button type="button" data-hz="view" data-v="${v}" aria-pressed="${hzs.view === v}">${l}</button>`).join('')}</div>
-    <p class="note-text">${hzs.view === 'full' ? (h.type === 'poem' ? 'اقرأها بتمهّل بيتاً بيتاً، ثم جرّب «إخفاء العجز»: تقرأ الصدر وتكمل العجز من ذاكرتك، ثم «أوائل الأشطر» فـ«إخفاء الكل».' : 'اقرأه بتمهّل مرات، ثم جرّب «أوائل الكلمات» فـ«إخفاء الكل».')
+    <p class="note-text explain">${hzs.view === 'full' ? (h.type === 'poem' ? 'اقرأها بتمهّل بيتاً بيتاً، ثم جرّب «إخفاء العجز»: تقرأ الصدر وتكمل العجز من ذاكرتك، ثم «أوائل الأشطر» فـ«إخفاء الكل».' : 'اقرأه بتمهّل مرات، ثم جرّب «أوائل الكلمات» فـ«إخفاء الكل».')
       : `سمّع من ذاكرتك، واضغط على أي كلمة مخفية لتظهرها${h.type === 'poem' ? '، أو على رقم البيت ليظهر كله' : ''}.`}</p>
     ${h.ctx && hzs.mode === 'learn' ? `<div class="hz-ctx"><small>ما قبله (للربط)</small>${hzTextHTML({ type: h.type, text: h.ctx, num: h.num - 1 }, 'full')}</div>` : ''}
     ${hzTextHTML(h, hzs.view)}`;

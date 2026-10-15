@@ -81,13 +81,13 @@ function viewShop() {
   const allDone = items.filter((x) => !x.need);
   return `${moreCrumb()}<section class="section">
     <h2>القوائم</h2>
-    <p class="note-text">ما تشطبه لا يُحذف: يبقى في «تم» لتعيده بضغطة حين تحتاجه مرة أخرى. وكل ما بقي دون شطب يظهر لك في «اليوم».</p>
+    <p class="note-text explain">ما تشطبه لا يُحذف: يبقى في «تم» لتعيده بضغطة حين تحتاجه مرة أخرى. وكل ما بقي دون شطب يظهر لك في «اليوم».</p>
     <div class="chips list-chips" role="group" aria-label="القوائم">${S.lists.map((x) => `<button type="button" class="chip" data-action="shop-cat" data-v="${x.id}" aria-pressed="${x.id === l.id}">${x.icon} ${esc(x.name)}${listLeft(x.id) ? ` <span class="num">${listLeft(x.id)}</span>` : ''}</button>`).join('')}<button type="button" class="chip" data-action="shop-list-new">${icon('plus')} قائمة</button></div>
     <div class="section-head"><h3>${l.icon} ${esc(l.name)}</h3><button type="button" class="ghost sm" data-action="shop-list-edit" data-v="${l.id}">${icon('edit')} تعديل</button></div>
     ${addForm(l)}
     ${need.length || doneToday.length ? `<ul class="shop-list">${need.map((x) => itemRow(x)).join('')}${doneToday.map((x) => itemRow(x)).join('')}</ul>` : `<p class="note-text">${items.length ? 'شطبت كل ما فيها ✓' : 'القائمة فارغة. أضف ما تتذكره قبل أن تنساه.'}</p>`}
     ${done.length ? `<details class="shop-done"><summary>تم (${done.length}) · اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
-    ${allDone.length > 1 ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
+    ${allDone.length > 1 ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text explain">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
   </section>`;
 }
 

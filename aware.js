@@ -263,7 +263,7 @@ function awareReportHTML(P, prevStats) {
   const best = aspects.filter((a) => a.score != null).sort((a, b) => b.score - a.score);
   return `<section class="panel aware">
     <h2>التقدم الشامل</h2>
-    <p class="note-text">كل جانب بدرجة من ١٠٠ لهذا ${P.word} والحقائق وراءها. الجانب الذي لا يوجد فيه ما يُقاس يظهر بحقائقه دون درجة.</p>
+    <p class="note-text explain">كل جانب بدرجة من ١٠٠ لهذا ${P.word} والحقائق وراءها. الجانب الذي لا يوجد فيه ما يُقاس يظهر بحقائقه دون درجة.</p>
     ${overall != null ? `<div class="aware-top"><div class="ring" style="--p:${overall}"><span>${overall}%</span></div>
       <div><b>مؤشر النشاط الشامل${trend(overall, prevStats && prevStats.overall)}</b><small>${best.length > 1 ? `أقوى جوانبك: ${esc(best[0].title)} · يحتاج عناية: ${esc(best[best.length - 1].title)}` : ''}</small></div></div>` : ''}
     <div class="aware-grid">${aspects.map((a) => `<button type="button" class="aware-card" data-tab="${a.tab}">

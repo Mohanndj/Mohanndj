@@ -71,7 +71,7 @@ function finFinesHTML() {
   </article>`;
   return `<section class="section">
     <div class="section-head"><h2>المخالفات المرورية <small class="num">${money(sum(open, fineLeft))}</small></h2>${addBtn('fine-new', 'مخالفة')}</div>
-    <p class="note-text">كل مخالفة لم تُسدَّد تظهر بنداً في خطة هذا الشهر حتى تسددها.</p>
+    <p class="note-text explain">كل مخالفة لم تُسدَّد تظهر بنداً في خطة هذا الشهر حتى تسددها.</p>
     ${open.length ? `<div class="book-list">${open.map(card).join('')}</div>` : emptyHTML('لا مخالفات عليك', 'سجّل المخالفة بقيمتها وتاريخها ومكانها، فتدخل خطتك الشهرية حتى تسددها.')}
     ${paid.length ? `<details class="shop-done"><summary>المسدّدة (${paid.length}) · ${money(sum(paid, (f) => sum(f.payments)))}</summary><div class="book-list">${paid.map(card).join('')}</div></details>` : ''}
   </section>`;

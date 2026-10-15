@@ -134,7 +134,7 @@ function tplManageHTML() {
       ${addBtn('j-tpl-new', 'قالب جديد')}
       ${missing.length ? `<button type="button" class="ghost" data-action="j-tpl-restore">استعادة القوالب الأصلية (${missing.length})</button>` : ''}
     </div>
-    <p class="note-text">اضغط على القالب لتعديل اسمه ورمزه وأسئلته وما يُضاف من يومك. حذف القالب لا يحذف اليوميات التي كتبتها به.</p>`;
+    <p class="note-text explain">اضغط على القالب لتعديل اسمه ورمزه وأسئلته وما يُضاف من يومك. حذف القالب لا يحذف اليوميات التي كتبتها به.</p>`;
 }
 
 function viewJournal() {
@@ -363,7 +363,7 @@ function openJTpl(id) {
       <ol class="tq-list" id="tQs">${t.questions.map(tqRow).join('')}</ol>
       <button type="button" class="ghost tq-add" data-taction="add">${icon('plus')} أضف سؤالاً</button>
     </div>
-    <p class="note-text">اكتب {اليوم} أو {التاريخ} أو {الهجري} أو {الاسم} داخل السؤال لتُستبدل تلقائياً. بلا أسئلة يصبح القالب كتابة حرّة.</p>
+    <p class="note-text explain">اكتب {اليوم} أو {التاريخ} أو {الهجري} أو {الاسم} داخل السؤال لتُستبدل تلقائياً. بلا أسئلة يصبح القالب كتابة حرّة.</p>
     <div class="field"><span>يُضاف تلقائياً من يومك</span>
       <div class="j-blocks">${Object.entries(JBLOCKS).map(([k, l]) => `<label class="switch"><input type="checkbox" data-block="${k}"${t.blocks[k] ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
     </div>
@@ -424,7 +424,7 @@ function openJExport() {
     <label class="switch"><input type="checkbox" id="xQs"${o.questions ? ' checked' : ''}><span>إظهار أسئلة القالب فوق الإجابات</span></label>
     <label class="switch"><input type="checkbox" id="xFacts"${o.facts ? ' checked' : ''}><span>إضافة بيانات اليوم (المنجزات والعادات والتركيز)</span></label>
     <label class="switch"><input type="checkbox" id="xPages"${o.pages ? ' checked' : ''}><span>كل يومية في صفحة مستقلة (بدلاً من الفاصل)</span></label>
-    <p class="note-text">كل يومية تُكتب نصاً واحداً متصلاً تحت تاريخها (الميلادي والهجري)، وبين كل يومية والتي تليها فاصل ✦ ✦ ✦. يفتح الملف في Word وGoogle Docs.</p>
+    <p class="note-text explain">كل يومية تُكتب نصاً واحداً متصلاً تحت تاريخها (الميلادي والهجري)، وبين كل يومية والتي تليها فاصل ✦ ✦ ✦. يفتح الملف في Word وGoogle Docs.</p>
     <div class="sheet-actions"><button type="submit" class="primary">${icon('note')} تصدير</button></div>`;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');

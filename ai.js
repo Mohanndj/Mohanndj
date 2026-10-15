@@ -306,7 +306,7 @@ function aiSettingsHTML() {
   const c = AI.cfg();
   return `<section class="panel">
     <h2>الذكاء الاصطناعي</h2>
-    <p class="note-text">يضيف مساعداً ذكياً (Claude) يفهم كلامك ويحوّله إلى مهام، ويقترح خطوات المهام، ويخطط المشاريع، ويحوّل الفوائد إلى أعمال، ويلخّص الملاحظات، ويكتب خلاصة تقريرك الشهري.</p>
+    <p class="note-text explain">يضيف مساعداً ذكياً (Claude) يفهم كلامك ويحوّله إلى مهام، ويقترح خطوات المهام، ويخطط المشاريع، ويحوّل الفوائد إلى أعمال، ويلخّص الملاحظات، ويكتب خلاصة تقريرك الشهري.</p>
     ${c.key ? `
       <p class="note-text status-ok">مفعّل</p>
       <label class="field"><span>النموذج</span><select id="aiModel">${AI_MODELS.map(([v, l]) => `<option value="${v}"${(c.model || AI_MODELS[0][0]) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -321,7 +321,7 @@ function aiSettingsHTML() {
       </details>
       <label class="field"><span>مفتاح Claude</span><input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…" dir="ltr"></label>
       <div class="btn-row"><button type="button" class="primary" data-action="ai-save">حفظ وتفعيل</button></div>`}
-    <p class="note-text">المفتاح يُحفظ على هذا الجهاز فقط، ولا يدخل في المزامنة أو النسخة الاحتياطية. كل طلب يُحسب من رصيدك في Anthropic.</p>
+    <p class="note-text explain">المفتاح يُحفظ على هذا الجهاز فقط، ولا يدخل في المزامنة أو النسخة الاحتياطية. كل طلب يُحسب من رصيدك في Anthropic.</p>
   </section>`;
 }
 

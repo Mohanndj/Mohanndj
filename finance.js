@@ -196,7 +196,7 @@ function finPlansHTML() {
   const mini = (c) => `<span class="fin-hnum ${c.left < 0 ? 'neg' : 'pos'}">${c.left < 0 ? 'عجز' : 'للادخار'} <b>${money(Math.abs(c.left))}</b></span>`;
   return `<section class="section">
     <div class="section-head"><h2>الخطط المعنونة</h2>${addBtn('fin-new-titled', 'خطة معنونة')}</div>
-    <p class="note-text">خطط تسمّيها بما تشاء: لفترة زمنية («بعد سداد القرض»، «عام ٢٠٢٧») أو لما تتصوره («على فرض الزواج»). اضغط أي خطة لترى تفاصيلها، وانقلها إلى أي شهر.</p>
+    <p class="note-text explain">خطط تسمّيها بما تشاء: لفترة زمنية («بعد سداد القرض»، «عام ٢٠٢٧») أو لما تتصوره («على فرض الزواج»). اضغط أي خطة لترى تفاصيلها، وانقلها إلى أي شهر.</p>
     <div class="fin-hscroll" role="list">
       ${titled.map((p) => { const c = planCalc(p); return `<button type="button" role="listitem" class="fin-hcard${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
         <b>${esc(p.name)}</b>
@@ -210,7 +210,7 @@ function finPlansHTML() {
   </section>
   <section class="section">
     <div class="section-head"><h2>الخطط الشهرية</h2>${addBtn('fin-new-month', 'خطة شهر')}</div>
-    <label class="field fin-payday"><span>يوم نزول الراتب</span><select id="setPayDay">${[0, ...Array.from({ length: 28 }, (_, i) => i + 1)].map((d) => `<option value="${d}"${(Number(S.settings.payDay) || 0) === d ? ' selected' : ''}>${d ? `يوم ${d} من كل شهر` : 'بداية الشهر (من ١ إلى آخره)'}</option>`).join('')}</select><small class="hint">تبدأ كل خطة شهرية جديدة من هذا اليوم وتنتهي في اليوم الذي قبله من الشهر التالي، وتستطيع تعديل أي خطة بنفسها.</small></label>
+    <label class="field fin-payday"><span>يوم نزول الراتب</span><select id="setPayDay">${[0, ...Array.from({ length: 28 }, (_, i) => i + 1)].map((d) => `<option value="${d}"${(Number(S.settings.payDay) || 0) === d ? ' selected' : ''}>${d ? `يوم ${d} من كل شهر` : 'بداية الشهر (من ١ إلى آخره)'}</option>`).join('')}</select><small class="hint explain">تبدأ كل خطة شهرية جديدة من هذا اليوم وتنتهي في اليوم الذي قبله من الشهر التالي، وتستطيع تعديل أي خطة بنفسها.</small></label>
     ${months.length ? `<div class="book-list">${months.map((p) => { const c = planCalc(p); return `<button type="button" class="fin-card${ap && p.id === ap.id ? ' active' : ''}" data-action="fin-open" data-v="${p.id}">
       <span class="row-between"><b>${esc(planTitle(p))}<small class="fin-range-l"> ${esc(rangeLabel(p))}</small></b><small class="fin-kind">${[p.name && !/^خطة /.test(p.name) ? esc(p.name) : '', ap && p.id === ap.id ? 'الحالية' : ''].filter(Boolean).join(' · ')}</small></span>
       ${splitBar(c)}
@@ -239,7 +239,7 @@ function planActualHTML(p) {
     ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
       <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
         <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
-    <p class="note-text">سجّل ما تدفعه من «اليوم» أو «المصروف» وأضفه إلى بنده، أو ضع «دُفع» أمام البند إن دفعته كاملاً.</p>
+    <p class="note-text explain">سجّل ما تدفعه من «اليوم» أو «المصروف» وأضفه إلى بنده، أو ضع «دُفع» أمام البند إن دفعته كاملاً.</p>
   </div>`;
 }
 function planDetailHTML(p) {
@@ -259,20 +259,20 @@ function planDetailHTML(p) {
     ${p.kind === 'month' ? `<div class="grid2 fin-range">
       <label class="field"><span>تبدأ يوم</span><input type="date" id="fp-from" data-fin="plan" data-sid="${p.id}" data-k="from" value="${finRange(p).from}"></label>
       <label class="field"><span>وتنتهي يوم</span><input type="date" id="fp-to" data-fin="plan" data-sid="${p.id}" data-k="to" value="${finRange(p).to}"></label>
-    </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</small>` : ''}
+    </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}<span class="explain">. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</span></small>` : ''}
     ${splitBar(c)}
     ${p.kind === 'month' ? planActualHTML(p) : ''}
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${rowsHTML('plan', p.id, 'income', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }], p.income, { addLabel: 'دخل' })}</div>
     <div class="panel"><h3>١- المصاريف الشهرية الثابتة <small>${money(c.fixed)}</small></h3>
-      <p class="note-text">مبالغ تُدفع كل شهر بشكل ثابت ومكرر.</p>
+      <p class="note-text explain">مبالغ تُدفع كل شهر بشكل ثابت ومكرر.</p>
       ${rowsHTML('plan', p.id, 'fixed', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }, ...(p.kind === 'month' ? [{ k: 'done', label: 'دُفع' }] : [])], p.fixed)}</div>
     <div class="panel"><h3>٢- المصاريف الدورية <small>${money(c.periodic)} شهرياً</small></h3>
-      <p class="note-text">مبالغ لا تُدفع كل شهر (كل سنة أو كل بضعة أشهر)، يُخصَّص لها كل شهر جزء. سنوياً: ${money(c.periodicYear)}.</p>
-      ${p.kind === 'month' ? '<p class="note-text">علامة «دُفع» هنا تعني أنك دفعته أو خصّصت جزء هذا الشهر منه.</p>' : ''}
+      <p class="note-text explain">مبالغ لا تُدفع كل شهر (كل سنة أو كل بضعة أشهر)، يُخصَّص لها كل شهر جزء. سنوياً: ${money(c.periodicYear)}.</p>
+      ${p.kind === 'month' ? '<p class="note-text explain">علامة «دُفع» هنا تعني أنك دفعته أو خصّصت جزء هذا الشهر منه.</p>' : ''}
       ${rowsHTML('plan', p.id, 'periodic', [{ k: 'name', ph: 'البند' }, { k: 'every' }, { k: 'amount', ph: 'المبلغ', num: true }, ...(p.kind === 'month' ? [{ k: 'done', label: 'دُفع' }] : [])], p.periodic, { extra: (x) => `${money(x.amount / (x.every || 12))} شهرياً` })}</div>
     <div class="panel"><h3>٣- الادخار وسيولة الطوارئ</h3>
       <div class="fin-left ${c.left < 0 ? 'neg' : 'pos'}"><span>${c.left < 0 ? 'العجز' : 'المتبقي للادخار'}</span><b>${money(Math.abs(c.left))}</b></div>
-      <p class="note-text">أولى مبالغ الادخار تكون لبناء سيولة الطوارئ.</p>
+      <p class="note-text explain">أولى مبالغ الادخار تكون لبناء سيولة الطوارئ.</p>
       ${p.kind === 'month' && savingProject() ? `<button type="button" class="ghost save-link" data-action="proj-open" data-v="${savingProject().id}">💰 ما يبقى من هذا الشهر يذهب إلى «${esc(savingProject().name)}» · نقدك الآن ${money(saveCalc(savingProject()).cash)}</button>` : ''}
       <label class="field"><span>هدف الادخار</span><input type="text" inputmode="decimal" class="num-in" id="fp-goal" data-fin="plan" data-sid="${p.id}" data-k="goal" value="${p.goal || ''}" placeholder="مثال: 15000" data-novoice></label>
       ${p.goal && c.left > 0 ? `<p class="note-text">بمعدل ${money(c.left)} شهرياً تبلغ هدفك بعد ${Math.ceil(p.goal / c.left)} ${Math.ceil(p.goal / c.left) <= 10 ? 'أشهر' : 'شهراً'}.</p>` : ''}
@@ -346,7 +346,7 @@ function finLedgerHTML() {
   return `<section class="section">
     <div class="seg lg-seg" role="group" aria-label="الديون والحقوق">${Object.entries(LEDGERS).map(([k, l]) => `<button type="button" data-action="fin-lg" data-v="${k}" aria-pressed="${k === kind}">${l.title}${lgTotal(k) ? ` <small class="num">${money(lgTotal(k))}</small>` : ''}</button>`).join('')}</div>
     <div class="section-head"><h2>${L.title} <small class="num">${money(lgTotal(kind))}</small></h2><div class="btn-row">${list.length ? `<button type="button" class="xls-btn" data-action="fin-xls-one" data-v="${xls}">${icon('sheet')}إكسل</button>` : ''}${addBtn(`${kind}-new`, L.one)}</div></div>
-    <p class="note-text">${L.hint}</p>
+    <p class="note-text explain">${L.hint}</p>
     ${list.length ? `<div class="book-list">${list.map((x) => ledgerCard(x, kind)).join('')}</div>` : emptyHTML(`لا شيء في «${L.title}»`, kind === 'debt' ? 'سجّل كل دَين، وسجّل كل دفعة تسددها لترى الباقي ومتى ينتهي.' : kind === 'owe' ? 'سجّل لمن عليك الحق ومبلغه، وسجّل ما تؤديه منه حتى يبرأ.' : 'سجّل عند من لك المال ومتى، وسجّل ما يرده لك.')}
   </section>`;
 }
@@ -375,7 +375,7 @@ function finProjectsHTML() {
   }
   return `<section class="section">
     <div class="section-head"><h2>المشاريع المالية</h2>${addBtn('proj-new', 'مشروع')}</div>
-    <p class="note-text">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك. و«الادخار» يجمع ما يبقى من كل خطة شهرية.</p>
+    <p class="note-text explain">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك. و«الادخار» يجمع ما يبقى من كل خطة شهرية.</p>
     ${savingProject() ? '' : `<button type="button" class="fin-card save-card save-new" data-action="proj-new-save"><span class="row-between"><b>💰 أنشئ مشروع الادخار</b><b>${icon('plus')}</b></span><small>يصل إليه ما يبقى من دخلك كل شهر من خططك الشهرية تلقائياً، فتعرف كم تملك من النقد.</small></button>`}
     ${S.finProjects.length ? `<div class="book-list">${S.finProjects.slice().sort((a, b) => isSaving(b) - isSaving(a)).map((x) => { if (isSaving(x)) return savingCardHTML(x); const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
       <span class="row-between"><b>${esc(x.name)}</b><b class="${c.gap < 0 ? 'late' : 'ok'}">${c.gap < 0 ? `ينقص ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى'}</b></span>
@@ -400,7 +400,7 @@ function openLedger(kind, id) {
       ${isDebt ? `<label class="field"><span>القسط الشهري</span><input type="text" inputmode="decimal" class="num-in" id="lgMonthly" value="${x.monthly || ''}" data-novoice></label>`
         : `<label class="field"><span>التاريخ</span><input type="date" id="lgDate" value="${x.date}"></label>`}
     </div>
-    ${isDebt ? `<label class="field"><span>تاريخ الانتهاء المتوقع (اختياري)</span><input type="date" id="lgEnd" value="${x.end}"><small class="hint">إن تركته فارغاً يُحسب من القسط الشهري</small></label>` : ''}
+    ${isDebt ? `<label class="field"><span>تاريخ الانتهاء المتوقع (اختياري)</span><input type="date" id="lgEnd" value="${x.end}"><small class="hint explain">إن تركته فارغاً يُحسب من القسط الشهري</small></label>` : ''}
     <label class="field"><span>ملاحظة</span><input type="text" id="lgNote" value="${esc(x.note)}" autocomplete="off"></label>
     ${id && x.payments.length ? `<div class="field"><span>${mine ? 'الدفعات المستلمة' : 'الدفعات المسددة'}</span><ul class="ppl-hist">${x.payments.slice().sort((a, b) => b.d.localeCompare(a.d)).map((p) => `<li><span>${money(p.amount)} · ${esc(dateBoth(p.d, true))}${p.note ? ` · ${esc(p.note)}` : ''}</span><button type="button" class="j-m-del" data-action="lg-pay-del" data-v="${p.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
     <div class="sheet-actions">
@@ -651,7 +651,7 @@ function openFinNew(kind) {
       <option value="">خطة فارغة</option>
       ${months.length ? `<optgroup label="الخطط الشهرية">${planOptions(months, kind === 'month' ? months[0].id : '')}</optgroup>` : ''}
       ${titled.length ? `<optgroup label="الخطط المعنونة">${planOptions(titled)}</optgroup>` : ''}
-    </select><small class="hint">تُنسخ بنودها (الدخل والمصاريف والحسابات) فتعدّل ما تغيّر فقط.</small></div>
+    </select><small class="hint explain">تُنسخ بنودها (الدخل والمصاريف والحسابات) فتعدّل ما تغيّر فقط.</small></div>
     <div class="sheet-actions"><button type="submit" class="primary">أنشئ الخطة</button></div>`;
   showLib();
 }
@@ -864,7 +864,7 @@ function openFinExport() {
   const titled = S.finPlans.filter((p) => p.kind !== 'month');
   const box = (key, label, sub2 = '', on = true) => `<label class="switch"><input type="checkbox" data-exp="${key}"${on ? ' checked' : ''}><span><b>${label}</b>${sub2 ? `<small>${sub2}</small>` : ''}</span></label>`;
   $('libForm').innerHTML = `${sheetHead('تصدير إلى إكسل')}
-    <p class="note-text">كل خطة في صفحة مستقلة منسّقة بأقسامها ومجاميعها (بمعادلات تعمل إن عدّلت الأرقام في الإكسل).</p>
+    <p class="note-text explain">كل خطة في صفحة مستقلة منسّقة بأقسامها ومجاميعها (بمعادلات تعمل إن عدّلت الأرقام في الإكسل).</p>
     <div class="btn-row"><button type="button" class="ghost" data-action="fin-exp-all" data-v="1">تحديد الكل</button><button type="button" class="ghost" data-action="fin-exp-all" data-v="0">إلغاء التحديد</button></div>
     <div class="fin-exp">
       ${box('summary', 'الملخص المالي', 'الخطط المختارة والديون والحقوق وحقوقي في صفحة واحدة')}

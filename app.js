@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 40;
+const APP_VERSION = 41;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -457,7 +457,7 @@ function smartHTML() {
       <input type="text" id="smartIn" value="${esc(ui.smart)}" placeholder="${smartAll() ? 'مهمة، أو: دفعت ١٥٠ بنزين، اشتر حليب، فكرة: …' : 'مثال: اتصل بأبي بكرة الساعة 5 العصر'}" enterkeyhint="done">
       <button type="submit" class="primary">إضافة</button>
     </div>
-    ${AI.on() ? `<div class="btn-row smart-ai">${aiBtn('ai-smart', 'افهمها بالذكاء الاصطناعي')}<small class="hint">لجملة طويلة أو عدة مهام في فقرة واحدة</small></div>` : ''}
+    ${AI.on() ? `<div class="btn-row smart-ai">${aiBtn('ai-smart', 'افهمها بالذكاء الاصطناعي')}<small class="hint explain">لجملة طويلة أو عدة مهام في فقرة واحدة</small></div>` : ''}
     <div id="smartPreview">${smartPreviewHTML()}</div>
   </form>`;
 }
@@ -933,7 +933,7 @@ function viewStats() {
   <section class="panel">
     <h2>المشاريع</h2>
     ${projects.length ? `<ul class="hbars">${projects.map(({ p, st }) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${st.progress}%`, st.progress, p.color)).join('')}</ul>
-      <p class="note-text">النسبة تحسب المهام المنجزة وخطوات المهام التي لم تكتمل بعد.</p>`
+      <p class="note-text explain">النسبة تحسب المهام المنجزة وخطوات المهام التي لم تكتمل بعد.</p>`
       : '<p class="note-text">أنشئ مشروعاً وأضف له مهاماً لترى تقدّمه هنا.</p>'}
   </section>
   <section class="panel">
@@ -941,7 +941,7 @@ function viewStats() {
     ${recurring.length || once.length ? `<ul class="hbars">
       ${recurring.map(({ t, st }) => hbar(esc(t.title), `${st.rate}%`, st.rate)).join('')}
       ${once.map((t) => { const v = pct(countOn(t, t0), t.target); return hbar(esc(t.title), t.done ? 'تحقق' : `${v}%`, t.done ? 100 : v); }).join('')}
-    </ul><p class="note-text">المتكرر: نسبة الأيام التي التزمت فيها. لمرة واحدة: مقدار ما تحقق.</p>`
+    </ul><p class="note-text explain">المتكرر: نسبة الأيام التي التزمت فيها. لمرة واحدة: مقدار ما تحقق.</p>`
       : '<p class="note-text">أضف هدفاً لتتابع التزامك به.</p>'}
   </section>
   ${habitsPanelHTML()}
@@ -969,7 +969,7 @@ function prayerSettingsHTML() {
   const pt = prayerTimes(today());
   return `<section class="panel">
     <h2>أوقات الصلاة</h2>
-    <p class="note-text">تُحسب على جوالك دون إنترنت، وتستخدمها المهام المرتبطة بالصلاة مثل «بعد العصر».</p>
+    <p class="note-text explain">تُحسب على جوالك دون إنترنت، وتستخدمها المهام المرتبطة بالصلاة مثل «بعد العصر».</p>
     <label class="field"><span>المدينة</span>
       <select id="setCity">
         <option value=""${!cfg ? ' selected' : ''}>لا أريد أوقات الصلاة</option>
@@ -1021,6 +1021,7 @@ function viewSettings() {
     <div class="field"><span>الأرقام</span>
       <div class="seg">${segBtn('digits', 'arab', 'عربية ١٢٣', st.digits)}${segBtn('digits', 'latn', 'إنجليزية 123', st.digits)}</div>
     </div>
+    <label class="switch"><input type="checkbox" id="setExplain"${st.explain ? ' checked' : ''}><span>إظهار شرح الخانات والصفحات</span></label>
     <label class="switch"><input type="checkbox" id="setHijri"${st.hijri ? ' checked' : ''}><span>إظهار التاريخ الهجري بجانب الميلادي</span></label>
     <div class="field"><span>حجم الخط</span>
       <div class="seg">${segBtn('size', 'normal', 'عادي', st.size)}${segBtn('size', 'big', 'كبير', st.size)}</div>
@@ -1039,11 +1040,11 @@ function viewSettings() {
       <button type="button" class="ghost" data-action="test-alarm">تجربة المنبه</button>
     </div>
     <label class="switch"><input type="checkbox" id="setSound"${st.sound ? ' checked' : ''}><span>صوت التنبيه داخل التطبيق</span></label>
-    <p class="note-text">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
+    <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
   <section class="panel">
     <h2>نسخة احتياطية</h2>
-    <p class="note-text">بياناتك محفوظة على هذا الجهاز فقط. صدّرها لتنقلها إلى جهاز آخر أو تحتفظ بنسخة.</p>
+    <p class="note-text explain">بياناتك محفوظة على هذا الجهاز فقط. صدّرها لتنقلها إلى جهاز آخر أو تحتفظ بنسخة.</p>
     <div class="btn-row">
       <button type="button" class="ghost" data-action="export">تصدير البيانات</button>
       <button type="button" class="ghost" data-action="import">استيراد من ملف</button>
@@ -1052,7 +1053,7 @@ function viewSettings() {
   </section>
   <section class="panel">
     <h2>تحديث التطبيق</h2>
-    <p class="note-text">إذا لم يعمل زر أو قسم، اضغط هنا ليُحمَّل التطبيق من جديد. مهامك لن تُحذف.</p>
+    <p class="note-text explain">إذا لم يعمل زر أو قسم، اضغط هنا ليُحمَّل التطبيق من جديد. مهامك لن تُحذف.</p>
     <div class="row-between"><button type="button" class="ghost" data-action="hard-refresh">تحديث التطبيق الآن</button><span class="note-text">الإصدار ${APP_VERSION}</span></div>
   </section>
   <section class="panel">
@@ -1151,6 +1152,7 @@ function applyTheme() {
   if (S.settings.theme === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', S.settings.theme);
   root.setAttribute('data-size', S.settings.size);
   root.setAttribute('data-font', S.settings.font || 'mix');
+  root.classList.toggle('show-explain', !!S.settings.explain);
   const a = ACCENTS[S.settings.accent] || ACCENTS.teal;
   root.style.setProperty('--accent', isDark() ? a.dark : a.light);
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -1909,7 +1911,7 @@ async function applyPendingTimerActions() {
 
 function timerNotifNote() {
   if (!('Notification' in window)) return '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
-  if (Notification.permission === 'granted') return '<p class="note-text">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
+  if (Notification.permission === 'granted') return '<p class="note-text explain">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
   if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← الوعي الشخصي (أو Chrome) ← الإشعارات.</p>';
   return '<div class="warn-box"><span>ليبقى المؤقت ظاهراً في شريط الإشعارات بعد خروجك من التطبيق، فعّل الإشعارات.</span><button type="button" class="primary" data-action="notif-timer">تفعيل الإشعارات</button></div>';
 }
@@ -2272,6 +2274,7 @@ document.addEventListener('change', (e) => {
   if (id === 'sort') { ui.sort = e.target.value; render(); }
   if (id === 'setSound') { S.settings.sound = e.target.checked; save(); }
   if (id === 'setHijri') { S.settings.hijri = e.target.checked; save(); render(); }
+  if (id === 'setExplain') { S.settings.explain = e.target.checked; save(); applyTheme(); toast(S.settings.explain ? 'سيظهر الشرح تحت الخانات' : 'أُخفي الشرح'); }
   if (id === 'setCity') setCity(e.target.value);
   if (id === 'setMethod' && S.settings.prayer) { S.settings.prayer.method = e.target.value; save(); render(); }
   if (id === 'setAsr' && S.settings.prayer) { S.settings.prayer.asr = e.target.value; save(); render(); }

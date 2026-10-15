@@ -70,7 +70,7 @@ function viewArchive() {
       <textarea id="archQuickText" rows="2" placeholder="معلومة سريعة أو رابط… (‎#وسم للتصنيف)" aria-label="معلومة سريعة"></textarea>
       <button type="submit" class="primary">${icon('plus')}احفظ</button>
     </form>
-    <p class="note-text">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «الوعي الشخصي».</p>
+    <p class="note-text explain">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «الوعي الشخصي».</p>
     ${S.archive.length ? `<input type="search" id="archSearch" placeholder="ابحث في الأرشيف" aria-label="بحث" value="${esc(archUi.q)}">
       <div class="seg" role="group" aria-label="عرض">${seg}</div>
       ${tags.length ? `<div class="chips" role="group" aria-label="التصنيف"><button type="button" class="chip" data-action="arch-tag" data-v="" aria-pressed="${!archUi.tag}">الكل</button>${tags.map((t) => `<button type="button" class="chip" data-action="arch-tag" data-v="${esc(t)}" aria-pressed="${archUi.tag === t}">${esc(t)}</button>`).join('')}</div>` : ''}` : ''}

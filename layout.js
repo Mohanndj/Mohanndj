@@ -34,7 +34,7 @@ function renderLayout() {
   const { which, names, order, hidden } = ldraft;
   const isToday = which === 'today';
   $('libForm').innerHTML = `${sheetHead(isToday ? 'رتّب صفحة اليوم' : 'رتّب صفحات المزيد')}
-    <p class="note-text">${isToday ? 'غيّر مكان أي قسم بالسهمين، وأخفِ ما لا تريده في «اليوم». الأقسام لا تظهر إلا إن كان فيها ما يخص يومك.' : 'غيّر مكان أي صفحة بالسهمين، فتظهر في «المزيد» بالترتيب الذي تختاره.'}</p>
+    <p class="note-text explain">${isToday ? 'غيّر مكان أي قسم بالسهمين، وأخفِ ما لا تريده في «اليوم». الأقسام لا تظهر إلا إن كان فيها ما يخص يومك.' : 'غيّر مكان أي صفحة بالسهمين، فتظهر في «المزيد» بالترتيب الذي تختاره.'}</p>
     <ul class="lay-list">${order.map((k, i) => `<li class="${hidden.includes(k) ? 'off' : ''}">
       <span class="lay-name">${esc(names[k])}</span>
       ${isToday ? `<label class="lay-show"><input type="checkbox" data-lay-show="${k}"${hidden.includes(k) ? '' : ' checked'}><span>${hidden.includes(k) ? 'مخفي' : 'ظاهر'}</span></label>` : ''}

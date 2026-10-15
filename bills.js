@@ -40,7 +40,7 @@ function finBillsHTML() {
       </button>
       ${s.active ? `<div class="btn-row"><button type="button" class="ghost" data-action="sub-paid" data-v="${s.id}">${s.auto ? 'خُصم ✓' : 'دفعت ✓'}</button></div>` : ''}
     </article>`; }).join('')}</div>
-    ${act.length ? '<p class="note-text">🔗 تظهر تلقائياً بنوداً في خطة هذا الشهر وما بعده، و«دفعت» يسجّلها في المصروف ويؤشّر عليها في الخطة.</p>' : ''}`
+    ${act.length ? '<p class="note-text explain">🔗 تظهر تلقائياً بنوداً في خطة هذا الشهر وما بعده، و«دفعت» يسجّلها في المصروف ويؤشّر عليها في الخطة.</p>' : ''}`
       : emptyHTML('لا اشتراكات ولا فواتير', 'سجّل اشتراكاتك وفواتيرك (الجوال، الإنترنت، التأمين، تجديد الاستمارة…) ومواعيدها، فيذكّرك التطبيق قبلها في صفحة «اليوم».', addBtn('sub-new', 'أضف أول واحد'))}
   </section>`;
 }
@@ -115,7 +115,7 @@ function finLaterHTML() {
   };
   return `<section class="section">
     <div class="section-head"><h2>الشراء المؤجّل</h2>${addBtn('later-new', 'شيء أريده')}</div>
-    <p class="note-text">قبل أن تشتري ما لا تحتاجه الآن: سجّله هنا وانتظر. بعد المدة يسألك التطبيق: هل ما زلت تريده؟</p>
+    <p class="note-text explain">قبل أن تشتري ما لا تحتاجه الآن: سجّله هنا وانتظر. بعد المدة يسألك التطبيق: هل ما زلت تريده؟</p>
     ${saved ? `<div class="fin-tiles"><span class="pos"><b>${money(saved)}</b>وفّرتها</span><span><b>${S.later.filter((x) => x.decision === 'dropped').length}</b>تراجعت عنها</span><span><b>${money(sum(open, (x) => x.price))}</b>تنتظر</span></div>` : ''}
     ${ready.length ? `<h3 class="j-month">حان القرار</h3><div class="book-list">${ready.map(card).join('')}</div>` : ''}
     ${waiting.length ? `<h3 class="j-month">ينتظر</h3><div class="book-list">${waiting.map(card).join('')}</div>` : ''}

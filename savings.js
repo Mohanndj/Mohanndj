@@ -53,7 +53,7 @@ function savingDetailHTML(p) {
     ${accounts ? `<p class="note-text">أرصدة حساباتك في خطة «${esc(planTitle(ap))}»: ${money(accounts)}${Math.abs(accounts - c.cash) > 0.5 ? ` · الفرق عن هنا ${money(accounts - c.cash)}. إن كانت أرصدتك أدق، أضف الفرق إيداعاً أو سحباً.` : ' · مطابقة ✓'}</p>` : ''}
 
     <div class="panel"><h3>ادخار كل شهر <small>${money(c.fromMonths)}</small></h3>
-      <p class="note-text">يأتي وحده من خططك الشهرية: ما بقي فعلاً من الدخل بعد ما سجّلته من مصروف، أو «المتبقي للادخار» إن لم تسجّل شيئاً. صحّح أي شهر بكتابة المبلغ.</p>
+      <p class="note-text explain">يأتي وحده من خططك الشهرية: ما بقي فعلاً من الدخل بعد ما سجّلته من مصروف، أو «المتبقي للادخار» إن لم تسجّل شيئاً. صحّح أي شهر بكتابة المبلغ.</p>
       ${c.rows.length ? `<ul class="save-months">${c.rows.slice().reverse().map((r) => `<li class="${r.pending ? 'pending' : ''}">
         <span><b>${esc(monthName(r.m))}</b><small>${r.pending ? 'هذا الشهر: المتوقع، ويُضاف عند انتهائه' : src(r)}</small></span>
         <input type="text" inputmode="decimal" class="num-in" data-save-ov="${p.id}" data-m="${r.m}" value="${r.amount}" aria-label="ادخار ${esc(monthName(r.m))}" data-novoice>

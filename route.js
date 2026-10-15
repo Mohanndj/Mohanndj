@@ -66,10 +66,10 @@ function smartSettingsHTML() {
     <h2>الإضافة السريعة وإغلاق اليوم</h2>
     <div class="field"><span>خانة «أضف بسرعة بكلامك»</span>
       <div class="seg seg-wrap">${[['tasks', 'للمهام والأهداف فقط'], ['all', 'لكل شيء']].map(([v, l]) => `<button type="button" data-action="set-smart" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
-      <small class="hint">«لكل شيء»: اكتب «دفعت ١٥٠ بنزين» فيُسجَّل مصروفاً في بنده، و«اشتر حليب وخبز» فيُضاف إلى مشتريات البيت، و«فكرة: …» فتُحفظ في الأفكار. وتبقى بقية خانات الإضافة كما هي.</small>
+      <small class="hint explain">«لكل شيء»: اكتب «دفعت ١٥٠ بنزين» فيُسجَّل مصروفاً في بنده، و«اشتر حليب وخبز» فيُضاف إلى مشتريات البيت، و«فكرة: …» فتُحفظ في الأفكار. وتبقى بقية خانات الإضافة كما هي.</small>
     </div>
     <label class="switch"><input type="checkbox" id="setPin"${S.settings.pin ? ' checked' : ''}><span>إشعار دائم في شريط الإشعارات: رمز التطبيق بجانب الساعة، وفيه ما بقي لليوم</span></label>
-    <small class="hint">إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.</small>
+    <small class="hint explain">إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.</small>
     <label class="field"><span>بطاقة «إغلاق اليوم» تظهر من الساعة</span>
       <select id="setCloseAt">${[[0, 'لا تُظهرها'], [18, '٦ مساءً'], [19, '٧ مساءً'], [20, '٨ مساءً'], [21, '٩ مساءً'], [22, '١٠ مساءً'], [23, '١١ مساءً']].map(([h, l]) => `<option value="${h}"${at === h ? ' selected' : ''}>${l}</option>`).join('')}</select>
     </label>
@@ -123,7 +123,7 @@ function closeTodayHTML() {
     ${section('الحفظ', 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
     ${section('يومياتي وتأملاتي', 'كتبت يوميتك', wrote ? [] : [row('لم تكتب اليوم', '', btn('j-new', '', 'اكتب الآن', 'ghost sm'))], 1)}
     <button type="button" class="primary close-done-all" data-action="close-day">أغلقت يومي ✓</button>
-    <small class="note-text">ما لم تختر له شيئاً يبقى كما هو.</small>
+    <small class="note-text explain">ما لم تختر له شيئاً يبقى كما هو.</small>
   </div>`);
 }
 

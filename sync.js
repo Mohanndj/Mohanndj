@@ -199,7 +199,7 @@ const Sync = (() => {
     if (!cfg.token) {
       return `<section class="panel" id="syncPanel">
         <h2>المزامنة السحابية</h2>
-        <p class="note-text">احفظ بياناتك في حسابك على GitHub لتظهر على كل أجهزتك ولا تضيع إذا فقدت الجوال. تُحفظ في ملف سرّي (Secret Gist) داخل حسابك، لا يظهر في صفحتك العامة.</p>
+        <p class="note-text explain">احفظ بياناتك في حسابك على GitHub لتظهر على كل أجهزتك ولا تضيع إذا فقدت الجوال. تُحفظ في ملف سرّي (Secret Gist) داخل حسابك، لا يظهر في صفحتك العامة.</p>
         <details class="howto"><summary>كيف أحصل على الرمز؟</summary>
           <ol>
             <li>افتح <a href="https://github.com/settings/tokens/new?scopes=gist&description=%D9%85%D9%87%D8%A7%D9%85%D9%8A" target="_blank" rel="noopener">صفحة إنشاء رمز في GitHub</a> وسجّل الدخول.</li>
@@ -210,7 +210,7 @@ const Sync = (() => {
         </details>
         <label class="field"><span>رمز GitHub</span><input type="password" id="syncToken" autocomplete="off" placeholder="ghp_…" dir="ltr"></label>
         <div class="btn-row"><button type="button" class="primary" data-action="sync-connect">ربط ومزامنة</button></div>
-        <p class="note-text">الصور في «الإلهام» لا تُزامَن، تبقى على الجهاز الذي أضفتها منه.</p>
+        <p class="note-text explain">الصور في «الإلهام» لا تُزامَن، تبقى على الجهاز الذي أضفتها منه.</p>
       </section>`;
     }
     return `<section class="panel" id="syncPanel">
@@ -222,7 +222,7 @@ const Sync = (() => {
         <button type="button" class="primary" data-action="sync-now">زامن الآن</button>
         <button type="button" class="danger" data-action="sync-off">إلغاء الربط</button>
       </div>
-      <p class="note-text">على جهاز آخر: افتح التطبيق، ثم الإعدادات، والصق نفس الرمز. ستنتقل بياناتك إليه وتُدمج مع ما فيه.</p>
+      <p class="note-text explain">على جهاز آخر: افتح التطبيق، ثم الإعدادات، والصق نفس الرمز. ستنتقل بياناتك إليه وتُدمج مع ما فيه.</p>
     </section>`;
   }
 
