@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2375,6 +2375,21 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   Sync.start();
   setInterval(tickTimer, 1000);
   updateWakeLock();
+  // Android's file picker sends the app to the background, and coming back re-renders the page,
+  // replacing the <input type=file>: the chosen file then arrives on a detached input whose change
+  // event the document listeners never hear. Re-attach it for a moment and pass the event on.
+  document.addEventListener('click', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || el.type !== 'file' || el.dataset.picker) return;
+    el.dataset.picker = '1';
+    el.addEventListener('change', () => {
+      if (el.isConnected || !el.files || !el.files.length) return;
+      el.hidden = true;
+      document.body.appendChild(el);
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.remove();
+    });
+  }, true);
   document.addEventListener('visibilitychange', () => {
     updateWakeLock();
     // leaving the app: refresh the timer's notification bar so it stays visible outside

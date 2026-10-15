@@ -85,7 +85,7 @@ function viewHealth() {
   const distinct = new Set(S.meals.flatMap((m) => m.items.map((x) => x.name.trim()))).size;
   return `${moreCrumb()}
   <section class="section">
-    <div class="section-head"><h2>الصحة: الطعام</h2><div class="btn-row"><label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="hImport" accept=".xlsx" hidden></label>${addBtn('h-new', 'وجبة')}</div></div>
+    <div class="section-head"><h2>الصحة: الطعام</h2><div class="btn-row"><label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="hImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>${addBtn('h-new', 'وجبة')}</div></div>
     <details class="panel h-prof"${S.meals.length ? '' : ' open'}><summary><b>هدفي وتفضيلاتي</b><small>${H_GOALS[prof.goal]}${prof.kcal ? ` · ${prof.kcal} سعرة يومياً` : ''}</small></summary>
       <div class="seg seg-wrap" role="group">${Object.entries(H_GOALS).map(([k, l]) => `<button type="button" data-action="h-goal" data-v="${k}" aria-pressed="${prof.goal === k}">${l}</button>`).join('')}</div>
       ${prof.goal === 'balance' ? '<p class="note-text">التكامل الغذائي: أن يغطي طعامك المجموعات الغذائية كلها كل أسبوع (الخضروات، الفواكه، الحبوب الكاملة، البروتين، الأسماك، البقوليات، الألبان، الدهون الصحية) دون التركيز على الوزن.</p>' : ''}
