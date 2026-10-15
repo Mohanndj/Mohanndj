@@ -981,6 +981,23 @@ document.addEventListener('change', (e) => {
     obj.updated = Date.now(); syncAllPlans(); save(); render(); return;
   }
   const val = el.type === 'checkbox' ? el.checked : ['amount', 'balance', 'every', 'goal', 'opening'].includes(k) ? num(el.value) : el.value;
+  // ticking «دُفع» on a one-time item of a monthly plan (not linked): the payment is recorded once, dated,
+  // so it counts in «اليوم», the spend tab and the report; unticking removes it (tx.src 'tick:<row id>')
+  if (el.dataset.fin === 'plan' && k === 'done' && el.dataset.list && obj.kind === 'month') {
+    const x = obj[el.dataset.list].find((y) => y.id === el.dataset.row);
+    if (x && !x.link && !spendName(x.name)) {
+      const key = `tick:${x.id}`;
+      if (el.checked) {
+        const pr = planRows(obj).find((y) => y.x.id === x.id);
+        const got = sum(S.finTx.filter((t) => t.kind === 'out' && t.ref === x.id && inPlan(obj, t.d)));
+        const rest = Math.round(((pr ? pr.plan : x.amount) - got) * 100) / 100;
+        const rg = finRange(obj), d = inPlan(obj, today()) ? today() : today() > rg.to ? rg.to : rg.from;
+        if (rest > 0.5) S.finTx.push(normalizeTx({ amount: rest, kind: 'out', item: x.name, d, ref: x.id, src: key }));
+      } else S.finTx = S.finTx.filter((t) => !(t.src === key && inPlan(obj, t.d)));
+      x.done = el.checked; delete x.auto;
+      obj.updated = Date.now(); save(); render(); return;
+    }
+  }
   if (el.dataset.list) { const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row); if (r) { r[k] = k === 'name' ? String(val).trim() : val; if (k === 'done') delete r.auto; } }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
   obj.updated = Date.now();
@@ -1046,7 +1063,9 @@ document.addEventListener('click', (e) => {
       const obj = finScope(el.dataset.scope, el.dataset.sid);
       const r = obj[el.dataset.list].find((x) => x.id === v);
       if (r && r.link && obj.unlinked) { obj.unlinked.push(r.link); toast('حُذف، ولن يُضاف تلقائياً إلى هذه الخطة'); }
-      obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v); save(); render(); break;
+      obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v);
+      S.finTx = S.finTx.filter((t) => t.src !== `tick:${v}`); // its «دُفع» payment goes with it
+      save(); render(); break;
     }
     case 'fin-month': finUi.month = v; render(); break;
     case 'fin-mode': ldraft.mode = v; for (const b of $('fmMode').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
@@ -1054,7 +1073,9 @@ document.addEventListener('click', (e) => {
     case 'fin-tx-del': { const t = S.finTx.find((x) => x.id === v); unpayTx(t); S.finTx = S.finTx.filter((x) => x.id !== v);
       // an item ticked «دُفع» by its payments (not by hand) is unticked when they no longer cover it
       { const pp = t && t.ref && t.ref !== 'out' && planForDate(t.d); const r = pp && planRows(pp).find((y) => y.x.id === t.ref);
-        if (r && r.x.auto && !r.x.link && sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === t.ref && inPlan(pp, y.d))) < r.plan - 0.5) { r.x.done = false; delete r.x.auto; } } syncAllPlans(); save(); render(); if (t && t.src) toast(`حُذف، وأُلغي من ${linkLabel(t.src.split(':').slice(0, 2).join(':'))}`); break; }
+        if (r && r.x.auto && !r.x.link && sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === t.ref && inPlan(pp, y.d))) < r.plan - 0.5) { r.x.done = false; delete r.x.auto; } }       // a payment made by ticking «دُفع»: deleting it unticks its item
+      if (t && t.src && t.src.startsWith('tick:')) { const pp = planForDate(t.d); const r = pp && planRows(pp).find((y) => y.x.id === t.src.slice(5)); if (r) { r.x.done = false; delete r.x.auto; } }
+      syncAllPlans(); save(); render(); if (t && t.src && !t.src.startsWith('tick:')) toast(`حُذف، وأُلغي من ${linkLabel(t.src.split(':').slice(0, 2).join(':'))}`); break; }
     case 'debt-new': openLedger('debt', null); break;
     case 'debt-open': openLedger('debt', v); break;
     case 'debt-pay': openPayment('debt', v); break;
