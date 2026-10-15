@@ -13,10 +13,11 @@ const goalsOnDay = (d) => S.tasks.filter((t) => isGoal(t) && isRepeat(t) && occu
 function dayChips(taskId, cur, start) {
   return `<div class="wk-move" role="group" aria-label="انقل إلى">${[0, 1, 2, 3, 4, 5, 6].map((i) => { const d = addDays(start, i); return `<button type="button" class="chip" data-action="wk-to" data-id="${taskId}" data-v="${d}" aria-pressed="${d === cur}">${AR_DAYS[parse(d).getDay()]}</button>`; }).join('')}<button type="button" class="chip" data-action="wk-to" data-id="${taskId}" data-v="">بلا موعد</button></div>`;
 }
-function wkTaskRow(t, d, start) {
+function wkTaskRow(t, d, start, showDate) {
   const moving = weekUi.move === t.id;
-  return `<li class="wk-task${t.done ? ' done' : ''}">
-    <div class="wk-line">${checkButton(t, d, t.done)}<button type="button" class="t-main" data-action="open" data-id="${t.id}"><span class="t-title">${esc(t.title)}</span>${hasTime(t) ? `<span class="meta"><span class="num">${esc(timeLabel(t, d))}</span></span>` : ''}</button>
+  const late = !t.done && t.due && t.due < today();
+  return `<li class="wk-task${t.done ? ' done' : ''}${late ? ' is-late' : ''}">
+    <div class="wk-line">${checkButton(t, d, t.done)}<button type="button" class="t-main" data-action="open" data-id="${t.id}"><span class="t-title">${esc(t.title)}</span>${hasTime(t) || showDate ? `<span class="meta">${showDate ? `<span class="late">${esc(relDate(t.due))}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, d))}</span>` : ''}</span>` : ''}</button>
       ${t.done ? '' : `<button type="button" class="ghost sm" data-action="wk-move" data-v="${t.id}" aria-expanded="${moving}">نقل</button>`}</div>
     ${moving ? dayChips(t.id, d, start) : ''}
   </li>`;
@@ -29,7 +30,8 @@ function viewWeek() {
   const open = weekUi.open && days.includes(weekUi.open) ? weekUi.open : days.includes(t0) ? t0 : days[0];
   const rec = weekRec(start) || normalizeWeek({ id: start });
   const max = Math.max(1, ...days.map((d) => tasksOnDay(d).length));
-  const tray = S.tasks.filter((t) => !isGoal(t) && !t.done && (!t.due || t.due < (start < t0 ? start : t0)));
+  const late = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due < t0).sort((a, b) => a.due.localeCompare(b.due));
+  const undated = S.tasks.filter((t) => !isGoal(t) && !t.done && !t.due);
   const end = days[6];
   return `${moreCrumb()}
   <section class="section wk">
@@ -50,7 +52,7 @@ function viewWeek() {
         <button type="button" class="wk-head" data-action="wk-open" data-v="${d}" aria-expanded="${isOpen}">
           <span class="wk-name"><b>${AR_DAYS[parse(d).getDay()]}</b><small>${esc(fmtDate(d, { day: 'numeric', month: 'short' }))}</small></span>
           <span class="wk-load"><i style="width:${(tasks.length / max) * 100}%"></i></span>
-          <span class="wk-sum">${tasks.length ? `${left ? `${left} ${left === 1 ? 'مهمة' : left === 2 ? 'مهمتان' : 'مهام'}` : 'أنجزت كل مهامه ✓'}` : 'فارغ'}${goals.length ? ` · ${goals.length} ${goals.length === 1 ? 'هدف' : 'أهداف'}` : ''}</span>
+          <span class="wk-sum${d < t0 && left ? ' late' : ''}">${d < t0 && left ? '<span class="late-dot" aria-hidden="true"></span>' : ''}${tasks.length ? `${left ? `${left} ${left === 1 ? 'مهمة' : left === 2 ? 'مهمتان' : 'مهام'}${d < t0 ? ' متأخرة' : ''}` : 'أنجزت كل مهامه ✓'}` : 'فارغ'}${goals.length ? ` · ${goals.length} ${goals.length === 1 ? 'هدف' : 'أهداف'}` : ''}</span>
         </button>
         ${isOpen ? `<div class="wk-body">
           ${tasks.length ? `<ul class="wk-tasks">${tasks.map((t) => wkTaskRow(t, d, start)).join('')}</ul>` : '<p class="note-text">لا مهام في هذا اليوم.</p>'}
@@ -59,8 +61,10 @@ function viewWeek() {
         </div>` : ''}
       </li>`;
     }).join('')}</ul>
-    ${tray.length ? `<details class="panel wk-tray"${weekUi.trayOpen ? ' open' : ''} id="wkTray"><summary><b>بلا موعد أو متأخرة (${tray.length})</b><small>اختر لكل مهمة يومها</small></summary>
-      <ul class="wk-tasks">${tray.map((t) => wkTaskRow(t, t.due || '', start)).join('')}</ul></details>` : ''}
+    ${late.length ? `<details class="panel wk-tray wk-late"${weekUi.lateOpen !== false ? ' open' : ''} id="wkLate"><summary><b><span class="late-dot" aria-hidden="true"></span>متأخرة (${late.length})</b><small>فات موعدها ولم تُنجز: أنجزها أو انقلها إلى يوم</small></summary>
+      <ul class="wk-tasks">${late.map((t) => wkTaskRow(t, t.due, start, true)).join('')}</ul></details>` : ''}
+    ${undated.length ? `<details class="panel wk-tray"${weekUi.trayOpen ? ' open' : ''} id="wkTray"><summary><b>بلا موعد (${undated.length})</b><small>اختر لكل مهمة يومها</small></summary>
+      <ul class="wk-tasks">${undated.map((t) => wkTaskRow(t, '', start)).join('')}</ul></details>` : ''}
   </section>`;
 }
 
@@ -85,7 +89,7 @@ document.addEventListener('click', (e) => {
     }
   }
 });
-document.addEventListener('toggle', (e) => { if (e.target.id === 'wkTray') weekUi.trayOpen = e.target.open; }, true);
+document.addEventListener('toggle', (e) => { if (e.target.id === 'wkTray') weekUi.trayOpen = e.target.open; if (e.target.id === 'wkLate') weekUi.lateOpen = e.target.open; }, true);
 document.addEventListener('change', (e) => {
   const i = e.target.dataset && e.target.dataset.wk;
   if (i == null) return;

@@ -16,6 +16,7 @@ function normalizeHifz(h) {
     state: h.state === 'review' ? 'review' : 'learn', interval: Number(h.interval) || 0, ease: Number(h.ease) || 2.5,
     due: h.due || '', reps: Number(h.reps) || 0, lapses: Number(h.lapses) || 0, last: h.last || '', learnedAt: h.learnedAt || '',
     planId: String(h.planId || ''), ctx: String(h.ctx || ''), num: Number(h.num) || 1,
+    hist: Array.isArray(h.hist) ? h.hist.filter(Boolean).slice(-300) : [], // review dates, for the monthly report
     created: h.created || Date.now(),
   };
 }
@@ -460,6 +461,7 @@ document.addEventListener('click', (e) => {
       break;
     case 'grade': {
       Object.assign(h, hzNext(h, el.dataset.v));
+      h.hist = [...(h.hist || []), today()].slice(-300);
       save();
       hzs.done++;
       hzs.i++;

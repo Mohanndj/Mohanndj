@@ -1283,3 +1283,37 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .wk-tray summary { display: grid; cursor: pointer; }
 .wk-tray summary small { color: var(--muted); }
 .wk-tray[open] { display: grid; gap: 8px; }
+.late-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--high); margin-inline-end: 6px; vertical-align: middle; }
+.wk-late { border-color: var(--high); border-inline-start: 4px solid var(--high); }
+.wk-late summary b { color: var(--high); }
+.wk-task.is-late .t-title { color: var(--high); }
+.wk-sum.late { color: var(--high); font-weight: 700; }
+/* v24: meal items */
+.meal-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.meal-items li { display: flex; align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.meal-items li:last-child { border-bottom: 0; }
+.meal-items li.ate .mi-name { text-decoration: line-through; color: var(--muted); }
+.mi-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mi-name small { color: var(--muted); }
+.mi-g { font-size: .85rem; }
+.mi-k { color: var(--muted); font-size: .8rem; min-width: 2.5em; text-align: end; }
+.h-tick { padding: 0; cursor: pointer; background: transparent; }
+.h-tick[aria-pressed="true"] { background: var(--accent); }
+.h-today-meal { display: grid; gap: 4px; padding: 4px 0; }
+.h-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.h-chip { border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; font-size: .88rem; background: var(--card); }
+.h-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); text-decoration: line-through; }
+.mi-ed { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 8px; margin-bottom: 6px; }
+.mi-ed .row-between { gap: 6px; }
+.mi-ed .row-between input:first-child { flex: 1; min-width: 0; }
+.mi-qty { width: 32%; min-width: 0; }
+.mi-ed .h-nut-in { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.mi-ed .h-nut-in input { padding: 6px 2px; font-size: .85rem; }
+.mi-groups .chip { padding: 3px 8px; font-size: .78rem; }
+.aware { display: grid; gap: 10px; }
+.aware-top { display: flex; align-items: center; gap: 14px; }
+.aware-top > div:last-child { display: grid; }
+.aware-top small { color: var(--muted); }
+.aware-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.aware-card { display: grid; gap: 6px; text-align: start; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-width: 0; }
+.aware-card small { color: var(--muted); line-height: 1.6; }

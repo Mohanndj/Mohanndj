@@ -98,6 +98,7 @@ function viewReport() {
       ${tile(st.tasksDone, 'مهمة منجزة')}${tile(st.steps, 'خطوة')}${tile(st.goalDays, 'يوم التزام بالأهداف')}${tile(focusH, 'وقت التركيز')}
       ${tile(st.booksRead.length, 'كتاب أنهيته')}${tile(st.pages, 'صفحة قرأتها')}${tile(st.benefits, 'فائدة')}${tile(st.activeDays, 'يوم نشط')}
     </div>
+    ${awareReportHTML(repUi.month)}
     ${st.best ? `<p class="note-text">أفضل أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
     ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%`, p.progress, p.color)).join('')}</ul>
       <p class="note-text">${st.projects.filter((p) => p.doneIn).map((p) => `${esc(p.name)}: ${p.doneIn} مهام هذا الشهر`).join(' · ') || 'لم تُنجز مهام مشاريع هذا الشهر.'}</p></section>` : ''}
@@ -133,11 +134,12 @@ async function reportAI(btn) {
     `Focus time: ${Math.round(st.focusMs / 60000)} minutes${st.focusTop.length ? ` (top: ${st.focusTop.map((x) => x.title).join(', ')})` : ''}`,
     `Books finished: ${st.booksRead.join('; ') || 'none'}; pages read: ${st.pages}; benefits recorded: ${st.benefits}`,
     st.cats.length ? `Top categories: ${st.cats.map(([c, n]) => `${c} ${n}`).join(', ')}` : '',
+    awareFacts(repUi.month),
   ].filter(Boolean).join('\n');
   const text = await withAI(btn, 'جارٍ الكتابة…', () => AI.ask({
     system: SYSTEM_AR,
     effort: 'medium',
-    prompt: `Write the user's monthly review in Arabic from these facts. Structure: one short paragraph celebrating what went well (specific numbers), one short paragraph on what slipped, then exactly three concrete suggestions for next month as lines starting with "• ". Warm, honest, no exaggeration, under 170 words. Plain text only.\n\n${facts}`,
+    prompt: `Write the user's monthly review in Arabic from these facts, covering all areas of life the app tracks (tasks, memorisation, books, journal, family and friends, decisions, habits to quit, nutrition, money). Structure: one short paragraph celebrating what went well (specific numbers), one short paragraph on what slipped, then exactly three concrete suggestions for next month as lines starting with "• ". Warm, honest, no exaggeration, under 220 words. Plain text only.\n\n${facts}`,
   }));
   if (text) { repUi.ai[repUi.month] = text; render(); }
 }
