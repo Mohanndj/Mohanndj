@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 32;
+const APP_VERSION = 33;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -144,6 +144,7 @@ function normalize(t) {
     counts: t.counts && typeof t.counts === 'object' ? t.counts : {},
     count: Number(t.count) || 0, // progress of a one-time counted goal
     habit: repeat ? normalizeHabit(t.habit) : null,
+    bookId: t.bookId || '',
   };
 }
 
@@ -156,6 +157,7 @@ function normalizeProject(p) {
     due: p.due || '',
     created: p.created || Date.now(),
     doneAt: p.doneAt || null,
+    topic: p.topic || '',
   };
 }
 
@@ -223,7 +225,8 @@ const getProject = (id) => S.projects.find((p) => p.id === id);
 // ---------- kinds ----------
 const isGoal = (t) => t.kind === 'goal';
 const isRepeat = (t) => !!t.repeat;
-const isCounted = (t) => isGoal(t) && t.target > 1;
+// a reading goal (bookId) is ticked whole: its pages move the book on (reading.js)
+const isCounted = (t) => isGoal(t) && t.target > 1 && !t.bookId;
 const projectOf = (t) => (t.projectId ? getProject(t.projectId) : null);
 const tasksOf = (pid) => S.tasks.filter((t) => t.projectId === pid && !isGoal(t));
 
@@ -339,6 +342,7 @@ function toggle(id, date) {
     t.done = !t.done;
     t.doneAt = t.done ? Date.now() : null;
   }
+  if (t.bookId) readingFromTask(t, d);
   save();
   checkGraduation(t);
   render();
@@ -519,6 +523,7 @@ function viewToday() {
   const late = items.filter((t) => !isRepeat(t) && t.due < d).length;
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
+  syncReading();
   const parts = {
     close: closeTodayHTML,
     quote: dailyQuoteHTML,

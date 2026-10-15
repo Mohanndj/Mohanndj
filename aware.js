@@ -40,7 +40,10 @@ function awareStats(m) {
   // الكتب: استذكار
   const recalls = S.books.reduce((n, b) => n + b.rvLog.filter((e) => inM(e.d)).length, 0);
   const pendingRecall = S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= last).length;
-  add('books', '🔁', 'استذكار الكتب', 'books', pctOf(recalls, recalls + pendingRecall), [
+  let rSched = 0, rHit = 0;
+  for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t))) for (const d of days) if (occursOn(g, d)) { rSched++; if (g.completions[d]) rHit++; }
+  add('books', '📚', 'القراءة والاستذكار', 'books', rSched || recalls + pendingRecall ? pctOf(rHit + recalls, rSched + recalls + pendingRecall) : null, [
+    rSched && `قرأت في ${rHit} من ${rSched} موعد قراءة`,
     recalls && `استذكرت ${recalls} ${recalls === 1 ? 'كتاباً' : 'كتب'}`,
     pendingRecall && `${pendingRecall} ينتظر الاستذكار`,
   ]);

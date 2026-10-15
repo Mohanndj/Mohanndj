@@ -5,7 +5,7 @@
 const BOOK_STATUS = { reading: 'أقرؤه الآن', read: 'مقروء', want: 'أريد قراءته', stalled: 'متعثر' };
 const BOOK_STATUS_PLURAL = { reading: 'أقرؤها الآن', read: 'المقروءة', want: 'أريد قراءتها', stalled: 'المتعثرة' };
 const BOOK_ORDER = ['reading', 'read', 'want', 'stalled'];
-const libUi = { memoQ: '', bookStatus: 'reading', bookQ: '', benefitBook: '', benefitQ: '' };
+const libUi = { memoQ: '', bookStatus: 'reading', bookQ: '', benefitBook: '', benefitQ: '', bookTopic: '' };
 
 function normalizeMemo(m) {
   // older notes were plain text; they become HTML for the formatted editor
@@ -21,6 +21,8 @@ function normalizeBook(b) {
     id: b.id || uid(), title: String(b.title || ''), author: String(b.author || ''),
     status: BOOK_STATUS[b.status] ? b.status : 'want', start: b.start || '', end: b.end || '',
     summary: String(b.summary || ''), created: b.created || Date.now(),
+    // reading.js: topic, and reading days with pages per session
+    topic: String(b.topic || '').trim(), rdays: Array.isArray(b.rdays) ? [...new Set(b.rdays.map(Number).filter((d) => d >= 0 && d <= 6))] : [], rpages: Number(b.rpages) > 0 ? Math.round(Number(b.rpages)) : 0,
     pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
     log: Array.isArray(b.log) ? b.log.filter((e) => e && e.d && Number.isFinite(e.p)) : [],
     // spaced recall of a finished book
@@ -213,6 +215,7 @@ function bookCard(b) {
   return `<button type="button" class="book-card s-${b.status}" data-action="lib-open-book" data-v="${b.id}">
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
+    ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : ''}${libUi.bookTopic ? ` ${esc(BOOK_STATUS[b.status])}` : ''}${b.status === 'reading' && scheduleLine(b) ? ` 📅 ${esc(scheduleLine(b))}` : ''}</span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
       <span class="book-line">${pace.pct}% · ${b.page} من ${b.pages} صفحة${pace.eta != null ? ` · بمعدّلك تنهيه ${afterDays(pace.eta)}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
@@ -223,10 +226,12 @@ function bookCard(b) {
 }
 
 function viewBooks() {
+  syncReading();
   const counts = Object.fromEntries(BOOK_ORDER.map((s) => [s, S.books.filter((b) => b.status === s).length]));
   const st = libUi.bookStatus;
   const q = libUi.bookQ.trim().toLowerCase();
-  const list = S.books.filter((b) => (q ? true : b.status === st) && (!q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || b.summary.toLowerCase().includes(q)))
+  const topic = bookTopics().includes(libUi.bookTopic) ? libUi.bookTopic : '';
+  const list = S.books.filter((b) => (q || topic ? true : b.status === st) && (!topic || b.topic === topic) && (!q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || b.summary.toLowerCase().includes(q)))
     .sort((a, b) => (st === 'read' ? (b.end || '').localeCompare(a.end || '') : 0) || b.created - a.created);
   const seg = BOOK_ORDER.map((s) => `<button type="button" data-action="lib-book-status" data-v="${s}" aria-pressed="${!q && st === s}">${BOOK_STATUS_PLURAL[s]} <span class="num">${counts[s]}</span></button>`).join('');
   const empties = {
@@ -240,7 +245,8 @@ function viewBooks() {
     <div class="section-head"><h2>الكتب</h2><div class="btn-row">${S.books.length ? xlsBtn('books') : ''}${addBtn('lib-new-book', 'كتاب')}</div></div>
     ${readingGoalHTML()}
     ${booksDue().length ? `<div class="brv-due"><b>🔁 حان استذكار ${booksDue().length === 1 ? 'كتاب' : `${booksDue().length} كتب`}</b>${booksDue().map((b) => `<button type="button" class="ghost" data-action="lib-book-review" data-v="${b.id}">${esc(b.title)}</button>`).join('')}</div>` : ''}
-    <div class="seg seg-wrap" role="group" aria-label="حالة الكتب">${seg}</div>
+    ${topicBarHTML()}
+    ${topic ? topicCardHTML(topic) : `<div class="seg seg-wrap" role="group" aria-label="حالة الكتب">${seg}</div>`}
     ${S.books.length > 5 ? `<input type="search" id="bookSearch" placeholder="ابحث في كل الكتب" aria-label="بحث" value="${esc(libUi.bookQ)}">` : ''}
     ${list.length ? `<div class="book-list">${list.map(bookCard).join('')}</div>`
       : q ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى.') : emptyHTML(empties[st][0], empties[st][1], addBtn('lib-new-book', 'أضف كتاباً'))}
@@ -339,6 +345,7 @@ function openLib(kind, id, preset = {}) {
         <label class="field"><span>وصلت إلى صفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${b.page || ''}" placeholder="مثال: 45"></label>
       </div>
       ${(() => { const pc = bookPace(b); return pc ? `<p class="note-text">${pc.pct}% · بقي ${pc.left} صفحة${pc.eta != null ? ` · بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}` : ''}</p>` : ''; })()}
+      ${bookReadingFieldsHTML(b)}
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       <div class="brv-box" id="lRvWrap">
         <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ضعه في المراجعة المتباعدة (اختياري)</span></label>
@@ -422,7 +429,7 @@ function saveLib() {
     const rv = status === 'read' && $('lRv').checked;
     const rvFields = { rv, rvPoints: $('lRvPoints').value.trim() };
     if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: addDays(today(), BOOK_RV[0]) });
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log, ...rvFields });
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
