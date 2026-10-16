@@ -427,7 +427,7 @@ function runJExport() {
   save();
   const list = S.journal.filter((j) => !jEmpty(j) && (range === 'all' || (range === 'custom' ? j.date >= o.from && j.date <= o.to : monthKey(j.date) === range)));
   if (!list.length) { toast('لا يوميات في هذه الفترة.'); return false; }
-  exportWord(list, o, range === 'all' ? 'يومياتي وتأملاتي' : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي | ${monthLabel(range)}`);
+  exportWord(list, o, range === 'all' ? pageName('journal') : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي | ${monthLabel(range)}`);
   return true;
 }
 
@@ -456,7 +456,7 @@ function exportWord(list, opts = null, title = '') {
       text(parts.flatMap((p) => lines(p.a)));
     }
   });
-  const blob = Docx.build(P.filter(Boolean), { title: title || 'يومياتي وتأملاتي' });
+  const blob = Docx.build(P.filter(Boolean), { title: title || pageName('journal') });
   const name = entries.length === 1 ? `yawmiyat-${entries[0].date}` : `yawmiyat-${entries[0].date}_${entries[entries.length - 1].date}`;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

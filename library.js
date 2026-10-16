@@ -543,13 +543,13 @@ function excelSheets(kind) {
     }));
   }
   if (kind === 'all' || kind === 'memos') {
-    add('الملاحظات', [
+    add(pageName('notes'), [
       { title: 'العنوان', width: 28 }, { title: 'النص', width: 70, wrap: true }, { title: 'مثبتة', width: 8 },
       { title: 'تاريخ الإنشاء', width: 13 }, { title: 'آخر تعديل', width: 13 }, { title: 'تسجيلات صوتية', width: 12 },
     ], S.memos.slice().sort((a, b) => b.updated - a.updated).map((m) => [m.title, m.body, yesNo(m.pinned), stampDate(m.created), stampDate(m.updated), m.audios.length || '']));
   }
   if (kind === 'all' || kind === 'books') {
-    add('الكتب', [
+    add(pageName('books'), [
       { title: 'الكتاب', width: 30 }, { title: 'المؤلف', width: 20 }, { title: 'الحالة', width: 13 },
       { title: 'تاريخ البدء', width: 13 }, { title: 'البدء هجري', width: 22 }, { title: 'تاريخ الانتهاء أو التوقف', width: 13 },
       { title: 'الانتهاء هجري', width: 22 }, { title: 'مدة القراءة (يوم)', width: 11 }, { title: 'عدد الصفحات', width: 10 }, { title: 'الصفحة الحالية', width: 10 }, { title: 'فكرة موجزة', width: 60, wrap: true },
@@ -560,40 +560,40 @@ function excelSheets(kind) {
     ]));
   }
   if (kind === 'all' || kind === 'benefits') {
-    add('الفوائد', [
+    add(pageName('benefits'), [
       { title: 'الكتاب', width: 28 }, { title: 'رقم الصفحة', width: 10 }, { title: 'عنوان الفائدة', width: 32, wrap: true },
       { title: 'ما يمكن أن يُستفاد منها', width: 70, wrap: true }, { title: 'تاريخ الإضافة', width: 13 },
     ], S.benefits.slice().sort((a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page))
       .map((f) => [benefitBookTitle(f), f.page, f.title, f.lesson, stampDate(f.created)]));
   }
   if (kind === 'all' || kind === 'archive') {
-    add('الأرشيف', [
+    add(pageName('archive'), [
       { title: 'العنوان', width: 36, wrap: true }, { title: 'الرابط', width: 40 }, { title: 'النص', width: 50, wrap: true },
       { title: 'التصنيف', width: 14 }, { title: 'لماذا أحتفظ به', width: 30, wrap: true }, { title: 'رجعت إليه', width: 10 },
       { title: 'حُوّل إلى', width: 10 }, { title: 'تاريخ الحفظ', width: 13 },
     ], S.archive.slice().sort((a, b) => b.created - a.created).map((a) => [a.title, a.url, a.text, a.tag, a.note, yesNo(a.revisitedAt), a.convertedTo, stampDate(a.created)]));
   }
   if (kind === 'all' || kind === 'ideas') {
-    add('الأفكار', [
+    add(pageName('ideas'), [
       { title: 'الفكرة', width: 50, wrap: true }, { title: 'تطويرها', width: 60, wrap: true }, { title: 'الوسم', width: 14 },
       { title: 'الحالة', width: 11 }, { title: 'مميزة', width: 8 }, { title: 'حُوّلت إلى', width: 10 }, { title: 'تاريخ التسجيل', width: 13 },
     ], S.ideas.slice().sort((a, b) => b.created - a.created).map((x) => [x.text, x.details, x.tag, IDEA_STATUS[x.status], yesNo(x.star), x.convertedTo, stampDate(x.created)]));
   }
   if (kind === 'all' || kind === 'journal') {
-    add('اليوميات', [
+    add(pageName('journal'), [
       { title: 'التاريخ', width: 12 }, { title: 'الهجري', width: 22 }, { title: 'اليوم', width: 10 }, { title: 'القالب', width: 16 },
       { title: 'المزاج', width: 9 }, { title: 'النص', width: 90, wrap: true }, { title: 'عدد الكلمات', width: 10 },
     ], S.journal.filter((j) => !jEmpty(j)).sort((a, b) => b.date.localeCompare(a.date)).map((j) => [j.date, hijriOf(j.date), AR_DAYS[parse(j.date).getDay()], j.tplName, j.mood ? MOODS[j.mood - 1][1] : '',
       [...j.answers.filter((a) => a.a.trim()).map((a) => `${a.q}\n${a.a.trim()}`), j.body.trim()].filter(Boolean).join('\n\n'), wordCount(jText(j))]));
   }
   if (kind === 'all' || kind === 'hifz') {
-    add('الحفظ', [
+    add(pageName('hifz'), [
       { title: 'النوع', width: 10 }, { title: 'العنوان', width: 28, wrap: true }, { title: 'المصدر', width: 24 }, { title: 'النص', width: 70, wrap: true },
       { title: 'الحالة', width: 12 }, { title: 'المراجعة القادمة', width: 14 }, { title: 'مرات المراجعة', width: 10 }, { title: 'مرات النسيان', width: 10 },
     ], S.hifz.map((h) => [HIFZ_TYPES[h.type][0], hzTitle(h), h.source, h.text, h.state === 'learn' ? 'أحفظه' : hzFirm(h) ? 'ثابت' : 'في المراجعة', h.due, h.reps, h.lapses]));
   }
   if (kind === 'all' || kind === 'people') {
-    add('الأحبّة', [
+    add(pageName('people'), [
       { title: 'الاسم', width: 20 }, { title: 'الصلة', width: 14 }, { title: 'الجوال', width: 14 }, { title: 'آخر تواصل', width: 12 }, { title: 'كم مرة تواصلت', width: 10 },
       { title: 'المناسبة', width: 12 }, { title: 'ما يحبه', width: 30, wrap: true }, { title: 'أفكار هدايا', width: 30, wrap: true }, { title: 'ملاحظات', width: 30, wrap: true },
     ], S.people.map((p) => [p.name, REL[p.rel], p.phone, lastContact(p), p.contacts.length, p.birthday, p.likes, p.gifts, p.notes]));
@@ -768,7 +768,7 @@ document.addEventListener('submit', (e) => {
   if (!saver()) return;
   closeLib();
   render();
-  if (!silent) toast(kind === 'idea' && wasNew ? (quick ? 'حُفظت الفكرة في «الأفكار»' : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+  if (!silent) toast(kind === 'idea' && wasNew ? (quick ? `حُفظت الفكرة في «${pageName('ideas')}»` : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
 });
 
 document.addEventListener('input', (e) => {

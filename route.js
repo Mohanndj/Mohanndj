@@ -57,7 +57,7 @@ function runRoute(q) {
   if (q.type === 'shop') { const n = addToShop(q.names, q.list.id); return n ? `أُضيف إلى «${q.list.name}»: ${q.names.join('، ')}` : 'موجود في القائمة'; }
   S.ideas.push(normalizeIdea({ text: q.text, created: Date.now() }));
   save();
-  return 'حُفظت الفكرة في «الأفكار»';
+  return `حُفظت الفكرة في «${pageName('ideas')}»`;
 }
 
 function smartSettingsHTML() {
@@ -127,8 +127,8 @@ function closeTodayHTML() {
     ${section('المهام والأهداف', [doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', repNot.length ? `لم تفعل: ${repNot.map((t) => esc(t.title)).join('، ')}` : '', setAside.length ? `استبعدت: ${setAside.map((t) => esc(t.title)).join('، ')}` : ''].filter(Boolean).join(' | '), tg, tg.length + doneToday || 1, !repNot.length && !setAside.length)}
     ${section('بناء العادات', `فعلت ${habDone.length} من ${habits.length}${habNot.length ? ` | لم تفعل: ${habNot.map((t) => esc(t.title)).join('، ')}` : ''}`, habOpen.map((t) => row(t.title, '', btn('close-done', t.id, 'فعلتها') + btn('close-skip', t.id, 'لم أفعلها'))), habits.length, !habNot.length)}
     ${quits.length ? `<div class="close-sec${quits.some(slippedToday) ? '' : ' ok'}"><b>${quits.some(slippedToday) ? '' : '✓ '}عادات أتركها</b><ul class="close-quits">${quits.map((q) => `<li><span>${esc(q.title)}: ${slippedToday(q) ? 'زللت اليوم' : `${daysWord(quitStats(q).days)} بلا زلّة`}</span>${slippedToday(q) ? '' : btn('quit-slip', q.id, 'زللت')}</li>`).join('')}</ul></div>` : ''}
-    ${section('الحفظ', 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
-    ${section('يومياتي وتأملاتي', 'كتبت يوميتك', wrote ? [] : [row('لم تكتب اليوم', '', btn('j-new', '', 'اكتب الآن', 'ghost sm'))], 1)}
+    ${section(pageName('hifz'), 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
+    ${section(pageName('journal'), 'كتبت يوميتك', wrote ? [] : [row('لم تكتب اليوم', '', btn('j-new', '', 'اكتب الآن', 'ghost sm'))], 1)}
     <button type="button" class="primary close-done-all" data-action="close-day">أغلقت يومي ✓</button>
     <small class="note-text explain">ما لم تختر له شيئاً يبقى كما هو.</small>
   </div>`);
@@ -167,7 +167,7 @@ function pinText() {
   // recurring goals due today, and one-time goals due by today
   const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && !t.done && t.due && t.due <= t0) && !closeSkips().includes(t.id)).length;
   const lists = S.shop.filter((x) => x.need).length;
-  const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `القوائم ${lists}`].filter(Boolean);
+  const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `${pageName('shop')}: ${lists}`].filter(Boolean);
   return parts.length ? `باقٍ اليوم: ${parts.join(' | ')}` : 'لا شيء باقٍ لليوم ✓';
 }
 let pinTimer = null, pinLast = '';

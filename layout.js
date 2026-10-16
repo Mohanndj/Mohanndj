@@ -24,7 +24,7 @@ const todayHidden = () => (Array.isArray(S.settings.todayHidden) ? S.settings.to
 
 function openLayout(which) {
   const isToday = which === 'today';
-  const names = isToday ? Object.fromEntries(TODAY_PARTS) : Object.fromEntries(moreTiles().map(([k, , n]) => [k, n]));
+  const names = isToday ? Object.fromEntries(TODAY_PARTS.map(([k, n]) => [k, PART_PAGE[k] ? pageName(PART_PAGE[k]) : n])) : Object.fromEntries(moreTiles().map(([k, , n]) => [k, n]));
   const order = isToday ? todayOrder() : orderOf(moreTiles().map(([k]) => k), S.settings.moreOrder);
   ldraft = { kind: 'layout', id: 'x', isNew: false, which, names, order, hidden: isToday ? todayHidden().slice() : [], look: JSON.parse(JSON.stringify(moreLook())) };
   renderLayout();
@@ -34,6 +34,25 @@ function openLayout(which) {
 const LOOK_COLORS = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#64748b'];
 const moreLook = () => (S.settings.moreLook && typeof S.settings.moreLook === 'object' ? S.settings.moreLook : {});
 const lookOf = (k) => moreLook()[k] || {};
+// a page's name as the user set it, used wherever the page is named: its own heading, its section on
+// «اليوم» and the button to it, the evening close, the report, files exported from it and messages
+const PAGE_NAMES = {
+  reminders: 'التذكيرات', ideas: 'الأفكار', journal: 'يومياتي وتأملاتي', week: 'التخطيط الأسبوعي', health: 'الصحة', shop: 'القوائم',
+  finance: 'المالية', cv: 'سيرتي الذاتية', hifz: 'الحفظ', people: 'الأحبّة', decisions: 'سجل القرارات', notes: 'الملاحظات',
+  books: 'الكتب', benefits: 'الفوائد', archive: 'الأرشيف', inspire: 'الإلهام', report: 'التقارير', stats: 'الإحصائيات',
+};
+const pageName = (tab) => (lookOf(tab).name || PAGE_NAMES[tab] || '').trim();
+// a page's own heading (an h2 that says exactly its default name) takes the name the user gave it
+function renameHeads(root) {
+  const renamed = Object.keys(PAGE_NAMES).filter((k) => lookOf(k).name);
+  if (!renamed.length) return;
+  for (const h of root.querySelectorAll('h2, .close-sec > b')) {
+    const k = renamed.find((x) => h.firstChild && h.firstChild.nodeType === 3 && h.firstChild.textContent.trim() === PAGE_NAMES[x]);
+    if (k) h.firstChild.textContent = pageName(k) + (h.childNodes.length > 1 ? ' ' : '');
+  }
+}
+// «اليوم» parts that are a page's section carry that page's name in «رتّب صفحة اليوم»
+const PART_PAGE = { hifz: 'hifz', health: 'health', books: 'books', benefits: 'benefits', decisions: 'decisions', people: 'people', journal: 'journal', lists: 'shop', reminders: 'reminders' };
 function renderLayout() {
   const { which, names, order, hidden } = ldraft;
   const isToday = which === 'today';

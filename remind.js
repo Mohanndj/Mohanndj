@@ -4,8 +4,12 @@
 
 function todayBlock(title, tab, inner, extra = '') {
   if (!inner) return '';
-  return `<section class="tblock" aria-label="${esc(title)}">
-    <div class="tblock-h"><h2>${esc(title)}${extra}</h2>${tab ? `<button type="button" class="tblock-go" data-tab="${tab}">${esc(title)} ${icon('next')}</button>` : ''}</div>
+  // a page's own section is named as the user named the page (with its emoji); the button names the page
+  const own = !!tab && PAGE_NAMES[tab] === title;
+  const emoji = own ? lookOf(tab).emoji : '';
+  const head = own ? pageName(tab) : title;
+  return `<section class="tblock" aria-label="${esc(head)}">
+    <div class="tblock-h"><h2>${emoji ? `${esc(emoji)} ` : ''}${esc(head)}${extra}</h2>${tab ? `<button type="button" class="tblock-go" data-tab="${tab}">${esc(pageName(tab))} ${icon('next')}</button>` : ''}</div>
     ${inner}
   </section>`;
 }

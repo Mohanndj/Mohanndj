@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 68;
+const APP_VERSION = 69;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1129,6 +1129,7 @@ function render() {
   const y = window.scrollY;
   view.innerHTML = VIEWS[ui.tab]();
   boxLines(view);
+  renameHeads(view);
   hydrateImages(view);
   if (window.scrollY !== y) window.scrollTo(0, y);
   if (active && $(active)) {
@@ -2296,7 +2297,7 @@ document.addEventListener('click', (e) => {
       draft.moveNote = '';
       persistDraftList('notes'); save();
       renderNotes();
-      toast(m ? `نُقلت إلى «${excerpt(m.title || 'الملاحظة', 30)}»` : 'نُقلت إلى ملاحظة جديدة في «الملاحظات»');
+      toast(m ? `نُقلت إلى «${excerpt(m.title || 'الملاحظة', 30)}»` : `نُقلت إلى ملاحظة جديدة في «${pageName('notes')}»`);
       break;
     }
     case 'del-note':
