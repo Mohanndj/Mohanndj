@@ -24,8 +24,11 @@ function periodStats(P) {
     return { name: p.name, color: p.color, progress: st.progress, total: st.total, doneIn: tasksOf(p.id).filter((t) => t.done && inP(dayOfTs(t.doneAt))).length };
   }).filter((p) => p.total && (p.doneIn || P.current));
   return {
-    tasks: ev.filter((e) => e.type === 'task').length,
-    goalDays: ev.filter((e) => e.type === 'goal').length,
+    // the same things the areas below count: tasks (not books), goals (not habits or reading), habits, reading sessions
+    tasks: ev.filter((e) => e.kind === 'task').length,
+    goalDays: ev.filter((e) => e.kind === 'goal').length,
+    habitDays: ev.filter((e) => e.kind === 'habit').length,
+    readings: ev.filter((e) => e.kind === 'read').length,
     steps: ev.filter((e) => e.type === 'step').length,
     focusMs: sum(sess, (x) => x.ms),
     pages: S.books.reduce((n, b) => n + pagesIn(b, P.start, P.last), 0),
@@ -55,8 +58,8 @@ function viewReport() {
   </div>
   <div class="report" id="report">
     <div class="tiles">
-      ${tile(st.tasks, 'مهمة منجزة')}${tile(st.goalDays, 'مرة التزام بهدف')}${tile(st.focusMs ? fmtDur(st.focusMs) : '٠', 'وقت التركيز')}${tile(st.activeDays, `يوم نشط من ${P.days.length}`)}
-      ${tile(st.pages, 'صفحة قرأتها')}${tile(st.books, 'كتاب أنهيته')}${tile(st.benefits, 'فائدة')}${tile(st.steps, 'خطوة')}
+      ${tile(st.tasks, 'مهمة منجزة')}${tile(st.goalDays, 'مرة التزام بهدف')}${tile(st.habitDays, 'مرة أدّيت عادة')}${tile(st.readings, 'جلسة قراءة')}
+      ${tile(st.pages, 'صفحة قرأتها')}${tile(st.books, 'كتاب أنهيته')}${tile(st.focusMs ? fmtDur(st.focusMs) : '٠', 'وقت التركيز')}${tile(st.activeDays, `يوم نشط من ${P.days.length}`)}
     </div>
     ${awareReportHTML(P, prevStats)}
     ${st.best && st.best[1] > 1 ? `<p class="note-text">أنشط أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
@@ -100,7 +103,7 @@ function reportExport(P) {
   if (P.current) L.push(`مضى ${P.days.length} من ${P.all.length} يوماً من هذه الفترة.`);
   L.push('');
   L.push(`## مؤشر التقدم الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
-  L.push(`أرقام عامة: ${st.tasks} مهمة منجزة، ${st.goalDays} مرة التزام بهدف، ${st.steps} خطوة، تركيز ${Math.round(st.focusMs / 60000)} دقيقة، ${st.activeDays} يوماً نشطاً من ${P.days.length}، ${st.pages} صفحة، ${st.books} كتاب أُنهي، ${st.benefits} فائدة.`);
+  L.push(`أرقام عامة: ${st.tasks} مهمة منجزة، ${st.goalDays} مرة التزام بهدف، ${st.habitDays} مرة أداء عادة، ${st.readings} جلسة قراءة، ${st.steps} خطوة، تركيز ${Math.round(st.focusMs / 60000)} دقيقة، ${st.activeDays} يوماً نشطاً من ${P.days.length}، ${st.pages} صفحة، ${st.books} كتاب أُنهي، ${st.benefits} فائدة.`);
   L.push('');
   L.push('## الجوانب');
   for (const a of S1.aspects) {
@@ -161,7 +164,8 @@ async function reportImage() {
   x.font = '700 64px "Aref Ruqaa", "Amiri", serif'; x.fillText(D(`تقرير ${P.title}`), W - Pd, 140);
   x.font = '400 36px "Amiri", serif'; x.fillText(D(P.sub), W - Pd, 205);
   x.font = '400 30px "Amiri", serif'; x.globalAlpha = 0.85; x.fillText(S.settings.name ? `${S.settings.name} | الوعي الشخصي` : 'الوعي الشخصي', W - Pd, 260); x.globalAlpha = 1;
-  const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'التقدم الشامل'], [st.focusMs ? fmtDur(st.focusMs) : '0', 'تركيز'], [st.pages, 'صفحة'], [st.benefits, 'فائدة']];
+  // a lone «٠» in a big font looks like a dot, so zero is written as a word
+  const tiles = [[st.tasks, 'مهمة منجزة'], [st.goalDays, 'التزام بهدف'], [overall != null ? `${overall}%` : '—', 'التقدم الشامل'], [st.habitDays, 'أداء عادة'], [st.pages, 'صفحة'], [st.focusMs ? fmtDur(st.focusMs) : 0, 'تركيز']].map(([v, l]) => [v === 0 ? 'صفر' : v, l]);
   const cols = 3, gw = (W - Pd * 2 - 40) / cols, gh = 170;
   tiles.forEach(([v, l], i) => {
     const col = i % cols, row = Math.floor(i / cols);

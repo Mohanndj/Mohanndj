@@ -163,7 +163,11 @@ function saveReadNote() {
 function readingFromTask(t, d) {
   const b = getBook(t.bookId);
   if (!b) return;
-  if (isRepeat(t)) { if (d === today()) { bookAdvance(b, t.completions[d] ? t.target : -t.target); if (t.completions[d]) askReadingNote(b, t); } }
+  if (isRepeat(t)) {
+    // the page moves only for today's session; a past day ticked in the calendar still gets the time and idea question, on its own day
+    if (d === today()) bookAdvance(b, t.completions[d] ? t.target : -t.target);
+    if (t.completions[d]) askReadingNote(b, t, d);
+  }
   else if (t.done && b.status !== 'read') { b.status = 'read'; b.end = b.end || today(); }
   else if (!t.done && b.status === 'read') { b.status = 'reading'; b.end = ''; }
 }

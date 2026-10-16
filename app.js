@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 62;
+const APP_VERSION = 63;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -840,11 +840,12 @@ function completionEvents() {
   const ev = [];
   for (const t of S.tasks) {
     const cat = t.category || 'بلا تصنيف';
-    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal' });
+    // kind: what the report counts it as (a habit day, a reading session, a goal day, a task)
+    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : 'goal' });
     // (a book task with reading sessions: the sessions are its events, its finishing is not one more)
-    else if (t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
+    else if (t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', kind: t.bookId ? 'book' : isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
     // a reading project's book task: each day's reading session is a task done that day
-    if (!isRepeat(t) && t.bookId) for (const d of Object.keys(t.completions || {})) ev.push({ d, cat, type: 'task', projectId: t.projectId });
+    if (!isRepeat(t) && t.bookId) for (const d of Object.keys(t.completions || {})) ev.push({ d, cat, type: 'task', kind: 'read', projectId: t.projectId });
     for (const s of t.subtasks) if (s.done && s.doneAt) ev.push({ d: iso(new Date(s.doneAt)), type: 'step', projectId: t.projectId });
   }
   return ev;
@@ -903,8 +904,8 @@ const hbar = (name, value, width, color) =>
 function focusPanelHTML() {
   if (!S.sessions.length) return '';
   const t0 = today();
-  const weekStart = addDays(t0, -6);
-  const week = S.sessions.filter((x) => sessionDay(x) >= weekStart);
+  const weekStart = weekStartOf(t0);
+  const week = S.sessions.filter((x) => sessionDay(x) >= weekStart && sessionDay(x) <= t0);
   const todayMs = week.filter((x) => sessionDay(x) === t0).reduce((n, x) => n + x.ms, 0);
   const weekMs = week.reduce((n, x) => n + x.ms, 0);
   const by = {};
@@ -913,7 +914,7 @@ function focusPanelHTML() {
   const max = rows.length ? rows[0][1] : 1;
   return `<section class="panel">
     <h2>وقت التركيز</h2>
-    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> | آخر 7 أيام <b>${fmtDur(weekMs)}</b></p>
+    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> | هذا الأسبوع <b>${fmtDur(weekMs)}</b></p>
     ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>` : ''}
   </section>`;
 }
@@ -924,9 +925,9 @@ function viewStats() {
   const byDay = {};
   for (const e of main) byDay[e.d] = (byDay[e.d] || 0) + 1;
   const t0 = today();
-  const weekStart = addDays(t0, -6);
-  const week = main.filter((e) => e.d >= weekStart).length;
-  const stepsWeek = ev.filter((e) => e.type === 'step' && e.d >= weekStart).length;
+  const weekStart = weekStartOf(t0); // the week starts on Sunday, as in the reports
+  const week = main.filter((e) => e.d >= weekStart && e.d <= t0).length;
+  const stepsWeek = ev.filter((e) => e.type === 'step' && e.d >= weekStart && e.d <= t0).length;
   const { cur, best } = streaks(byDay);
   const byCat = {};
   for (const e of main) byCat[e.cat] = (byCat[e.cat] || 0) + 1;
@@ -937,12 +938,13 @@ function viewStats() {
   const tasks = S.tasks.filter((t) => !isGoal(t));
   const projects = S.projects.map((p) => ({ p, st: projectStats(p.id) })).filter((x) => x.st.total);
 
+  const z = (v) => (v ? v : 'صفر'); // a lone «٠» in a big font looks like a dot
   return `
   <div class="tiles">
-    <div class="tile"><b>${byDay[t0] || 0}</b><span>أنجزت اليوم</span></div>
-    <div class="tile"><b>${week}</b><span>آخر 7 أيام</span></div>
-    <div class="tile"><b>${stepsWeek}</b><span>خطوات في 7 أيام</span></div>
-    <div class="tile"><b>${cur}</b><span>أيام متتالية | الأفضل ${best}</span></div>
+    <div class="tile"><b>${z(byDay[t0])}</b><span>أنجزت اليوم</span></div>
+    <div class="tile"><b>${z(week)}</b><span>هذا الأسبوع (من الأحد)</span></div>
+    <div class="tile"><b>${z(stepsWeek)}</b><span>خطوات هذا الأسبوع</span></div>
+    <div class="tile"><b>${z(cur)}</b><span>أيام متتالية | الأفضل ${best}</span></div>
   </div>
   <section class="panel chart">
     <h2>المهام والأهداف المنجزة في آخر 14 يوماً</h2>

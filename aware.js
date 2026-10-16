@@ -73,7 +73,8 @@ const oneDec = (x) => Math.round(x * 10) / 10;
 function goalRun(t, P) {
   let total = 0, hit = 0, left = 0;
   for (const d of P.all) {
-    if (!occursOn(t, d)) continue;
+    // a day done though not (or no longer) scheduled, after its days were edited, still counts as done
+    if (!occursOn(t, d)) { if (t.completions[d]) { total++; hit++; } continue; }
     total++;
     if (t.completions[d]) hit++;
     else if (t.target > 1 && t.counts && t.counts[d]) hit += Math.min(1, t.counts[d] / t.target);
@@ -145,6 +146,7 @@ function awareStats(P) {
   // 📖 الحفظ: scheduled sessions from the plan's start until it ended
   let sched = 0, kept = 0, hLeft = 0;
   for (const p of S.hplans) for (const d of all) {
+    if (p.log[d] && !p.days.includes(parse(d).getDay())) { sched++; kept++; continue; }
     if (d < dayOfTs(p.created) || (p.doneAt && d > p.doneAt) || !p.days.includes(parse(d).getDay())) continue;
     sched++; if (p.log[d]) kept++; else if (d >= t0) hLeft++;
   }
