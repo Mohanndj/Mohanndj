@@ -83,12 +83,15 @@ function payLink(key, amount, d, tx) {
   if (!l || !amount) return null;
   const pay = { id: uid(), d, amount, note: '' };
   l.pays.push(pay);
-  if (l.kind === 'sub') { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; }
-  const r = rowOfLink(key, d);
+  // a bill paid late may move on several cycles: the payment remembers where it was, for undoing it
+  if (l.kind === 'sub') { pay.prevNext = l.src.next; let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; }
+  let r = rowOfLink(key, d);
   if (!tx) { tx = normalizeTx({ amount, kind: 'out', item: r ? r.name : l.src.name, d }); S.finTx.push(tx); }
   tx.src = `${key}:${pay.id}`;
-  if (r) tx.ref = r.id;
+  // the plan's item may only appear now (a fine out of the plan, paid in this period): tie the entry to it after the sync
   syncAllPlans();
+  r = rowOfLink(key, d);
+  if (r) tx.ref = r.id;
   return tx;
 }
 // undo: remove the source payment of a spending entry (or the entry of a source payment)
@@ -98,7 +101,7 @@ function unpayTx(t) {
   const l = linkSrc(`${kind}:${id}`);
   if (l) {
     const i = l.pays.findIndex((p) => p.id === payId);
-    if (i >= 0) { l.pays.splice(i, 1); if (l.kind === 'sub') l.src.next = addMonths(l.src.next, -l.src.every); }
+    if (i >= 0) { const [q] = l.pays.splice(i, 1); if (l.kind === 'sub') l.src.next = q.prevNext || addMonths(l.src.next, -l.src.every); }
   }
 }
 function dropPayment(key, payId) {

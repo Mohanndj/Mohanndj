@@ -1317,6 +1317,14 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .aware-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; }
 .aware-card { display: grid; gap: 6px; text-align: start; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-width: 0; }
 .aware-card small { color: var(--muted); line-height: 1.6; }
+.aw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; background: none; border: 0; padding: 0; text-align: start; color: inherit; font: inherit; cursor: pointer; }
+.aw-det summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.aw-det ul, .aw-total ul { margin: 4px 0 0; padding-inline-start: 18px; display: grid; gap: 3px; font-size: .88rem; line-height: 1.6; overflow-wrap: anywhere; }
+.aw-det li { color: var(--fg); }
+.aw-total { border-top: 1px dashed var(--line); padding-top: 6px; }
+.aw-total > b { font-size: .85rem; color: var(--accent); }
+.aw-total li { color: var(--muted); }
+.rep-months { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ================= v27: lists, debts and rights ================= */
 .list-chips { flex-wrap: wrap; }

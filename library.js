@@ -146,7 +146,7 @@ function moreTiles() {
     ['week', 'cal', 'التخطيط الأسبوعي', 'أسبوعك يوماً يوماً، بلا ازدحام'],
     ['health', 'leaf', 'الصحة', S.meals.length ? `خطة طعام | ${dayTotals(mealsOf(parse(today()).getDay())).kcal} سعرة اليوم` : 'طعام أسبوعي متنوع بقيمه الغذائية'],
     ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `${S.shop.filter((x) => x.need).length} باقٍ لم يُشطب` : 'الشراء والسفر وكل ما لا تريد نسيانه'],
-    ['finance', 'wallet', 'المالية', S.finPlans.length ? (() => { const p = activePlan(), c = p && planCalc(p); return c ? `المتبقي للادخار ${money(c.left)}` : `${S.finPlans.length} خطة`; })() : 'ميزانيتك وديونك وحقوقك'],
+    ['finance', 'wallet', 'المالية', 'ميزانيتك وديونك وحقوقك'],
     ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : 'سيرة مرنة تصدّرها وورد وPDF'],
     ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم | ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
     ['people', 'heart', 'الأحبّة', S.people.length ? `${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'} حان التواصل معه` : 'صلة الرحم والأصدقاء'],
@@ -481,9 +481,9 @@ function deleteLib() {
   if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
   if (kind === 'hifz') S.hifz = S.hifz.filter((x) => x.id !== id);
   if (kind === 'meal') S.meals = S.meals.filter((x) => x.id !== id);
-  if (kind === 'sub') S.subs = S.subs.filter((x) => x.id !== id);
+  if (kind === 'sub') { S.subs = S.subs.filter((x) => x.id !== id); S.finTx = S.finTx.filter((t) => !(t.src || '').startsWith(`sub:${id}:`)); syncAllPlans(); }
   if (kind === 'later') S.later = S.later.filter((x) => x.id !== id);
-  if (kind === 'debt') S.finDebts = S.finDebts.filter((x) => x.id !== id);
+  if (kind === 'debt') { S.finDebts = S.finDebts.filter((x) => x.id !== id); S.finTx = S.finTx.filter((t) => !(t.src || '').startsWith(`debt:${id}:`)); syncAllPlans(); }
   if (kind === 'right' || kind === 'owe') S.finRights = S.finRights.filter((x) => x.id !== id);
   if (kind === 'hplan') { S.hplans = S.hplans.filter((x) => x.id !== id); for (const h of S.hifz) if (h.planId === id) h.planId = ''; }
   if (kind === 'person') S.people = S.people.filter((x) => x.id !== id);

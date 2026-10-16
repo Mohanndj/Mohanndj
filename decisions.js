@@ -101,6 +101,8 @@ function openDecision(id, review) {
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
     </div>`;
   libArmed = false;
+  // what the select showed when opened (a postponed review, 88 days, shows as «90»): unchanged keeps the date
+  ldraft.afterShown = +$('dAfter').value;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
 }
@@ -115,13 +117,14 @@ function saveDecision() {
   });
   // the review date follows the chosen period, unless nothing changed (keeps a «later» postponement)
   const after = +$('dAfter').value;
-  x.reviewAt = old && old.date === date && after === ldraft.after ? old.reviewAt : addDays(date, after);
+  x.reviewAt = old && old.date === date && (after === ldraft.afterShown || after === ldraft.after) ? old.reviewAt : addDays(date, after);
   if (ldraft.review) {
     x.outcome = $('dOutcome').value.trim();
     x.lesson = $('dLesson').value.trim();
     x.result = ldraft.result;
     if (x.result && !x.reviewedAt) x.reviewedAt = today();
     if (!x.result && (x.outcome || x.lesson)) { toast('اختر: هل أصبت أم أخطأت؟'); return false; }
+    if (!x.result) x.reviewedAt = ''; // a review emptied is not a review
   }
   if (old) Object.assign(old, x); else S.decisions.push(x);
   save();

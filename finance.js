@@ -29,7 +29,7 @@ function normalizeFinPlan(p) {
     created: p.created || Date.now(), updated: p.updated || Date.now(),
   };
 }
-const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || '') }));
+const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}) }));
 function normalizeDebt(d) {
   return { id: d.id || uid(), name: String(d.name || ''), total: num(d.total), monthly: num(d.monthly), end: d.end || '', note: String(d.note || ''), payments: payments(d.payments), created: d.created || Date.now() };
 }
@@ -110,11 +110,14 @@ function planActual(p) {
     r.left = once && r.x.done ? 0 : Math.max(0, r.plan - r.paid);
   }
   const outside = outs.filter((t) => t.ref === 'out');
-  const loose = outs.filter((t) => t.ref !== 'out' && !rows.some((r) => r.x.id === t.ref));
+  const noRow = (t) => t.ref !== 'out' && !rows.some((r) => r.x.id === t.ref);
+  const loose = outs.filter((t) => !t.src && noRow(t));
+  // a linked payment whose item is no longer in the plan (its source or item deleted) is still a payment
+  const strayPays = outs.filter((t) => t.src && noRow(t));
   const paidPlan = sum(rows, (r) => r.paid);
   const extra = sum(txs.filter((t) => t.kind === 'in'));
-  const spent = paidPlan + sum(outside) + sum(loose);
-  return { ...c, rows, extra, paidPlan, outside, loose, spent, toPay: sum(rows, (r) => r.left), inHand: c.income + extra - spent };
+  const spent = paidPlan + sum(outside) + sum(loose) + sum(strayPays);
+  return { ...c, rows, extra, paidPlan, outside, loose, strayPays, spent, toPay: sum(rows, (r) => r.left), inHand: c.income + extra - spent };
 }
 // adding a payment to an item: once what was paid reaches the planned amount, tick it «دُفع»
 function assignTx(t, ref, p) {
@@ -166,7 +169,7 @@ function planSplit(p) {
   const budget = sum(spendRows, (r) => r.plan), fromItems = sum(spendRows, (r) => r.spent);
   const outside = sum(a.outside) + sum(a.loose);
   return { a, spendRows, payRows, budget, fromItems, outside, spendLeft: budget - fromItems - outside,
-    payTotal: sum(payRows, (r) => r.plan), payPaid: sum(payRows, (r) => r.paid), payLeft: sum(payRows, (r) => r.left) };
+    payTotal: sum(payRows, (r) => r.plan) + sum(a.strayPays), payPaid: sum(payRows, (r) => r.paid) + sum(a.strayPays), payLeft: sum(payRows, (r) => r.left) };
 }
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 
@@ -205,7 +208,7 @@ function splitBar(c) {
   const base = Math.max(c.income, c.fixed + c.periodic, 1);
   const seg = (v, cls, label) => (v > 0 ? `<i class="${cls}" style="width:${(v / base) * 100}%" title="${label}"></i>` : '');
   return `<div class="fin-split" role="img" aria-label="توزيع الدخل">${seg(c.fixed, 'fx', 'الثابتة')}${seg(c.periodic, 'pd', 'الدورية')}${seg(c.left, 'sv', 'المتبقي')}</div>
-    <div class="fin-legend"><span><i class="fx"></i>الثابتة ${money(c.fixed)}</span><span><i class="pd"></i>الدورية ${money(c.periodic)}</span><span><i class="${c.left >= 0 ? 'sv' : 'neg'}"></i>${c.left >= 0 ? 'المتبقي للادخار' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
+    <div class="fin-legend"><span><i class="fx"></i>الثابتة ${money(c.fixed)}</span><span><i class="pd"></i>الدورية ${money(c.periodic)}</span><span><i class="${c.left >= 0 ? 'sv' : 'neg'}"></i>${c.left >= 0 ? 'المتبقي' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
 }
 
 // ---------- editable rows (like spreadsheet rows) ----------
@@ -238,7 +241,7 @@ function viewFinance() {
     <div class="section-head"><h2>المالية</h2><div class="btn-row">${S.finPlans.length || S.finDebts.length || S.finRights.length || S.finProjects.length || S.subs.length || S.later.length || S.finTx.length ? `<button type="button" class="xls-btn" data-action="fin-export">${icon('sheet')}تصدير إكسل</button>` : ''}<label class="xls-btn fin-import">${icon('sheet')}استيراد إكسل<input type="file" id="finImport" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label></div></div>
     ${c ? `<button type="button" class="fin-top" data-action="fin-open" data-v="${ap.id}">
       <small>${esc(ap.name)}${ap.month ? ` | ${esc(rangeLabel(ap))}` : ''}</small>
-      <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'للادخار'}</span></div>
+      <div class="fin-tiles"><span><b>${money(c.income)}</b>الدخل</span><span><b>${money(c.fixed + c.periodic)}</b>المصاريف</span><span class="${c.left < 0 ? 'neg' : 'pos'}"><b>${money(c.left)}</b>${c.left < 0 ? 'عجز' : 'المتبقي'}</span></div>
     </button>` : ''}
     ${mini.length ? `<div class="fin-mini">${mini.map((k) => `<button type="button" data-action="fin-lg" data-v="${k}">${{ debt: 'عليّ ديون', owe: 'عليّ حقوق', right: 'لي عند غيري' }[k]}: <b>${money(lgTotal(k))}</b></button>`).join('')}</div>` : ''}
     <div class="seg seg-wrap" role="group" aria-label="الأقسام">${tabs.map(([v, l]) => `<button type="button" data-action="fin-tab" data-v="${v}" aria-pressed="${finUi.tab === v}">${l}</button>`).join('')}</div>
@@ -253,7 +256,7 @@ function finPlansHTML() {
   const ap = activePlan();
   const titled = S.finPlans.filter((p) => p.kind !== 'month').sort((a, b) => a.created - b.created);
   const months = S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''));
-  const mini = (c) => `<span class="fin-hnum ${c.left < 0 ? 'neg' : 'pos'}">${c.left < 0 ? 'عجز' : 'للادخار'} <b>${money(Math.abs(c.left))}</b></span>`;
+  const mini = (c) => `<span class="fin-hnum ${c.left < 0 ? 'neg' : 'pos'}">${c.left < 0 ? 'عجز' : 'المتبقي'} <b>${money(Math.abs(c.left))}</b></span>`;
   return `<section class="section">
     <div class="section-head"><h2>الخطط المعنونة</h2>${addBtn('fin-new-titled', 'خطة معنونة')}</div>
     <p class="note-text explain">خطط تسمّيها بما تشاء: لفترة زمنية («بعد سداد القرض»، «عام ٢٠٢٧») أو لما تتصوره («على فرض الزواج»). اضغط أي خطة لترى تفاصيلها، وانقلها إلى أي شهر.</p>
@@ -713,11 +716,11 @@ function runFinImport() {
 }
 
 // ---------- new plans and moving plans into months ----------
-const cloneRows = (l) => l.map((x) => ({ ...x, id: uid(), ...(x.done != null ? { done: false } : {}) })); // a new plan starts unpaid
+const cloneRows = (l) => l.map((x) => { const y = { ...x, id: uid(), ...(x.done != null ? { done: false } : {}) }; delete y.auto; return y; }); // a new plan starts unpaid
 function applyPlan(target, src, mode) {
   for (const k of ['income', 'fixed', 'periodic', 'accounts']) {
     if (mode === 'replace') target[k] = cloneRows(src[k]);
-    else for (const x of src[k]) if (!target[k].some((y) => y.name && y.name === x.name)) target[k].push({ ...x, id: uid() });
+    else for (const x of src[k]) if (!target[k].some((y) => y.name && y.name === x.name)) target[k].push(cloneRows([x])[0]);
   }
   if (mode === 'replace' || !target.goal) target.goal = src.goal;
   target.updated = Date.now();
@@ -916,10 +919,13 @@ function projectSheet(p) {
   R.push([{ v: 'البنود', s: 'sec', span: 4 }], [{ v: 'البند', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head' }, { v: 'تم', s: 'head' }]);
   const f = R.length + 1;
   for (const x of p.items) R.push([{ v: x.name, s: 'txt', span: 2 }, { v: x.amount, s: 'num' }, { v: x.done ? '✓' : '', s: 'txt' }]);
-  R.push([{ v: 'المجموع', s: 'tot', span: 2 }, { f: `SUM(C${f}:C${R.length})`, v: cost, s: 'totnum' }, { v: '', s: 'tot' }], []);
-  if (p.funding.length) {
-    R.push([{ v: 'مصادر التمويل', s: 'sec', span: 4 }], [{ v: 'المصدر', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head', span: 2 }]);
+  R.push([{ v: 'المجموع', s: 'tot', span: 2 }, R.length >= f ? { f: `SUM(C${f}:C${R.length})`, v: cost, s: 'totnum' } : { v: cost, s: 'totnum' }, { v: '', s: 'tot' }], []);
+  // what is available: the monthly plans' items of the same name, then what was added by hand
+  const fromPlans = projPlanLines(p);
+  if (fromPlans.length || p.funding.length) {
+    R.push([{ v: 'المتوفر لديك', s: 'sec', span: 4 }], [{ v: 'المصدر', s: 'head', span: 2 }, { v: 'المبلغ', s: 'head', span: 2 }]);
     const g = R.length + 1;
+    for (const l of fromPlans) R.push([{ v: `من ${planTitle(l.p)} («${l.r.name}»)`, s: 'txt', span: 2 }, { v: l.amount, s: 'num', span: 2 }]);
     for (const x of p.funding) R.push([{ v: x.name, s: 'txt', span: 2 }, { v: x.amount, s: 'num', span: 2 }]);
     R.push([{ v: 'المجموع', s: 'tot', span: 2 }, { f: `SUM(C${g}:C${R.length})`, v: fund, s: 'totnum', span: 2 }]);
   }
@@ -983,8 +989,8 @@ function openFinExport() {
     <div class="btn-row"><button type="button" class="ghost" data-action="fin-exp-all" data-v="1">تحديد الكل</button><button type="button" class="ghost" data-action="fin-exp-all" data-v="0">إلغاء التحديد</button></div>
     <div class="fin-exp">
       ${box('summary', 'الملخص المالي', 'الخطط المختارة والديون والحقوق وحقوقي في صفحة واحدة')}
-      ${months.length ? `<h4>الخطط الشهرية</h4>${months.map((p) => box(`plan:${p.id}`, esc(planTitle(p)), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
-      ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' للادخار')).join('')}` : ''}
+      ${months.length ? `<h4>الخطط الشهرية</h4>${months.map((p) => box(`plan:${p.id}`, esc(planTitle(p)), money(planCalc(p).left) + ' متبقٍ')).join('')}` : ''}
+      ${titled.length ? `<h4>الخطط المعنونة</h4>${titled.map((p) => box(`plan:${p.id}`, esc(p.name), money(planCalc(p).left) + ' متبقٍ')).join('')}` : ''}
       <h4>غيرها</h4>
       ${[['debts', 'debt'], ['owes', 'owe'], ['rights', 'right']].map(([key, k]) => (LEDGERS[k].list().length ? box(key, LEDGERS[k].title, `${LEDGERS[k].list().length} | الباقي ${money(lgTotal(k))}`) : '')).join('')}
       ${S.finProjects.map((p) => box(`proj:${p.id}`, esc(p.name), isSaving(p) ? `ادخار | ${money(saveCalc(p).cash)}` : 'مشروع مالي')).join('')}
@@ -1143,15 +1149,16 @@ document.addEventListener('click', (e) => {
     }
     case 'fin-kind': {
       const p = getFinPlan(finUi.plan);
-      if (v === 'month' && !p.month) {
-        const m = today().slice(0, 7);
+      // never two plans for one month: checked whether or not the plan kept its month
+      if (v === 'month') {
+        const m = p.month || today().slice(0, 7);
         if (S.finPlans.some((x) => x !== p && x.kind === 'month' && x.month === m)) { toast(`لـ${monthName(m)} خطة من قبل.`); break; }
-        Object.assign(p, { month: m }, defaultRange(m));
+        if (!p.month) Object.assign(p, { month: m }, defaultRange(m));
       }
       p.kind = v; save(); render(); break;
     }
     case 'fin-active': S.settings.finActive = v; save(); render(); toast('صارت خطتك الحالية'); break;
-    case 'fin-del': if (!armed()) break; S.finPlans = S.finPlans.filter((p) => p.id !== v); if (S.settings.finActive === v) S.settings.finActive = ''; finUi.plan = ''; save(); render(); toast('حُذفت الخطة'); break;
+    case 'fin-del': if (!armed()) break; { const gone = getFinPlan(v); if (gone) { const ids = new Set(planRows(gone).map((r) => `tick:${r.x.id}`)); S.finTx = S.finTx.filter((t) => !ids.has(t.src)); } } S.finPlans = S.finPlans.filter((p) => p.id !== v); if (S.settings.finActive === v) S.settings.finActive = ''; finUi.plan = ''; save(); render(); toast('حُذفت الخطة'); break;
     case 'fin-row-add': {
       const obj = finScope(el.dataset.scope, el.dataset.sid);
       const L = el.dataset.list;

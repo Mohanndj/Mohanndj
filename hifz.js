@@ -14,7 +14,7 @@ function normalizeHifz(h) {
     id: h.id || uid(), type: HIFZ_TYPES[h.type] ? h.type : 'other', title: String(h.title || ''), text: String(h.text || ''),
     source: String(h.source || ''), surah: Number(h.surah) || 0, from: Number(h.from) || 0, to: Number(h.to) || 0,
     state: h.state === 'review' ? 'review' : 'learn', interval: Number(h.interval) || 0, ease: Number(h.ease) || 2.5,
-    due: h.due || '', reps: Number(h.reps) || 0, lapses: Number(h.lapses) || 0, last: h.last || '', learnedAt: h.learnedAt || '',
+    due: h.due || '', reps: Number(h.reps) || 0, lapses: Number(h.lapses) || 0, last: h.last || '', learnedAt: h.learnedAt || '', relearn: !!h.relearn,
     planId: String(h.planId || ''), ctx: String(h.ctx || ''), num: Number(h.num) || 1,
     hist: Array.isArray(h.hist) ? h.hist.filter(Boolean).slice(-300) : [], // review dates, for the monthly report
     created: h.created || Date.now(),
@@ -83,7 +83,7 @@ function hzTextHTML(h, mode) {
       if (mode === 'shatr') { const [first, ...rest] = s.split(/\s+/).filter(Boolean); return first ? `${as('full', first)} ${as('hidden', rest.join(' '))}` : ''; }
       return words(s);
     };
-    return `<div class="hz-poem">${parsePoem(h.text).map(([a, b], i) => `<div class="hz-bayt${b ? '' : ' single'}">
+    return `<div class="hz-poem">${parsePoem(h.text, 'sep').map(([a, b], i) => `<div class="hz-bayt${b ? '' : ' single'}">
       <button type="button" class="hz-n" data-hz="bayt" aria-label="أظهر البيت ${(h.num || 1) + i}">${(h.num || 1) + i}</button>
       <span class="hz-s1">${shatr(a, false)}</span>${b ? `<span class="hz-s2">${shatr(b, true)}</span>` : ''}
     </div>`).join('')}</div>`;
@@ -107,8 +107,9 @@ function normalizeHPlan(p) {
 }
 const getPlan = (id) => S.hplans.find((p) => p.id === id);
 // the units a plan is learnt by: abyat for poems, lines (ayat) otherwise
-const planUnits = (p) => (p.type === 'poem' ? parsePoem(p.text).map((b) => poemToText([b])) : p.text.split('\n').map((l) => l.trim()).filter(Boolean));
-const planPending = (p) => S.hifz.find((h) => h.planId === p.id && h.state === 'learn');
+const planUnits = (p) => (p.type === 'poem' ? parsePoem(p.text, 'sep').map((b) => poemToText([b])) : p.text.split('\n').map((l) => l.trim()).filter(Boolean));
+// (a card memorised again by choice, «أعده للحفظ», is not the plan's portion of today)
+const planPending = (p) => S.hifz.find((h) => h.planId === p.id && h.state === 'learn' && !h.relearn);
 const planToday = (p, d = today()) => !p.doneAt && p.days.includes(parse(d).getDay());
 function planNext(p) {
   const units = planUnits(p);
@@ -168,7 +169,7 @@ function planCard(p) {
     </div>`}
   </article>`;
 }
-const parsePoemLen = (h) => (h.type === 'poem' ? parsePoem(h.text).length : h.text.split('\n').filter((l) => l.trim()).length);
+const parsePoemLen = (h) => (h.type === 'poem' ? parsePoem(h.text, 'sep').length : h.text.split('\n').filter((l) => l.trim()).length);
 
 // plan settings (shared library sheet)
 function openPlan(id) {
@@ -451,9 +452,10 @@ document.addEventListener('click', (e) => {
     case 'show': hzs.view = 'full'; hzs.shown = true; renderStudy(); break;
     case 'learned':
       // reps 1: tomorrow is the first review, so «جيد» then means 3 days, not tomorrow again
-      Object.assign(h, { state: 'review', reps: 1, interval: 1, due: addDays(today(), 1), learnedAt: today(), last: today() });
       {
-        const p = h.planId && getPlan(h.planId);
+        const again = h.relearn;
+        Object.assign(h, { state: 'review', reps: 1, interval: 1, due: addDays(today(), 1), learnedAt: again ? h.learnedAt || today() : today(), last: today(), relearn: false });
+        const p = !again && h.planId && getPlan(h.planId);
         if (p) p.log[today()] = (p.log[today()] || 0) + parsePoemLen(h);
         if (p && p.pos >= planUnits(p).length && !planPending(p)) { p.doneAt = today(); setTimeout(() => toast(`🎉 أتممت حفظ «${p.title}» كاملة! بارك الله فيك`), 400); }
       }
@@ -526,7 +528,7 @@ document.addEventListener('click', (e) => {
     case 'hz-review': openStudy('review'); break;
     case 'hz-relearn': {
       const h = getHz(ldraft.id);
-      Object.assign(h, { state: 'learn', reps: 0, interval: 0, due: '' });
+      Object.assign(h, { state: 'learn', reps: 0, interval: 0, due: '', relearn: true });
       save(); closeLib(); render(); openStudy('learn', h.id);
       break;
     }

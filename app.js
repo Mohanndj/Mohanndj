@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 63;
+const APP_VERSION = 64;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -145,6 +145,7 @@ function normalize(t) {
     count: Number(t.count) || 0, // progress of a one-time counted goal
     habit: repeat ? normalizeHabit(t.habit) : null,
     bookId: t.bookId || '',
+    readPages: t.readPages && typeof t.readPages === 'object' ? t.readPages : {}, // a book task: pages actually read per session day
   };
 }
 
@@ -356,7 +357,7 @@ function toggle(id, date) {
   save();
   checkGraduation(t);
   render();
-  if (!wasDone && doneOn(t, d)) askDuration(t, d);
+  if (!wasDone && doneOn(t, d)) askDuration(t, isRepeat(t) ? d : today());
   const p = projectOf(t);
   if (p && t.done) {
     const st = projectStats(p.id);
@@ -2478,7 +2479,7 @@ document.addEventListener('click', (e) => {
 for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { if ($('exitBar').hidden && !leaving) armBack(); }, { passive: true });
 
 // dialogs closed by the system back gesture still save their work
-$('memoEditor').addEventListener('close', () => { if (mstate) { saveMemoNow(); mstate = null; render(); } });
+$('memoEditor').addEventListener('close', () => { if (mstate) { if (recState) stopRecording(); saveMemoNow(); mstate = null; render(); } });
 $('viewer').addEventListener('close', () => { if (viewing) closeViewer(); });
 $('jEditor').addEventListener('close', () => { if (jstate) { saveJNow(); jstate = null; render(); } });
 $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); } });

@@ -68,7 +68,7 @@ const XlsxRead = (() => {
         else if (t === 'b') val = v ? v.textContent === '1' : null;
         else if (v && v.textContent !== '') val = Number(v.textContent);
         if (val === null || val === '' || (typeof val === 'number' && !Number.isFinite(val))) continue;
-        cells.set(`${Number(m[2])},${colNum(m[1])}`, typeof val === 'string' ? val.replace(/\s+/g, ' ').trim() : val);
+        cells.set(`${Number(m[2])},${colNum(m[1])}`, typeof val === 'string' ? val.replace(/[^\S\n]+/g, ' ').replace(/ *\n */g, '\n').trim() : val); // lines inside a cell stay lines
       }
       sheets.push({ name: s.getAttribute('name'), cells, get: (r, c) => cells.get(`${r},${c}`) });
     }

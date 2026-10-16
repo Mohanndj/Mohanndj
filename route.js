@@ -31,7 +31,7 @@ function routeSmart(text) {
     let list = getList('home') || S.lists[0];
     const lm = /\s+(?:في|إلى|الى|ل)\s*(?:قائمة|القائمة)\s+(.+)$/.exec(rest) || /\s+لقائمة\s+(.+)$/.exec(rest);
     if (lm) { const want = normName(lm[1]); const hit = S.lists.find((l) => normName(l.name).includes(want) || want.includes(normName(l.name))); if (hit) list = hit; rest = rest.slice(0, lm.index); }
-    const names = rest.split(/\s*[،,]\s*|\s+و(?=\S)/).map((x) => x.trim()).filter(Boolean);
+    const names = rest.split(/\s*[،,]\s*|\s+و(?=\S)(?!(?:رق|سادة|سائد|جبة|جبات|رد|ورد|قود|شاح|عاء|لاعة|افل|ايت|صلة)(?:\s|$))/).map((x) => x.trim()).filter(Boolean);
     return names.length && list ? { type: 'shop', names, list } : null;
   }
   // ideas: «فكرة: …»
@@ -148,7 +148,7 @@ document.addEventListener('click', (e) => {
   if (action === 'close-tomorrow' && t) { t.due = addDays(t0, 1); save(); render(); toast(`«${t.title}» للغد`); return; }
   if (action === 'close-skip' && t) {
     // a task set aside loses its date (it waits in «بلا موعد»); a goal is just left for today
-    if (!isRepeat(t)) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
+    if (!isRepeat(t) && !isGoal(t)) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
     S.settings.closeSkip = { d: t0, ids: [...closeSkips(), t.id] };
     save(); render();
     return;
@@ -164,7 +164,8 @@ document.addEventListener('click', (e) => {
 function pinText() {
   const t0 = today();
   const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0).length;
-  const goals = S.tasks.filter((t) => isRepeat(t) && !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] && !closeSkips().includes(t.id)).length;
+  // recurring goals due today, and one-time goals due by today
+  const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && !t.done && t.due && t.due <= t0) && !closeSkips().includes(t.id)).length;
   const lists = S.shop.filter((x) => x.need).length;
   const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `القوائم ${lists}`].filter(Boolean);
   return parts.length ? `باقٍ اليوم: ${parts.join(' | ')}` : 'لا شيء باقٍ لليوم ✓';

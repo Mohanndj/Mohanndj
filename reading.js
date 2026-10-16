@@ -1,7 +1,7 @@
 'use strict';
 // Reading, organised:
-// 1) A book being read can have reading days in the week and pages per session. Ticking a session
-//    moves the book's page on by those pages; the book finished, its reading stops by itself.
+// 1) A book being read can have reading days in the week and pages per session (the plan). Ticking a
+//    session asks how far you really read, and only that moves the book's page; finished, its reading stops.
 // 2) Books (to read or read) can have a topic. Turning a topic on makes it a reading project
 //    («مشروع قرائي: الموضوع», project.topic) whose tasks are its books, done when the book is read.
 // A book shows in ONE place only: in its project's task if its topic is a project (the task then
@@ -90,16 +90,20 @@ function syncReading() {
   if (readingChanged) save();
 }
 
-// the page moves with the goal: ticking today's reading adds its pages, unticking takes them back
-function bookAdvance(b, delta) {
-  const t0 = today(), i = b.log.findIndex((e) => e.d === t0);
+// the page moves by the pages actually read (written after the session), never by the planned pages.
+// A past day's reading is recorded on that day: its log entry gets the pages, and later entries move on.
+function bookAdvance(b, delta, day) {
+  const t0 = today(), d = day || t0;
+  if (!delta) return;
+  if (d !== t0) return bookAdvancePast(b, delta, d);
+  const i = b.log.findIndex((e) => e.d === t0);
   let page = Math.max(0, (b.page || 0) + delta);
   if (b.pages) page = Math.min(b.pages, page);
-  // unticking goes back no further than where today started (the last session may have been capped at the end)
+  // going back goes no further than where today started
   if (delta < 0 && i >= 0 && Number.isFinite(b.log[i].from)) page = Math.max(page, b.log[i].from);
   const before = b.page || 0;
   b.page = page;
-  // a session that finished the book today, unticked: the book is being read again
+  // a session that finished the book today, taken back: the book is being read again
   if (delta < 0 && b.status === 'read' && b.end === t0 && (!b.pages || page < b.pages)) { b.status = 'reading'; b.end = ''; }
   // today's entry keeps the page the day started from, so the report counts what was read today
   if (i >= 0) {
@@ -108,55 +112,114 @@ function bookAdvance(b, delta) {
   } else b.log.push({ d: t0, p: page, from: before });
   if (b.pages && page >= b.pages && b.status === 'reading') { b.status = 'read'; b.end = b.end || t0; setTimeout(() => toast(`أحسنت! أنهيت «${b.title}»`), 300); }
 }
-// called by toggle() first: a scheduled book's project task ticks today's session, not the whole book
+function bookAdvancePast(b, delta, d) {
+  let page = Math.max(0, (b.page || 0) + delta);
+  if (b.pages) page = Math.min(b.pages, page);
+  const real = page - (b.page || 0);
+  if (!real) return;
+  b.log.sort((x, y) => x.d.localeCompare(y.d));
+  let e = b.log.find((x) => x.d === d);
+  if (!e) {
+    const prev = b.log.filter((x) => x.d < d).pop(), next = b.log.find((x) => x.d > d);
+    const base = prev ? prev.p : next ? (Number.isFinite(next.from) ? next.from : next.p) : b.page || 0;
+    e = { d, p: base, from: base };
+    b.log.push(e);
+    b.log.sort((x, y) => x.d.localeCompare(y.d));
+  }
+  e.p = Math.max(Number.isFinite(e.from) ? e.from : 0, e.p + real);
+  for (const x of b.log) if (x.d > d) { x.p += real; if (Number.isFinite(x.from)) x.from += real; }
+  b.page = page;
+  if (b.pages && page >= b.pages && b.status === 'reading') { b.status = 'read'; b.end = b.end || b.log[b.log.length - 1].d; setTimeout(() => toast(`أحسنت! أنهيت «${b.title}»`), 300); }
+  else if (b.status === 'read' && b.pages && page < b.pages && b.end && b.end >= d) { b.status = 'reading'; b.end = ''; }
+}
+// pages a session added; sessions before v64 moved the page by the plan when ticked (the goal's only today)
+function sessionPages(b, t, d) {
+  t.readPages = t.readPages || {};
+  if (Number.isFinite(t.readPages[d])) return { n: t.readPages[d], day: d };
+  return { n: isRepeat(t) ? (d === today() ? t.target : 0) : b.rpages, day: today() };
+}
+// a session taken back takes back the pages it added
+function undoSession(b, t, d) {
+  const { n, day } = sessionPages(b, t, d);
+  if (n) bookAdvance(b, -n, day);
+  delete t.readPages[d];
+}
+function startSession(b, t, d) {
+  t.readPages = t.readPages || {};
+  t.readPages[d] = 0;
+  askReadingNote(b, t, d);
+}
+// called by toggle() first: a scheduled book's project task ticks the day's session, not the whole book
 function readingSession(t, d) {
   const b = getBook(t.bookId);
-  const day = d || today();
+  // a session is never in the future: the task lists pass its due date (the next reading day), read today
+  const day = d && d < today() ? d : today();
   // (a session that just finished the book can still be unticked)
   if (!b || isRepeat(t) || !t.projectId || !(scheduled(b) || t.completions[day])) return false;
-  if (t.completions[day]) { delete t.completions[day]; bookAdvance(b, -b.rpages); }
-  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); askReadingNote(b, t, day); }
+  if (t.completions[day]) { delete t.completions[day]; undoSession(b, t, day); }
+  else { t.completions[day] = Date.now(); startSession(b, t, day); }
   syncReading();
   return true;
 }
-// after a reading session: one optional question, «ما أهم فكرة اليوم؟», saved to the book's benefits
-// after a reading session, one sheet: how long it took (as after any task) and the idea of the day; both optional
+// after a reading session, one sheet: the pages actually read (they move the book), how long it took,
+// and the idea of the day; each optional. The planned pages are a hope, not what was read.
 function askReadingNote(b, t, day) {
   setTimeout(() => {
     if (lsheet().open) return;
     const d = day || today();
+    const past = d !== today();
     const askTime = !!t && S.settings.askTime !== false && !sessionsOf(t.id).some((x) => sessionDay(x) === d);
-    ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id, taskId: t ? t.id : '', d, askTime };
+    ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id, taskId: t ? t.id : '', d, askTime, past };
+    const where = `كنت في صفحة ${b.page || 0}${b.pages ? ` من ${b.pages}` : ''}`;
     $('libForm').innerHTML = `${sheetHead('جلسة القراءة')}
-      <p class="note-text">«${esc(b.title)}»${b.page ? ` | وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}` : ''}. كلاهما اختياري.</p>
+      <p class="note-text">«${esc(b.title)}»${past ? ` | ${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}</p>
+      ${past ? `<label class="field"><span>كم صفحة قرأت في ذلك اليوم؟</span><input type="text" inputmode="numeric" id="rnRead" class="num-in" placeholder="مثل: ١٥" data-novoice autocomplete="off"><small class="hint">${where} الآن.</small></label>`
+        : `<label class="field"><span>إلى أي صفحة وصلت؟</span><input type="text" inputmode="numeric" id="rnPage" class="num-in" placeholder="${esc(digitsOut(where))}" data-novoice autocomplete="off"><small class="hint">${where}. يتقدّم الكتاب بما قرأته فعلاً.</small></label>`}
       ${askTime ? `<div class="field"><span>كم استغرقت؟</span>
         <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : 'ساعة ونصف'}</button>`).join('')}</div>
         <input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="أو اكتب الدقائق، مثل: ٢٥" data-novoice autocomplete="off"></div>` : ''}
       <label class="field"><span>ما أهم فكرة اليوم؟</span><textarea id="rnText" rows="4" placeholder="فكرة أو فائدة أو سؤال خرجت به"></textarea></label>
-      <label class="field"><span>الصفحة</span><input type="number" id="rnPage" min="0" inputmode="numeric" value="${b.page || ''}"></label>
       <div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
     showLib();
-    if (!askTime) setTimeout(() => { const x = $('rnText'); if (x) x.focus(); }, 60);
+    setTimeout(() => { const x = $(past ? 'rnRead' : 'rnPage'); if (x) x.focus(); }, 60);
   }, 250);
 }
 function saveReadNote() {
   const b = getBook(ldraft.bookId);
+  const t = getTask(ldraft.taskId);
+  const d = ldraft.d;
   const said = [];
+  // the pages actually read: «إلى أي صفحة وصلت؟» today, or «كم صفحة قرأت؟» for a past day
+  if (b && t && t.completions[d]) {
+    let n = 0;
+    if (ldraft.past) n = Math.max(0, Math.round(num($('rnRead').value) || 0));
+    else { const v = $('rnPage').value.trim(); if (v) n = Math.round(num(v) || 0) - (b.page || 0); }
+    if (n) {
+      const before = b.page || 0;
+      bookAdvance(b, n, d);
+      const real = (b.page || 0) - before;
+      t.readPages = t.readPages || {};
+      t.readPages[d] = (t.readPages[d] || 0) + real;
+      if (real) said.push(`${real > 0 ? `قرأت ${pagesWord(real)}` : `رجعت ${pagesWord(-real)}`} | وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`);
+    }
+  }
   // the time, recorded like the timer's (a session of the book's task, counted in the stats and reports)
   const m = ldraft.askTime && $('durMin') ? Math.round(num($('durMin').value)) : 0;
   if (m > 0 && ldraft.taskId) {
     // on the session's own day (a past day ticked in the calendar is recorded on that day)
-    const end = ldraft.d === today() ? Date.now() : parse(ldraft.d).getTime() + 12 * 3600000;
+    const end = d === today() ? Date.now() : parse(d).getTime() + 12 * 3600000;
     S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
     said.push(`سُجّل ${fmtDur(m * 60000)}`);
   }
   const text = $('rnText').value.trim();
   if (text) {
     const first = text.split(/\n|[.؟!]/)[0].trim();
-    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: $('rnPage').value, title: excerpt(first, 60), lesson: text }));
+    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), lesson: text }));
     said.push(`حُفظت الفكرة في فوائد «${b ? b.title : 'الكتاب'}»`);
   }
-  if (said.length) { save(); toast(said.join(' | ')); }
+  syncReading();
+  save();
+  if (said.length) toast(said.join(' | '));
   return true;
 }
 // called by toggle() for a task tied to a book
@@ -164,9 +227,9 @@ function readingFromTask(t, d) {
   const b = getBook(t.bookId);
   if (!b) return;
   if (isRepeat(t)) {
-    // the page moves only for today's session; a past day ticked in the calendar still gets the time and idea question, on its own day
-    if (d === today()) bookAdvance(b, t.completions[d] ? t.target : -t.target);
-    if (t.completions[d]) askReadingNote(b, t, d);
+    // the session is ticked; the sheet then asks how many pages were really read (on its own day)
+    if (t.completions[d]) startSession(b, t, d);
+    else undoSession(b, t, d);
   }
   else if (t.done && b.status !== 'read') { b.status = 'read'; b.end = b.end || today(); }
   else if (!t.done && b.status === 'read') { b.status = 'reading'; b.end = ''; }

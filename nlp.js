@@ -101,7 +101,7 @@ const SmartParse = (() => {
       if (mark) {
         if (/صباح|الصبح|^ص$|فجر/.test(mark)) { if (h === 12) h = 0; }
         else if (/ظهر/.test(mark)) { if (h < 5) h += 12; }
-        else if (/ليل/.test(mark)) { if (h >= 5 && h < 12) h += 12; }
+        else if (/ليل/.test(mark)) { if (h === 12) h = 0; else if (h >= 5 && h < 12) h += 12; }
         else if (h < 12) h += 12;
       } else if (h >= 1 && h <= 6) h += 12; // "الساعة 5" usually means the afternoon
       if (h > 23 || mi > 59) return false;
@@ -163,7 +163,7 @@ const SmartParse = (() => {
         else if (d2) r.until = dateFrom(Number(d2), Number(m2), y2);
         else if (/شهر/.test(endOf)) r.until = iso(new Date(now.getFullYear(), now.getMonth() + 1, 0));
         else if (/سن/.test(endOf)) r.until = `${now.getFullYear()}-12-31`;
-        else r.until = plus((5 - now.getDay() + 7) % 7); // to Friday
+        else r.until = plus(6 - now.getDay()); // to Saturday: the week starts on Sunday
       });
 
     // due date

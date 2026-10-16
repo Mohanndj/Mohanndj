@@ -9,7 +9,7 @@ const Sync = (() => {
   const DESC = 'Mahami app data — بيانات تطبيق مهامي (لا تعدّل هذا الملف يدوياً)';
   const API = 'https://api.github.com';
   const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'hplans', 'finPlans', 'finDebts', 'finRights', 'finProjects', 'finTx', 'cvs', 'meals', 'mealDone', 'shop', 'lists', 'fines', 'reports', 'subs', 'later', 'weeks', 'people', 'decisions', 'quits'];
-  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook'];
+  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook', 'closeSkip'];
 
   let cfg = load();
   let busy = false;
@@ -53,7 +53,33 @@ const Sync = (() => {
 
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-  function mergeList(base = [], local = [], remote = []) {
+  const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+  const idList = (a) => Array.isArray(a) && a.length > 0 && a.every((x) => isObj(x) && x.id);
+  // an item changed on both sides is merged field by field (so a field this device recalculated by
+  // itself, a reading task's due date say, never throws away a session ticked on the other device);
+  // maps (completions, counts) key by key, lists of items with ids item by item; a real clash keeps this device's
+  function merge3(b, l, r, noBase) {
+    if (noBase) return r;
+    if (same(l, b)) return r;
+    if (same(r, b)) return l;
+    if (isObj(l) && isObj(r)) {
+      const B = isObj(b) ? b : {}, out = {};
+      for (const k of new Set([...Object.keys(l), ...Object.keys(r)])) {
+        let v;
+        if (k in l && k in r) v = merge3(B[k], l[k], r[k]);
+        else if (k in l) v = k in B && same(l[k], B[k]) ? undefined : l[k]; // deleted there, unchanged here
+        else v = k in B && same(r[k], B[k]) ? undefined : r[k];
+        if (v !== undefined) out[k] = v;
+      }
+      return out;
+    }
+    if ((idList(l) || idList(r)) && Array.isArray(l) && Array.isArray(r)) return mergeList(Array.isArray(b) ? b : [], l, r);
+    // a list of plain values made on both sides at once (eaten items of the same day): both kept
+    if (b === undefined && Array.isArray(l) && Array.isArray(r) && [...l, ...r].every((x) => !isObj(x))) return [...new Set([...l, ...r])];
+    return l;
+  }
+
+  function mergeList(base = [], local = [], remote = [], noBase = false) {
     const B = new Map(base.map((x) => [x.id, x]));
     const L = new Map(local.map((x) => [x.id, x]));
     const R = new Map(remote.map((x) => [x.id, x]));
@@ -61,7 +87,8 @@ const Sync = (() => {
     const out = [];
     for (const id of ids) {
       const b = B.get(id), l = L.get(id), r = R.get(id);
-      if (l && r) out.push(same(l, b) ? r : l); // edited here wins; otherwise take the cloud's version
+      // with no earlier sync to compare (a new device, or reconnecting), the cloud's version wins
+      if (l && r) out.push(merge3(b, l, r, noBase));
       else if (l && !r) { if (!b || !same(l, b)) out.push(l); } // new here, or deleted in cloud but edited here
       else if (!l && r) { if (!b || !same(r, b)) out.push(r); } // new in cloud, or deleted here but edited in cloud
     }
@@ -70,11 +97,12 @@ const Sync = (() => {
     return out.sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
   }
 
-  function mergeSettings(base = {}, local = {}, remote = {}) {
+  function mergeSettings(base = {}, local = {}, remote = {}, noBase = false) {
     const out = {};
     for (const k of SETTINGS_KEYS) {
       const l = local[k], r = remote[k], b = base[k];
-      const v = same(l, b) ? (k in remote ? r : l) : l;
+      // unchanged here: the cloud's value, or its removal; with no earlier sync, the cloud's when it has one
+      const v = noBase ? (k in remote ? r : l) : same(l, b) ? r : l;
       if (v !== undefined) out[k] = v;
     }
     return out;
@@ -82,8 +110,9 @@ const Sync = (() => {
 
   function merge(base, local, remote) {
     const out = { v: 1, at: Date.now() };
-    for (const c of COLLECTIONS) out[c] = mergeList(base && base[c], local[c], remote[c]);
-    out.settings = mergeSettings(base && base.settings, local.settings, remote.settings || {});
+    const noBase = !base;
+    for (const c of COLLECTIONS) out[c] = mergeList(base && base[c], local[c], remote[c], noBase);
+    out.settings = mergeSettings(base && base.settings, local.settings, remote.settings || {}, noBase);
     return out;
   }
 
@@ -97,6 +126,8 @@ const Sync = (() => {
         else S[c] = list;
       }
       Object.assign(S.settings, data.settings || {});
+      // a setting removed elsewhere (by «حذف كل البيانات») is removed here too
+      if (data.settings) for (const k of SETTINGS_KEYS) if (!(k in data.settings)) delete S.settings[k];
       save();
       applyTheme();
     } finally { applying = false; }

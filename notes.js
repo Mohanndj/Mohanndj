@@ -281,7 +281,7 @@ async function startRecording() {
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
   catch (e) { toast(e && e.name === 'NotAllowedError' ? 'اسمح للتطبيق باستخدام الميكروفون من إعدادات الجوال.' : 'تعذّر الوصول إلى الميكروفون.'); return; }
   const rec = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
-  recState = { rec, chunks: [], started: Date.now(), stream, cancelled: false, type: rec.mimeType || type || 'audio/webm' };
+  recState = { memoId: mstate && mstate.id, rec, chunks: [], started: Date.now(), stream, cancelled: false, type: rec.mimeType || type || 'audio/webm' };
   rec.ondataavailable = (e) => { if (e.data && e.data.size) recState.chunks.push(e.data); };
   rec.onstop = finishRecording;
   rec.start(1000);
@@ -316,12 +316,15 @@ async function finishRecording() {
   const blob = new Blob(st.chunks, { type: st.type });
   const mediaId = 'aud-' + uid();
   try { await Media.put(mediaId, blob); } catch { toast('تعذّر حفظ التسجيل على الجهاز.'); return; }
-  if (!mstate) return;
-  const m = ensureMemoSaved();
+  // the note may have been closed while recording: the clip still goes to the note it was made in
+  const open = mstate && mstate.id === st.memoId;
+  let m = open ? ensureMemoSaved() : getMemo(st.memoId);
+  if (!m && st.memoId) { m = normalizeMemo({ id: st.memoId, title: `ملاحظة صوتية | ${fmtDate(today(), { day: 'numeric', month: 'long' })}` }); S.memos.push(m); }
+  if (!m) return;
   m.audios = [...(m.audios || []), { id: uid(), mediaId, dur, created: Date.now() }];
   m.updated = Date.now();
   save();
-  renderMemoAudios();
+  if (open) renderMemoAudios(); else render();
   toast(`حُفظ تسجيل مدته ${fmtClock(dur)}`);
 }
 

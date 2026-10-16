@@ -3,7 +3,7 @@
 // user's own notes for the period (a summary, and obstacles with their solutions — often written by
 // an outside AI from the full copy this page exports), and reminds them of the last period's solutions.
 
-const repUi = { type: 'week', key: '', journal: false };
+const repUi = { type: 'week', key: '', journal: false, months: [] };
 
 function normalizeReport(r) {
   const id = String(r.id || '');
@@ -77,7 +77,11 @@ function viewReport() {
     <h2>نسخة كاملة لتحليلها</h2>
     <p class="note-text explain">نسخة نصية كاملة لهذا ${P.word}: كل الجوانب وتفاصيلها، ومقارنة بما قبله، وخلاصاتك السابقة، ومعها طلب جاهز. الصقها في أي برنامج ذكاء اصطناعي، ثم ضع ما يعطيك في الخانتين أعلاه.</p>
     <label class="switch"><input type="checkbox" id="repJournal"${repUi.journal ? ' checked' : ''}><span>أضف نصوص يومياتي (خاصة، اخترها إن أردت تحليلاً أعمق)</span></label>
-    <div class="btn-row"><button type="button" class="primary" data-action="rep-copy">${icon('sheet')} انسخ النسخة الكاملة</button><button type="button" class="ghost" data-action="rep-file">نزّلها ملفاً</button></div>
+    <div class="btn-row"><button type="button" class="primary" data-action="rep-copy">${icon('sheet')} انسخ النسخة الكاملة</button><button type="button" class="ghost" data-action="rep-word">${icon('sheet')} وورد لهذا ${P.word}</button><button type="button" class="ghost" data-action="rep-file">نزّلها ملفاً نصياً</button></div>
+    <h3>أشهر مختارة في ملف وورد واحد</h3>
+    <p class="note-text explain">اختر الأشهر التي تريد تحليلها معاً، فتأتي في ملف واحد: لكل شهر تفاصيله ثم إجماليه، ومعها طلب جاهز يقارن بينها.</p>
+    <div class="chips rep-months" role="group" aria-label="الأشهر">${monthsWithData().map((m) => `<button type="button" class="chip" data-action="rep-month" data-v="${m}" aria-pressed="${repUi.months.includes(m)}">${esc(monthName(m))}</button>`).join('')}</div>
+    <div class="btn-row"><button type="button" class="primary" data-action="rep-months-word"${repUi.months.length ? '' : ' disabled'}>${icon('sheet')} صدّر ${repUi.months.length ? plural(repUi.months.length, 'شهراً واحداً', 'شهرين', 'أشهر', 'شهراً') : 'الأشهر المختارة'} في وورد</button></div>
   </section>
   <div class="btn-row report-actions">
     <button type="button" class="ghost" data-action="rep-image">${icon('sheet')} مشاركة كصورة</button>
@@ -85,51 +89,97 @@ function viewReport() {
 }
 
 // ---------- the full copy for an outside AI ----------
-function reportExport(P) {
+// lines in a light markdown: «# » title, «## » heading, «### » sub-heading, «- » item (also read by the Word export)
+const PERIOD_KIND = { week: 'أسبوعي', month: 'شهري', year: 'سنوي' };
+function reportAsk(word, next, prevSolutions) {
+  return [
+    '## المطلوب منك',
+    'أنت مستشار شخصي حكيم. هذه بيانات نشاطي الفعلي في كل جوانب حياتي التي أتابعها. اقرأها بدقة ثم اكتب بالعربية، بإيجاز ودون مبالغة، تحت عنوانين بالضبط:',
+    `«الخلاصة»: خمسة أسطر على الأكثر عن ${word}: ما تحسّن وما تراجع مقارنة بالفترة السابقة، بأرقام محددة.`,
+    `«العوائق وحلولها»: أبرز ثلاثة عوائق تظهر من البيانات، وسبباً محتملاً لكل منها، وحلاً عملياً صغيراً أبدأ به في ${next}${prevSolutions ? '، مع تقييم: هل نفعت الحلول السابقة المذكورة؟' : ''}.`,
+    'لا تخترع شيئاً غير موجود في البيانات. في كل جانب: التفاصيل (كل عنصر وحده) ثم الإجمالي. النسبة هي التقدّم: ما أُنجز من كل المطلوب في الفترة كاملة (كل مرة مطلوبة حصة متساوية)، فإن لم تنتهِ الفترة فالباقي لم يفُت بعد. الجانب بلا نسبة معناه أنه لا يوجد فيه ما يُعدّ، لا أنه صفر.',
+  ];
+}
+// one period: overview, every area (details then totals), projects, priorities, the notes written
+function reportBody(P, journal) {
   const S1 = awareStats(P), prevP = periodOf(P.type, P.prev), S0 = awareStats(prevP);
   const st = periodStats(P);
   const note = reportNote(P.id), prevNote = reportNote(prevP.id);
-  const next = { week: 'الأسبوع القادم', month: 'الشهر القادم', year: 'العام القادم' }[P.type];
   const L = [];
-  L.push(`# تقرير ${{ week: 'أسبوعي', month: 'شهري', year: 'سنوي' }[P.type]} من تطبيق «الوعي الشخصي»`);
   L.push(`الفترة: ${P.title} (${P.sub})${P.current ? '، وهي لم تنتهِ بعد: البيانات حتى اليوم' : ''}`);
-  L.push(`من ${P.start} إلى ${P.last} (${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')})`);
-  L.push('');
-  L.push('## المطلوب منك');
-  L.push(`أنت مستشار شخصي حكيم. هذه بيانات نشاطي الفعلي في كل جوانب حياتي التي أتابعها. اقرأها بدقة ثم اكتب بالعربية، بإيجاز ودون مبالغة، تحت عنوانين بالضبط:`);
-  L.push(`«الخلاصة»: خمسة أسطر على الأكثر عن ${P.word}: ما تحسّن وما تراجع مقارنة بالفترة السابقة، بأرقام محددة.`);
-  L.push(`«العوائق وحلولها»: أبرز ثلاثة عوائق تظهر من البيانات، وسبباً محتملاً لكل منها، وحلاً عملياً صغيراً أبدأ به في ${next}${prevNote && prevNote.solutions.trim() ? '، مع تقييم: هل نفعت حلول الفترة السابقة المذكورة أدناه؟' : ''}.`);
-  L.push('لا تخترع شيئاً غير موجود في البيانات. النسبة هي التقدّم: ما أُنجز من كل المطلوب في الفترة كاملة (كل مرة مطلوبة حصة متساوية)، فإن لم تنتهِ الفترة فالباقي لم يفُت بعد. الجانب بلا نسبة معناه أنه لا يوجد فيه ما يُعدّ، لا أنه صفر.');
-  if (P.current) L.push(`مضى ${P.days.length} من ${P.all.length} يوماً من هذه الفترة.`);
-  L.push('');
-  L.push(`## مؤشر التقدم الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
-  L.push(`أرقام عامة: ${st.tasks} مهمة منجزة، ${st.goalDays} مرة التزام بهدف، ${st.habitDays} مرة أداء عادة، ${st.readings} جلسة قراءة، ${st.steps} خطوة، تركيز ${Math.round(st.focusMs / 60000)} دقيقة، ${st.activeDays} يوماً نشطاً من ${P.days.length}، ${st.pages} صفحة، ${st.books} كتاب أُنهي، ${st.benefits} فائدة.`);
-  L.push('');
-  L.push('## الجوانب');
+  L.push(`من ${P.start} إلى ${P.last} (${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')}${P.current ? ` من ${P.all.length}` : ''})`);
+  L.push(`مؤشر التقدم الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
+  L.push(`أرقام عامة: ${st.tasks} مهمة منجزة | ${st.goalDays} مرة التزام بهدف | ${st.habitDays} مرة أداء عادة | ${st.readings} جلسة قراءة | ${st.pages} صفحة | ${st.books} كتاب أُنهي | ${st.benefits} فائدة | ${st.steps} خطوة | تركيز ${Math.round(st.focusMs / 60000)} دقيقة | ${st.activeDays} يوماً نشطاً من ${P.days.length}`);
   for (const a of S1.aspects) {
     const before = (S0.aspects.find((x) => x.key === a.key) || {}).score;
-    L.push(`### ${a.title}: ${a.score != null ? `${a.score}٪` : 'بلا درجة'}${before != null ? ` (السابقة ${before}٪)` : ''}`);
-    for (const f of a.facts) L.push(`- ${f}`);
-    for (const d of a.detail) if (!a.facts.some((f) => d.startsWith(f))) L.push(`- ${d}`);
+    L.push(`### ${a.title}: ${a.score != null ? `${a.score}٪` : 'بلا نسبة'}${before != null ? ` (السابقة ${before}٪)` : ''}`);
+    if (a.detail.length) { L.push('التفاصيل:'); for (const d of a.detail) L.push(`- ${d}`); }
+    if (a.facts.length) { L.push('الإجمالي:'); for (const f of a.facts) L.push(`- ${f}`); }
   }
-  if (st.projects.length) { L.push(''); L.push('## المشاريع'); for (const p of st.projects) L.push(`- ${p.name}: ${p.progress}٪ مكتمل، أُنجز منه ${p.doneIn} في هذه الفترة`); }
+  if (st.projects.length) { L.push('### المشاريع'); for (const p of st.projects) L.push(`- ${p.name}: ${p.progress}٪ مكتمل، أُنجز منه ${p.doneIn} في هذه الفترة`); }
   const prioWeeks = S.weeks.filter((w) => w.id >= addDays(P.start, -6) && w.id <= P.last && w.focus.some(Boolean));
-  if (prioWeeks.length) { L.push(''); L.push('## أولوياتي التي حددتها'); for (const w of prioWeeks) L.push(`- أسبوع ${w.id}: ${w.focus.filter(Boolean).join('، ')}`); }
+  if (prioWeeks.length) { L.push('### أولوياتي التي حددتها'); for (const w of prioWeeks) L.push(`- أسبوع ${w.id}: ${w.focus.filter(Boolean).join('، ')}`); }
   if (prevNote && (prevNote.summary.trim() || prevNote.solutions.trim())) {
-    L.push(''); L.push(`## ما كتبته عن الفترة السابقة (${prevP.title})`);
-    if (prevNote.summary.trim()) L.push(`الخلاصة: ${prevNote.summary.trim()}`);
-    if (prevNote.solutions.trim()) L.push(`العوائق والحلول التي اتفقت عليها: ${prevNote.solutions.trim()}`);
+    L.push(`### ما كتبته عن الفترة السابقة (${prevP.title})`);
+    if (prevNote.summary.trim()) L.push(`- الخلاصة: ${prevNote.summary.trim()}`);
+    if (prevNote.solutions.trim()) L.push(`- العوائق والحلول التي اتفقت عليها: ${prevNote.solutions.trim()}`);
   }
   if (note && (note.summary.trim() || note.solutions.trim())) {
-    L.push(''); L.push('## ملاحظاتي على هذه الفترة حتى الآن');
-    if (note.summary.trim()) L.push(note.summary.trim());
-    if (note.solutions.trim()) L.push(note.solutions.trim());
+    L.push('### ملاحظاتي على هذه الفترة');
+    if (note.summary.trim()) L.push(`- الخلاصة: ${note.summary.trim()}`);
+    if (note.solutions.trim()) L.push(`- العوائق وحلولها: ${note.solutions.trim()}`);
   }
-  if (repUi.journal) {
+  if (journal) {
     const js = S.journal.filter((j) => j.date >= P.start && j.date <= P.last && !jEmpty(j)).sort((a, b) => a.date.localeCompare(b.date));
-    if (js.length) { L.push(''); L.push('## يومياتي'); for (const j of js) L.push(`- ${j.date}${j.mood ? ` (${MOODS[j.mood - 1][1] || ''})` : ''}: ${jText(j).replace(/\s+/g, ' ').trim()}`); }
+    if (js.length) { L.push('### يومياتي'); for (const j of js) L.push(`- ${j.date}${j.mood ? ` (${MOODS[j.mood - 1][1] || ''})` : ''}: ${jText(j).replace(/\s+/g, ' ').trim()}`); }
   }
-  return L.join('\n');
+  return L;
+}
+function reportExport(P) {
+  const prevNote = reportNote(periodOf(P.type, P.prev).id);
+  const next = { week: 'الأسبوع القادم', month: 'الشهر القادم', year: 'العام القادم' }[P.type];
+  return [`# تقرير ${PERIOD_KIND[P.type]} من تطبيق «الوعي الشخصي»`, '', ...reportAsk(P.word, next, prevNote && prevNote.solutions.trim()), '', `## ${P.title}`, ...reportBody(P, repUi.journal)].join('\n');
+}
+
+// ---------- Word: one period, or chosen months together, ready for an outside AI ----------
+function monthsWithData() {
+  const t0 = today();
+  const ds = [
+    ...S.tasks.map((t) => dayOfTs(t.created)), ...S.journal.map((j) => j.date), ...S.finTx.map((t) => t.d),
+    ...S.sessions.map(sessionDay), ...S.books.flatMap((b) => b.log.map((e) => e.d)),
+  ].filter((d) => d && d <= t0).sort();
+  const first = (ds[0] || t0).slice(0, 7), out = [];
+  for (let m = t0.slice(0, 7); m >= first && out.length < 36; m = iso(new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 2, 1)).slice(0, 7)) out.push(m);
+  return out;
+}
+function reportDocx(periods) {
+  if (!periods.length) return;
+  const ar = (x) => digitsOut(String(x));
+  const many = periods.length > 1;
+  const P0 = periods[0];
+  const title = many ? `تقارير ${periods.map((P) => P.title).join('، ')}` : `تقرير ${P0.title}`;
+  const next = many ? 'الشهر القادم' : { week: 'الأسبوع القادم', month: 'الشهر القادم', year: 'العام القادم' }[P0.type];
+  const word = many ? 'هذه الأشهر، مع المقارنة بينها شهراً شهراً' : P0.word;
+  const lines = [`# ${title}`, `أُنشئ من تطبيق «الوعي الشخصي» في ${fmtDate(today(), { day: 'numeric', month: 'long', year: 'numeric' })}`, ...reportAsk(word, next, periods.some((P) => { const n = reportNote(periodOf(P.type, P.prev).id); return n && n.solutions.trim(); }))];
+  periods.forEach((P) => { lines.push(`## ${P.title}`); lines.push(...reportBody(P, repUi.journal)); });
+  const paras = [];
+  let firstPeriod = true;
+  for (const l of lines) {
+    if (!l) continue;
+    if (l.startsWith('# ')) paras.push({ style: 'Title', text: ar(l.slice(2)) });
+    else if (l.startsWith('## ')) {
+      const isPeriod = periods.some((P) => l === `## ${P.title}`);
+      paras.push({ style: 'Heading1', text: ar(l.slice(3)), pageBreak: isPeriod && !firstPeriod && many });
+      if (isPeriod) firstPeriod = false;
+    } else if (l.startsWith('### ')) paras.push({ style: 'Question', text: ar(l.slice(4)) });
+    else if (l.startsWith('- ')) paras.push({ style: 'Tight', text: ar(`– ${l.slice(2)}`) });
+    else if (l === 'التفاصيل:' || l === 'الإجمالي:') paras.push({ style: 'Tight', runs: [{ text: l, bold: true }] });
+    else paras.push({ style: 'Meta', text: ar(l) });
+  }
+  const blob = Docx.build(paras, { title });
+  const name = many ? `mahami-reports-${periods[periods.length - 1].key}_${P0.key}` : `mahami-report-${P0.type}-${P0.key}`;
+  downloadBlob(blob, `${name}.docx`);
+  toast('جُهّز ملف الوورد. تجده في التنزيلات.');
 }
 
 async function reportAI(btn) {
@@ -208,6 +258,9 @@ document.addEventListener('click', async (e) => {
   if (a === 'rep-move') { const P = periodOf(repUi.type, b.dataset.v); if (!P.future) { repUi.key = P.key; render(); } }
   if (a === 'rep-ai') reportAI(b);
   if (a === 'rep-image') reportImage();
+  if (a === 'rep-word') reportDocx([periodOf(repUi.type, repUi.key)]);
+  if (a === 'rep-month') { const m = b.dataset.v; repUi.months = repUi.months.includes(m) ? repUi.months.filter((x) => x !== m) : [...repUi.months, m]; render(); }
+  if (a === 'rep-months-word') reportDocx(repUi.months.slice().sort().map((m) => periodOf('month', m)));
   if (a === 'rep-copy') {
     const text = reportExport(periodOf(repUi.type, repUi.key));
     try { await navigator.clipboard.writeText(text); toast('نُسخت. الصقها في برنامج الذكاء الاصطناعي'); }

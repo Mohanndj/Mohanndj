@@ -276,7 +276,7 @@ document.addEventListener('change', async (e) => {
       const blob = await shrinkImage(f);
       const cv = curCV(); const id = uid();
       await Media.put(id, blob);
-      if (cv.photo) Media.del(cv.photo).catch(() => {});
+      dropCvPhoto(cv);
       cv.photo = id; save(); render();
     } catch { toast('تعذّر فتح الصورة.'); }
     return;
@@ -296,6 +296,8 @@ document.addEventListener('change', async (e) => {
   save();
   if (el.type === 'checkbox' || el.tagName === 'SELECT' || k === 'title') render();
 });
+// a copy shares its original's photo: the stored image goes only when no other version uses it
+function dropCvPhoto(cv) { if (cv.photo && !S.cvs.some((c) => c !== cv && c.photo === cv.photo)) Media.del(cv.photo).catch(() => {}); }
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="cv"]');
   if (!el) return;
@@ -317,11 +319,11 @@ document.addEventListener('click', (e) => {
     case 'cv-set': cv[el.dataset.k] = v; done(); break;
     case 'cv-del': {
       if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'تأكيد حذف النسخة'; break; }
-      if (cv.photo) Media.del(cv.photo).catch(() => {});
+      dropCvPhoto(cv);
       S.cvs = S.cvs.filter((c) => c.id !== cv.id); cvUi.id = ''; save(); render(); toast('حُذفت النسخة');
       break;
     }
-    case 'cv-photo-del': Media.del(cv.photo).catch(() => {}); cv.photo = ''; done(); break;
+    case 'cv-photo-del': dropCvPhoto(cv); cv.photo = ''; done(); break;
     case 'cv-open': cvUi.open = cvUi.open === v ? '' : v; render(); break;
     case 'cvs-move': move(cv.sections, v, Number(el.dataset.d)); done(); break;
     case 'cvs-hide': { const s = getSec(cv, v); s.hidden = !s.hidden; done(); break; }
