@@ -3,7 +3,7 @@
 // same version; the cache is only used when there is no connection.
 importScripts('timer-shared.js');
 
-const VERSION = 80;
+const VERSION = 81;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -132,6 +132,12 @@ async function timerAction(n, action) {
   for (const client of all) client.postMessage({ type: 'timer-pending' });
 }
 
+// swiping an alarm notification away answers it: the app stops ringing and repeating it
+self.addEventListener('notificationclose', (e) => {
+  const { id, key } = e.notification.data || {};
+  if (!id || !key) return;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((all) => { for (const c of all) c.postMessage({ type: 'alarm-action', action: 'dismiss', id, key }); }));
+});
 self.addEventListener('notificationclick', (e) => {
   if (e.notification.tag === 'timer' && e.action) {
     e.waitUntil(timerAction(e.notification, e.action));

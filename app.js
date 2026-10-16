@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 80;
+const APP_VERSION = 81;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1089,6 +1089,8 @@ function viewSettings() {
       <button type="button" class="ghost" data-action="test-alarm">تجربة المنبه</button>
     </div>
     <label class="switch"><input type="checkbox" id="setSound"${st.sound ? ' checked' : ''}><span>صوت التنبيه داخل التطبيق</span></label>
+    <div class="field"><span>صوت المنبه (يتكرر ${RING_MIN} دقائق حتى ترد عليه)</span>
+      <div class="btn-row" style="flex-wrap:nowrap"><select id="setTone" style="flex:1;min-width:0">${Object.entries(TONES).map(([v, [l]]) => `<option value="${v}"${(st.tone || 'chime') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="ghost sm" data-action="tone-try">جرّب</button></div></div>
     <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
   <section class="panel">
@@ -1673,24 +1675,52 @@ function unlockAudio() {
 }
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
 
-function beep() {
-  if (!S.settings.sound || !actx) return;
+// alarm tones, made on the phone itself (no sound files): [frequency, start s, length s, volume, wave]
+const TONES = {
+  chime: ['جرس مزدوج (الأصلي)', [[880, 0, 0.35, 0.35], [660, 0.45, 0.35, 0.35], [880, 0.9, 0.35, 0.35], [660, 1.35, 0.35, 0.35]]],
+  bell: ['ناقوس', [[1046, 0, 1.4, 0.4], [2093, 0, 0.8, 0.12], [1046, 1.5, 1.4, 0.4], [2093, 1.5, 0.8, 0.12]]],
+  soft: ['نغمة هادئة', [[523, 0, 0.5, 0.25, 'triangle'], [659, 0.4, 0.5, 0.25, 'triangle'], [784, 0.8, 0.9, 0.25, 'triangle']]],
+  rising: ['متصاعد', [[523, 0, 0.3, 0.15], [659, 0.35, 0.3, 0.22], [784, 0.7, 0.3, 0.3], [1046, 1.05, 0.5, 0.4]]],
+  fast: ['رنين سريع', [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [1000, i * 0.2 + (i > 3 ? 0.4 : 0), 0.12, 0.35, 'square'])],
+};
+function beep(tone) {
+  if (!actx || (!tone && !S.settings.sound)) return;
   try {
     const t0 = actx.currentTime;
-    for (let i = 0; i < 4; i++) {
+    for (const [f, at, len, vol, wave] of (TONES[tone || S.settings.tone] || TONES.chime)[1]) {
       const o = actx.createOscillator();
       const g = actx.createGain();
-      o.type = 'sine';
-      o.frequency.value = i % 2 ? 660 : 880;
-      const s = t0 + i * 0.45;
+      o.type = wave || 'sine';
+      o.frequency.value = f;
+      const s = t0 + at;
       g.gain.setValueAtTime(0.0001, s);
-      g.gain.exponentialRampToValueAtTime(0.35, s + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.35);
+      g.gain.exponentialRampToValueAtTime(vol, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + len);
       o.connect(g).connect(actx.destination);
       o.start(s);
-      o.stop(s + 0.4);
+      o.stop(s + len + 0.05);
     }
   } catch {}
+}
+
+// an alarm nobody answered keeps ringing for five minutes: the tone every few seconds, and its
+// notification again every minute while the app is out of sight, until «تمت» or «غفوة» or closing it
+const RING_MIN = 5;
+let ringLoop = null;
+function keepRinging() {
+  if (ringLoop) return;
+  const started = Date.now();
+  let lastNote = Date.now();
+  ringLoop = setInterval(() => {
+    const cur = alarmQueue[0];
+    if (!cur || Date.now() - started > RING_MIN * 60000) { clearInterval(ringLoop); ringLoop = null; return; }
+    beep();
+    if (Date.now() - lastNote >= 60000 && document.visibilityState !== 'visible') {
+      lastNote = Date.now();
+      const t = getTask(cur.id);
+      if (t) systemNotify(t.title, alarmBody(t, cur.d, cur.off), cur.key, t.id);
+    }
+  }, 4000);
 }
 
 async function ensureNotifPermission() {
@@ -1732,6 +1762,7 @@ function ring(t, key, d, off) {
   alarmQueue.push({ id: t.id, key, d, off });
   showAlarm();
   beep();
+  keepRinging();
   try { if (navigator.vibrate && navigator.userActivation?.hasBeenActive) navigator.vibrate([300, 150, 300]); } catch {}
   if (document.visibilityState !== 'visible') systemNotify(t.title, alarmBody(t, d, off), key, t.id);
 }
@@ -2347,11 +2378,13 @@ document.addEventListener('click', (e) => {
     case 'geo': useLocation(); break;
     case 'notif': ensureNotifPermission(); break;
     case 'notif-timer': ensureNotifPermission().then(() => { timerNotify(); render(); }); break;
+    case 'tone-try': unlockAudio(); beep(($('setTone') || {}).value || 'chime'); break;
     case 'test-alarm':
       unlockAudio();
       alarmQueue.unshift({ id: '__test', key: '__test' });
       showAlarm();
       setTimeout(beep, 50);
+      keepRinging();
       systemNotify('منبه تجريبي من «الوعي الشخصي»', 'هكذا ستصلك التنبيهات', '__test', '');
       break;
     case 'alarm-done':
@@ -2412,6 +2445,7 @@ document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'sort') { ui.sort = e.target.value; render(); }
   if (id === 'setSound') { S.settings.sound = e.target.checked; save(); }
+  if (id === 'setTone') { S.settings.tone = e.target.value; save(); unlockAudio(); beep(e.target.value); }
   if (id === 'setHijri') { S.settings.hijri = e.target.checked; save(); render(); }
   if (id === 'setAskTime') { S.settings.askTime = e.target.checked; save(); toast(S.settings.askTime ? 'سأسألك عن المدة بعد الإنجاز' : 'لن أسألك عن المدة'); }
   if (id === 'setExplain') { S.settings.explain = e.target.checked; save(); applyTheme(); toast(S.settings.explain ? 'سيظهر الشرح تحت الخانات' : 'أُخفي الشرح'); }
