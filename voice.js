@@ -16,6 +16,8 @@ const Voice = (() => {
   let active = false, finishing = false, useAI = false, buffer = '', interim = '', restarts = 0;
   let sessionEl = null; // the field being dictated into, kept even if focus moves
   let hideTimer = null;
+  let said = []; // what this dictation wrote, to offer to refine it afterwards
+  let refineBtn = null, refineTimer = null, offer = null;
   let lastHeard = 0, silenceTimer = null; // stops by itself after 5 seconds of silence
   const SILENCE_MS = 5000;
 
@@ -95,6 +97,7 @@ const Voice = (() => {
   function insert(text) {
     const el = sessionEl || target;
     if (!el || !text) return;
+    if (sessionEl) said.push(text);
     if (el.isContentEditable) {
       el.focus();
       const sel = getSelection();
@@ -121,6 +124,8 @@ const Voice = (() => {
   function start() {
     if (!target) return;
     sessionEl = target;
+    said = [];
+    hideRefine();
     unlockAudio();
     const c = cfg();
     useAI = !!(c.ai && typeof AI !== 'undefined' && AI.on());
@@ -193,6 +198,7 @@ const Voice = (() => {
       const el = sessionEl;
       sessionEl = null;
       returnCaret(el);
+      offerRefine(el);
       return;
     }
     buffer = ''; interim = '';
@@ -218,9 +224,91 @@ const Voice = (() => {
     sessionEl = null;
     setBubble('');
     returnCaret(el);
+    offerRefine(el);
+  }
+
+  // ---------- «✨ نقّح ما أمليته»: after each dictation, one tap asks the AI to punctuate it and fix its
+  // spelling; what it gives replaces only the dictated words, and «أرجع» puts them back as they were
+  // replace the last place `from` is written in the field with `to` (plain fields and the notes editor)
+  function swapText(el, from, to) {
+    if (!el.isContentEditable) {
+      const i = el.value.lastIndexOf(from);
+      if (i < 0) return false;
+      el.setRangeText(to, i, i + from.length, 'end');
+    } else {
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = null, n;
+      while ((n = walk.nextNode())) if (n.nodeValue.includes(from)) node = n;
+      if (!node) return false;
+      const i = node.nodeValue.lastIndexOf(from);
+      node.nodeValue = node.nodeValue.slice(0, i) + to + node.nodeValue.slice(i + from.length);
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }
+  function hideRefine() { clearTimeout(refineTimer); if (refineBtn) refineBtn.hidden = true; offer = null; }
+  function placeRefine(el) {
+    const host = el.closest('dialog[open]') || document.body;
+    if (refineBtn.parentNode !== host) host.append(refineBtn);
+    const r = el.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const vh = vv ? vv.height + vv.offsetTop : innerHeight;
+    const below = r.bottom + 40 < vh;
+    refineBtn.style.top = `${below ? r.bottom + 4 : Math.max(6, r.top - 40)}px`;
+    refineBtn.style.right = `${Math.max(6, innerWidth - r.right)}px`;
+  }
+  function showRefine(label, onTap, ms = 30000) {
+    if (!refineBtn) {
+      refineBtn = document.createElement('button');
+      refineBtn.type = 'button';
+      refineBtn.className = 'refine-btn';
+      refineBtn.addEventListener('pointerdown', (e) => e.preventDefault()); // the field keeps the cursor
+      refineBtn.addEventListener('click', () => { if (refineBtn.onTap) refineBtn.onTap(); });
+    }
+    refineBtn.textContent = label;
+    refineBtn.onTap = onTap;
+    refineBtn.disabled = false;
+    refineBtn.hidden = false;
+    placeRefine(offer.el);
+    clearTimeout(refineTimer);
+    refineTimer = setTimeout(hideRefine, ms);
+  }
+  function offerRefine(el) {
+    const text = said.join(' ').trim();
+    said = [];
+    if (!el || !el.isConnected || !text || typeof AI === 'undefined' || !AI.on()) return;
+    offer = { el, text };
+    showRefine('✨ نقّح ما أمليته', refine);
+  }
+  async function refine() {
+    const o = offer;
+    if (!o || !o.el.isConnected) return hideRefine();
+    const el = o.el;
+    const has = (t) => (el.isContentEditable ? el.textContent : el.value).includes(t);
+    if (!has(o.text)) { toast('تغيّر النص بعد الإملاء، فلم يُنقَّح.'); return hideRefine(); }
+    refineBtn.textContent = 'جارٍ التنقيح…';
+    refineBtn.disabled = true;
+    let clean = '';
+    try {
+      clean = ((await AI.ask({
+        system: 'You correct Arabic text that was typed by voice dictation. Add punctuation marks, fix spelling mistakes (hamza, taa marbuta, alif maqsura and the like) and obvious speech-recognition slips. Keep the speaker\'s meaning, words, order and dialect; do not add or remove ideas, do not rephrase, do not translate. Return only the corrected text.',
+        effort: 'low',
+        maxTokens: 4000,
+        prompt: o.text,
+      })) || '').trim();
+    } catch { clean = ''; }
+    if (!clean || !el.isConnected || !swapText(el, o.text, clean)) { toast(clean ? 'تغيّر النص أثناء التنقيح، فلم يُستبدل.' : 'تعذّر التنقيح الآن. حاول لاحقاً.'); return hideRefine(); }
+    returnCaret(el);
+    // one tap puts back the words as they were dictated
+    offer = { el, text: clean, original: o.text };
+    showRefine('↩ أرجع النص كما أمليته', () => {
+      if (swapText(el, clean, o.text)) returnCaret(el);
+      hideRefine();
+    }, 15000);
   }
 
   document.addEventListener('focusin', (e) => {
+    if (offer && e.target !== offer.el && e.target !== refineBtn) hideRefine();
     if (active && sessionEl && e.target !== sessionEl && e.target !== btn) { stop(); return; }
     show(e.target);
   });
@@ -229,9 +317,10 @@ const Voice = (() => {
     hideTimer = setTimeout(() => { if (!eligible(document.activeElement)) hide(); }, 200);
   });
   window.addEventListener('scroll', place, true);
+  window.addEventListener('scroll', () => { if (offer && refineBtn && !refineBtn.hidden) placeRefine(offer.el); }, true);
   window.addEventListener('resize', place);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', place);
-  document.addEventListener('close', () => { if (active) stop(); hide(); }, true);
+  document.addEventListener('close', () => { if (active) stop(); hide(); hideRefine(); }, true);
 
   function settingsHTML() {
     const c = cfg();
