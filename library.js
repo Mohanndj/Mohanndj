@@ -293,10 +293,11 @@ function readingGoalHTML() {
 // its text and each written-out recording in one calm box apiece, then «يُستفاد منها» below them
 function benBody(f, max = 0) {
   const cut = (s) => esc(max ? excerpt(s, max) : s);
-  return `${f.text ? `<p class="ben-text">${cut(f.text)}</p>` : ''}${bvTexts(f).map((x) => `<p class="ben-text">${cut(x)}</p>`).join('')}${f.lesson ? `<p class="ben-lesson"><b>يُستفاد منها:</b> ${cut(f.lesson)}</p>` : ''}`;
+  return `${f.text ? `<div class="ben-text"><b class="ben-lbl">الفائدة</b>${cut(f.text)}</div>` : ''}${bvTexts(f).map((x) => `<div class="ben-text"><b class="ben-lbl">الفائدة</b>${cut(x)}</div>`).join('')}${f.lesson ? `<div class="ben-lesson"><b class="ben-lbl">يُستفاد منها</b>${cut(f.lesson)}</div>` : ''}`;
 }
 function benReadHTML(f, withBook) {
-  const body = f.text ? `<p class="ben-text">${esc(f.text)}</p>` : f.lesson ? `<p class="ben-text">${esc(f.lesson)}</p>` : '';
+  // the benefit's own text and what it teaches, each in its own clearly different box
+  const body = benBody(f);
   return `<button type="button" class="ben-read" data-action="lib-open-benefit" data-v="${f.id}">
     <span class="ben-head"><b>${esc(f.title || 'فائدة')}</b><span class="ben-tags">${[withBook ? esc(benefitBookTitle(f)) : '', f.page !== '' ? `صفحة ${f.page}` : ''].filter(Boolean).map((x) => `<small class="dbox">${x}</small>`).join('')}</span></span>${body}</button>`;
 }

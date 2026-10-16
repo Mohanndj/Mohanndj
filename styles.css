@@ -1561,8 +1561,6 @@ html:not(.show-explain) .explain { display: none !important; }
 
 /* a benefit's body (v73): its text in a calm tinted box, easy on the eye when reading many in a row */
 .ben-text { margin: 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 7%, var(--card)); color: var(--fg); line-height: 1.9; white-space: pre-line; }
-.ben-lesson { margin: 0; color: var(--muted); line-height: 1.8; }
-.ben-lesson b { color: var(--accent); font-weight: 600; }
 .ben-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ben-head small { color: var(--muted); flex: none; }
 .benefit, .bk-ben, .review-card { gap: 8px; }
@@ -1573,3 +1571,11 @@ html:not(.show-explain) .explain { display: none !important; }
 .ben-read .ben-head b { font-size: 1.05rem; }
 .ben-open { display: inline-flex; align-self: start; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: .9rem; font-weight: 600; }
 .ben-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+
+/* the benefit's text and what it teaches look different at a glance (v76) */
+.ben-text, .ben-lesson { display: grid; gap: 2px; margin: 0; padding: 10px 12px; border-radius: 10px; line-height: 1.9; white-space: pre-line; color: var(--fg); }
+.ben-text { background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.ben-lesson { background: color-mix(in srgb, var(--goal) 10%, var(--card)); border-inline-start: 3px solid var(--goal); }
+.ben-lbl { font-size: .78rem; font-weight: 700; white-space: normal; }
+.ben-text .ben-lbl { color: var(--accent); }
+.ben-lesson .ben-lbl { color: var(--goal); }
