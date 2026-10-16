@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 61;
+const APP_VERSION = 62;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1850,7 +1850,7 @@ function saveDuration() {
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action="dur-pick"]');
   if (!el) return;
-  $('durMin').value = el.dataset.v;
+  $('durMin').value = digitsOut(el.dataset.v);
   for (const c of document.querySelectorAll('.dur-chips .chip')) c.setAttribute('aria-pressed', c === el);
 });
 const trackedMs = (id) => sessionsOf(id).reduce((n, x) => n + x.ms, 0);

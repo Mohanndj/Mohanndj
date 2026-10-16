@@ -115,39 +115,55 @@ function readingSession(t, d) {
   // (a session that just finished the book can still be unticked)
   if (!b || isRepeat(t) || !t.projectId || !(scheduled(b) || t.completions[day])) return false;
   if (t.completions[day]) { delete t.completions[day]; bookAdvance(b, -b.rpages); }
-  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); askReadingNote(b); }
+  else { t.completions[day] = Date.now(); bookAdvance(b, b.rpages); toast(b.status === 'read' ? `أحسنت! أنهيت «${b.title}»` : `سُجّلت قراءة اليوم: وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`); askReadingNote(b, t, day); }
   syncReading();
   return true;
 }
 // after a reading session: one optional question, «ما أهم فكرة اليوم؟», saved to the book's benefits
-function askReadingNote(b) {
+// after a reading session, one sheet: how long it took (as after any task) and the idea of the day; both optional
+function askReadingNote(b, t, day) {
   setTimeout(() => {
     if (lsheet().open) return;
-    ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id };
-    $('libForm').innerHTML = `${sheetHead('ما أهم فكرة اليوم؟')}
-      <p class="note-text">من «${esc(b.title)}»${b.page ? ` | وصلت صفحة ${b.page}` : ''}. اكتب ما بقي في ذهنك، أو تخطَّ.</p>
-      <textarea id="rnText" rows="4" placeholder="فكرة أو فائدة أو سؤال خرجت به"></textarea>
+    const d = day || today();
+    const askTime = !!t && S.settings.askTime !== false && !sessionsOf(t.id).some((x) => sessionDay(x) === d);
+    ldraft = { kind: 'readnote', id: uid(), isNew: true, bookId: b.id, taskId: t ? t.id : '', d, askTime };
+    $('libForm').innerHTML = `${sheetHead('جلسة القراءة')}
+      <p class="note-text">«${esc(b.title)}»${b.page ? ` | وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}` : ''}. كلاهما اختياري.</p>
+      ${askTime ? `<div class="field"><span>كم استغرقت؟</span>
+        <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : 'ساعة ونصف'}</button>`).join('')}</div>
+        <input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="أو اكتب الدقائق، مثل: ٢٥" data-novoice autocomplete="off"></div>` : ''}
+      <label class="field"><span>ما أهم فكرة اليوم؟</span><textarea id="rnText" rows="4" placeholder="فكرة أو فائدة أو سؤال خرجت به"></textarea></label>
       <label class="field"><span>الصفحة</span><input type="number" id="rnPage" min="0" inputmode="numeric" value="${b.page || ''}"></label>
-      <div class="sheet-actions"><button type="submit" class="primary">احفظها في الفوائد</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
+      <div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
     showLib();
-    setTimeout(() => { const t = $('rnText'); if (t) t.focus(); }, 60);
+    if (!askTime) setTimeout(() => { const x = $('rnText'); if (x) x.focus(); }, 60);
   }, 250);
 }
 function saveReadNote() {
-  const text = $('rnText').value.trim();
-  if (!text) return true; // nothing written: same as skipping
   const b = getBook(ldraft.bookId);
-  const first = text.split(/\n|[.؟!]/)[0].trim();
-  S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: $('rnPage').value, title: excerpt(first, 60), lesson: text }));
-  save();
-  toast(`حُفظت في فوائد «${b ? b.title : 'الكتاب'}»`);
+  const said = [];
+  // the time, recorded like the timer's (a session of the book's task, counted in the stats and reports)
+  const m = ldraft.askTime && $('durMin') ? Math.round(num($('durMin').value)) : 0;
+  if (m > 0 && ldraft.taskId) {
+    // on the session's own day (a past day ticked in the calendar is recorded on that day)
+    const end = ldraft.d === today() ? Date.now() : parse(ldraft.d).getTime() + 12 * 3600000;
+    S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
+    said.push(`سُجّل ${fmtDur(m * 60000)}`);
+  }
+  const text = $('rnText').value.trim();
+  if (text) {
+    const first = text.split(/\n|[.؟!]/)[0].trim();
+    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: $('rnPage').value, title: excerpt(first, 60), lesson: text }));
+    said.push(`حُفظت الفكرة في فوائد «${b ? b.title : 'الكتاب'}»`);
+  }
+  if (said.length) { save(); toast(said.join(' | ')); }
   return true;
 }
 // called by toggle() for a task tied to a book
 function readingFromTask(t, d) {
   const b = getBook(t.bookId);
   if (!b) return;
-  if (isRepeat(t)) { if (d === today()) { bookAdvance(b, t.completions[d] ? t.target : -t.target); if (t.completions[d]) askReadingNote(b); } }
+  if (isRepeat(t)) { if (d === today()) { bookAdvance(b, t.completions[d] ? t.target : -t.target); if (t.completions[d]) askReadingNote(b, t); } }
   else if (t.done && b.status !== 'read') { b.status = 'read'; b.end = b.end || today(); }
   else if (!t.done && b.status === 'read') { b.status = 'reading'; b.end = ''; }
 }
