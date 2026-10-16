@@ -61,14 +61,14 @@ function viewWeek() {
         </button>
         ${isOpen ? `<div class="wk-body">
           ${tasks.length ? `<ul class="wk-tasks">${tasks.map((t) => wkTaskRow(t, d, start)).join('')}</ul>` : '<p class="note-text">لا مهام في هذا اليوم.</p>'}
-          ${goals.length ? `<p class="wk-goals">${icon('repeat')} ${goals.map((g) => esc(g.title)).join('، ')}</p>` : ''}
+          ${goals.length ? `<p class="wk-goals">${icon('repeat')} الأهداف: ${goals.map((g) => esc(g.title)).join('، ')}</p>` : ''}
           <form class="idea-quick wk-add" data-wk-add="${d}" autocomplete="off"><input type="text" name="t" placeholder="أضف مهمة ليوم ${AR_DAYS[parse(d).getDay()]}" aria-label="مهمة جديدة"><button type="submit" class="primary">${icon('plus')}</button></form>
         </div>` : ''}
       </li>`;
     }).join('')}</ul>
-    ${late.length ? `<details class="panel wk-tray wk-late"${weekUi.lateOpen !== false ? ' open' : ''} id="wkLate"><summary><b><span class="late-dot" aria-hidden="true"></span>متأخرة (${late.length})</b><small>فات موعدها ولم تُنجز: أنجزها أو انقلها إلى يوم</small></summary>
+    ${late.length ? `<details class="panel wk-tray wk-late"${weekUi.lateOpen !== false ? ' open' : ''} id="wkLate"><summary><b><span class="late-dot" aria-hidden="true"></span>متأخرة (${late.length})</b><small class="explain">فات موعدها ولم تُنجز: أنجزها أو انقلها إلى يوم</small></summary>
       <ul class="wk-tasks">${late.map((t) => wkTaskRow(t, t.due, start, true)).join('')}</ul></details>` : ''}
-    ${undated.length ? `<details class="panel wk-tray"${weekUi.trayOpen ? ' open' : ''} id="wkTray"><summary><b>بلا موعد (${undated.length})</b><small>اختر لكل مهمة يومها</small></summary>
+    ${undated.length ? `<details class="panel wk-tray"${weekUi.trayOpen ? ' open' : ''} id="wkTray"><summary><b>بلا موعد (${undated.length})</b><small class="explain">اختر لكل مهمة يومها</small></summary>
       <ul class="wk-tasks">${undated.map((t) => wkTaskRow(t, '', start)).join('')}</ul></details>` : ''}
   </section>`;
 }

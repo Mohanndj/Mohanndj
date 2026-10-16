@@ -309,7 +309,7 @@ function aiSettingsHTML() {
     <p class="note-text explain">يضيف مساعداً ذكياً (Claude) يفهم كلامك ويحوّله إلى مهام، ويقترح خطوات المهام، ويخطط المشاريع، ويحوّل الفوائد إلى أعمال، ويلخّص الملاحظات، ويكتب خلاصة تقريرك الشهري.</p>
     ${c.key ? `
       <p class="note-text status-ok">مفعّل</p>
-      <label class="field"><span>النموذج</span><select id="aiModel">${AI_MODELS.map(([v, l]) => `<option value="${v}"${(c.model || AI_MODELS[0][0]) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field"><span>نوع الذكاء الاصطناعي</span><select id="aiModel">${AI_MODELS.map(([v, l]) => `<option value="${v}"${(c.model || AI_MODELS[0][0]) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <div class="btn-row"><button type="button" class="ghost" data-action="ai-test">تجربة الاتصال</button><button type="button" class="danger" data-action="ai-remove">إزالة المفتاح</button></div>`
     : `
       <details class="howto"><summary>كيف أحصل على مفتاح؟</summary>

@@ -224,7 +224,7 @@ function hzCard(h) {
   const t = HIFZ_TYPES[h.type];
   const st = h.state === 'learn' ? '<span class="hz-st learn">أحفظه الآن</span>'
     : h.due <= today() ? '<span class="hz-st due">حان مراجعته</span>'
-      : `<span class="hz-st">${hzFirm(h) ? 'ثابت | ' : ''}المراجعة ${esc(inDays(daysBetween(today(), h.due)))}</span>`;
+      : `<span class="hz-st">${hzFirm(h) ? 'حفظه متين | ' : ''}المراجعة ${esc(inDays(daysBetween(today(), h.due)))}</span>`;
   return `<button type="button" class="hz-card t-${h.type}" data-action="hz-open" data-v="${h.id}">
     <span class="hz-emoji">${t[1]}</span>
     <span class="hz-main"><b>${esc(hzTitle(h))}</b>${h.source ? `<small>${esc(h.source)}</small>` : ''}
@@ -431,7 +431,7 @@ function renderStudy() {
     ? `<button type="button" class="primary" data-hz="learned">✓ حفظته، أدخله المراجعة</button><button type="button" class="ghost" data-hz="edit">تعديل النص</button><button type="button" class="ghost" data-hz="close">لاحقاً</button>`
     : !hzs.shown && hzs.view !== 'full'
       ? `<button type="button" class="primary" data-hz="show">أظهر النص للتحقق</button>`
-      : `<div class="hz-grades">${grades.map(([g, l]) => { const n = hzNext(h, g); return `<button type="button" class="g-${g}" data-hz="grade" data-v="${g}"><b>${l}</b><small>${esc(inDays(n.interval))}</small></button>`; }).join('')}</div>`;
+      : `<div class="hz-grades">${grades.map(([g, l]) => { const n = hzNext(h, g); return `<button type="button" class="g-${g}" data-hz="grade" data-v="${g}"><b>${l}</b><small>أراجعه ${esc(inDays(n.interval))}</small></button>`; }).join('')}</div>`;
 }
 
 document.addEventListener('click', (e) => {

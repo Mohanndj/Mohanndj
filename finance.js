@@ -181,7 +181,7 @@ function spendTodayHTML() {
   const list = all.filter((t) => !isPayTx(t)), paysToday = all.filter(isPayTx);
   return todayBlock('المصروف', 'finance', `<form class="fin-tx td-spend" id="tdSpend" autocomplete="off">
       <div class="fin-tx-row"><input type="text" inputmode="decimal" id="tdAmt" class="num-in" placeholder="دفعت كم؟" aria-label="المبلغ" data-novoice><input type="text" id="tdWhy" placeholder="لماذا؟ مثل: بنزين" aria-label="ما دفعت له"></div>
-      <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بندها في الخطة: لاحقاً' : 'لا خطة لهذا الشهر'}</option>${spendOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
+      <div class="fin-tx-row"><select id="tdRef" aria-label="بندها في الخطة"><option value="">${p ? 'بند الخطة: أحدده لاحقاً' : 'لا خطة لهذا الشهر'}</option>${spendOptions(p, '')}</select><button type="submit" class="primary">سجّل</button></div>
       <small class="td-hint" id="tdHint"></small>
     </form>
     ${list.length ? `<ul class="fin-txs td-list">${list.map((t) => `<li class="out"><span><b>−${money(t.amount)}</b> ${esc(t.item || 'بلا بند')}${t.note ? ` <small>${esc(t.note)}</small>` : ''}${t.ref ? '' : ' <small class="late">بلا بند</small>'}</span><button type="button" class="fin-del" data-action="fin-tx-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul>
@@ -208,7 +208,7 @@ function splitBar(c) {
   const base = Math.max(c.income, c.fixed + c.periodic, 1);
   const seg = (v, cls, label) => (v > 0 ? `<i class="${cls}" style="width:${(v / base) * 100}%" title="${label}"></i>` : '');
   return `<div class="fin-split" role="img" aria-label="توزيع الدخل">${seg(c.fixed, 'fx', 'الثابتة')}${seg(c.periodic, 'pd', 'الدورية')}${seg(c.left, 'sv', 'المتبقي')}</div>
-    <div class="fin-legend"><span><i class="fx"></i>الثابتة ${money(c.fixed)}</span><span><i class="pd"></i>الدورية ${money(c.periodic)}</span><span><i class="${c.left >= 0 ? 'sv' : 'neg'}"></i>${c.left >= 0 ? 'المتبقي' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
+    <div class="fin-legend"><span><i class="fx"></i>مصاريف الشهر ${money(c.fixed)}</span><span><i class="pd"></i>المصاريف الدورية ${money(c.periodic)}</span><span><i class="${c.left >= 0 ? 'sv' : 'neg'}"></i>${c.left >= 0 ? 'المتبقي' : 'العجز'} ${money(Math.abs(c.left))}</span></div>`;
 }
 
 // ---------- editable rows (like spreadsheet rows) ----------
@@ -343,7 +343,7 @@ function planSumHTML(p) {
     ${line('−', 'المدفوعات لمرة واحدة', sp.payTotal)}
     ${sp.payTotal ? `<div class="pc-sub"><div class="progress-line pc-bar"><i style="width:${payPct}%"></i></div><small><span class="ok">دُفع ${money(sp.payPaid)}</span><span>${sp.payLeft ? `باقٍ ${money(sp.payLeft)}` : 'دُفعت كلها ✓'}</span></small></div>` : ''}
     ${line('−', 'المصروفات', sp.budget)}
-    ${sp.budget || spent ? `<button type="button" class="pc-sub pc-go" data-action="fin-spend-of" data-v="${p.month}"><div class="progress-line pc-bar spend${spent > sp.budget + 0.5 ? ' over' : ''}"><i style="width:${spendPct}%"></i></div><small><span>صُرف ${money(spent)}</span><span>${sp.spendLeft >= 0 ? `باقٍ ${money(sp.spendLeft)}` : `تجاوزت ${money(-sp.spendLeft)}`} ‹</span></small></button>` : ''}
+    ${sp.budget || spent ? `<button type="button" class="pc-sub pc-go" data-action="fin-spend-of" data-v="${p.month}"><div class="progress-line pc-bar spend${spent > sp.budget + 0.5 ? ' over' : ''}"><i style="width:${spendPct}%"></i></div><small><span>صُرف ${money(spent)}</span><span>${sp.spendLeft >= 0 ? `باقٍ ${money(sp.spendLeft)}` : `تجاوزت ${money(-sp.spendLeft)}`} | التفاصيل ‹</span></small></button>` : ''}
     ${line('=', left < 0 ? 'العجز' : 'المتبقي', Math.abs(left), left < 0 ? 'pc-out neg' : 'pc-out pos')}
     ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
       <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>

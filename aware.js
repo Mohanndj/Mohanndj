@@ -125,10 +125,10 @@ function awareStats(P) {
   const onceDone = onceAll.filter((t) => t.done);
   const onceState = (t) => (t.done ? `✓ تحقق${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.target > 1 ? `${countOn(t, t0)} من ${t.target}${t.unit ? ` ${t.unit}` : ''}` : t.due && t.due < t0 ? '✗ لم يتحقق' : 'لم يتحقق بعد');
   add('goals', { title: 'الأهداف', icon: '🎯' }, 'goals', pctOf(gH, gT), [
-    gT && `أنجزت ${gH} من ${plural(gT, 'موعد واحد', 'موعدين', 'مواعيد', 'موعداً')} لأهدافك المتكررة${pc(gH, gT)}${leftTxt(sum(goals, (g) => g.left))}`,
+    gT && `أنجزت ${gH} من ${plural(gT, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} لأهدافك المتكررة${pc(gH, gT)}${leftTxt(sum(goals, (g) => g.left))}`,
     onceAll.length && `الأهداف لمرة واحدة: تحقق ${onceDone.length} من ${onceAll.length}`,
   ], [
-    ...goals.map((g) => `«${g.t.title}»: ${g.hit} من ${g.total}${pc(g.hit, g.total)}${leftTxt(g.left)}`),
+    ...goals.map((g) => `«${g.t.title}»: ${g.hit} من ${g.total} مرات${pc(g.hit, g.total)}${leftTxt(g.left)}`),
     ...onceAll.map((t) => `«${t.title}»${t.due ? ` (موعده ${dS(t.due)})` : ''}: ${onceState(t)}`),
   ]);
 
@@ -136,8 +136,8 @@ function awareStats(P) {
   const habits = S.tasks.filter((t) => isHabit(t)).map((t) => ({ t, ...goalRun(t, P) })).filter((h) => h.total);
   const hT = sum(habits, (h) => h.total), hH = oneDec(sum(habits, (h) => h.hit));
   add('habits', { title: 'بناء العادات', icon: '🌱' }, 'goals', pctOf(hH, hT), [
-    hT && `أدّيت ${hH} من ${plural(hT, 'موعد واحد', 'موعدين', 'مواعيد', 'موعداً')} لعاداتك${pc(hH, hT)}${leftTxt(sum(habits, (h) => h.left))}`,
-  ], habits.map((h) => `«${h.t.title}»: ${h.hit} من ${h.total}${pc(h.hit, h.total)} | قوتها ${habitStats(h.t, last).strength}٪`));
+    hT && `أدّيت ${hH} من ${plural(hT, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} لعاداتك${pc(hH, hT)}${leftTxt(sum(habits, (h) => h.left))}`,
+  ], habits.map((h) => `«${h.t.title}»: ${h.hit} من ${h.total} مرات${pc(h.hit, h.total)} | قوتها ${habitStats(h.t, last).strength}٪`));
 
   // 🚭 عادات أتركها: clean days over the days it was being left in the period
   const qScores = [], qDetail = [];
@@ -379,13 +379,13 @@ function awareReportHTML(P, prevStats) {
   const pace = P.current ? Math.max(1, pctOf(P.days.length, P.all.length)) : 100;
   const color = (s) => (s == null ? '' : s >= pace * 0.75 ? 'var(--low)' : s >= pace * 0.45 ? 'var(--mid)' : 'var(--high)');
   const prevOf = (k) => (prevStats ? (prevStats.aspects.find((a) => a.key === k) || {}).score : null);
-  const trend = (now, before) => (P.current || now == null || before == null ? '' : now > before ? ` <small class="ok">▲${now - before}</small>` : now < before ? ` <small class="late">▼${before - now}</small>` : '');
+  const trend = (now, before) => (P.current || now == null || before == null ? '' : now > before ? ` <small class="ok">▲ ${now - before} عن السابق</small>` : now < before ? ` <small class="late">▼ ${before - now} عن السابق</small>` : '');
   const best = aspects.filter((a) => a.score != null).sort((a, b) => b.score - a.score);
   return `<section class="panel aware">
     <h2>التقدم الشامل</h2>
     <p class="note-text explain">النسبة تقدّمك: ما أنجزته من كل المطلوب في هذا ${P.word} كله، فكل مرة مطلوبة لها حصة متساوية (٣ جلسات في الأسبوع: كل جلسة ثلث). لذلك تبدأ صغيرة أول ${P.word} وتكبر مع كل إنجاز. الجانب الذي لا يُعدّ (كالمالية) يظهر بحقائقه دون نسبة. في كل جانب: التفاصيل أولاً ثم الإجمالي.</p>
     ${overall != null ? `<div class="aware-top"><div class="ring" style="--p:${overall}"><span>${overall}%</span></div>
-      <div><b>مؤشر التقدم الشامل${trend(overall, prevStats && prevStats.overall)}</b><small>${P.current ? `مضى ${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')} من ${all.length} (${pctOf(P.days.length, all.length)}٪ من ${P.word})` : ''}${best.length > 1 && best[0].score > best[best.length - 1].score ? `${P.current ? '<br>' : ''}الأكثر تقدماً: ${esc(best[0].title)} | الأقل: ${esc(best[best.length - 1].title)}` : ''}</small></div></div>` : ''}
+      <div><b>تقدّمك العام${trend(overall, prevStats && prevStats.overall)}</b><small>${P.current ? `مضى ${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')} من ${all.length} (${pctOf(P.days.length, all.length)}٪ من ${P.word})` : ''}${best.length > 1 && best[0].score > best[best.length - 1].score ? `${P.current ? '<br>' : ''}الأكثر تقدماً: ${esc(best[0].title)} | الأقل: ${esc(best[best.length - 1].title)}` : ''}</small></div></div>` : ''}
     <div class="aware-grid">${aspects.map((a) => `<div class="aware-card">
       <button type="button" class="aw-head" data-tab="${a.tab}"><b>${esc(a.icon)} ${esc(a.title)}</b>${a.score != null ? `<b style="color:${color(a.score)}">${a.score}%${trend(a.score, prevOf(a.key))}</b>` : ''}</button>
       ${a.score != null ? `<span class="progress-line"><i style="width:${a.score}%;background:${color(a.score)}"></i></span>` : ''}

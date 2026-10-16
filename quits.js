@@ -44,15 +44,15 @@ function quitCard(q) {
   if (st.weekdays.length && st.weekdays[0][1] >= 2) pat.push(`وأكثر يوم: ${st.weekdays[0][0]}`);
   return `<li class="quit-card">
     <div class="quit-top">
-      <div class="quit-count"><b>${st.days}</b><small>${st.days === 1 ? 'يوم' : st.days === 2 ? 'يومان' : st.days >= 3 && st.days <= 10 ? 'أيام' : 'يوماً'}</small></div>
+      <div class="quit-count"><b>${st.days || 'صفر'}</b><small>${st.days === 1 ? 'يوم' : st.days === 2 ? 'يومان' : st.days >= 3 && st.days <= 10 ? 'أيام' : 'يوم'}</small></div>
       <button type="button" class="t-main" data-action="quit-open" data-v="${q.id}">
         <span class="t-title">${esc(q.title)}</span>
-        <span class="meta"><span>${st.days ? `${st.days < 3 && st.hours ? `و${st.hours} ساعة ` : ''}دون أن تعود إليها` : `منذ ${st.hours} ساعة`}</span><span>أطول مدة: ${daysWord(st.bestDays)}</span>${st.slips ? `<span>${st.slips} ${st.slips === 1 ? 'زلّة' : st.slips === 2 ? 'زلّتان' : 'زلّات'}</span>` : ''}</span>
+        <span class="meta"><span>${st.days ? `${st.days < 3 && st.hours ? `و${st.hours} ساعة ` : ''}دون أن تعود إليها` : st.hours ? `منذ ${st.hours} ساعة` : 'بدأت الآن'}</span>${st.bestDays ? `<span>أطول مدة: ${daysWord(st.bestDays)}</span>` : ''}${st.slips ? `<span>${st.slips} ${st.slips === 1 ? 'زلّة' : st.slips === 2 ? 'زلّتان' : 'زلّات'}</span>` : ''}</span>
       </button>
-      <button type="button" class="ghost quit-slip" data-action="quit-slip" data-v="${q.id}">زلّة</button>
+      <button type="button" class="ghost quit-slip" data-action="quit-slip" data-v="${q.id}">زللت</button>
     </div>
     <div class="habit-journey">
-      <div class="row-between"><small>الهدف التالي: ${daysWord(st.next)}</small><small>${st.pct}%</small></div>
+      <div class="row-between"><small>الهدف التالي: ${daysWord(st.next)}</small><small>قطعت ${st.pct}%</small></div>
       <div class="progress-line"><i style="width:${st.pct}%"></i></div>
     </div>
     ${q.why ? `<p class="note-text">«${esc(q.why)}»</p>` : ''}

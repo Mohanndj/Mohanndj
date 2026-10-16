@@ -58,12 +58,12 @@ function viewReport() {
   </div>
   <div class="report" id="report">
     <div class="tiles">
-      ${tile(st.tasks, 'مهمة منجزة')}${tile(st.goalDays, 'مرة التزام بهدف')}${tile(st.habitDays, 'مرة أدّيت عادة')}${tile(st.readings, 'جلسة قراءة')}
-      ${tile(st.pages, 'صفحة قرأتها')}${tile(st.books, 'كتاب أنهيته')}${tile(st.focusMs ? fmtDur(st.focusMs) : '٠', 'وقت التركيز')}${tile(st.activeDays, `يوم نشط من ${P.days.length}`)}
+      ${tile(st.tasks, 'مهمة منجزة')}${tile(st.goalDays, 'مرة أنجزت فيها هدفاً')}${tile(st.habitDays, 'مرة أدّيت عادة')}${tile(st.readings, 'جلسة قراءة')}
+      ${tile(st.pages, 'صفحة قرأتها')}${tile(st.books, 'كتاب أنهيته')}${tile(st.focusMs ? fmtDur(st.focusMs) : '٠', 'وقت التركيز')}${tile(st.activeDays, `يوم أنجزت فيه شيئاً من ${P.days.length}`)}
     </div>
     ${awareReportHTML(P, prevStats)}
     ${st.best && st.best[1] > 1 ? `<p class="note-text">أنشط أيامك: <b>${esc(fmtDate(st.best[0], { weekday: 'long', day: 'numeric', month: 'long' }))}</b> بـ ${st.best[1]} إنجازات.</p>` : ''}
-    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%${p.doneIn ? ` | +${p.doneIn}` : ''}`, p.progress, p.color)).join('')}</ul></section>` : ''}
+    ${st.projects.length ? `<section class="panel"><h2>المشاريع</h2><ul class="hbars">${st.projects.map((p) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${p.progress}%${p.doneIn ? ` | أنجزت ${plural(p.doneIn, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')}` : ''}`, p.progress, p.color)).join('')}</ul></section>` : ''}
     ${prevNote && prevNote.solutions.trim() ? `<section class="panel rep-prev"><h2>حلول اتفقت عليها في ${esc(prevP.title)}</h2><div class="ai-text">${esc(prevNote.solutions).replace(/\n/g, '<br>')}</div><p class="note-text">قارنها بدرجات هذا ${P.word}: هل نفعت؟</p></section>` : ''}
     <section class="panel rep-notes">
       <h2>${icon('spark')} خلاصاتي لهذا ${P.word}</h2>
@@ -108,7 +108,7 @@ function reportBody(P, journal) {
   const L = [];
   L.push(`الفترة: ${P.title} (${P.sub})${P.current ? '، وهي لم تنتهِ بعد: البيانات حتى اليوم' : ''}`);
   L.push(`من ${P.start} إلى ${P.last} (${plural(P.days.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')}${P.current ? ` من ${P.all.length}` : ''})`);
-  L.push(`مؤشر التقدم الشامل: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
+  L.push(`تقدّمك العام: ${S1.overall != null ? `${S1.overall}٪` : 'غير متاح'}${S0.overall != null ? ` (الفترة السابقة ${S0.overall}٪)` : ''}`);
   L.push(`أرقام عامة: ${st.tasks} مهمة منجزة | ${st.goalDays} مرة التزام بهدف | ${st.habitDays} مرة أداء عادة | ${st.readings} جلسة قراءة | ${st.pages} صفحة | ${st.books} كتاب أُنهي | ${st.benefits} فائدة | ${st.steps} خطوة | تركيز ${Math.round(st.focusMs / 60000)} دقيقة | ${st.activeDays} يوماً نشطاً من ${P.days.length}`);
   for (const a of S1.aspects) {
     const before = (S0.aspects.find((x) => x.key === a.key) || {}).score;

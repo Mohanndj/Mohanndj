@@ -62,7 +62,7 @@ function bookPace(b) {
   const rate = days >= 1 && gained > 0 ? gained / days : 0;
   return { pct, left, rate, eta: rate > 0 ? Math.ceil(left / rate) : null };
 }
-const paceLine = (pc) => (pc.eta == null ? 'سجّل صفحتك في الأيام القادمة ليُقدَّر موعد إنهائه' : pc.byPlan ? `بجدول قراءتك تنهيه ${pc.eta ? afterDays(pc.eta) : 'اليوم'}` : `بمعدّلك (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}`);
+const paceLine = (pc) => (pc.eta == null ? 'سجّل صفحتك في الأيام القادمة ليُقدَّر موعد إنهائه' : pc.byPlan ? `بجدول قراءتك تنهيه ${pc.eta ? afterDays(pc.eta) : 'اليوم'}` : `بسرعتك الحالية (${Math.round(pc.rate * 10) / 10} صفحة يومياً) تنهيه ${afterDays(pc.eta)}`);
 
 // yearly reading goal progress
 function readingGoalState() {
@@ -108,11 +108,11 @@ function dailyBenefitHTML() {
   return `<div class="review-card">
     <small>${icon('bulb')} فائدة اليوم للمراجعة</small>
     <strong>${esc(f.title || 'فائدة')}</strong>
-    <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | ص ${f.page}` : ''}</span>
+    <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 240))}</p>` : ''}
     <div class="btn-row">
       <button type="button" class="primary" data-action="lib-reviewed" data-v="${f.id}">${icon('check')} راجعتها</button>
-      ${action ? `<button type="button" class="ghost" data-action="open" data-id="${action.id}">عرض العمل المرتبط</button>` : `<button type="button" class="ghost" data-action="lib-to-action" data-v="${f.id}">حوّلها إلى عمل</button>`}
+      ${action ? `<button type="button" class="ghost" data-action="open" data-id="${action.id}">عرض العمل المرتبط</button>` : `<button type="button" class="ghost" data-action="lib-to-action" data-v="${f.id}">اجعلها مهمة</button>`}
     </div>
   </div>`;
 }
@@ -141,23 +141,24 @@ const xlsBtn = (kind) => `<button type="button" class="xls-btn" data-action="lib
 function moreTiles() {
   const readThisYear = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === today().slice(0, 4)).length;
   return [
-    ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length} فكرة مفتوحة` : 'سجّل ما يطرأ عليك فوراً'],
-    ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')} | ${jStreak() ? `سلسلة ${jStreak()}` : 'اكتب اليوم'}` : 'يوميات بقوالب ذكية'],
-    ['week', 'cal', 'التخطيط الأسبوعي', 'أسبوعك يوماً يوماً، بلا ازدحام'],
-    ['health', 'leaf', 'الصحة', S.meals.length ? `خطة طعام | ${dayTotals(mealsOf(parse(today()).getDay())).kcal} سعرة اليوم` : 'طعام أسبوعي متنوع بقيمه الغذائية'],
-    ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `${S.shop.filter((x) => x.need).length} باقٍ لم يُشطب` : 'الشراء والسفر وكل ما لا تريد نسيانه'],
-    ['finance', 'wallet', 'المالية', 'ميزانيتك وديونك وحقوقك'],
-    ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : 'سيرة مرنة تصدّرها وورد وPDF'],
-    ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `${hzDue().length} للمراجعة اليوم | ` : ''}${S.hifz.filter((h) => h.state === 'review').length} محفوظ` : 'القرآن والحديث والشعر'],
-    ['people', 'heart', 'الأحبّة', S.people.length ? `${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'} حان التواصل معه` : 'صلة الرحم والأصدقاء'],
-    ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `${decDue().length} للمراجعة | ` : ''}${S.decisions.length} قرار` : 'قرّر، ثم راجع: هل أصبت؟'],
-    ['notes', 'note', 'الملاحظات', S.memos.length ? `${S.memos.length} ملاحظة` : 'لا ملاحظات بعد'],
-    ['books', 'book', 'الكتب', S.books.length ? `${S.books.length} كتاب | قرأت ${readThisYear} هذا العام` : 'سجّل قراءاتك'],
-    ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${S.benefits.length} فائدة` : 'فوائد من قراءاتك'],
-    ['archive', 'archive', 'الأرشيف', S.archive.length ? `${S.archive.filter((a) => !a.revisitedAt).length} تنتظر رجوعك` : 'ما تجده وتريد العودة إليه'],
-    ['inspire', 'spark', 'الإلهام', S.inspire.length ? `${S.inspire.length} عبارة وصورة` : 'عبارات تحفيزية وتوكيدية وصور'],
-    ['report', 'sheet', 'التقارير', 'أسبوعي وشهري وسنوي، ونسخة كاملة لتحليلها'],
-    ['stats', 'chart', 'الإحصائيات', 'إنجازك ومشاريعك وأهدافك وقراءتك'],
+    // under each name a short fact, or nothing (never a sentence describing the page)
+    ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `لم تُنفّذ: ${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length}` : ''],
+    ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')}${jStreak() ? ` | ${daysWord(jStreak())} متتالية` : ' | لم تكتب اليوم'}` : ''],
+    ['week', 'cal', 'التخطيط الأسبوعي', ''],
+    ['health', 'leaf', 'الصحة', S.meals.length ? `سعرات اليوم: ${dayTotals(mealsOf(parse(today()).getDay())).kcal}` : ''],
+    ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `لم يُشطب: ${S.shop.filter((x) => x.need).length}` : ''],
+    ['finance', 'wallet', 'المالية', ''],
+    ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : ''],
+    ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `للمراجعة اليوم: ${hzDue().length} | ` : ''}محفوظ: ${S.hifz.filter((h) => h.state === 'review').length}` : ''],
+    ['people', 'heart', 'الأحبّة', S.people.length ? `حان التواصل: ${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'}` : ''],
+    ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `للمراجعة: ${decDue().length} | ` : ''}القرارات: ${S.decisions.length}` : ''],
+    ['notes', 'note', 'الملاحظات', S.memos.length ? `${plural(S.memos.length, 'ملاحظة واحدة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')}` : ''],
+    ['books', 'book', 'الكتب', S.books.length ? `الكتب: ${S.books.length} | قرأت هذا العام: ${readThisYear}` : ''],
+    ['benefits', 'bulb', 'الفوائد', S.benefits.length ? `${plural(S.benefits.length, 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة')}` : ''],
+    ['archive', 'archive', 'الأرشيف', S.archive.length ? `لم تعد إليها: ${S.archive.filter((a) => !a.revisitedAt).length}` : ''],
+    ['inspire', 'spark', 'الإلهام', S.inspire.length ? `عبارات وصور: ${S.inspire.length}` : ''],
+    ['report', 'sheet', 'التقارير', ''],
+    ['stats', 'chart', 'الإحصائيات', ''],
   ];
 }
 function viewMore() {
@@ -166,7 +167,7 @@ function viewMore() {
   return `
   <section class="section">
     <div class="section-head"><h2>المزيد</h2><button type="button" class="ghost sm" data-action="lay-open" data-v="more">${icon('gear')} رتّب الصفحات ولوّنها</button></div>
-    <div class="more-grid">${tiles.map(([tab, ic, name, sub]) => { const lk = lookOf(tab); return `<button type="button" class="more-tile${tab === 'stats' ? ' wide' : ''}${lk.color ? ' tinted' : ''}" data-tab="${tab}"${lk.color ? ` style="--tc:${lk.color}"` : ''}>${lk.emoji ? `<span class="tile-emoji" aria-hidden="true">${esc(lk.emoji)}</span>` : icon(ic)}<b>${esc(lk.name || name)}</b><small>${esc(sub)}</small></button>`; }).join('')}</div>
+    <div class="more-grid">${tiles.map(([tab, ic, name, sub]) => { const lk = lookOf(tab); return `<button type="button" class="more-tile${tab === 'stats' ? ' wide' : ''}${lk.color ? ' tinted' : ''}" data-tab="${tab}"${lk.color ? ` style="--tc:${lk.color}"` : ''}>${lk.emoji ? `<span class="tile-emoji" aria-hidden="true">${esc(lk.emoji)}</span>` : icon(ic)}<b>${esc(lk.name || name)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div>
   </section>
   <section class="panel">
     <h2>تصدير إلى إكسل</h2>
@@ -227,7 +228,7 @@ function bookCard(b) {
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
     ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : ''}${libUi.bookTopic ? ` ${esc(BOOK_STATUS[b.status])}` : ''}${b.status === 'reading' && scheduleLine(b) ? ` 📅 ${esc(scheduleLine(b))}` : ''}</span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
-      <span class="book-line">${pace.pct}% | ${b.page} من ${b.pages} صفحة${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بجدولك' : 'بمعدّلك'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
+      <span class="book-line">${pace.pct}% | ${b.page} من ${b.pages} صفحة${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بأيام قراءتك' : 'بسرعتك الحالية'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
     ${b.summary ? `<p>${esc(excerpt(b.summary, 160))}</p>` : ''}
     ${n ? `<span class="book-line">${icon('bulb')}${n} ${n === 1 ? 'فائدة' : n === 2 ? 'فائدتان' : 'فوائد'}</span>` : ''}
@@ -278,7 +279,7 @@ function readingGoalHTML() {
 function benefitCard(f) {
   return `<button type="button" class="benefit" data-action="lib-open-benefit" data-v="${f.id}">
     <strong>${esc(f.title || 'فائدة')}</strong>
-    <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | ص ${f.page}` : ''}</span>
+    <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 260))}</p>` : ''}
     ${f.actionId && getTask(f.actionId) ? `<span class="book-line ok">${icon('check')}تحوّلت إلى عمل: ${esc(getTask(f.actionId).title)}</span>` : ''}
   </button>`;
@@ -359,7 +360,7 @@ function openLib(kind, id, preset = {}) {
       ${bookReadingFieldsHTML(b)}
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       <div class="brv-box" id="lRvWrap">
-        <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ضعه في المراجعة المتباعدة (اختياري)</span></label>
+        <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ذكّرني باستذكاره على فترات</span></label>
         <p class="note-text explain">يذكّرك التطبيق بالعودة إليه بعد أسبوع، ثم شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
@@ -376,7 +377,7 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="6" placeholder="اكتب الفائدة وكيف تطبّقها">${esc(fx.lesson)}</textarea></label>
       ${id ? (fx.actionId && getTask(fx.actionId)
         ? `<div class="row-between"><span class="note-text">${icon('check')} تحوّلت إلى عمل: ${esc(getTask(fx.actionId).title)}</span><button type="button" class="ghost" data-action="open" data-id="${fx.actionId}">عرضه</button></div>`
-        : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">حوّلها إلى عمل</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
+        : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">اجعلها مهمة</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
   }
   const titles = { memo: ['ملاحظة جديدة', 'تعديل الملاحظة'], book: ['كتاب جديد', 'تعديل الكتاب'], benefit: ['فائدة جديدة', 'تعديل الفائدة'] };
   f.innerHTML = `
@@ -728,14 +729,14 @@ function openBookReview(id) {
     <div id="brvShow" class="brv-show" hidden>
       ${pts.length ? `<h3>ما أردت أن أتذكره</h3><ul>${pts.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${b.summary ? `<h3>فكرته</h3><p>${esc(b.summary)}</p>` : ''}
-      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>ص ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}</li>`).join('')}</ul>` : ''}
+      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}</li>`).join('')}</ul>` : ''}
       ${!pts.length && !b.summary && !fx.length ? '<p class="note-text">لم تسجّل شيئاً من هذا الكتاب بعد. أضف نقاطاً أو فوائد لتستذكرها في المرة القادمة.</p>' : ''}
       ${b.rvLog.filter((e) => e.recall).length ? `<details class="howto"><summary>ما تذكرته في المرات السابقة</summary>${b.rvLog.filter((e) => e.recall).map((e) => `<p><small>${esc(dateBoth(e.d, true))}</small><br>${esc(e.recall)}</p>`).join('')}</details>` : ''}
     </div>
     <div class="sheet-actions">
       <button type="submit" class="primary" id="brvDone" hidden>✓ استذكرته</button>
       <button type="button" class="ghost" data-action="lib-rv-later">بعد أسبوع</button>
-      <button type="button" class="ghost" data-action="lib-rv-stop">أخرجه من المراجعة</button>
+      <button type="button" class="ghost" data-action="lib-rv-stop">أوقف الاستذكار</button>
     </div>`;
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');

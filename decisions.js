@@ -55,7 +55,7 @@ function viewDecisions() {
     <div class="section-head"><h2>سجل القرارات</h2><div class="btn-row">${S.decisions.length ? xlsBtn('decisions') : ''}${addBtn('dec-new', 'قرار')}</div></div>
     ${st.n ? `<div class="j-stats"><span><b>${st.acc}%</b> نسبة الإصابة</span><span><b>${st.conf}%</b> متوسط ثقتك</span><span><b>${st.n}</b> قرار روجع</span></div>
       <p class="note-text">${st.n < 3 ? 'تتضح الصورة بعد مراجعة ثلاثة قرارات أو أكثر.' : Math.abs(st.acc - st.conf) <= 10 ? 'ثقتك تطابق نتائجك تقريباً، تقديرك لنفسك دقيق.' : st.conf > st.acc ? 'ثقتك أعلى من نتائجك: تمهّل واستشر أكثر قبل القرارات الكبيرة.' : 'نتائجك أفضل من ثقتك: ثق بحكمك أكثر.'}${st.worst ? ` أكثر قراراتك الخاطئة اتخذتها وأنت ${st.worst}.` : ''}</p>` : ''}
-    ${due.length ? `<div class="dec-due"><b>حان وقت مراجعة ${due.length === 1 ? 'قرار' : `${due.length} قرارات`}</b><small>ماذا حدث فعلاً؟ وماذا تعلّمت؟</small></div>` : ''}
+    ${due.length ? `<div class="dec-due"><b>حان وقت مراجعة ${due.length === 1 ? 'قرار' : `${due.length} قرارات`}</b></div>` : ''}
     ${S.decisions.length ? `<div class="seg" role="group" aria-label="عرض">${seg}</div>` : ''}
     ${list.length ? `<div class="book-list">${list.map(decCard).join('')}</div>`
       : S.decisions.length ? emptyHTML('لا شيء هنا', 'غيّر التصفية.')
@@ -93,7 +93,7 @@ function openDecision(id, review) {
     <label class="field"><span>ماذا أتوقع أن يحدث؟</span><textarea id="dExpect" rows="2" placeholder="كن محدداً، لتعرف لاحقاً هل أصبت">${esc(x.expect)}</textarea></label>
     <div class="field"><span>كم أنا واثق؟</span><div class="seg" id="dConf" role="group">${[50, 60, 70, 80, 90].map((c) => `<button type="button" data-action="dec-conf" data-v="${c}" aria-pressed="${x.confidence === c}">${c}%</button>`).join('')}</div></div>
     <div class="field"><span>حالتي وأنا أقرر</span><div class="seg seg-wrap" id="dState" role="group">${Object.entries(DEC_STATE).map(([k, v]) => `<button type="button" data-action="dec-state" data-v="${k}" aria-pressed="${x.state === k}">${v}</button>`).join('')}</div></div>
-    <label class="field"><span>راجعني</span><select id="dAfter">${DEC_AFTER.map(([d, l]) => `<option value="${d}"${Math.abs(after - d) < 5 ? ' selected' : ''}>${l}</option>`).join('')}${DEC_AFTER.some(([d]) => Math.abs(after - d) < 5) ? '' : `<option value="${after}" selected>${afterDays(after)}</option>`}</select></label>
+    <label class="field"><span>ذكّرني بمراجعته بعد</span><select id="dAfter">${DEC_AFTER.map(([d, l]) => `<option value="${d}"${Math.abs(after - d) < 5 ? ' selected' : ''}>${l}</option>`).join('')}${DEC_AFTER.some(([d]) => Math.abs(after - d) < 5) ? '' : `<option value="${after}" selected>${afterDays(after)}</option>`}</select></label>
     ${rv ? '</details></div>' : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">${rv && !x.reviewedAt ? 'احفظ المراجعة' : 'حفظ'}</button>

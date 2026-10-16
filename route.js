@@ -40,7 +40,7 @@ function routeSmart(text) {
 }
 function routePreviewHTML(q) {
   const tag = (s, cls = '') => `<span class="tag ${cls}">${s}</span>`;
-  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` | ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'بلا بند: تضيفه من الخطة' : 'لا خطة لهذا الشهر', 'warn')]
+  const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` | ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'لم يُربط ببند في الخطة' : 'لا خطة لهذا الشهر', 'warn')]
     : q.type === 'shop' ? [tag(`${q.list.icon} ${esc(q.list.name)}`, 'title'), ...q.names.map((n) => tag(esc(n)))]
       : [tag('💡 فكرة', 'title'), tag(esc(excerpt(q.text, 50)))];
   return `<div class="parsed">${tags.join('')}</div>`;
@@ -69,7 +69,7 @@ function smartSettingsHTML() {
       <div class="seg seg-wrap">${[['tasks', 'للمهام والأهداف فقط'], ['all', 'لكل شيء']].map(([v, l]) => `<button type="button" data-action="set-smart" data-v="${v}" aria-pressed="${mode === v}">${l}</button>`).join('')}</div>
       <small class="hint explain">«لكل شيء»: اكتب «دفعت ١٥٠ بنزين» فيُسجَّل مصروفاً في بنده، و«اشتر حليب وخبز» فيُضاف إلى مشتريات البيت، و«فكرة: …» فتُحفظ في الأفكار. وتبقى بقية خانات الإضافة كما هي.</small>
     </div>
-    <label class="switch"><input type="checkbox" id="setPin"${S.settings.pin ? ' checked' : ''}><span>إشعار دائم في شريط الإشعارات: رمز التطبيق بجانب الساعة، وفيه ما بقي لليوم</span></label>
+    <label class="switch"><input type="checkbox" id="setPin"${S.settings.pin ? ' checked' : ''}><span>إشعار دائم بما بقي لليوم</span></label>
     <small class="hint explain">إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.</small>
     <label class="field"><span>بطاقة «إغلاق اليوم» تظهر من الساعة</span>
       <select id="setCloseAt">${[[0, 'لا تُظهرها'], [18, '٦ مساءً'], [19, '٧ مساءً'], [20, '٨ مساءً'], [21, '٩ مساءً'], [22, '١٠ مساءً'], [23, '١١ مساءً']].map(([h, l]) => `<option value="${h}"${at === h ? ' selected' : ''}>${l}</option>`).join('')}</select>
@@ -94,7 +94,7 @@ function closeTodayHTML() {
   const section = (title, doneLine, pending, total, allDone = true) => {
     if (!total) return '';
     if (!pending.length) return `<div class="close-sec${allDone ? ' ok' : ''}"><b>${allDone ? '✓ ' : ''}${title}</b><small>${doneLine}</small></div>`;
-    return `<div class="close-sec"><b>${title} <small class="num">${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
+    return `<div class="close-sec"><b>${title} <small class="num">باقٍ ${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
   };
   // tasks and goals (habits have their own section)
   const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0 && !skip.includes(t.id));

@@ -42,7 +42,7 @@ function personCard(p) {
   const last = lastContact(p);
   const bd = nextBirthday(p);
   const lastTxt = last ? `آخر تواصل ${relDate(last)}${p.contacts.length ? ` (${HOW[p.contacts.find((c) => c.d === last).how][0]})` : ''}` : 'لم تسجّل تواصلاً بعد';
-  const dueTxt = due == null ? '' : due > 0 ? `<span class="late">${lateDays(due)}</span>` : due === 0 ? '<span class="late">اليوم موعد التواصل</span>' : `التالي ${afterDays(-due)}`;
+  const dueTxt = due == null ? '' : due > 0 ? `<span class="late">${lateDays(due)}</span>` : due === 0 ? '<span class="late">اليوم موعد التواصل</span>' : `التواصل القادم ${afterDays(-due)}`;
   return `<article class="ppl-card${due != null && due >= 0 ? ' due' : ''}">
     <button type="button" class="ppl-main" data-action="ppl-open" data-v="${p.id}">
       <span class="ppl-av">${esc(p.name.trim().slice(0, 1) || '؟')}</span>
@@ -68,7 +68,7 @@ function viewPeople() {
   <section class="section">
     <div class="section-head"><h2>الأحبّة</h2><div class="btn-row">${S.people.length ? xlsBtn('people') : ''}${addBtn('ppl-new', 'شخص')}</div></div>
     ${S.people.length ? `<div class="j-stats"><span><b>${S.people.length}</b> شخص</span><span><b>${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length}</b> حان التواصل</span><span><b>${month}</b> تواصل هذا الشهر</span></div>` : ''}
-    ${soon.length ? `<div class="ppl-soon">${soon.map(({ p, b }) => `<button type="button" data-action="ppl-open" data-v="${p.id}">🎂 <b>${esc(p.name)}</b> ${b.days === 0 ? 'اليوم' : `${afterDays(b.days)}`}${b.age ? ` | يتم ${b.age}` : ''}${p.gifts ? ' | 🎁 عندك أفكار هدايا' : ''}</button>`).join('')}</div>` : ''}
+    ${soon.length ? `<div class="ppl-soon">${soon.map(({ p, b }) => `<button type="button" data-action="ppl-open" data-v="${p.id}">🎂 <b>${esc(p.name)}</b> ${b.days === 0 ? 'اليوم' : `${afterDays(b.days)}`}${b.age ? ` | يكمل ${b.age} سنة` : ''}${p.gifts ? ' | 🎁 عندك أفكار هدايا' : ''}</button>`).join('')}</div>` : ''}
     ${S.people.length > 5 ? `<input type="search" id="pplSearch" placeholder="ابحث بالاسم أو الاهتمامات" aria-label="بحث" value="${esc(pplUi.q)}">` : ''}
     ${rels.length > 1 ? `<div class="chips" role="group" aria-label="الصلة"><button type="button" class="chip" data-action="ppl-rel" data-v="" aria-pressed="${!pplUi.rel}">الكل</button>${rels.map((r) => `<button type="button" class="chip" data-action="ppl-rel" data-v="${r}" aria-pressed="${pplUi.rel === r}">${REL[r]}</button>`).join('')}</div>` : ''}
     ${due.length ? `<h3 class="j-month">حان التواصل معهم</h3><div class="book-list">${due.map(personCard).join('')}</div>` : ''}

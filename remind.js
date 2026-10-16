@@ -25,16 +25,16 @@ function hifzTodayHTML() {
     else if (a < total) rows.push(tRow('🧠', `مقدار اليوم: ${p.title}`, `${unitWord(p.type, b - a)} (${planRange(p, a, b)})`, 'hz-plan-go', p.id));
   }
   const due = hzDue();
-  if (due.length) rows.push(tRow('📖', `مراجعة اليوم: ${due.length === 1 ? 'نص واحد' : due.length === 2 ? 'نصّان' : `${due.length} نصوص`}`, 'قبل أن تنساها', 'hz-review', ''));
+  if (due.length) rows.push(tRow('📖', `مراجعة اليوم: ${due.length === 1 ? 'نص واحد' : due.length === 2 ? 'نصّان' : `${due.length} نصوص`}`, '', 'hz-review', ''));
   return todayBlock('الحفظ', 'hifz', tList(rows));
 }
 
 function booksTodayHTML() {
-  return todayBlock('الكتب', 'books', tList(booksDue().map((b) => tRow('🔁', `استذكار «${b.title}»`, 'ماذا تتذكر منه؟', 'lib-book-review', b.id))));
+  return todayBlock('الكتب', 'books', tList(booksDue().map((b) => tRow('🔁', `استذكار «${b.title}»`, '', 'lib-book-review', b.id))));
 }
 
 function decisionsTodayHTML() {
-  return todayBlock('سجل القرارات', 'decisions', tList(decDue().map((x) => tRow('⚖️', `راجع: ${x.title}`, 'ماذا حدث فعلاً؟ هل أصبت؟', 'dec-open', x.id))));
+  return todayBlock('سجل القرارات', 'decisions', tList(decDue().map((x) => tRow('⚖️', `راجع قرارك: ${x.title}`, '', 'dec-open', x.id))));
 }
 
 // الأحبّة: an occasion on its day, and whoever is due to be contacted

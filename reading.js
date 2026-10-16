@@ -174,7 +174,7 @@ function askReadingNote(b, t, day) {
     $('libForm').innerHTML = `${sheetHead('جلسة القراءة')}
       <p class="note-text">«${esc(b.title)}»${past ? ` | ${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}</p>
       ${past ? `<label class="field"><span>كم صفحة قرأت في ذلك اليوم؟</span><input type="text" inputmode="numeric" id="rnRead" class="num-in" placeholder="مثل: ١٥" data-novoice autocomplete="off"><small class="hint">${where} الآن.</small></label>`
-        : `<label class="field"><span>إلى أي صفحة وصلت؟</span><input type="text" inputmode="numeric" id="rnPage" class="num-in" placeholder="${esc(digitsOut(where))}" data-novoice autocomplete="off"><small class="hint">${where}. يتقدّم الكتاب بما قرأته فعلاً.</small></label>`}
+        : `<label class="field"><span>إلى أي صفحة وصلت؟</span><input type="text" inputmode="numeric" id="rnPage" class="num-in" placeholder="${esc(digitsOut(where))}" data-novoice autocomplete="off"><small class="hint">${where}</small></label>`}
       ${askTime ? `<div class="field"><span>كم استغرقت؟</span>
         <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : 'ساعة ونصف'}</button>`).join('')}</div>
         <input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="أو اكتب الدقائق، مثل: ٢٥" data-novoice autocomplete="off"></div>` : ''}
@@ -249,7 +249,7 @@ function topicCardHTML(topic) {
   return `<div class="panel topic-card">
     <div class="row-between"><b>موضوع «${esc(topic)}»</b><small>${read} من ${books.length} مقروء</small></div>
     <div class="progress-line"><i style="width:${books.length ? Math.round((read / books.length) * 100) : 0}%"></i></div>
-    ${p ? `<p class="note-text">📚 صار مشروعاً قرائياً: كل كتاب فيه مهمة، تُنجز حين تقرؤه.</p>
+    ${p ? `<p class="note-text">📚 مشروع قرائي ✓</p>
       <div class="btn-row"><button type="button" class="primary" data-action="open-project" data-v="${p.id}">افتح المشروع</button><button type="button" class="ghost" data-action="rd-topic-off" data-v="${esc(topic)}">أوقف المشروع</button></div>`
     : `<button type="button" class="ghost" data-action="rd-topic-on" data-v="${esc(topic)}">${icon('folder')} اجعله مشروعاً قرائياً</button>`}
   </div>`;

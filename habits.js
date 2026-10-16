@@ -71,7 +71,7 @@ function checkGraduation(t) {
 
 // ---------- goals tab section ----------
 function habitMeter(st, size = 'big') {
-  return `<div class="habit-ring ${size}" style="--p:${st.strength}" role="img" aria-label="قوة العادة ${st.strength}٪"><span><b>${st.strength}%</b><small>القوة</small></span></div>`;
+  return `<div class="habit-ring ${size}" style="--p:${st.strength}" role="img" aria-label="قوة العادة ${st.strength}٪"><span><b>${st.strength}%</b><small>قوة العادة</small></span></div>`;
 }
 
 function habitCardHTML(t) {
@@ -97,22 +97,22 @@ function habitCardHTML(t) {
           <span class="t-title">${esc(t.title)}</span>
           ${h.identity ? `<span class="habit-identity">«${esc(h.identity)}»</span>` : ''}
         </button>
-        <span class="habit-stage">${esc(st.stage[0])}</span>
+        <span class="habit-stage">المرحلة: ${esc(st.stage[0])}</span>
       </div>
       ${occursToday ? checkButton(t, t0, done) : ''}
     </div>
     <div class="habit-journey">
-      <div class="row-between"><small>رحلة البناء: يوم ${dayN} من ${h.days}</small><small>سلسلة ${daysWord(st.streak)}</small></div>
+      <div class="row-between"><small>اليوم ${dayN} من ${h.days}</small><small>أيام متتالية: ${daysWord(st.streak)}</small></div>
       <div class="progress-line"><i style="width:${st.journey}%"></i></div>
     </div>
     ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
     <div class="habit-dots" aria-label="الأسبوع الماضي وهذا الأسبوع، من الأحد">${dots.join('')}</div>
     ${h.cue || h.tiny || h.reward ? `<dl class="habit-plan">
       ${h.cue ? `<div><dt>المحفّز</dt><dd>${esc(h.cue)}</dd></div>` : ''}
-      ${h.tiny ? `<div><dt>النسخة المصغرة</dt><dd>${esc(h.tiny)}</dd></div>` : ''}
+      ${h.tiny ? `<div><dt>في اليوم الصعب</dt><dd>${esc(h.tiny)}</dd></div>` : ''}
       ${h.reward ? `<div><dt>المكافأة</dt><dd>${esc(h.reward)}</dd></div>` : ''}
     </dl>` : ''}
-    <p class="note-text">${esc(st.stage[1])}</p>
+    <p class="note-text explain">${esc(st.stage[1])}</p>
   </li>`;
 }
 
@@ -122,7 +122,7 @@ function habitsSectionHTML() {
   const done = habits.filter((t) => habitStats(t).graduated);
   const full = active.length >= HABIT_MAX;
   return `<section class="section">
-    <div class="section-head"><h2>بناء العادات <small class="num">${active.length} من ${HABIT_MAX}</small></h2>
+    <div class="section-head"><h2>بناء العادات <small class="num">${active.length} من ${HABIT_MAX} كحد أقصى</small></h2>
       ${full ? '<small class="hint">أكمل عادة لتضيف غيرها</small>' : addBtn('new-habit', 'عادة')}</div>
     ${active.length ? `<ul class="list">${active.map(habitCardHTML).join('')}</ul>`
       : emptyHTML('ابنِ عادة واحدة في كل مرة', `اختر حتى ${HABIT_MAX} عادات تبنيها الآن: حدّد من تريد أن تكون، ومتى تفعلها، ونسخة صغيرة لا تتجاوز دقيقتين. يقيس التطبيق قوة العادة ورحلة بنائها.`, addBtn('new-habit', 'أول عادة'))}
@@ -186,7 +186,7 @@ function todayHabitsHTML() {
         <div class="habit-ring small" style="--p:${dayPct}"><span><b>${dayPct}%</b></span></div>
         <button type="button" class="t-main" data-action="open" data-id="${t.id}">
           <span class="t-title">${esc(t.title)}</span>
-          <span class="meta">${isCounted(t) ? `<span class="num">${countOn(t, t0)} من ${t.target}${t.unit ? ` ${esc(t.unit)}` : ''}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, t0))}</span>` : ''}${!isDone && t.habit.tiny ? `<span>الأصغر: ${esc(t.habit.tiny)}</span>` : ''}</span>
+          <span class="meta">${isCounted(t) ? `<span class="num">${countOn(t, t0)} من ${t.target}${t.unit ? ` ${esc(t.unit)}` : ''}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, t0))}</span>` : ''}${!isDone && t.habit.tiny ? `<span>في اليوم الصعب: ${esc(t.habit.tiny)}</span>` : ''}</span>
         </button>
         ${checkButton(t, t0, isDone)}
       </li>`;

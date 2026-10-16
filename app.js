@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 65;
+const APP_VERSION = 66;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -119,7 +119,7 @@ const plural = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >=
 const afterDays = (n) => (n === 1 ? 'غداً' : n === 2 ? 'بعد يومين' : `بعد ${daysWord(n)}`);
 const lateDays = (n) => (n === 2 ? 'متأخر يومين' : `متأخر ${daysWord(n)}`);
 const heldDays = (n) => (n === 2 ? 'صمدت يومين' : `صمدت ${daysWord(n)}`);
-const daysWord = (n) => (n === 0 ? '0 يوم' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
+const daysWord = (n) => (n === 0 ? 'صفر' : plural(n, 'يوم واحد', 'يومان', 'أيام', 'يوماً'));
 const minsWord = (n) => (n === 15 ? 'ربع ساعة' : n === 30 ? 'نصف ساعة' : n % 1440 === 0 ? plural(n / 1440, 'يوم', 'يومين', 'أيام', 'يوماً')
   : n % 60 === 0 ? plural(n / 60, 'ساعة', 'ساعتين', 'ساعات', 'ساعة') : plural(n, 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة'));
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
@@ -419,11 +419,11 @@ function metaHTML(t, d, opts = {}) {
     meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة | ' : ''}${esc(dueLabel(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
-  if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
-  if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}${t.subtasks.filter((x) => x.done).length}/${t.subtasks.length}</span>`);
-  if (t.notes.length) meta.push(`<span class="num">${icon('note')}${t.notes.length}</span>`);
+  if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())} من ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
+  if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}خطوات: ${t.subtasks.filter((x) => x.done).length} من ${t.subtasks.length}</span>`);
+  if (t.notes.length) meta.push(`<span class="num">${icon('note')}${plural(t.notes.length, 'ملاحظة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')}</span>`);
   const tracked = trackedMs(t.id);
-  if (tracked >= 60000) meta.push(`<span class="num">${icon('clock')}${fmtDur(tracked)}</span>`);
+  if (tracked >= 60000) meta.push(`<span class="num">${icon('clock')}استغرقت ${fmtDur(tracked)}</span>`);
   return meta.join('');
 }
 
@@ -597,7 +597,7 @@ function viewToday() {
 // ---------- view: tasks & projects ----------
 function projectCardHTML(p) {
   const st = projectStats(p.id);
-  const sub = st.total ? `${st.done}/${st.total} مهام${st.steps ? ` | ${st.stepsDone}/${st.steps} خطوات` : ''}` : 'لا مهام بعد';
+  const sub = st.total ? `المهام: ${st.done} من ${st.total}` : 'لا مهام بعد';
   return `<button type="button" class="pcard" data-action="open-project" data-v="${p.id}" style="--pc:${p.color}">
     <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
     <span class="pbar"><i style="width:${st.progress}%"></i></span>
@@ -768,7 +768,7 @@ function stepperHTML(t, d) {
   return `<div class="stepper-row">
     <div class="stepper">
       <button type="button" data-action="step" data-id="${t.id}" data-date="${d}" data-v="-1" aria-label="إنقاص">−</button>
-      <span class="val">${c} / ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>
+      <span class="val">${c} من ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>
       <button type="button" data-action="step" data-id="${t.id}" data-date="${d}" data-v="1" aria-label="زيادة">+</button>
     </div>
     <div class="progress-line"><i style="width:${pct(c, t.target)}%"></i></div>
@@ -800,8 +800,8 @@ function recurringGoalHTML(t) {
     ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
     ${notStarted ? `<p class="note-text">يبدأ ${esc(relDate(t.repeat.start))}</p>` : `
     <div class="goal-stats">
-      <span>السلسلة الحالية: <b>${daysWord(st.streak)}</b></span>
-      <span>الالتزام: <b>${st.rate}%</b> (${st.hit}/${st.total})</span>
+      <span>أيام متتالية: <b>${daysWord(st.streak)}</b></span>
+      <span>التزمت <b>${st.hit} من ${st.total}</b> (${st.rate}%)</span>
     </div>
     <div class="dots" aria-label="هذا الأسبوع من الأحد">${dots.join('')}</div>`}
   </li>`;
@@ -960,7 +960,7 @@ function viewStats() {
     <div class="tile"><b>${z(byDay[t0])}</b><span>أنجزت اليوم</span></div>
     <div class="tile"><b>${z(week)}</b><span>أنجزت هذا الأسبوع</span></div>
     <div class="tile"><b>${z(stepsWeek)}</b><span>خطوات داخل المهام هذا الأسبوع</span></div>
-    <div class="tile"><b>${z(cur)}</b><span>أيام إنجاز متتالية | أطولها ${best}</span></div>
+    <div class="tile"><b>${z(cur)}</b><span>أيام إنجاز متتالية | أطولها ${best ? daysWord(best) : 'صفر'}</span></div>
   </div>
   <section class="panel chart">
     <h2>المنجز في الأسبوع الماضي وهذا الأسبوع</h2>
@@ -985,11 +985,11 @@ function viewStats() {
   ${focusPanelHTML()}
   ${readingPanelHTML()}
   <section class="panel">
-    <h2>حسب التصنيف</h2>
+    <h2>المنجز حسب التصنيف</h2>
     ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => hbar(esc(c), n, (n / catMax) * 100)).join('')}</ul>`
       : '<p class="note-text">ستظهر هنا بعد أن تنجز أول مهمة.</p>'}
   </section>
-  <p class="note-text">لديك ${tasks.filter((t) => !t.done).length} مهام مفتوحة من أصل ${tasks.length}، و${S.projects.length} ${S.projects.length === 1 ? 'مشروع' : 'مشاريع'}.</p>`;
+  <p class="note-text">مهام لم تُنجز بعد: ${tasks.filter((t) => !t.done).length} من ${tasks.length} | المشاريع: ${S.projects.length}</p>`;
 }
 
 // ---------- view: settings ----------
@@ -1025,7 +1025,7 @@ function prayerSettingsHTML() {
       </label>
     </div>
     <div class="prayers">${Prayer.PRAYERS.map((p) => `<div>${Prayer.NAMES[p]}<b>${esc(fmtMin(pt[p]))}</b></div>`).join('')}</div>
-    <p class="note-text">الشروق ${esc(fmtMin(pt.sunrise))}. تُحسب بتوقيت جوالك، فاختر مدينة في نفس منطقتك الزمنية.</p>` : ''}
+    <p class="note-text">الشروق ${esc(fmtMin(pt.sunrise))}<span class="explain">. تُحسب بتوقيت جوالك، فاختر مدينة في نفس منطقتك الزمنية.</span></p>` : ''}
   </section>`;
 }
 
@@ -1331,7 +1331,7 @@ function renderNotes() {
 
 function renderSubs() {
   const subs = draft.subtasks;
-  $('subsCount').textContent = subs.length ? `(${subs.filter((s) => s.done).length}/${subs.length})` : '';
+  $('subsCount').textContent = subs.length ? `(${subs.filter((s) => s.done).length} من ${subs.length} منجزة)` : '';
   $('subsList').innerHTML = subs.map((s) => `
     <li class="sub${s.done ? ' done' : ''}">
       <input type="checkbox" data-action="toggle-sub" data-v="${s.id}"${s.done ? ' checked' : ''} aria-label="تمت الخطوة">
@@ -2077,7 +2077,7 @@ function viewTimer() {
   const recent = S.sessions.slice(-8).reverse();
   return `${card}
   <section class="panel">
-    <div class="section-head"><h2>وقتك اليوم</h2><b class="num">${todayMs ? fmtDur(todayMs) : '0 د'}</b></div>
+    <div class="section-head"><h2>وقتك اليوم</h2><b class="num">${todayMs ? fmtDur(todayMs) : 'صفر'}</b></div>
     ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
       : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
   </section>

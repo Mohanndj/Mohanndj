@@ -31,7 +31,7 @@ function finBillsHTML() {
   const act = S.subs.filter((s) => s.active);
   return `<section class="section">
     <div class="section-head"><h2>الاشتراكات والفواتير</h2>${addBtn('sub-new', 'اشتراك أو فاتورة')}</div>
-    ${act.length ? `<div class="fin-tiles"><span><b>${money(sum(act, subMonthly))}</b>شهرياً</span><span><b>${money(sum(act, subMonthly) * 12)}</b>سنوياً</span><span><b>${act.length}</b>نشط</span></div>` : ''}
+    ${act.length ? `<div class="fin-tiles"><span><b>${money(sum(act, subMonthly))}</b>شهرياً</span><span><b>${money(sum(act, subMonthly) * 12)}</b>سنوياً</span><span><b>${act.length}</b>اشتراكات نشطة</span></div>` : ''}
     ${list.length ? `<div class="book-list">${list.map((s) => { const n = daysBetween(today(), s.next); return `<article class="fin-card${s.active ? '' : ' cleared'}">
       <button type="button" class="hz-main" data-action="sub-open" data-v="${s.id}">
         <span class="row-between"><b>${esc(s.name)}</b><b>${money(s.amount)}</b></span>

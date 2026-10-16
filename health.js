@@ -36,10 +36,10 @@ function totalsBar(t, prof, eaten) {
   const target = prof.kcal || 0;
   const macroCal = t.protein * 4 + t.carbs * 4 + t.fat * 9 || 1;
   return `<div class="h-totals">
-    <div class="row-between"><b>🔥 ${eaten ? `أكلت ${eaten.kcal} من ` : ''}${t.kcal} سعرة${target ? ` <small>| هدفك ${target}</small>` : ''}</b>${target ? `<small class="${t.kcal > target * 1.1 ? 'late' : ''}">${Math.round((t.kcal / target) * 100)}٪</small>` : ''}</div>
+    <div class="row-between"><b>🔥 ${eaten ? `أكلت ${eaten.kcal} من ` : ''}${t.kcal} سعرة${target ? ` <small>| هدفك ${target}</small>` : ''}</b>${target ? `<small class="${t.kcal > target * 1.1 ? 'late' : ''}">${Math.round((t.kcal / target) * 100)}٪ من هدفك</small>` : ''}</div>
     ${eaten ? `<div class="progress-line"><i style="width:${t.kcal ? Math.min(100, (eaten.kcal / t.kcal) * 100) : 0}%"></i></div>` : ''}
     <div class="fin-split h-macros" role="img" aria-label="توزيع العناصر"><i class="mp" style="width:${(t.protein * 4 / macroCal) * 100}%"></i><i class="mc" style="width:${(t.carbs * 4 / macroCal) * 100}%"></i><i class="mf" style="width:${(t.fat * 9 / macroCal) * 100}%"></i></div>
-    <div class="fin-legend"><span><i class="mp"></i>بروتين ${t.protein} غ${prof.protein ? ` من ${prof.protein}` : ''}</span><span><i class="mc"></i>كربوهيدرات ${t.carbs} غ</span><span><i class="mf"></i>دهون ${t.fat} غ</span><span>ألياف ${t.fiber} غ</span></div>
+    <div class="fin-legend"><span><i class="mp"></i>بروتين ${t.protein} غرام${prof.protein ? ` من ${prof.protein}` : ''}</span><span><i class="mc"></i>كربوهيدرات ${t.carbs} غرام</span><span><i class="mf"></i>دهون ${t.fat} غرام</span><span>ألياف ${t.fiber} غرام</span></div>
   </div>`;
 }
 
