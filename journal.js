@@ -56,7 +56,7 @@ function fillPlaceholders(q, d) {
 function suggestedTpl(d = today()) {
   const h = new Date().getHours();
   const dow = parse(d).getDay();
-  const want = dow === 5 && h >= 12 ? 'week' : h < 12 ? 'morning' : h >= 17 ? 'evening' : 'any';
+  const want = dow === 6 && h >= 12 ? 'week' : h < 12 ? 'morning' : h >= 17 ? 'evening' : 'any';
   return S.jtemplates.find((t) => t.when === want) || S.jtemplates.find((t) => t.when === 'any') || S.jtemplates[0] || null;
 }
 

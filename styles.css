@@ -722,12 +722,14 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .habit-ring small { font-size: .62rem; color: var(--muted); }
 .habit-journey { display: grid; gap: 6px; }
 .habit-journey small { color: var(--muted); font-size: .8rem; }
-.habit-dots { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; }
+.habit-dots { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 4px repeat(7, minmax(0, 1fr)); gap: 4px; }
 .habit-dots i { aspect-ratio: 1; max-width: 100%; border-radius: 4px; background: var(--line); }
 .habit-dots i.hit { background: var(--accent); }
 .habit-dots i.miss { background: color-mix(in srgb, var(--high) 35%, var(--line)); }
 .habit-dots i.off { background: transparent; border: 1px dashed var(--line); }
 .habit-dots i.today { outline: 2px solid var(--fg); outline-offset: 1px; }
+.habit-dots i:nth-child(8) { grid-column-start: 9; } /* a new week starts on Sunday */
+.habit-dots i.later, .dot.later { opacity: .45; }
 .habit-plan { margin: 0; display: grid; gap: 4px; background: var(--bg); border-radius: 12px; padding: 8px 12px; font-size: .88rem; }
 .habit-plan div { display: flex; gap: 8px; }
 .habit-plan dt { color: var(--muted); min-width: 7.5em; }

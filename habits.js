@@ -81,10 +81,11 @@ function habitCardHTML(t) {
   const done = occursToday && !!t.completions[t0];
   const h = t.habit;
   const dots = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = addDays(t0, -i);
+  // last week and this week, each from Sunday to Saturday (days still to come are empty)
+  for (let i = 0; i < 14; i++) {
+    const d = addDays(weekStartOf(t0), i - 7);
     const occ = occursOn(t, d);
-    const cls = !occ ? 'off' : t.completions[d] ? 'hit' : d < t0 ? 'miss' : '';
+    const cls = d > t0 ? 'later' : !occ ? 'off' : t.completions[d] ? 'hit' : d < t0 ? 'miss' : '';
     dots.push(`<i class="${cls}${d === t0 ? ' today' : ''}" title="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'short' }))}"></i>`);
   }
   const dayN = Math.min(st.hit, h.days);
@@ -105,7 +106,7 @@ function habitCardHTML(t) {
       <div class="progress-line"><i style="width:${st.journey}%"></i></div>
     </div>
     ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
-    <div class="habit-dots" aria-label="آخر ١٤ يوماً">${dots.join('')}</div>
+    <div class="habit-dots" aria-label="الأسبوع الماضي وهذا الأسبوع، من الأحد">${dots.join('')}</div>
     ${h.cue || h.tiny || h.reward ? `<dl class="habit-plan">
       ${h.cue ? `<div><dt>المحفّز</dt><dd>${esc(h.cue)}</dd></div>` : ''}
       ${h.tiny ? `<div><dt>النسخة المصغرة</dt><dd>${esc(h.tiny)}</dd></div>` : ''}

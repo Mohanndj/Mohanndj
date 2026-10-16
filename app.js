@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 64;
+const APP_VERSION = 65;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -769,10 +769,11 @@ function recurringGoalHTML(t) {
   const done = occursToday && !!t.completions[t0];
   const st = goalStats(t);
   const dots = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = addDays(t0, -i);
+  // this week, from Sunday to Saturday (the days still to come are empty)
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(weekStartOf(t0), i);
     const occ = occursOn(t, d);
-    const cls = !occ ? 'off' : t.completions[d] ? 'hit' : d < t0 ? 'miss' : '';
+    const cls = d > t0 ? 'later' : !occ ? 'off' : t.completions[d] ? 'hit' : d < t0 ? 'miss' : '';
     dots.push(`<span class="dot ${cls}${d === t0 ? ' today' : ''}" title="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'short' }))}"><i></i>${DAY_SHORT[parse(d).getDay()].slice(0, 2)}</span>`);
   }
   const notStarted = t.repeat.start > t0;
@@ -790,7 +791,7 @@ function recurringGoalHTML(t) {
       <span>السلسلة الحالية: <b>${daysWord(st.streak)}</b></span>
       <span>الالتزام: <b>${st.rate}%</b> (${st.hit}/${st.total})</span>
     </div>
-    <div class="dots" aria-label="آخر 7 أيام">${dots.join('')}</div>`}
+    <div class="dots" aria-label="هذا الأسبوع من الأحد">${dots.join('')}</div>`}
   </li>`;
 }
 
@@ -868,8 +869,9 @@ function streaks(byDay) {
 
 function chartSVG(byDay) {
   const t0 = today();
+  // last week and this week, each from Sunday (the days still to come stay empty)
   const N = 14;
-  const days = Array.from({ length: N }, (_, i) => addDays(t0, i - (N - 1)));
+  const days = Array.from({ length: N }, (_, i) => addDays(weekStartOf(t0), i - 7));
   const counts = days.map((d) => byDay[d] || 0);
   let max = Math.max(4, ...counts);
   max = Math.ceil(max / 2) * 2;
@@ -883,7 +885,7 @@ function chartSVG(byDay) {
     parts.push(`<text class="axis" x="${W - padR + 6}" y="${y(v) + 4}" text-anchor="start">${v}</text>`);
   }
   days.forEach((d, i) => {
-    const x = padL + (N - 1 - i) * bw + gap / 2; // RTL: today on the left
+    const x = padL + (N - 1 - i) * bw + gap / 2; // RTL: Sunday of last week on the right
     const v = counts[i];
     const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${v} ${v === 1 ? 'إنجاز' : 'إنجازات'}`;
     let bar = `<rect class="zero" x="${x}" y="${y(0) - 2}" width="${w}" height="2" rx="1"/>`;
@@ -892,11 +894,12 @@ function chartSVG(byDay) {
       bar = `<path class="bar" d="M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${y(0)} Z"/>`;
     }
     parts.push(`<g class="col" data-tip="${esc(label)}"><rect class="hit" x="${x - gap / 2}" y="${padT}" width="${bw}" height="${ph + padB}"><title>${esc(label)}</title></rect>${bar}</g>`);
-    if (i === N - 1 || (N - 1 - i) % 3 === 0) {
-      parts.push(`<text class="axis" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${i === N - 1 ? 'اليوم' : parse(d).getDate()}</text>`);
+    // labels: each Sunday (a week starts), and today
+    if (d === t0 || i % 7 === 0) {
+      parts.push(`<text class="axis" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${d === t0 ? 'اليوم' : i % 7 === 0 ? `أحد ${parse(d).getDate()}` : parse(d).getDate()}</text>`);
     }
   });
-  return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في آخر 14 يوماً">${parts.join('')}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في الأسبوع الماضي وهذا الأسبوع">${parts.join('')}</svg>`;
 }
 
 const hbar = (name, value, width, color) =>
@@ -948,7 +951,7 @@ function viewStats() {
     <div class="tile"><b>${z(cur)}</b><span>أيام متتالية | الأفضل ${best}</span></div>
   </div>
   <section class="panel chart">
-    <h2>المهام والأهداف المنجزة في آخر 14 يوماً</h2>
+    <h2>المنجز في الأسبوع الماضي وهذا الأسبوع</h2>
     <div class="readout" id="readout">المس عموداً لترى تفاصيل اليوم.</div>
     ${chartSVG(byDay)}
   </section>
