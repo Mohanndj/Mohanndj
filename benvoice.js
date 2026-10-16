@@ -35,7 +35,8 @@ async function bvStart() {
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
   catch (e) { toast(e && e.name === 'NotAllowedError' ? 'اسمح للتطبيق باستخدام الميكروفون من إعدادات الجوال.' : 'تعذّر الوصول إلى الميكروفون.'); return; }
-  const rec = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+  // 32 kbit/s is plenty for speech (clear to listen to and to transcribe): about 170 KB a minute instead of about 850
+  const rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 32000 });
   const st = { rec, stream, chunks: [], started: Date.now(), type: rec.mimeType || type || 'audio/webm', draft: ldraft };
   bvRec.st = st;
   rec.ondataavailable = (e) => { if (e.data && e.data.size) st.chunks.push(e.data); };
