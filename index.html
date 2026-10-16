@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=78">
+<link rel="stylesheet" href="styles.css?v=79">
 </head>
 <body>
 <header class="top">
@@ -30,6 +30,10 @@
       <button type="button" class="icon-btn head-btn" data-action="idea-quick" aria-label="سجّل فكرة">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></svg>
         <span>فكرة</span>
+      </button>
+      <button type="button" class="icon-btn head-btn" data-action="rem-quick" aria-label="سجّل تذكيراً">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span>تذكير</span>
       </button>
       <button type="button" class="icon-btn head-btn" data-tab="timer" aria-label="المؤقت">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2M9.5 2h5M12 2v3M19 6l1.5-1.5"/></svg>
@@ -452,49 +456,49 @@
   <form id="libForm" novalidate></form>
 </dialog>
 
-<script src="timer-shared.js?v=78"></script>
-<script src="prayer.js?v=78"></script>
-<script src="nlp.js?v=78"></script>
-<script src="xlsx.js?v=78"></script>
-<script src="docx.js?v=78"></script>
-<script src="library.js?v=78"></script>
-<script src="notes.js?v=78"></script>
-<script src="inspire.js?v=78"></script>
-<script src="archive.js?v=78"></script>
-<script src="ideas.js?v=78"></script>
-<script src="journal.js?v=78"></script>
-<script src="hifz.js?v=78"></script>
-<script src="people.js?v=78"></script>
-<script src="decisions.js?v=78"></script>
-<script src="quits.js?v=78"></script>
-<script src="reminders.js?v=78"></script>
-<script src="benvoice.js?v=78"></script>
-<script src="remind.js?v=78"></script>
-<script src="xlsx-read.js?v=78"></script>
-<script src="finance.js?v=78"></script>
-<script src="cv.js?v=78"></script>
-<script src="bills.js?v=78"></script>
-<script src="health.js?v=78"></script>
-<script src="shop.js?v=78"></script>
-<script src="layout.js?v=78"></script>
-<script src="links.js?v=78"></script>
-<script src="route.js?v=78"></script>
-<script src="savings.js?v=78"></script>
-<script src="reading.js?v=78"></script>
-<script src="fines.js?v=78"></script>
-<script src="week.js?v=78"></script>
-<script src="aware.js?v=78"></script>
-<script src="sync.js?v=78"></script>
-<script src="ai.js?v=78"></script>
-<script src="habits.js?v=78"></script>
-<script src="report.js?v=78"></script>
-<script src="voice.js?v=78"></script>
-<script src="app.js?v=78"></script>
+<script src="timer-shared.js?v=79"></script>
+<script src="prayer.js?v=79"></script>
+<script src="nlp.js?v=79"></script>
+<script src="xlsx.js?v=79"></script>
+<script src="docx.js?v=79"></script>
+<script src="library.js?v=79"></script>
+<script src="notes.js?v=79"></script>
+<script src="inspire.js?v=79"></script>
+<script src="archive.js?v=79"></script>
+<script src="ideas.js?v=79"></script>
+<script src="journal.js?v=79"></script>
+<script src="hifz.js?v=79"></script>
+<script src="people.js?v=79"></script>
+<script src="decisions.js?v=79"></script>
+<script src="quits.js?v=79"></script>
+<script src="reminders.js?v=79"></script>
+<script src="benvoice.js?v=79"></script>
+<script src="remind.js?v=79"></script>
+<script src="xlsx-read.js?v=79"></script>
+<script src="finance.js?v=79"></script>
+<script src="cv.js?v=79"></script>
+<script src="bills.js?v=79"></script>
+<script src="health.js?v=79"></script>
+<script src="shop.js?v=79"></script>
+<script src="layout.js?v=79"></script>
+<script src="links.js?v=79"></script>
+<script src="route.js?v=79"></script>
+<script src="savings.js?v=79"></script>
+<script src="reading.js?v=79"></script>
+<script src="fines.js?v=79"></script>
+<script src="week.js?v=79"></script>
+<script src="aware.js?v=79"></script>
+<script src="sync.js?v=79"></script>
+<script src="ai.js?v=79"></script>
+<script src="habits.js?v=79"></script>
+<script src="report.js?v=79"></script>
+<script src="voice.js?v=79"></script>
+<script src="app.js?v=79"></script>
 <script>
   // Self-repair: if the page and its scripts come from different versions (an old offline copy),
   // clear the offline copy and reload once.
   (function () {
-    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 78 && typeof awareStats !== 'undefined' && typeof importMealPlan !== 'undefined' && typeof viewHealth !== 'undefined' && typeof viewWeek !== 'undefined' && typeof viewShop !== 'undefined' && typeof finBillsHTML !== 'undefined' && typeof openLayout !== 'undefined' && typeof normalizeList !== 'undefined' && typeof LEDGERS !== 'undefined' && typeof planForDate !== 'undefined' && typeof parseFineMsg !== 'undefined' && typeof pinNotify !== 'undefined' && typeof periodOf !== 'undefined' && typeof normalizeReport !== 'undefined' && typeof normalizeFine !== 'undefined' && typeof askReadingNote !== 'undefined' && typeof reportDocx !== 'undefined' && typeof bookAdvancePast !== 'undefined' && typeof rowRemain !== 'undefined' && typeof readingSession !== 'undefined' && typeof syncReading !== 'undefined' && typeof saveCalc !== 'undefined' && typeof syncPlanLinks !== 'undefined' && typeof routeSmart !== 'undefined' && typeof planActual !== 'undefined' && typeof projCalc !== 'undefined' && typeof finWorkbook !== 'undefined' && typeof viewFinance !== 'undefined' && typeof viewCV !== 'undefined' && typeof XlsxRead !== 'undefined' && typeof startPlan !== 'undefined' && typeof viewHifz !== 'undefined' && typeof viewPeople !== 'undefined' && typeof viewDecisions !== 'undefined' && typeof quitsSectionHTML !== 'undefined' && typeof viewReminders !== 'undefined' && typeof bvRender !== 'undefined' && typeof routeRemind !== 'undefined' && typeof hifzTodayHTML !== 'undefined' && typeof viewJournal !== 'undefined' && typeof viewIdeas !== 'undefined' && typeof Docx !== 'undefined' && typeof viewArchive !== 'undefined' && typeof Voice !== 'undefined' && typeof todayHabitsHTML !== 'undefined' && typeof habitStats !== 'undefined' && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
+    var ok = typeof APP_VERSION !== 'undefined' && APP_VERSION === 79 && typeof awareStats !== 'undefined' && typeof importMealPlan !== 'undefined' && typeof viewHealth !== 'undefined' && typeof viewWeek !== 'undefined' && typeof viewShop !== 'undefined' && typeof finBillsHTML !== 'undefined' && typeof openLayout !== 'undefined' && typeof normalizeList !== 'undefined' && typeof LEDGERS !== 'undefined' && typeof planForDate !== 'undefined' && typeof parseFineMsg !== 'undefined' && typeof pinNotify !== 'undefined' && typeof periodOf !== 'undefined' && typeof normalizeReport !== 'undefined' && typeof normalizeFine !== 'undefined' && typeof askReadingNote !== 'undefined' && typeof reportDocx !== 'undefined' && typeof bookAdvancePast !== 'undefined' && typeof rowRemain !== 'undefined' && typeof readingSession !== 'undefined' && typeof syncReading !== 'undefined' && typeof saveCalc !== 'undefined' && typeof syncPlanLinks !== 'undefined' && typeof routeSmart !== 'undefined' && typeof planActual !== 'undefined' && typeof projCalc !== 'undefined' && typeof finWorkbook !== 'undefined' && typeof viewFinance !== 'undefined' && typeof viewCV !== 'undefined' && typeof XlsxRead !== 'undefined' && typeof startPlan !== 'undefined' && typeof viewHifz !== 'undefined' && typeof viewPeople !== 'undefined' && typeof viewDecisions !== 'undefined' && typeof quitsSectionHTML !== 'undefined' && typeof viewReminders !== 'undefined' && typeof bvRender !== 'undefined' && typeof routeRemind !== 'undefined' && typeof hifzTodayHTML !== 'undefined' && typeof viewJournal !== 'undefined' && typeof viewIdeas !== 'undefined' && typeof Docx !== 'undefined' && typeof viewArchive !== 'undefined' && typeof Voice !== 'undefined' && typeof todayHabitsHTML !== 'undefined' && typeof habitStats !== 'undefined' && typeof Sync !== 'undefined' && typeof AI !== 'undefined' && typeof viewReport !== 'undefined' && typeof openMemo !== 'undefined' && typeof viewInspire !== 'undefined' && typeof TimerShared !== 'undefined' && typeof SmartParse !== 'undefined' && typeof Xlsx !== 'undefined' && typeof LibraryViews !== 'undefined';
     var tried = false;
     try { tried = sessionStorage.getItem('mahami-repair') === '24'; } catch (e) {}
     if (ok || tried) return;

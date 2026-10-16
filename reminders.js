@@ -58,10 +58,31 @@ function remindPopup(force) {
   showLib();
 }
 
+// the header's «تذكير» button: write a reminder from any page, like «فكرة»
+function openRemQuick() {
+  ldraft = { kind: 'remquick', id: 'x', isNew: true };
+  $('libForm').innerHTML = `${sheetHead('🔔 تذكير جديد')}
+    <label class="field"><span>التذكير</span><textarea id="remQ" rows="2" placeholder="مثل: أعد الكتاب لصاحبه"></textarea></label>
+    <div class="sheet-actions"><button type="submit" class="primary">احفظ التذكير</button></div>`;
+  showLib();
+  setTimeout(() => { const x = $('remQ'); if (x) x.focus(); }, 50);
+}
+function saveRemQuick() {
+  const texts = $('remQ').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!texts.length) { toast('اكتب التذكير أولاً.'); return false; }
+  for (const text of texts) S.reminders.push(normalizeReminder({ text }));
+  // just written, so just seen: the next reminder comes four hours from now
+  S.settings.remShown = Date.now();
+  save();
+  toast(`حُفظ في «${pageName('reminders')}»`);
+  return true;
+}
+
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="rem-"]');
   if (!el) return;
   const { action, v } = el.dataset;
+  if (action === 'rem-quick') { openRemQuick(); return; }
   const x = S.reminders.find((r) => r.id === v);
   if (!x) return;
   if (action === 'rem-toggle') {
