@@ -158,32 +158,50 @@ function awareStats(P) {
     qPast && `أيام بلا زلّة: ${qClean} من ${qPast}${qSlips ? ` | ${plural(qSlips, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')}` : ''}`,
   ], qDetail);
 
-  // 📖 الحفظ: scheduled sessions from the plan's start until it ended
-  let sched = 0, kept = 0, hLeft = 0;
-  const hPlans = [];
+  // 📖 الحفظ: measured in the plan's own units (verses, lines, abyat), as on the memorisation page:
+  // what was memorised in the period against the portions due on its days (never more than was left to learn)
+  const hPlans = [], byType = {};
+  let hReq = 0, hDone = 0;
+  const uw = (type, n) => (n ? unitWord(type, n) : 'صفر');
   for (const p of S.hplans) {
-    let s0 = 0, k0 = 0, l0 = 0;
+    const total = planUnits(p).length;
+    const before = sum(Object.entries(p.log).filter(([d]) => d < start), ([, n]) => Number(n) || 0);
+    let due = 0, dueLeft = 0, days = 0, daysDone = 0, done = 0;
     for (const d of all) {
-      if (p.log[d] && !p.days.includes(parse(d).getDay())) { s0++; k0++; continue; }
+      const n = Number(p.log[d]) || 0;
+      if (d <= last) { done += n; if (n) daysDone++; }
       if (d < dayOfTs(p.created) || (p.doneAt && d > p.doneAt) || !p.days.includes(parse(d).getDay())) continue;
-      s0++; if (p.log[d]) k0++; else if (d >= t0) l0++;
+      days++; due += p.portion; if (d >= t0 && !(d === t0 && n)) dueLeft += p.portion;
     }
-    sched += s0; kept += k0; hLeft += l0;
-    if (s0) hPlans.push(`«${p.title}»: ${k0} من ${plural(s0, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}${pc(k0, s0)}${leftTxt(l0)}`);
+    const req = Math.max(0, Math.min(due, total - before));
+    if (!req && !done) continue;
+    const left = Math.max(0, Math.min(dueLeft, req - done));
+    hReq += req; hDone += Math.min(done, req || done);
+    const t = byType[p.type] || (byType[p.type] = { req: 0, done: 0, left: 0 });
+    t.req += req; t.done += done; t.left += left;
+    hPlans.push(`«${p.title}»: حفظت ${uw(p.type, done)} من ${uw(p.type, req)} مقررة${pc(Math.min(done, req), req)} | في ${plural(daysDone, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}${leftTxt(left ? uw(p.type, left) : 0)}`);
   }
   const reviewsBy = S.hifz.map((h) => ({ h, n: (h.hist || []).filter(inP).length })).filter((x) => x.n);
   const reviews = sum(reviewsBy, (x) => x.n);
   const learned = S.hifz.filter((h) => inP(h.learnedAt));
-  add('hifz', pageLook('hifz', 'الحفظ', '📖'), 'hifz', pctOf(kept, sched), [
-    sched && `أتممت ${kept} من ${plural(sched, 'جلسة حفظ واحدة', 'جلستي حفظ', 'جلسات حفظ', 'جلسة حفظ')} مقررة في هذا ${P.word}${pc(kept, sched)}${leftTxt(hLeft)}`,
-    learned.length && `حفظت ${plural(learned.length, 'مقطعاً واحداً', 'مقطعين', 'مقاطع', 'مقطعاً')}`,
+  // memorised outside any plan (a text added by itself)
+  const loose = learned.filter((h) => !h.planId || !getPlan(h.planId));
+  const looseBy = {};
+  for (const h of loose) looseBy[h.type] = (looseBy[h.type] || 0) + parsePoemLen(h);
+  add('hifz', pageLook('hifz', 'الحفظ', '📖'), 'hifz', hReq ? pctOf(hDone, hReq) : null, [
+    ...Object.entries(byType).map(([type, x]) => `حفظت ${uw(type, x.done)} من ${uw(type, x.req)} مقررة في هذا ${P.word}${pc(Math.min(x.done, x.req), x.req)}${leftTxt(x.left ? uw(type, x.left) : 0)}`),
+    ...Object.entries(looseBy).map(([type, n]) => `وحفظت خارج الخطط: ${uw(type, n)}`),
     reviews && `راجعت ${plural(reviews, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
-  ], [...hPlans, ...learned.map((h) => `حفظت «${hzTitle(h)}» (${dS(h.learnedAt)})`), ...reviewsBy.map((x) => `راجعت «${hzTitle(x.h)}»: ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`)]);
+  ], [...hPlans, ...learned.map((h) => `حفظت «${hzTitle(h)}»: ${uw(h.type, parsePoemLen(h))} (${dS(h.learnedAt)})`), ...reviewsBy.map((x) => `راجعت «${hzTitle(x.h)}»: ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`)]);
 
-  // 📚 الكتب: reading sessions on their days, pages really read, finished books, benefits, recall
+  // 📚 الكتب: measured in pages, as on the books page: the pages really read in the period against the pages
+  // planned on its reading days (never more than was left of the book); sessions, finished books, benefits, recall
   const per = new Map();
-  const acc = (id) => { if (!per.has(id)) per.set(id, { s: 0, h: 0, left: 0 }); return per.get(id); };
-  for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t))) { const r = goalRun(g, P); const x = acc(g.bookId); x.s += r.total; x.h += r.hit; x.left += r.left; }
+  const acc = (id) => { if (!per.has(id)) per.set(id, { s: 0, h: 0, left: 0, plan: 0, planLeft: 0 }); return per.get(id); };
+  for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t))) {
+    const r = goalRun(g, P); const x = acc(g.bookId); x.s += r.total; x.h += r.hit; x.left += r.left;
+    for (const d of all) if (occursOn(g, d)) { x.plan += g.target; if (d >= t0 && !g.completions[d]) x.planLeft += g.target; }
+  }
   for (const t of S.tasks.filter((x) => x.bookId && !isRepeat(x) && x.projectId)) {
     const b = getBook(t.bookId); if (!b) continue;
     const x = acc(b.id);
@@ -194,20 +212,25 @@ function awareStats(P) {
     for (const d of all) {
       if (t.completions[d]) { x.s++; x.h++; continue; }
       if (!b.rdays.length || !b.rpages || d < from || !until || d > until || !b.rdays.includes(parse(d).getDay())) continue;
-      x.s++; if (d >= t0) x.left++;
+      x.s++; x.plan += b.rpages; if (d >= t0) { x.left++; x.planLeft += b.rpages; }
     }
   }
-  let rS = 0, rH = 0, rLeft = 0, pages = 0;
+  const pw = (n) => (n ? plural(n, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة') : 'صفر');
+  let rS = 0, rH = 0, pages = 0, rReq = 0, rDone = 0, rLeftP = 0;
   const bookLines = [];
   for (const b of S.books) {
-    const x = per.get(b.id) || { s: 0, h: 0, left: 0 };
+    const x = per.get(b.id) || { s: 0, h: 0, left: 0, plan: 0, planLeft: 0 };
     const pg = pagesIn(b, start, last);
     const fin = b.status === 'read' && inP(b.end);
-    rS += x.s; rH += x.h; rLeft += x.left; pages += pg;
+    // what was left of the book when the period began caps what could be asked of it
+    const leftAtStart = b.pages ? Math.max(0, b.pages - Math.max(0, (b.page || 0) - pg)) : x.plan;
+    const req = Math.min(x.plan, leftAtStart);
+    const lp = Math.max(0, Math.min(x.planLeft, req - pg));
+    rS += x.s; rH += x.h; pages += pg; rReq += req; rDone += Math.min(pg, req); rLeftP += lp;
     if (!x.s && !pg && !fin) continue;
     bookLines.push(`«${b.title}»: ${[
-      x.s && `قرأت في ${x.h} من ${plural(x.s, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}${leftTxt(x.left)}`,
-      `${pg ? `قرأت ${plural(pg, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة')}` : 'لم تسجّل صفحات'}`,
+      req ? `قرأت ${pw(pg)} من ${pw(req)} مقررة${pc(Math.min(pg, req), req)}${leftTxt(lp ? pw(lp) : 0)}` : pg ? `قرأت ${pw(pg)}` : 'لم تسجّل صفحات',
+      x.s && `الجلسات: ${x.h} من ${x.s}`,
       b.page && !fin ? `وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}` : '',
       fin && `✓ أنهيته ${dS(b.end)}`,
     ].filter(Boolean).join(' | ')}`);
@@ -217,9 +240,9 @@ function awareStats(P) {
   const recallsBy = S.books.map((b) => ({ b, es: b.rvLog.filter((e) => inP(e.d)) })).filter((x) => x.es.length);
   const recalls = sum(recallsBy, (x) => x.es.length);
   const pendingRecall = S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= end).length;
-  add('books', pageLook('books', 'الكتب', '📚'), 'books', rS + recalls + pendingRecall ? pctOf(rH + recalls, rS + recalls + pendingRecall) : null, [
-    rS && `قرأت في ${rH} من ${plural(rS, 'جلسة قراءة واحدة', 'جلستي قراءة', 'جلسات قراءة', 'جلسة قراءة')} في هذا ${P.word}${pc(rH, rS)}${leftTxt(rLeft)}`,
-    `${pages ? `قرأت ${plural(pages, 'صفحة واحدة', 'صفحتين', 'صفحات', 'صفحة')} (ما سجّلته فعلاً)` : rS ? 'لم تسجّل صفحات مقروءة' : ''}`,
+  add('books', pageLook('books', 'الكتب', '📚'), 'books', rReq ? pctOf(rDone, rReq) : null, [
+    rReq ? `قرأت ${pw(pages)} من ${pw(rReq)} مقررة في هذا ${P.word}${pc(rDone, rReq)}${leftTxt(rLeftP ? pw(rLeftP) : 0)}` : pages ? `قرأت ${pw(pages)}` : '',
+    rS && `جلسات القراءة: ${rH} من ${rS}`,
     finished.length && `أنهيت ${plural(finished.length, 'كتاباً واحداً', 'كتابين', 'كتب', 'كتاباً')}`,
     bens.length && `سجّلت ${plural(bens.length, 'فائدة واحدة', 'فائدتين', 'فوائد', 'فائدة')}`,
     recalls && `استذكرت ${plural(recalls, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
