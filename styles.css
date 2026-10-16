@@ -1463,13 +1463,15 @@ html:not(.show-explain) .explain { display: none !important; }
 .pl-sub i { font-style: normal; opacity: .5; }
 .pl-every { border: 0; background: transparent; padding: 0 0 0 2px; font: inherit; font-size: .74rem; color: var(--accent); min-width: 0; }
 .pl-tick { position: relative; flex: 0 0 auto; width: 24px; height: 24px; cursor: pointer; }
-.pl-tick input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.pl-tick input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; min-width: 0; padding: 0; opacity: 0; margin: 0; cursor: pointer; } /* sized to its 24px square: «inset: 0» let it stretch over the ✕ */
+.pl-tick { overflow: hidden; border-radius: 7px; }
 .pl-tick span { position: absolute; inset: 0; border: 2px solid color-mix(in srgb, var(--muted) 55%, transparent); border-radius: 7px; background: var(--card); transition: background .15s, border-color .15s; }
 .pl-tick input:checked + span { background: var(--low); border-color: var(--low); }
 .pl-tick input:checked + span::after { content: ''; position: absolute; inset: 4px 7px 7px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 .pl-tick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pl-tick-gap { flex: 0 0 24px; }
-.pl-del { flex: 0 0 auto; width: 26px; height: 26px; padding: 0; border-radius: 8px; color: var(--muted); opacity: .55; font-size: .8rem; background: transparent; }
+.pl-del { flex: 0 0 auto; min-width: 36px; height: 36px; margin-inline-end: -8px; padding: 0 6px; border-radius: 10px; color: var(--muted); opacity: .6; font-size: .85rem; background: transparent; white-space: nowrap; touch-action: manipulation; }
+.pl-del.armed { opacity: 1; color: #fff; background: var(--high); font-weight: 700; font-size: .78rem; }
 .pl-del:hover, .pl-del:focus-visible { opacity: 1; color: var(--high); }
 
 /* v57: the plan's top as one sum read top to bottom */
@@ -1494,4 +1496,15 @@ html:not(.show-explain) .explain { display: none !important; }
 .pl-from { margin-bottom: 8px; }
 .pl-from .pl-row { justify-content: space-between; font-size: .9rem; color: var(--muted); padding: 8px 12px; }
 .pl-from .pl-row b { color: var(--low); }
-.pl-from .pl-from-tot { background: none; color: var(--fg); font-weight: 700; }
+.pl-from .pl-from-tot { background: none; color: var(--fg); font-weight: 700; }/* v58: income on top, projects in the same calm style */
+.pl-extra { display: flex; justify-content: space-between; margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--low) 10%, var(--card)); font-size: .9rem; }
+.pl-extra b { color: var(--low); }
+.pj-list { gap: 8px; }
+.pj-list li { list-style: none; }
+.pj-row { width: 100%; text-align: inherit; font: inherit; color: var(--fg); padding: 12px 14px; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.pj-main { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.pj-main b { font-size: 1.05rem; }
+.pj-main small { color: var(--muted); font-size: .8rem; }
+.pj-amt { flex: 0 0 auto; display: grid; justify-items: end; gap: 0; }
+.pj-amt small { color: var(--muted); font-size: .72rem; }
+.pj-amt b { color: var(--low); font-size: 1.05rem; }

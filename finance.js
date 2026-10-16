@@ -299,13 +299,15 @@ function splitHTML(p, sp = planSplit(p), spendOnly = false) {
 }
 // the plan's items as one elegant list: name and amount editable in place; a one-time item has a small
 // square that turns it green when paid; a «مصروف …» item has none (its spending lives in «المصروف»)
-function planListHTML(p, list) {
-  const month = p.kind === 'month';
-  const at = (x, k) => `data-fin="plan" data-sid="${p.id}" data-list="${list}" data-row="${x.id}" data-k="${k}"`;
+function planListHTML(p, list, scope = 'plan') {
+  const isPlan = scope === 'plan';
+  const month = isPlan && p.kind === 'month';
+  const at = (x, k) => `data-fin="${scope}" data-sid="${p.id}" data-list="${list}" data-row="${x.id}" data-k="${k}"`;
+  const PH = { income: 'مصدر الدخل', items: 'البند', funding: 'من أين (مثل: حساب الحج)' };
   const rows = p[list].map((x) => {
-    const spend = list !== 'income' && spendName(x.name);
-    const tick = month && list !== 'income' && !spend;
-    const pr = list !== 'income' ? projectOfRow(x) : null;
+    const spend = isPlan && list !== 'income' && spendName(x.name);
+    const tick = (month && list !== 'income' && !spend) || (!isPlan && list === 'items');
+    const pr = isPlan && list !== 'income' ? projectOfRow(x) : null;
     const sub = [
       list === 'periodic' ? `<select class="pl-every" ${at(x, 'every')} aria-label="كل كم">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select><span class="num">${money(x.amount / (x.every || 12))} شهرياً</span>` : '',
       x.link ? `🔗 ${esc(linkLabel(x.link))}` : '',
@@ -313,14 +315,14 @@ function planListHTML(p, list) {
       x.link && /^fine:/.test(x.link) && typeof discLine === 'function' ? (() => { const f = S.fines.find((y) => `fine:${y.id}` === x.link); return f && discLine(f) ? esc(discLine(f)) : ''; })() : '',
     ].filter(Boolean);
     return `<li class="pl-row${tick && x.done ? ' paid' : ''}${spend ? ' spend' : ''}">
-      <span class="pl-main"><input type="text" class="pl-name" id="pl-n-${x.id}" ${at(x, 'name')} value="${esc(x.name)}" placeholder="${list === 'income' ? 'مصدر الدخل' : 'اسم البند'}" aria-label="اسم البند" autocomplete="off" data-novoice>${sub.length ? `<small class="pl-sub">${sub.join('<i>|</i>')}</small>` : ''}</span>
+      <span class="pl-main"><input type="text" class="pl-name" id="pl-n-${x.id}" ${at(x, 'name')} value="${esc(x.name)}" placeholder="${PH[list] || 'اسم البند'}" aria-label="الاسم" autocomplete="off" data-novoice>${sub.length ? `<small class="pl-sub">${sub.join('<i>|</i>')}</small>` : ''}</span>
       <input type="text" inputmode="decimal" class="pl-amt num-in" id="pl-a-${x.id}" ${at(x, 'amount')} value="${x.amount ? digitsOut(Number(x.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })) : ''}" placeholder="المبلغ" aria-label="المبلغ" data-novoice${x.link ? ' readonly title="يُعدَّل من مصدره"' : ''}>
-      ${tick ? `<label class="pl-tick" title="دُفع"><input type="checkbox" id="pl-t-${x.id}" ${at(x, 'done')}${x.done ? ' checked' : ''} aria-label="دُفع «${esc(x.name)}»"><span aria-hidden="true"></span></label>` : '<span class="pl-tick-gap" aria-hidden="true"></span>'}
-      <button type="button" class="pl-del" data-action="fin-row-del" data-scope="plan" data-sid="${p.id}" data-list="${list}" data-v="${x.id}" aria-label="حذف «${esc(x.name)}»">✕</button>
+      ${tick ? `<label class="pl-tick" title="${isPlan ? 'دُفع' : 'اشتريته'}"><input type="checkbox" id="pl-t-${x.id}" ${at(x, 'done')}${x.done ? ' checked' : ''} aria-label="${isPlan ? 'دُفع' : 'اشتريته'} «${esc(x.name)}»"><span aria-hidden="true"></span></label>` : '<span class="pl-tick-gap" aria-hidden="true"></span>'}
+      <button type="button" class="pl-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${p.id}" data-list="${list}" data-v="${x.id}" aria-label="حذف «${esc(x.name)}»">✕</button>
     </li>`;
   }).join('');
   return `<ul class="pl-list">${rows}</ul>
-    <button type="button" class="fin-add" data-action="fin-row-add" data-scope="plan" data-sid="${p.id}" data-list="${list}">${icon('plus')} ${list === 'income' ? 'دخل' : 'بند'}</button>`;
+    <button type="button" class="fin-add" data-action="fin-row-add" data-scope="${scope}" data-sid="${p.id}" data-list="${list}">${icon('plus')} ${{ income: 'دخل', funding: 'مبلغ متوفر' }[list] || 'بند'}</button>`;
 }
 // the top of a monthly plan, read top to bottom as one sum (as the user asked: the steps must be plain):
 //   الدخل − المدفوعات لمرة واحدة − المصروفات = المتبقي (أو العجز)
@@ -363,6 +365,8 @@ function planDetailHTML(p) {
       <label class="field"><span>تبدأ يوم</span><input type="date" id="fp-from" data-fin="plan" data-sid="${p.id}" data-k="from" value="${finRange(p).from}"></label>
       <label class="field"><span>وتنتهي يوم</span><input type="date" id="fp-to" data-fin="plan" data-sid="${p.id}" data-k="to" value="${finRange(p).to}"></label>
     </div><small class="note-text">${plural(planLen(p), "يوم واحد", "يومان", "أيام", "يوماً")}${finRange(p).to < today() ? ' | <b class="late">انتهت فترتها</b>: ما تؤشّره هنا يُسجَّل في آخر يوم منها' : inPlan(p, today()) ? ' | <b class="ok">خطة الفترة الحالية</b>' : ' | لم تبدأ بعد'}<span class="explain">. اجعلها من يوم نزول الراتب إلى اليوم الذي قبله في الشهر التالي.</span></small>` : ''}
+    ${(() => { const extra = p.kind === 'month' ? planActual(p).extra : 0; return `<div class="panel"><h3>الدخل <small>${money(c.income + extra)}</small></h3>${planListHTML(p, 'income')}
+      ${extra ? `<p class="pl-extra">＋ دخل إضافي سجّلته في هذه الفترة <b>${money(extra)}</b></p>` : ''}</div>`; })()}
     ${p.kind === 'month' ? planSumHTML(p) : splitBar(c)}
     <div class="panel"><h3>المدفوعات والمصروفات الشهرية <small>${money(c.fixed)}</small></h3>
       <p class="note-text explain">المربع الصغير أمام البند يعني «دُفع» فيصير أخضر. البند الذي يبدأ بكلمة «مصروف» تصرف منه على دفعات، فلا مربع له، وتتابعه في تبويب «المصروف».</p>
@@ -370,7 +374,6 @@ function planDetailHTML(p) {
     <div class="panel"><h3>المصاريف الدورية <small>${money(c.periodic)} شهرياً | ${money(c.periodicYear)} سنوياً</small></h3>
       <p class="note-text explain">مبالغ لا تُدفع كل شهر (كل سنة أو كل بضعة أشهر)، يُخصَّص لها كل شهر جزء.</p>
       ${planListHTML(p, 'periodic')}</div>
-    <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${planListHTML(p, 'income')}</div>
     <div class="panel"><h3>ملاحظات</h3><textarea id="fp-notes" data-fin="plan" data-sid="${p.id}" data-k="notes" rows="3" placeholder="مثل: هدف الادخار ١٥ ألفاً بنهاية السنة">${esc(p.notes)}</textarea></div>
     <div class="btn-row">
       ${isActive ? '<span class="note-text">✓ هذه خطتك الحالية</span>' : `<button type="button" class="primary" data-action="fin-active" data-v="${p.id}">اجعلها الخطة الحالية</button>`}
@@ -453,18 +456,33 @@ function finProjectsHTML() {
   if (p && isSaving(p)) return savingDetailHTML(p);
   if (p) {
     const c = projCalc(p);
+    const own = sum(p.funding);
+    const line = (sign, label, val, cls = '') => `<div class="pc-line ${cls}"><span><i>${sign}</i>${label}</span><b>${money(val)}</b></div>`;
+    // read top to bottom: what it costs, what is bought, what is left to buy, what you have, what is missing
+    const calc = c.cost ? `${line('', 'التكلفة كاملة', c.cost, 'pc-in')}
+      ${c.bought ? line('−', 'ما اشتريته', c.bought) : ''}
+      ${c.bought ? line('=', 'المتبقي شراؤه', c.left) : ''}
+      ${line('−', 'المتوفر لديك', c.avail)}
+      ${c.fromPlan ? `<div class="pc-sub"><small><span>من خططك الشهرية ${money(c.fromPlan)}</span><span>أضفته بنفسك ${money(own)}</span></small></div>` : ''}
+      ${line('=', c.gap < 0 ? 'ينقصك' : c.gap > 0 ? 'يفيض' : 'مغطّى تماماً ✓', Math.abs(c.gap), c.gap < 0 ? 'pc-out neg' : 'pc-out pos')}`
+      : `${line('', 'من خططك الشهرية', c.fromPlan, 'pc-in')}
+      ${line('+', 'أضفته بنفسك', own)}
+      ${c.bought && p.paidFrom === 'funding' ? line('−', 'ما اشتريته منه', c.bought) : ''}
+      ${line('=', 'المتوفر لديك', c.avail, 'pc-out pos')}`;
     return `<section class="section fin-plan">
       <div class="crumbs"><button type="button" class="back" data-action="fin-close">${icon('back')} المشاريع</button></div>
       <input type="text" class="fin-title" id="fj-name" data-fin="proj" data-sid="${p.id}" data-k="name" value="${esc(p.name)}" aria-label="اسم المشروع" autocomplete="off">
-      <div class="fin-tiles"><span><b>${money(c.left)}</b>المتبقي شراؤه</span><span><b>${money(c.avail)}</b>المتوفر</span><span class="${c.gap < 0 ? 'neg' : 'pos'}"><b>${c.gap ? money(Math.abs(c.gap)) : '✓'}</b>${c.gap < 0 ? 'ينقصك' : c.gap > 0 ? 'يفيض' : 'مغطّى تماماً'}</span></div>
-      ${c.cost ? `<p class="note-text">التكلفة كاملة ${money(c.cost)}، اشتريت منها ما قيمته ${money(c.bought)} (${c.pct}٪)${c.bought ? '، فخُصم من الاحتياج' : ''}.</p>
-      <div class="progress-line"><i style="width:${c.pct}%"></i></div>` : ''}
-      ${c.bought ? `<div class="field"><b class="note-text">ما اشتريته دفعت ثمنه من:</b><div class="seg" role="group">
-        <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="outside" aria-pressed="${p.paidFrom === 'outside'}">خارج مصادر التمويل</button>
-        <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="funding" aria-pressed="${p.paidFrom === 'funding'}">مصادر التمويل المذكورة</button></div>
-        <small class="note-text">${p.paidFrom === 'funding' ? 'خُصم ثمن ما اشتريته من المتوفر أيضاً، لأنه دُفع منه.' : 'المتوفر باقٍ كما هو، لأنك دفعت من مال آخر.'}</small></div>` : ''}
-      <div class="panel"><h3>البنود</h3>${rowsHTML('proj', p.id, 'items', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }, { k: 'done' }], p.items)}</div>
-      <div class="panel"><h3>مصادر التمويل</h3>${c.fromPlan ? `<ul class="pl-list pl-from">${projPlanLines(p).map((l) => `<li class="pl-row"><span>🔗 ${esc(planTitle(l.p))} | «${esc(l.r.name)}»</span><b>${money(l.amount)}</b></li>`).join('')}<li class="pl-row pl-from-tot"><span>من خططك الشهرية</span><b>${money(c.fromPlan)}</b></li></ul>` : ''}${rowsHTML('proj', p.id, 'funding', [{ k: 'name', ph: 'المصدر' }, { k: 'amount', ph: 'المبلغ', num: true }], p.funding, { addLabel: 'مصدر' })}</div>
+      <div class="panel pl-calc">${calc}
+        ${c.cost ? `<div class="progress-line pc-bar"><i style="width:${c.cost ? Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100)) : 0}%"></i></div>` : ''}</div>
+      <div class="panel"><h3>المتوفر لديك <small>${money(c.fromPlan + own)}</small></h3>
+        ${c.fromPlan ? `<ul class="pl-list pl-from">${projPlanLines(p).map((l) => `<li class="pl-row"><span>🔗 ${esc(planTitle(l.p))} | «${esc(l.r.name)}»</span><b>${money(l.amount)}</b></li>`).join('')}</ul>` : `<p class="note-text">اكتب في خطتك الشهرية بنداً باسم «${esc(p.name)}» (أو «ادخار ${esc(p.name)}») فيصل مبلغه إلى هنا كل شهر.</p>`}
+        ${planListHTML(p, 'funding', 'proj')}</div>
+      <div class="panel"><h3>البنود <small>${money(c.cost)}</small></h3>
+        <p class="note-text explain">ما يحتاجه المشروع وتكلفته. المربع يعني «اشتريته» فيُخصم من الاحتياج.</p>
+        ${planListHTML(p, 'items', 'proj')}
+        ${c.bought ? `<div class="field"><b class="note-text">ما اشتريته دفعت ثمنه من:</b><div class="seg" role="group">
+          <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="outside" aria-pressed="${p.paidFrom === 'outside'}">مال آخر</button>
+          <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="funding" aria-pressed="${p.paidFrom === 'funding'}">المتوفر هنا</button></div></div>` : ''}</div>
       <div class="panel"><h3>ملاحظات</h3><textarea id="fj-note" data-fin="proj" data-sid="${p.id}" data-k="note" rows="3">${esc(p.note)}</textarea></div>
       <div class="btn-row"><button type="button" class="danger" data-action="proj-del" data-v="${p.id}">حذف المشروع</button></div>
     </section>`;
@@ -473,11 +491,12 @@ function finProjectsHTML() {
     <div class="section-head"><h2>المشاريع المالية</h2>${addBtn('proj-new', 'مشروع')}</div>
     <p class="note-text explain">لكل مشروع كبير (زواج، سفر، تأثيث، سيارة) بنوده وتكلفتها، ومصادر تمويله، وكم ينقصك. و«الادخار» يجمع ما يبقى من كل خطة شهرية.</p>
     ${savingProject() ? '' : `<button type="button" class="fin-card save-card save-new" data-action="proj-new-save"><span class="row-between"><b>💰 أنشئ مشروع الادخار</b><b>${icon('plus')}</b></span><small>يصل إليه ما يبقى من دخلك كل شهر من خططك الشهرية تلقائياً، فتعرف كم تملك من النقد.</small></button>`}
-    ${S.finProjects.length ? `<div class="book-list">${S.finProjects.slice().sort((a, b) => isSaving(b) - isSaving(a)).map((x) => { if (isSaving(x)) return savingCardHTML(x); const c = projCalc(x); return `<button type="button" class="fin-card" data-action="proj-open" data-v="${x.id}">
-      <span class="row-between"><b>${esc(x.name)}</b><b class="${c.gap < 0 ? 'late' : 'ok'}">${c.gap < 0 ? `ينقص ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى'}</b></span>
-      <small>${plural(x.items.length, 'بند واحد', 'بندان', 'بنود', 'بنداً')} | المتبقي شراؤه ${money(c.left)} | المتوفر ${money(c.avail)}${c.bought ? ` | اشتريت ${c.pct}٪` : ''}</small>
-      <div class="progress-line"><i style="width:${c.cost ? Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100)) : 0}%"></i></div>
-    </button>`; }).join('')}</div>` : emptyHTML('لا مشاريع', 'أنشئ مشروعاً وأضف بنوده ومصادر تمويله.')}
+    ${S.finProjects.some(isSaving) ? `<div class="book-list">${S.finProjects.filter(isSaving).map(savingCardHTML).join('')}</div>` : ''}
+    ${S.finProjects.some((x) => !isSaving(x)) ? `<ul class="pl-list pj-list">${S.finProjects.filter((x) => !isSaving(x)).map((x) => { const c = projCalc(x); return `<li><button type="button" class="pl-row pj-row" data-action="proj-open" data-v="${x.id}">
+      <span class="pj-main"><b>${esc(x.name)}</b><small>${c.cost ? `${c.gap < 0 ? `ينقصك ${money(-c.gap)}` : c.cost && !c.left ? 'اكتمل ✓' : 'مغطّى ✓'} من ${money(c.left)}` : 'حساب ادخار'}${c.fromPlan ? ' | 🔗 من خططك' : ''}</small>
+        ${c.cost ? `<span class="progress-line pc-bar"><i style="width:${Math.min(100, Math.round(((c.bought + Math.max(0, c.avail)) / c.cost) * 100))}%"></i></span>` : ''}</span>
+      <span class="pj-amt"><small>المتوفر</small><b>${money(c.avail)}</b></span>
+    </button></li>`; }).join('')}</ul>` : S.finProjects.length ? '' : emptyHTML('لا مشاريع', 'أنشئ مشروعاً (الحج، سيولة الطوارئ، الزواج…) واكتب بنداً باسمه في خطتك الشهرية.')}
   </section>`;
 }
 
@@ -1039,8 +1058,50 @@ document.addEventListener('change', (e) => {
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
   obj.updated = Date.now();
   save();
-  render();
+  // a name or amount typed in the lists: redraw a moment later, so the tap that ended the typing
+  // (✕, the «دُفع» square, the next field) still lands on what the user saw
+  if (el.closest('.pl-list') && (k === 'name' || k === 'amount' || k === 'every')) finRenderSoon(); else render();
 });
+let finRenderTimer = null;
+function finRenderSoon() { clearTimeout(finRenderTimer); finRenderTimer = setTimeout(() => { finRenderTimer = null; if (!document.activeElement || !document.activeElement.closest('.pl-list')) render(); else finRenderSoon(); }, 350); }
+const finRenderNow = () => { if (finRenderTimer) { clearTimeout(finRenderTimer); finRenderTimer = null; } };
+// deleting a row of a list: the ✕ first turns into «متأكد؟» for 4 seconds; a second press deletes
+function rowDelete(el) {
+  finRenderNow();
+  if (el.classList.contains('pl-del') && !el.classList.contains('armed')) {
+    el.classList.add('armed'); el.textContent = 'متأكد؟';
+    setTimeout(() => { if (el.isConnected && el.classList.contains('armed')) render(); }, 4000);
+    return;
+  }
+  const obj = finScope(el.dataset.scope, el.dataset.sid);
+  const v = el.dataset.v;
+  if (!obj || !obj[el.dataset.list]) return;
+  const r = obj[el.dataset.list].find((x) => x.id === v);
+  if (r && r.link && obj.unlinked) { obj.unlinked.push(r.link); toast('حُذف، ولن يُضاف تلقائياً إلى هذه الخطة'); }
+  else toast(`حُذف «${r && r.name ? r.name : 'البند'}»`);
+  obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v);
+  S.finTx = S.finTx.filter((t) => t.src !== `tick:${v}`); // its «دُفع» payment goes with it
+  save(); render();
+}
+// The ✕ answers the touch itself. On a phone the browser may send the tap's click to the «دُفع» square
+// next to it (touch adjustment), or the field being typed in may blur and redraw the list first;
+// so the press is taken here, the field keeps focus, and the click that follows is swallowed.
+let delPress = null;
+document.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest('.pl-del');
+  if (!b) return;
+  e.preventDefault();
+  delPress = { b, x: e.clientX, y: e.clientY };
+});
+document.addEventListener('pointerup', (e) => {
+  const d = delPress; delPress = null;
+  if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12) return;
+  const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+  document.addEventListener('click', swallow, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', swallow, { capture: true }), 700);
+  rowDelete(d.b);
+});
+document.addEventListener('pointercancel', () => { delPress = null; });
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="fin-"], [data-action^="debt-"], [data-action^="right-"], [data-action^="owe-"], [data-action^="proj-"], [data-action="lg-pay-del"]');
   if (!el) return;
@@ -1094,17 +1155,14 @@ document.addEventListener('click', (e) => {
       const L = el.dataset.list;
       const r = row({ name: '', amount: 0, ...(L === 'periodic' ? { every: 12 } : {}), ...(L === 'accounts' ? { balance: 0 } : {}), ...(L === 'items' ? { done: false } : {}) });
       obj[L].push(r); save(); render();
-      const inp = $(`f-${L}-${r.id}-name`); if (inp) inp.focus();
+      const inp = $(`pl-n-${r.id}`) || $(`f-${L}-${r.id}-name`); if (inp) inp.focus();
       break;
     }
-    case 'fin-row-del': {
-      const obj = finScope(el.dataset.scope, el.dataset.sid);
-      const r = obj[el.dataset.list].find((x) => x.id === v);
-      if (r && r.link && obj.unlinked) { obj.unlinked.push(r.link); toast('حُذف، ولن يُضاف تلقائياً إلى هذه الخطة'); }
-      obj[el.dataset.list] = obj[el.dataset.list].filter((x) => x.id !== v);
-      S.finTx = S.finTx.filter((t) => t.src !== `tick:${v}`); // its «دُفع» payment goes with it
-      save(); render(); break;
-    }
+    case 'fin-row-del':
+      // the lists' ✕ is handled at the touch itself (below); a key press (Enter) still comes here
+      if (el.classList.contains('pl-del') && e.detail !== 0) break;
+      rowDelete(el);
+      break;
     case 'fin-month': finUi.month = v; render(); break;
     case 'fin-mode': ldraft.mode = v; for (const b of $('fmMode').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
     case 'fin-txkind': finUi.txKind = v; for (const b of $('txKind').children) b.setAttribute('aria-pressed', String(b.dataset.v === v)); break;
