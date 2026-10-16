@@ -224,7 +224,7 @@ function awareStats(P) {
     bens.length && `سجّلت ${plural(bens.length, 'فائدة واحدة', 'فائدتين', 'فوائد', 'فائدة')}`,
     recalls && `استذكرت ${plural(recalls, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
     pendingRecall && `${pendingRecall} ينتظر الاستذكار`,
-  ], [...bookLines, ...bens.map((f) => `فائدة: ${f.title || excerpt(f.lesson, 50)}${f.book ? ` («${f.book}»)` : ''}`), ...recallsBy.map((x) => `استذكرت «${x.b.title}» (${x.es.map((e) => dS(e.d)).join('، ')})`)]);
+  ], [...bookLines, ...bens.map((f) => `فائدة: ${f.title || excerpt(f.text || f.lesson, 50)}${f.book ? ` («${f.book}»)` : ''}`), ...recallsBy.map((x) => `استذكرت «${x.b.title}» (${x.es.map((e) => dS(e.d)).join('، ')})`)]);
 
   // 📔 يومياتي: days written since the first entry (today only once written)
   const written = new Set(S.journal.filter((j) => !jEmpty(j)).map((j) => j.date));

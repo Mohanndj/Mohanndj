@@ -214,7 +214,7 @@ function saveReadNote() {
   const text = $('rnText').value.trim();
   if (text) {
     const first = text.split(/\n|[.؟!]/)[0].trim();
-    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), lesson: text }));
+    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), text }));
     said.push(`حُفظت الفكرة في فوائد «${b ? b.title : 'الكتاب'}»`);
   }
   syncReading();

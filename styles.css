@@ -1559,3 +1559,6 @@ html:not(.show-explain) .explain { display: none !important; }
 /* «✨ نقّح ما أمليته» under a dictated field (v71) */
 .refine-btn { position: fixed; z-index: 41; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--accent); background: var(--card); color: var(--accent); font: inherit; font-size: .9rem; box-shadow: var(--shadow); }
 .refine-btn:disabled { opacity: .7; }
+
+.ben-text { color: var(--fg); border-inline-start: 3px solid var(--accent); padding-inline-start: 8px; margin: 2px 0; }
+.bv-fold summary { cursor: pointer; color: var(--muted); font-size: .9rem; padding: 4px 0; }

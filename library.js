@@ -85,7 +85,8 @@ function normalizeBenefit(f) {
   const page = parseInt(f.page, 10);
   return {
     id: f.id || uid(), bookId: f.bookId || '', book: String(f.book || ''), page: Number.isFinite(page) ? page : '',
-    title: String(f.title || ''), lesson: String(f.lesson || ''), created: f.created || Date.now(),
+    // text: the benefit itself as read (a quote or its idea); lesson: what can be learnt from it
+    title: String(f.title || ''), text: String(f.text || ''), lesson: String(f.lesson || ''), created: f.created || Date.now(),
     actionId: f.actionId || '', lastReview: f.lastReview || '', reviews: Number(f.reviews) || 0,
     // voice notes on it (benvoice.js): the recording stays on the phone, its written-out text with the benefit
     voices: (Array.isArray(f.voices) ? f.voices : []).filter((v) => v && v.id).map((v) => ({ id: v.id, mediaId: String(v.mediaId || ''), dur: Number(v.dur) || 0, text: String(v.text || ''), created: v.created || Date.now() })),
@@ -96,7 +97,7 @@ function normalizeBenefit(f) {
 function reviewPick() {
   const t0 = today();
   if (S.reviewPick && S.reviewPick.d === t0 && getBenefit(S.reviewPick.id)) return getBenefit(S.reviewPick.id);
-  const pool = S.benefits.filter((f) => (f.title || f.lesson) && f.lastReview !== t0);
+  const pool = S.benefits.filter((f) => (f.title || f.text || f.lesson) && f.lastReview !== t0);
   if (!pool.length) return null;
   // the one not reviewed for the longest time (never reviewed first)
   pool.sort((a, b) => (a.lastReview || '').localeCompare(b.lastReview || '') || a.created - b.created);
@@ -116,6 +117,7 @@ function dailyBenefitHTML() {
     <small>${icon('bulb')} فائدة اليوم للمراجعة</small>
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
+    ${f.text ? `<p class="ben-text">${esc(excerpt(f.text, 240))}</p>` : ''}
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 240))}</p>` : ''}
     <div class="btn-row">
       <button type="button" class="primary" data-action="lib-reviewed" data-v="${f.id}">${icon('check')} راجعتها</button>
@@ -288,6 +290,7 @@ function benefitCard(f) {
   return `<button type="button" class="benefit" data-action="lib-open-benefit" data-v="${f.id}">
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
+    ${f.text ? `<p class="ben-text">${esc(excerpt(f.text, 260))}</p>` : ''}
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 260))}</p>` : ''}
     ${f.voices && f.voices.length ? `<span class="book-line">🎙 التسجيلات: ${f.voices.length} | المفرّغ منها: ${bvTexts(f).length}</span>` : ''}
     ${bvTexts(f).map((x) => `<p class="bv-text">${esc(excerpt(x, 260))}</p>`).join('')}
@@ -300,7 +303,7 @@ function viewBenefits() {
   const fb = libUi.benefitBook;
   const titles = [...new Set(S.benefits.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'));
   const list = S.benefits.filter((f) => (!fb || benefitBookTitle(f) === fb) &&
-    (!q || f.title.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q)))
+    (!q || f.title.toLowerCase().includes(q) || f.text.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q)))
     .sort((a, b) => (fb ? (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page) : b.created - a.created));
   return `${moreCrumb()}
   <section class="section">
@@ -376,7 +379,7 @@ function openLib(kind, id, preset = {}) {
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
       ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
-      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? ` <small>صفحة ${fb.page}</small>` : ''}${fb.lesson ? `<span>${esc(excerpt(fb.lesson, 160))}</span>` : ''}${bvTexts(fb).map((x) => `<span class="bv-text">🎙 ${esc(x)}</span>`).join('')}</button>`).join('')}</div>` : ''}` : ''}`;
+      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? ` <small>صفحة ${fb.page}</small>` : ''}${fb.text ? `<span class="ben-text">${esc(excerpt(fb.text, 160))}</span>` : ''}${fb.lesson ? `<span>${esc(excerpt(fb.lesson, 160))}</span>` : ''}${bvTexts(fb).map((x) => `<span class="bv-text">🎙 ${esc(x)}</span>`).join('')}</button>`).join('')}</div>` : ''}` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
     ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
@@ -386,8 +389,9 @@ function openLib(kind, id, preset = {}) {
       <datalist id="bookTitles">${S.books.map((b) => `<option value="${esc(b.title)}">`).join('')}</datalist>
       <label class="field"><span>رقم الصفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${fx.page}" placeholder="مثال: 45"></label>
       <label class="field"><span>عنوان الفائدة</span><input type="text" id="lTitle" value="${esc(fx.title)}" autocomplete="off" placeholder="مثال: أثر العادة في النجاح"></label>
-      <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="6" placeholder="اكتب الفائدة وكيف تطبّقها">${esc(fx.lesson)}</textarea></label>
-      <div id="bvBox"></div>
+      <label class="field"><span>نص الفائدة</span><textarea id="lText" rows="5" placeholder="الفائدة كما قرأتها">${esc(fx.text)}</textarea></label>
+      <details class="bv-fold"${(fx.voices || []).length ? ' open' : ''}><summary>🎙 تسجيل صوتي (اختياري)</summary><div id="bvBox"></div></details>
+      <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="4" placeholder="كيف تطبّقها">${esc(fx.lesson)}</textarea></label>
       ${id ? (fx.actionId && getTask(fx.actionId)
         ? `<div class="row-between"><span class="note-text">${icon('check')} تحوّلت إلى عمل: ${esc(getTask(fx.actionId).title)}</span><button type="button" class="ghost" data-action="open" data-id="${fx.actionId}">عرضه</button></div>`
         : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">اجعلها مهمة</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
@@ -472,14 +476,14 @@ function saveLib() {
     } else S.books.push(b);
     libUi.bookStatus = b.status;
   } else {
-    const title = v('lTitle'), lesson = $('lLesson').value.trim(), bookName = v('lBook');
+    const title = v('lTitle'), text = $('lText') ? $('lText').value.trim() : '', lesson = $('lLesson').value.trim(), bookName = v('lBook');
     const voices = ldraft.voices || [];
-    if (!title && !lesson && !voices.length) { toast('اكتب عنوان الفائدة أو نصها، أو سجّلها بصوتك.'); return false; }
+    if (!title && !text && !lesson && !voices.length) { toast('اكتب عنوان الفائدة أو نصها.'); return false; }
     const book = S.books.find((b) => b.title === bookName);
     const old = getBenefit(id);
     // a recording removed in the sheet leaves the phone too
     if (old) for (const x of old.voices || []) if (!voices.some((y) => y.id === x.id)) Media.del(x.mediaId).catch(() => {});
-    const f = normalizeBenefit({ ...(old || {}), id, title: title || (voices.length ? 'فائدة مسجّلة بالصوت' : ''), lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName, voices });
+    const f = normalizeBenefit({ ...(old || {}), id, title: title || (voices.length && !text ? 'فائدة مسجّلة بالصوت' : ''), text, lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName, voices });
     if (old) Object.assign(old, f); else S.benefits.push(f);
   }
   save();
@@ -580,9 +584,9 @@ function excelSheets(kind) {
   if (kind === 'all' || kind === 'benefits') {
     add(pageName('benefits'), [
       { title: 'الكتاب', width: 28 }, { title: 'رقم الصفحة', width: 10 }, { title: 'عنوان الفائدة', width: 32, wrap: true },
-      { title: 'ما يمكن أن يُستفاد منها', width: 70, wrap: true }, { title: 'تاريخ الإضافة', width: 13 },
+      { title: 'نص الفائدة', width: 60, wrap: true }, { title: 'ما يمكن أن يُستفاد منها', width: 70, wrap: true }, { title: 'تاريخ الإضافة', width: 13 },
     ], S.benefits.slice().sort((a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page))
-      .map((f) => [benefitBookTitle(f), f.page, f.title, f.lesson, stampDate(f.created)]));
+      .map((f) => [benefitBookTitle(f), f.page, f.title, [f.text, ...bvTexts(f)].filter(Boolean).join('\n'), f.lesson, stampDate(f.created)]));
   }
   if (kind === 'all' || kind === 'archive') {
     add(pageName('archive'), [
@@ -752,7 +756,7 @@ function openBookReview(id) {
     <div id="brvShow" class="brv-show" hidden>
       ${pts.length ? `<h3>ما أردت أن أتذكره</h3><ul>${pts.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${b.summary ? `<h3>فكرته</h3><p>${esc(b.summary)}</p>` : ''}
-      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}${bvTexts(f).map((x) => `<br>🎙 ${esc(x)}`).join('')}</li>`).join('')}</ul>` : ''}
+      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.text ? `<br>«${esc(f.text)}»` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}${bvTexts(f).map((x) => `<br>🎙 ${esc(x)}`).join('')}</li>`).join('')}</ul>` : ''}
       ${!pts.length && !b.summary && !fx.length ? '<p class="note-text">لم تسجّل شيئاً من هذا الكتاب بعد. أضف نقاطاً أو فوائد لتستذكرها في المرة القادمة.</p>' : ''}
       ${b.rvLog.filter((e) => e.recall).length ? `<details class="howto"><summary>ما تذكرته في المرات السابقة</summary>${b.rvLog.filter((e) => e.recall).map((e) => `<p><small>${esc(dateBoth(e.d, true))}</small><br>${esc(e.recall)}</p>`).join('')}</details>` : ''}
     </div>
