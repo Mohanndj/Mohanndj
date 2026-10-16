@@ -17,7 +17,6 @@ function bvRender() {
       <div class="row-between"><small>التسجيل ${i + 1} | ${fmtClock(v.dur)}</small><button type="button" class="ghost sm" data-action="bv-del" data-v="${v.id}">حذف</button></div>
       <audio controls preload="metadata" data-media="${esc(v.mediaId)}"></audio>
       <button type="button" class="ghost sm" data-action="bv-share" data-v="${v.id}">أرسله إلى تطبيق للتفريغ</button>
-      <textarea rows="3" data-bv-text="${v.id}" placeholder="الصق هنا نص التسجيل بعد تفريغه">${esc(v.text)}</textarea>
     </div>`).join('')}
     <div class="btn-row"><button type="button" class="ghost" data-action="bv-rec" id="bvRecBtn">${bvRec.st ? '■ أوقف التسجيل' : '🎙 سجّل'}</button><small class="hint num" id="bvTime">${bvRec.st ? 'يسجّل…' : ''}</small></div>
   </div>`;
@@ -57,7 +56,7 @@ async function bvFinish(st) {
   const v = { id: uid(), mediaId, dur, text: '', created: Date.now() };
   if (ldraft === st.draft) { ldraft.voices = [...(ldraft.voices || []), v]; bvRender(); }
   else { const f = getBenefit(st.draft.id); if (f) { f.voices = [...(f.voices || []), v]; save(); } }
-  toast(`سُجّل ${fmtClock(dur)}. أرسله إلى تطبيق للتفريغ، ثم الصق النص تحته.`);
+  toast(`سُجّل ${fmtClock(dur)}. أرسله إلى تطبيق للتفريغ، ثم الصق نصه في «نص الفائدة».`);
 }
 
 // share the recording with another app (the phone's share sheet), or save it if sharing files is not possible

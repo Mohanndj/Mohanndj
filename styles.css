@@ -1566,3 +1566,10 @@ html:not(.show-explain) .explain { display: none !important; }
 .ben-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .ben-head small { color: var(--muted); flex: none; }
 .benefit, .bk-ben, .review-card { gap: 8px; }
+
+/* reading benefits: title and text only (v75) */
+.ben-reads { display: grid; gap: 10px; }
+.ben-read { display: grid; gap: 8px; text-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--fg); font: inherit; }
+.ben-read .ben-head b { font-size: 1.05rem; }
+.ben-open { display: inline-flex; align-self: start; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: .9rem; font-weight: 600; }
+.ben-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
