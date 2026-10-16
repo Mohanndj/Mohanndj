@@ -101,6 +101,13 @@ function relDate(s) {
   if (s === addDays(t, -1)) return 'أمس';
   return fmtDate(s);
 }
+// a task's date, plain: «اليوم»، «غداً، السبت ١٧ أكتوبر»، «الاثنين ١٩ أكتوبر»
+function dueLabel(s) {
+  const r = relDate(s);
+  if (r === 'اليوم') return r;
+  const full = fmtDate(s, { weekday: 'long', day: 'numeric', month: 'long' });
+  return r === 'غداً' || r === 'أمس' ? `${r}، ${full}` : full;
+}
 // relative day name, or the date with its Hijri day when it is further away
 function relDateH(s) {
   const r = relDate(s);
@@ -341,6 +348,8 @@ function toggle(id, date) {
   const t = getTask(id);
   if (!t) return;
   const d = date || today();
+  // (a reading session done today can still be taken back, though the book's task moved to its next day)
+  if (notYet(t) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(t.due)}`); return; }
   if (t.bookId && readingSession(t, d)) { save(); render(); return; }
   const wasDone = doneOn(t, d);
   if (isCounted(t)) {
@@ -386,7 +395,10 @@ function removeTask(id) {
 }
 
 // ---------- rendering: items ----------
+// a task whose day has not come yet cannot be marked done before it (a goal's date is a deadline, so it can)
+const notYet = (t) => !isGoal(t) && !t.done && !!t.due && t.due > today();
 function checkButton(t, d, done) {
+  if (notYet(t) && !done) return `<button type="button" class="check later" disabled aria-label="${esc(`يُتاح ${dueLabel(t.due)}`)}">${icon('check')}</button>`;
   const counted = isCounted(t);
   const label = counted ? `${countOn(t, d)} من ${t.target}${t.unit ? ' ' + t.unit : ''}، اضغط للزيادة` : done ? 'إلغاء الإنجاز' : 'تمت';
   return `<button type="button" class="check${counted ? ' counted' : ''}" data-action="toggle" data-id="${t.id}" data-date="${d}" aria-pressed="${done}" aria-label="${esc(label)}">${icon('check')}${counted ? `<span class="cnt">${countOn(t, d)}</span>` : ''}</button>`;
@@ -404,7 +416,7 @@ function metaHTML(t, d, opts = {}) {
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
   else if (t.due && !opts.noDue) {
     const late = !t.done && t.due < today();
-    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة | ' : ''}${esc(relDateH(t.due))}</span>`);
+    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة | ' : ''}${esc(dueLabel(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())}/${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
@@ -666,9 +678,9 @@ function viewProject(p) {
     ${p.desc ? `<p class="note-text">${esc(p.desc)}</p>` : ''}
     <div class="pbar big"><i style="width:${st.progress}%"></i></div>
     <div class="pstats">
-      <span><b class="num">${st.progress}%</b> الإنجاز</span>
-      <span><b class="num">${st.done}/${st.total}</b> مهام</span>
-      <span><b class="num">${st.stepsDone}/${st.steps}</b> خطوات</span>
+      <span>أُنجز <b class="num">${st.progress}%</b></span>
+      <span>المهام: <b class="num">${st.done} من ${st.total}</b></span>
+      ${st.steps ? `<span>خطوات داخل المهام: <b class="num">${st.stepsDone} من ${st.steps}</b></span>` : ''}
       ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
     </div>
   </section>
@@ -946,13 +958,13 @@ function viewStats() {
   return `
   <div class="tiles">
     <div class="tile"><b>${z(byDay[t0])}</b><span>أنجزت اليوم</span></div>
-    <div class="tile"><b>${z(week)}</b><span>هذا الأسبوع (من الأحد)</span></div>
-    <div class="tile"><b>${z(stepsWeek)}</b><span>خطوات هذا الأسبوع</span></div>
-    <div class="tile"><b>${z(cur)}</b><span>أيام متتالية | الأفضل ${best}</span></div>
+    <div class="tile"><b>${z(week)}</b><span>أنجزت هذا الأسبوع</span></div>
+    <div class="tile"><b>${z(stepsWeek)}</b><span>خطوات داخل المهام هذا الأسبوع</span></div>
+    <div class="tile"><b>${z(cur)}</b><span>أيام إنجاز متتالية | أطولها ${best}</span></div>
   </div>
   <section class="panel chart">
     <h2>المنجز في الأسبوع الماضي وهذا الأسبوع</h2>
-    <div class="readout" id="readout">المس عموداً لترى تفاصيل اليوم.</div>
+    <div class="readout" id="readout"><span class="explain">المس عموداً لترى تفاصيل اليوم.</span></div>
     ${chartSVG(byDay)}
   </section>
   <section class="panel">

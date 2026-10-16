@@ -170,7 +170,7 @@ textarea { resize: vertical; line-height: 1.6; }
 .goal .check { padding: 0; width: 32px; height: 32px; }
 .goal.done .check::before { background: var(--accent); border-color: var(--accent); }
 .goal.done .check svg { opacity: 1; }
-.goal .check[disabled] { opacity: .35; cursor: default; }
+.goal .check[disabled], .check.later { opacity: .35; cursor: default; }
 .goal-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; color: var(--muted); }
 .goal-stats b { color: var(--fg); font-variant-numeric: tabular-nums; }
 .dots { display: flex; gap: 6px; align-items: end; }
