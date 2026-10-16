@@ -306,22 +306,41 @@ const sheetText = (sheets) => sheets.map((sh) => {
   return `## ${sh.name}\n${[...rows.entries()].sort((a, b) => a[0] - b[0]).map(([r, cs]) => `${r}: ${cs.sort((a, b) => a[0] - b[0]).map(([c, v]) => `[${c}] ${v}`).join(' | ')}`).join('\n')}`;
 }).join('\n\n').slice(0, 30000);
 
+// while the file is read (the AI can take a minute or two) the sheet says so and counts the time,
+// and anything that goes wrong stays written in it instead of a message that disappears
+function mealImpBusy(ai) {
+  ldraft = { kind: 'mealbusy', id: 'x', isNew: false };
+  $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
+    <p class="note-text"><span class="spin"></span> ${ai ? 'يقرأ الذكاء الاصطناعي ملفك ويملأ الخطة…' : 'يقرأ ملفك…'} <small class="num" id="miTime"></small></p>
+    ${ai ? '<p class="note-text">قد يستغرق دقيقة أو دقيقتين. أبقِ التطبيق مفتوحاً حتى ينتهي.</p>' : ''}`;
+  showLib();
+  const t0 = Date.now();
+  const tm = setInterval(() => { const el = $('miTime'); if (!el) { clearInterval(tm); return; } el.textContent = fmtClock((Date.now() - t0) / 1000); }, 1000);
+}
+function mealImpMsg(msg) {
+  ldraft = { kind: 'mealbusy', id: 'x', isNew: false };
+  $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
+    <p class="note-text">${esc(msg)}</p>
+    <div class="sheet-actions"><button type="button" class="primary" data-action="lib-close">حسناً</button></div>`;
+  showLib();
+}
+
 async function importMealPlan(file) {
+  mealImpBusy(AI.on());
   let sheets;
-  try { sheets = await XlsxRead.read(file); } catch { toast('تعذّر قراءة الملف. تأكد أنه ملف إكسل (.xlsx).'); return; }
+  try { sheets = await XlsxRead.read(file); } catch { mealImpMsg('تعذّر قراءة الملف. تأكد أنه ملف إكسل (.xlsx).'); return; }
   let meals = rowsToMeals(sheets.flatMap(parseMealSheet));
   let via = 'file';
   if (AI.on()) {
-    toast('يقرأ الذكاء الاصطناعي ملفك…');
     try {
       const out = await AI.ask({ system: H_SYSTEM, effort: 'medium', maxTokens: 16000,
         prompt: `The user exported their meal plan from Excel. Below is every non-empty cell as «row: [column] value». Rebuild the plan exactly: keep every dish and item name and portion as written (do not invent or drop items, do not rename). Map day names to dow (0=Sunday … 6=Saturday); if days are numbered (اليوم 1…7) map day 1 to Sunday (the user's week starts on Sunday). Split a cell listing several foods into separate items. Use nutrition values from the sheet when present; otherwise estimate them and the food groups.\n\n${sheetText(sheets)}`,
         schema: WEEK_SCHEMA });
       const m2 = toMeals(out.days);
       if (m2.length) { meals = m2; via = 'ai'; }
-    } catch (e) { if (!meals.length) { toast(AI.friendly(e)); return; } }
+    } catch (e) { if (!meals.length) { mealImpMsg(`لم يستطع الذكاء الاصطناعي قراءة الملف: ${AI.friendly(e)}`); return; } }
   }
-  if (!meals.length) { toast('لم أجد في الملف أياماً ووجبات. اجعل أسماء الأيام (السبت…) والوجبات (فطور، غداء، عشاء) في الملف، أو فعّل الذكاء الاصطناعي ليقرأه.'); return; }
+  if (!meals.length) { mealImpMsg('لم أجد في الملف أياماً ووجبات. اجعل أسماء الأيام (السبت…) والوجبات (فطور، غداء، عشاء) في الملف، أو فعّل الذكاء الاصطناعي ليقرأه.'); return; }
   ldraft = { kind: 'mealimp', id: 'x', isNew: true, meals };
   $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
     <p class="note-text">${via === 'ai' ? 'قرأها الذكاء الاصطناعي من ملفك.' : 'قُرئت من ملفك مباشرة.'} وجدت ${plural(meals.length, 'وجبة واحدة', 'وجبتين', 'وجبات', 'وجبة')} في ${plural(new Set(meals.map((m) => m.dow)).size, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}:</p>
