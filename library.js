@@ -226,9 +226,9 @@ function bookCard(b) {
   return `<button type="button" class="book-card s-${b.status}" data-action="lib-open-book" data-v="${b.id}">
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
-    ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : ''}${libUi.bookTopic ? ` ${esc(BOOK_STATUS[b.status])}` : ''}${b.status === 'reading' && scheduleLine(b) ? ` 📅 ${esc(scheduleLine(b))}` : ''}</span>` : ''}
+    ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${[b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : '', libUi.bookTopic ? esc(BOOK_STATUS[b.status]) : '', b.status === 'reading' && scheduleLine(b) ? `📅 ${esc(scheduleLine(b))}` : ''].filter(Boolean).join(' | ')}</span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
-      <span class="book-line">${pace.pct}% | ${b.page} من ${b.pages} صفحة${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بأيام قراءتك' : 'بسرعتك الحالية'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
+      <span class="book-line">قرأت ${pace.pct}% | صفحة ${b.page} من ${b.pages}${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بأيام قراءتك' : 'بسرعتك الحالية'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
     ${b.summary ? `<p>${esc(excerpt(b.summary, 160))}</p>` : ''}
     ${n ? `<span class="book-line">${icon('bulb')}${n} ${n === 1 ? 'فائدة' : n === 2 ? 'فائدتان' : 'فوائد'}</span>` : ''}

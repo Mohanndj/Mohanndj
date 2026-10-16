@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -416,14 +416,15 @@ function metaHTML(t, d, opts = {}) {
   if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
   else if (t.due && !opts.noDue) {
     const late = !t.done && t.due < today();
-    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة | ' : ''}${esc(dueLabel(t.due))}</span>`);
+    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة: ' : t.bookId && !t.done ? 'الجلسة القادمة: ' : ''}${esc(dueLabel(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())} من ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
   if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}خطوات: ${t.subtasks.filter((x) => x.done).length} من ${t.subtasks.length}</span>`);
   if (t.notes.length) meta.push(`<span class="num">${icon('note')}${plural(t.notes.length, 'ملاحظة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')}</span>`);
   const tracked = trackedMs(t.id);
-  if (tracked >= 60000) meta.push(`<span class="num">${icon('clock')}استغرقت ${fmtDur(tracked)}</span>`);
+  // (a book task's reading time is shown with its past sessions, not beside its next date)
+  if (tracked >= 60000 && !t.bookId) meta.push(`<span class="num">${icon('clock')}${t.done ? 'استغرقت' : 'عملت عليها'}: ${fmtDur(tracked)}</span>`);
   return meta.join('');
 }
 
@@ -436,7 +437,8 @@ function itemHTML(t, date, opts) {
   const steps = !t.done && (t.subtasks.length || (bk && bk.pages)) ? `<span class="mini-progress" aria-hidden="true"><i style="width:${taskProgress(t) * 100}%"></i></span>` : '';
   // a book's task: where the reading stands and its last sessions
   const sess = bk ? Object.keys(t.completions || {}).sort() : [];
-  const readLine = bk ? `<span class="meta">${[bk.pages ? `صفحة ${bk.page || 0} من ${bk.pages}` : bk.page ? `صفحة ${bk.page}` : '', sess.length ? `${plural(sess.length, 'جلسة واحدة', 'جلستان', 'جلسات', 'جلسة')}، آخرها ${esc(relDate(sess[sess.length - 1]))}` : ''].filter(Boolean).join(' | ')}</span>` : '';
+  const readMs = bk ? trackedMs(t.id) : 0;
+  const readLine = bk ? `<span class="meta">${[bk.pages ? `صفحة ${bk.page || 0} من ${bk.pages}` : bk.page ? `صفحة ${bk.page}` : '', sess.length ? `الجلسات: ${sess.length}، آخرها ${esc(relDate(sess[sess.length - 1]))}` : '', readMs >= 60000 ? `مدة القراءة: ${fmtDur(readMs)}` : ''].filter(Boolean).map((x) => `<span>${x}</span>`).join('')}</span>` : '';
   return `<li class="task p-${t.priority}${done ? ' done' : ''}${isGoal(t) ? ' is-goal' : ''}"${p ? ` style="--pc:${p.color}"` : ''}>
     ${checkButton(t, d, done)}
     <button type="button" class="t-main" data-action="open" data-id="${t.id}">
@@ -601,7 +603,7 @@ function projectCardHTML(p) {
   return `<button type="button" class="pcard" data-action="open-project" data-v="${p.id}" style="--pc:${p.color}">
     <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
     <span class="pbar"><i style="width:${st.progress}%"></i></span>
-    <span class="psub"><span class="num">${st.progress}%</span><span>${sub}</span></span>
+    <span class="psub"><span class="num">أُنجز ${st.progress}%</span><span>${sub}</span></span>
     ${st.late ? `<span class="late psub">${st.late} متأخرة</span>` : ''}
   </button>`;
 }
@@ -1117,6 +1119,7 @@ function render() {
   // the page stays where it is: redrawing never scrolls to the field that had the cursor
   const y = window.scrollY;
   view.innerHTML = VIEWS[ui.tab]();
+  boxLines(view);
   hydrateImages(view);
   if (window.scrollY !== y) window.scrollTo(0, y);
   if (active && $(active)) {
@@ -1133,6 +1136,23 @@ function render() {
   tickTimer();
   renderGreeting();
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
+}
+
+// a descriptive line whose pieces are joined by « | » shows each piece in its own small box,
+// so the eye tells them apart at once (one text never runs into another)
+function boxLines(root) {
+  for (const el of root.querySelectorAll('.book-line, .meta > span, .boxes')) {
+    if (el.querySelector('.dbox') || !/ \| /.test(el.textContent)) continue;
+    const groups = [[]];
+    for (const n of [...el.childNodes]) {
+      if (n.nodeType === 3 && n.textContent.includes(' | ')) {
+        n.textContent.split(' | ').forEach((s, i) => { if (i) groups.push([]); if (s) groups[groups.length - 1].push(document.createTextNode(s)); });
+      } else groups[groups.length - 1].push(n);
+    }
+    el.textContent = '';
+    for (const g of groups) { if (!g.length) continue; const b = document.createElement('span'); b.className = 'dbox'; g.forEach((n) => b.append(n)); el.append(b); }
+    el.classList.add('boxed');
+  }
 }
 
 function renderGreeting() {

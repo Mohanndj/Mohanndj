@@ -1537,3 +1537,12 @@ html:not(.show-explain) .explain { display: none !important; }
 
 /* a wide field (a long key in a password box) never pushes the page sideways */
 .field > input, .field > select, .field > textarea { min-width: 0; max-width: 100%; }
+
+/* descriptive pieces sit each in its own small box, so one text never runs into another (v67) */
+.meta > span:not(.cat), .dbox, .goal-stats > span, .pstats > span, .psub > span, .habit-journey small {
+  background: color-mix(in srgb, var(--muted) 11%, transparent); border-radius: 6px; padding: 1px 7px;
+}
+.meta > span.boxed, .meta > span.meta { background: none; padding: 0; }
+.dbox { display: inline-flex; align-items: center; gap: 4px; }
+.boxed { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.meta .meta { display: contents; }

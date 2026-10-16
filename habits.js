@@ -102,7 +102,7 @@ function habitCardHTML(t) {
       ${occursToday ? checkButton(t, t0, done) : ''}
     </div>
     <div class="habit-journey">
-      <div class="row-between"><small>اليوم ${dayN} من ${h.days}</small><small>أيام متتالية: ${daysWord(st.streak)}</small></div>
+      <div class="row-between"><small>الأيام المنجزة: ${dayN} من ${h.days}</small><small>أيام متتالية: ${daysWord(st.streak)}</small></div>
       <div class="progress-line"><i style="width:${st.journey}%"></i></div>
     </div>
     ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
