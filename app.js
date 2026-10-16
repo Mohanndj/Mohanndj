@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 60;
+const APP_VERSION = 61;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -341,6 +341,7 @@ function toggle(id, date) {
   if (!t) return;
   const d = date || today();
   if (t.bookId && readingSession(t, d)) { save(); render(); return; }
+  const wasDone = doneOn(t, d);
   if (isCounted(t)) {
     const c = countOn(t, d);
     setCount(t, d, c >= t.target ? 0 : c + 1);
@@ -355,6 +356,7 @@ function toggle(id, date) {
   save();
   checkGraduation(t);
   render();
+  if (!wasDone && doneOn(t, d)) askDuration(t, d);
   const p = projectOf(t);
   if (p && t.done) {
     const st = projectStats(p.id);
@@ -365,10 +367,12 @@ function toggle(id, date) {
 function step(id, date, delta) {
   const t = getTask(id);
   if (!t) return;
+  const wasDone = doneOn(t, date);
   setCount(t, date, countOn(t, date) + delta);
   save();
   checkGraduation(t);
   render();
+  if (!wasDone && doneOn(t, date)) askDuration(t, date);
 }
 
 function removeTask(id) {
@@ -1036,6 +1040,7 @@ function viewSettings() {
     <div class="field"><span>الأرقام</span>
       <div class="seg">${segBtn('digits', 'arab', 'عربية ١٢٣', st.digits)}${segBtn('digits', 'latn', 'إنجليزية 123', st.digits)}</div>
     </div>
+    <label class="switch"><input type="checkbox" id="setAskTime"${st.askTime !== false ? ' checked' : ''}><span>بعد إنجاز مهمة أو هدف اسألني: كم استغرقت؟</span></label>
     <label class="switch"><input type="checkbox" id="setExplain"${st.explain ? ' checked' : ''}><span>إظهار شرح الخانات والصفحات</span></label>
     <label class="switch"><input type="checkbox" id="setHijri"${st.hijri ? ' checked' : ''}><span>إظهار التاريخ الهجري بجانب الميلادي</span></label>
     <div class="field"><span>حجم الخط</span>
@@ -1815,6 +1820,39 @@ const fmtDur = (ms) => {
   return h ? `${h} س${r ? ` ${r} د` : ''}` : `${r} د`;
 };
 const sessionsOf = (id) => S.sessions.filter((x) => x.taskId === id);
+// after a task or goal is done: «كم استغرقت؟», to record its time without running the timer (a session
+// like the timer's, so the stats and the reports count it). Not for books (they ask for the idea of the
+// day instead), nor when the timer already recorded time for it that day; off from the settings.
+function askDuration(t, d) {
+  if (S.settings.askTime === false || t.bookId) return;
+  if (sessionsOf(t.id).some((x) => sessionDay(x) === d)) return;
+  setTimeout(() => {
+    if (lsheet().open) return;
+    ldraft = { kind: 'dur', id: uid(), isNew: true, taskId: t.id, d };
+    $('libForm').innerHTML = `${sheetHead('كم استغرقت؟')}
+      <p class="note-text">«${esc(t.title)}»: اختر المدة أو اكتبها، أو تخطَّ.</p>
+      <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : m === 90 ? 'ساعة ونصف' : 'ساعتان'}</button>`).join('')}</div>
+      <label class="field"><span>المدة بالدقائق</span><input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="مثل: ٢٥" data-novoice autocomplete="off"></label>
+      <div class="sheet-actions"><button type="submit" class="primary">سجّل الوقت</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
+    showLib();
+  }, 250);
+}
+function saveDuration() {
+  const m = Math.round(num($('durMin').value));
+  if (!m) return true; // nothing chosen: same as skipping
+  const t = getTask(ldraft.taskId);
+  const end = ldraft.d === today() ? Date.now() : parse(ldraft.d).getTime() + 12 * 3600000;
+  S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
+  save();
+  toast(`سُجّل ${fmtDur(m * 60000)}${t ? ` لـ«${t.title}»` : ''}`);
+  return true;
+}
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action="dur-pick"]');
+  if (!el) return;
+  $('durMin').value = el.dataset.v;
+  for (const c of document.querySelectorAll('.dur-chips .chip')) c.setAttribute('aria-pressed', c === el);
+});
 const trackedMs = (id) => sessionsOf(id).reduce((n, x) => n + x.ms, 0);
 const sessionDay = (x) => iso(new Date(x.end));
 const timerTitle = (tm) => (getTask(tm.taskId) || {}).title || 'بلا مهمة';
@@ -2327,6 +2365,7 @@ document.addEventListener('change', (e) => {
   if (id === 'sort') { ui.sort = e.target.value; render(); }
   if (id === 'setSound') { S.settings.sound = e.target.checked; save(); }
   if (id === 'setHijri') { S.settings.hijri = e.target.checked; save(); render(); }
+  if (id === 'setAskTime') { S.settings.askTime = e.target.checked; save(); toast(S.settings.askTime ? 'سأسألك عن المدة بعد الإنجاز' : 'لن أسألك عن المدة'); }
   if (id === 'setExplain') { S.settings.explain = e.target.checked; save(); applyTheme(); toast(S.settings.explain ? 'سيظهر الشرح تحت الخانات' : 'أُخفي الشرح'); }
   if (id === 'setCity') setCity(e.target.value);
   if (id === 'setMethod' && S.settings.prayer) { S.settings.prayer.method = e.target.value; save(); render(); }

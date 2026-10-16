@@ -1509,3 +1509,18 @@ html:not(.show-explain) .explain { display: none !important; }
 .pj-amt small { color: var(--muted); font-size: .72rem; }
 .pj-amt b { color: var(--low); font-size: 1.05rem; }
 .fine-inplan { color: var(--low); }
+/* v61: «المزيد» pages with the user's own emoji, name and colour */
+.more-tile.tinted { background: color-mix(in srgb, var(--tc) 12%, var(--card)); border-color: color-mix(in srgb, var(--tc) 45%, var(--line)); }
+.more-tile.tinted b { color: color-mix(in srgb, var(--tc) 75%, var(--fg)); }
+.more-tile.tinted svg { color: var(--tc); }
+.tile-emoji { font-size: 1.7rem; line-height: 1; }
+.crumb-page { margin-inline-start: auto; font-weight: 700; color: color-mix(in srgb, var(--tc, var(--accent)) 80%, var(--fg)); }
+.lay-list li.lay-look { flex-wrap: wrap; border-inline-start: 4px solid var(--tc, transparent); }
+.lay-edit { flex: 1 1 100%; display: grid; grid-template-columns: 3em minmax(0, 1fr); gap: 6px; align-items: center; }
+.lay-edit input { min-width: 0; padding: 6px 8px; }
+.lay-emoji { text-align: center; font-size: 1.2rem; }
+.lay-colors { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.lay-c { width: 24px; height: 24px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid var(--line); }
+.lay-c[style*="transparent"] { background: repeating-linear-gradient(45deg, var(--card) 0 4px, var(--line) 4px 6px); }
+.lay-c.on { outline: 2px solid var(--fg); outline-offset: 2px; }
+.dur-chips .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }

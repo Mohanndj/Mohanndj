@@ -21,6 +21,8 @@ function normalizeBook(b) {
     id: b.id || uid(), title: String(b.title || ''), author: String(b.author || ''),
     status: BOOK_STATUS[b.status] ? b.status : 'want', start: b.start || '', end: b.end || '',
     summary: String(b.summary || ''), created: b.created || Date.now(),
+    // a book read in the past: no dates asked, only an optional Hijri year
+    hyear: /^\d{3,4}$/.test(String(b.hyear || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))) ? String(b.hyear).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)) : '',
     // reading.js: topic, and reading days with pages per session
     topic: String(b.topic || '').trim(), rdays: Array.isArray(b.rdays) ? [...new Set(b.rdays.map(Number).filter((d) => d >= 0 && d <= 6))] : [], rpages: Number(b.rpages) > 0 ? Math.round(Number(b.rpages)) : 0,
     pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
@@ -131,7 +133,8 @@ function dateBoth(d, short) {
   return `${g} | ${fmtHijri(d, short ? { day: 'numeric', month: 'long' } : undefined)}`;
 }
 
-const moreCrumb = () => `<div class="crumbs"><button type="button" class="back" data-tab="more">${icon('back')} المزيد</button></div>`;
+// the way back to «المزيد», with this page's own emoji and name if the user gave it one
+const moreCrumb = () => { const lk = typeof lookOf === 'function' ? lookOf(ui.tab) : {}; return `<div class="crumbs"><button type="button" class="back" data-tab="more">${icon('back')} المزيد</button>${lk.name || lk.emoji ? `<span class="crumb-page"${lk.color ? ` style="--tc:${lk.color}"` : ''}>${esc([lk.emoji, lk.name].filter(Boolean).join(' '))}</span>` : ''}</div>`; };
 const xlsBtn = (kind) => `<button type="button" class="xls-btn" data-action="lib-xls" data-v="${kind}">${icon('sheet')}إكسل</button>`;
 
 // ---------- «المزيد» page ----------
@@ -162,8 +165,8 @@ function viewMore() {
   const tiles = orderOf(all.map(([k]) => k), S.settings.moreOrder).map((k) => all.find((t) => t[0] === k));
   return `
   <section class="section">
-    <div class="section-head"><h2>المزيد</h2><button type="button" class="ghost sm" data-action="lay-open" data-v="more">${icon('gear')} رتّب الصفحات</button></div>
-    <div class="more-grid">${tiles.map(([tab, ic, name, sub]) => `<button type="button" class="more-tile${tab === 'stats' ? ' wide' : ''}" data-tab="${tab}">${icon(ic)}<b>${name}</b><small>${esc(sub)}</small></button>`).join('')}</div>
+    <div class="section-head"><h2>المزيد</h2><button type="button" class="ghost sm" data-action="lay-open" data-v="more">${icon('gear')} رتّب الصفحات ولوّنها</button></div>
+    <div class="more-grid">${tiles.map(([tab, ic, name, sub]) => { const lk = lookOf(tab); return `<button type="button" class="more-tile${tab === 'stats' ? ' wide' : ''}${lk.color ? ' tinted' : ''}" data-tab="${tab}"${lk.color ? ` style="--tc:${lk.color}"` : ''}>${lk.emoji ? `<span class="tile-emoji" aria-hidden="true">${esc(lk.emoji)}</span>` : icon(ic)}<b>${esc(lk.name || name)}</b><small>${esc(sub)}</small></button>`; }).join('')}</div>
   </section>
   <section class="panel">
     <h2>تصدير إلى إكسل</h2>
@@ -209,9 +212,10 @@ function bookLine(b) {
     if (b.start) parts.push(`من ${dateBoth(b.start, true)}`);
     if (b.end) parts.push(`إلى ${dateBoth(b.end, true)}`);
     if (b.start && b.end) parts.push(`(${daysWord(daysBetween(b.start, b.end) + 1)})`);
+    if (!parts.length && b.hyear) parts.push(`قرأته عام ${b.hyear} هـ`);
     return parts.join(' ') || 'مقروء';
   }
-  if (b.status === 'stalled') return b.start ? `بدأته ${dateBoth(b.start, true)} وتوقفت` : 'توقفت عن قراءته';
+  if (b.status === 'stalled') return b.end ? `توقفت ${dateBoth(b.end, true)}` : b.start ? `بدأته ${dateBoth(b.start, true)} وتوقفت` : 'توقفت عن قراءته';
   return `أضيف ${relDate(iso(new Date(b.created)))}`;
 }
 
@@ -343,9 +347,10 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>المؤلف (اختياري)</span><input type="text" id="lAuthor" value="${esc(b.author)}" autocomplete="off" placeholder="مثال: طه حسين"></label>
       <div class="field"><span>الحالة</span><div class="seg seg-wrap" id="lStatus">${BOOK_ORDER.map((s) => `<button type="button" data-action="lib-status" data-v="${s}" aria-pressed="${b.status === s}">${BOOK_STATUS[s]}</button>`).join('')}</div></div>
       <div class="grid2">
-        <label class="field"><span>تاريخ البدء</span><input type="date" id="lStart" value="${b.start}"><small class="hint" id="lStartH">${esc(b.start ? fmtHijri(b.start) : '')}</small></label>
+        <label class="field" id="lStartWrap"><span>تاريخ البدء</span><input type="date" id="lStart" value="${b.start}"><small class="hint" id="lStartH">${esc(b.start ? fmtHijri(b.start) : '')}</small></label>
         <label class="field" id="lEndWrap"><span>تاريخ الانتهاء</span><input type="date" id="lEnd" value="${b.end}"><small class="hint" id="lEndH">${esc(b.end ? fmtHijri(b.end) : '')}</small></label>
       </div>
+      <label class="field" id="lYearWrap"><span>سنة القراءة الهجرية (اختياري)</span><input type="text" inputmode="numeric" id="lHyear" value="${esc(b.hyear)}" placeholder="مثال: ١٤٤٢" autocomplete="off" data-novoice></label>
       <div class="grid2">
         <label class="field"><span>عدد صفحات الكتاب</span><input type="number" id="lPages" min="1" inputmode="numeric" value="${b.pages}" placeholder="مثال: 320"></label>
         <label class="field"><span>وصلت إلى صفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${b.page || ''}" placeholder="مثال: 45"></label>
@@ -394,10 +399,16 @@ function openLib(kind, id, preset = {}) {
   }, 50);
 }
 
+// only the dates that belong to the state (as the user asked):
+// reading → its start only; read after being read here (it has a start) → its end only;
+// read in the past (no start) → no dates, an optional Hijri year; stalled → when it stopped; want → nothing
 function updateBookEnd() {
   if (!ldraft || ldraft.kind !== 'book') return;
-  $('lEndWrap').hidden = !['read', 'stalled'].includes(ldraft.status);
-  $('lEndWrap').querySelector('span').textContent = ldraft.status === 'stalled' ? 'تاريخ التوقف' : 'تاريخ الانتهاء';
+  const st = ldraft.status, started = !!$('lStart').value;
+  $('lStartWrap').hidden = st !== 'reading';
+  $('lEndWrap').hidden = !((st === 'read' && started) || st === 'stalled');
+  $('lYearWrap').hidden = !(st === 'read' && !started);
+  $('lEndWrap').querySelector('span').textContent = st === 'stalled' ? 'تاريخ التوقف' : 'تاريخ الانتهاء';
   if ($('lRvWrap')) $('lRvWrap').hidden = ldraft.status !== 'read';
 }
 
@@ -419,8 +430,9 @@ function saveLib() {
   } else if (kind === 'book') {
     const title = v('lTitle');
     if (!title) { toast('اكتب اسم الكتاب.'); $('lTitle').focus(); return false; }
-    let start = v('lStart'), end = ['read', 'stalled'].includes(ldraft.status) ? v('lEnd') : '';
-    if (ldraft.status === 'read' && !end) end = today();
+    let start = ['reading', 'read'].includes(ldraft.status) ? v('lStart') : ldraft.status === 'stalled' ? v('lStart') : '', end = ['read', 'stalled'].includes(ldraft.status) ? v('lEnd') : '';
+    // finished after reading it here: its end defaults to today; a book read in the past keeps no dates
+    if (ldraft.status === 'read' && start && !end) end = today();
     if (ldraft.status === 'reading' && !start) start = today();
     if (start && end && end < start) { toast('تاريخ الانتهاء قبل تاريخ البدء.'); return false; }
     const old = getBook(id);
@@ -435,7 +447,7 @@ function saveLib() {
     const rv = status === 'read' && $('lRv').checked;
     const rvFields = { rv, rvPoints: $('lRvPoints').value.trim() };
     if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: addDays(today(), BOOK_RV[0]) });
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
@@ -749,8 +761,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();

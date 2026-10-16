@@ -26,25 +26,40 @@ function openLayout(which) {
   const isToday = which === 'today';
   const names = isToday ? Object.fromEntries(TODAY_PARTS) : Object.fromEntries(moreTiles().map(([k, , n]) => [k, n]));
   const order = isToday ? todayOrder() : orderOf(moreTiles().map(([k]) => k), S.settings.moreOrder);
-  ldraft = { kind: 'layout', id: 'x', isNew: false, which, names, order, hidden: isToday ? todayHidden().slice() : [] };
+  ldraft = { kind: 'layout', id: 'x', isNew: false, which, names, order, hidden: isToday ? todayHidden().slice() : [], look: JSON.parse(JSON.stringify(moreLook())) };
   renderLayout();
   showLib();
 }
+// «المزيد» pages can be renamed, given an emoji and a colour, to tell them apart at a glance
+const LOOK_COLORS = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#64748b'];
+const moreLook = () => (S.settings.moreLook && typeof S.settings.moreLook === 'object' ? S.settings.moreLook : {});
+const lookOf = (k) => moreLook()[k] || {};
 function renderLayout() {
   const { which, names, order, hidden } = ldraft;
   const isToday = which === 'today';
   $('libForm').innerHTML = `${sheetHead(isToday ? 'رتّب صفحة اليوم' : 'رتّب صفحات المزيد')}
     <p class="note-text explain">${isToday ? 'غيّر مكان أي قسم بالسهمين، وأخفِ ما لا تريده في «اليوم». الأقسام لا تظهر إلا إن كان فيها ما يخص يومك.' : 'غيّر مكان أي صفحة بالسهمين، فتظهر في «المزيد» بالترتيب الذي تختاره.'}</p>
-    <ul class="lay-list">${order.map((k, i) => `<li class="${hidden.includes(k) ? 'off' : ''}">
-      <span class="lay-name">${esc(names[k])}</span>
+    ${isToday ? '' : '<p class="note-text explain">ولكل صفحة: اكتب علامة تعبيرية واسماً تختاره، واختر لوناً، فتميّزها بنظرة.</p>'}
+    <ul class="lay-list">${order.map((k, i) => { const lk = (ldraft.look || {})[k] || {}; return `<li class="${hidden.includes(k) ? 'off' : ''}${isToday ? '' : ' lay-look'}"${!isToday && lk.color ? ` style="--tc:${lk.color}"` : ''}>
+      ${isToday ? `<span class="lay-name">${esc(names[k])}</span>` : `<span class="lay-edit">
+        <input type="text" class="lay-emoji" data-lay-emoji="${k}" value="${esc(lk.emoji || '')}" placeholder="🙂" maxlength="4" aria-label="علامة تعبيرية" autocomplete="off" data-novoice>
+        <input type="text" class="lay-title" data-lay-title="${k}" value="${esc(lk.name || '')}" placeholder="${esc(names[k])}" aria-label="اسم الصفحة" autocomplete="off" data-novoice>
+        <span class="lay-colors">${['', ...LOOK_COLORS].map((c) => `<button type="button" class="lay-c${(lk.color || '') === c ? ' on' : ''}" data-action="lay-color" data-v="${k}" data-c="${c}" style="--c:${c || 'transparent'}" aria-label="${c ? 'لون' : 'بلا لون'}"></button>`).join('')}</span>
+      </span>`}
       ${isToday ? `<label class="lay-show"><input type="checkbox" data-lay-show="${k}"${hidden.includes(k) ? '' : ' checked'}><span>${hidden.includes(k) ? 'مخفي' : 'ظاهر'}</span></label>` : ''}
       <button type="button" class="icon-btn lay-mv" data-action="lay-move" data-v="${i}" data-d="-1" aria-label="إلى الأعلى"${i ? '' : ' disabled'}>▲</button>
       <button type="button" class="icon-btn lay-mv" data-action="lay-move" data-v="${i}" data-d="1" aria-label="إلى الأسفل"${i < order.length - 1 ? '' : ' disabled'}>▼</button>
-    </li>`).join('')}</ul>
+    </li>`; }).join('')}</ul>
     <div class="sheet-actions"><button type="submit" class="primary">حفظ الترتيب</button><button type="button" class="ghost" data-action="lay-reset">الترتيب الأصلي</button></div>`;
 }
 function saveLayout() {
-  if (ldraft.which === 'today') { S.settings.todayOrder = ldraft.order.slice(); S.settings.todayHidden = ldraft.hidden.slice(); } else S.settings.moreOrder = ldraft.order.slice();
+  if (ldraft.which === 'today') { S.settings.todayOrder = ldraft.order.slice(); S.settings.todayHidden = ldraft.hidden.slice(); }
+  else {
+    S.settings.moreOrder = ldraft.order.slice();
+    const look = {};
+    for (const [k, v] of Object.entries(ldraft.look || {})) { const x = { name: String(v.name || '').trim(), emoji: String(v.emoji || '').trim(), color: v.color || '' }; if (x.name || x.emoji || x.color) look[k] = x; }
+    S.settings.moreLook = look;
+  }
   save();
   toast('حُفظ الترتيب');
   return true;
@@ -64,11 +79,23 @@ document.addEventListener('click', (e) => {
     const again = $('libForm').querySelectorAll('.lay-mv')[j * 2 + (Number(el.dataset.d) < 0 ? 0 : 1)];
     if (again && !again.disabled) again.focus();
   }
+  if (action === 'lay-color') {
+    ldraft.look[v] = { ...(ldraft.look[v] || {}), color: el.dataset.c };
+    renderLayout();
+    return;
+  }
   if (action === 'lay-reset') {
     ldraft.order = ldraft.which === 'today' ? TODAY_PARTS.map(([k]) => k) : moreTiles().map(([k]) => k);
     ldraft.hidden = [];
     renderLayout();
   }
+});
+// name and emoji are kept as they are typed (no redraw, so typing is not interrupted)
+document.addEventListener('input', (e) => {
+  const d = e.target.dataset || {};
+  const k = d.layTitle || d.layEmoji;
+  if (!k || !ldraft || ldraft.kind !== 'layout') return;
+  ldraft.look[k] = { ...(ldraft.look[k] || {}), [d.layTitle ? 'name' : 'emoji']: e.target.value };
 });
 document.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.layShow;
