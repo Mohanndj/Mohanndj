@@ -1442,3 +1442,7 @@ html:not(.show-explain) .explain { display: none !important; }
 .fin-pays li.ok { color: var(--muted); }
 .fin-pays li.ok b { color: var(--low); }
 .fin-sec-h { margin: 14px 0 0; font-size: 1.05rem; }
+/* v55: moving a task's note to the notes page */
+.note-btns { display: flex; gap: 4px; }
+.note-move { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.note-move select { flex: 1 1 160px; min-width: 0; }

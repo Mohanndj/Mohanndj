@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 54;
+const APP_VERSION = 55;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1287,10 +1287,19 @@ function renderAlarms() {
 function renderNotes() {
   const notes = draft.notes;
   $('notesCount').textContent = notes.length ? `(${notes.length})` : '';
+  // each note can move to the notes page: into a new note or one already there
+  const memos = S.memos.slice().sort((a, b) => b.updated - a.updated);
+  const memoName = (m) => excerpt(m.title || noteText(m.html).split('\n')[0] || 'ملاحظة بلا عنوان', 40);
   $('notesList').innerHTML = notes.slice().reverse().map((n) => `
     <li class="note"><p>${esc(n.text)}</p>
       <div class="note-foot"><span class="num">${esc(fmtStamp(n.at))}</span>
-      <button type="button" data-action="del-note" data-v="${n.id}" class="${armed === n.id ? 'armed' : ''}">${armed === n.id ? 'تأكيد الحذف' : 'حذف'}</button></div>
+      <span class="note-btns"><button type="button" data-action="note-move" data-v="${n.id}">إلى الملاحظات</button>
+      <button type="button" data-action="del-note" data-v="${n.id}" class="${armed === n.id ? 'armed' : ''}">${armed === n.id ? 'تأكيد الحذف' : 'حذف'}</button></span></div>
+      ${draft.moveNote === n.id ? `<div class="note-move">
+        <select id="nmTarget" aria-label="إلى أي ملاحظة"><option value="">ملاحظة جديدة</option>${memos.map((m) => `<option value="${m.id}">${esc(memoName(m))}</option>`).join('')}</select>
+        <button type="button" class="primary sm" data-action="note-move-go" data-v="${n.id}">انقل</button>
+        <button type="button" class="ghost sm" data-action="note-move" data-v="">إلغاء</button>
+      </div>` : ''}
     </li>`).join('');
 }
 
@@ -2180,6 +2189,26 @@ document.addEventListener('click', (e) => {
     case 'toggle-sub': {
       const s = draft.subtasks.find((x) => x.id === v);
       if (s) { s.done = el.checked; s.doneAt = s.done ? Date.now() : null; persistDraftList('subtasks'); renderSubs(); }
+      break;
+    }
+    case 'note-move': draft.moveNote = draft.moveNote === v ? '' : v; renderNotes(); break;
+    case 'note-move-go': {
+      // move one note of this task or goal to the notes page (it leaves the task), with where it came from
+      const n = draft.notes.find((x) => x.id === v);
+      if (!n) break;
+      const from = `من ${draft.kind === 'goal' ? 'هدف' : 'مهمة'} «${$('fTitle').value.trim() || 'بلا عنوان'}» | ${fmtStamp(n.at)}`;
+      const block = `${plainToNoteHTML(n.text)}<br><small>${esc(from)}</small>`;
+      const target = $('nmTarget') && $('nmTarget').value;
+      const m = target && S.memos.find((x) => x.id === target);
+      if (m) {
+        m.html = `${m.html}${m.html ? '<br><br>' : ''}${block}`;
+        m.body = noteText(m.html); m.updated = Date.now();
+      } else S.memos.push(normalizeMemo({ title: excerpt(n.text.split('\n')[0], 40), html: block }));
+      draft.notes = draft.notes.filter((x) => x.id !== v);
+      draft.moveNote = '';
+      persistDraftList('notes'); save();
+      renderNotes();
+      toast(m ? `نُقلت إلى «${excerpt(m.title || 'الملاحظة', 30)}»` : 'نُقلت إلى ملاحظة جديدة في «الملاحظات»');
       break;
     }
     case 'del-note':
