@@ -6,7 +6,7 @@ const TODAY_PARTS = [
   ['close', 'إغلاق اليوم (مساءً)'], ['quote', 'عبارة اليوم'], ['smart', 'الإضافة السريعة'], ['summary', 'ملخص اليوم'], ['prayer', 'أوقات الصلاة'],
   ['hifz', 'الحفظ'], ['habits', 'بناء العادات'], ['health', 'الصحة'], ['books', 'الكتب'], ['benefits', 'الفوائد'],
   ['decisions', 'سجل القرارات'], ['people', 'الأحبّة'], ['bills', 'الاشتراكات والفواتير'], ['later', 'الشراء المؤجّل'],
-  ['journal', 'يومياتي وتأملاتي'], ['spend', 'المصروف'], ['lists', 'القوائم'], ['tasks', 'المهام والأهداف'],
+  ['journal', 'يومياتي وتأملاتي'], ['spend', 'المصروف'], ['lists', 'القوائم'], ['reminders', 'التذكيرات'], ['tasks', 'المهام والأهداف'],
 ];
 
 // the saved order, with parts added in later versions slotted in after their default neighbour

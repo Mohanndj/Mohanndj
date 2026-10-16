@@ -358,6 +358,15 @@ function awareStats(P) {
   add('focus', { title: 'وقت التركيز', icon: '⏱️' }, 'stats', null, [fMs && `ركّزت ${fmtDur(fMs)} في ${plural(sess.length, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}`],
     Object.entries(byTask).sort((a, b) => b[1].ms - a[1].ms).map(([id, e]) => `${(getTask(id) || {}).title || 'مهمة محذوفة'}: ${fmtDur(e.ms)} (${plural(e.n, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')})`));
 
+  // 🔔 التذكيرات (facts only): what was added and what was done in the period
+  const remNew = S.reminders.filter((x) => inP(dayOfTs(x.created)));
+  const remDone = S.reminders.filter((x) => x.done && inP(x.doneAt));
+  add('reminders', pageLook('reminders', 'التذكيرات', '🔔'), 'reminders', null, [
+    remNew.length && `أضفت ${plural(remNew.length, 'تذكيراً واحداً', 'تذكيرين', 'تذكيرات', 'تذكيراً')}`,
+    remDone.length && `أنجزت ${plural(remDone.length, 'تذكيراً واحداً', 'تذكيرين', 'تذكيرات', 'تذكيراً')}`,
+    P.current && remActive().length && `باقٍ الآن: ${remActive().length}`,
+  ], remDone.map((x) => `✓ ${x.text} (${dS(x.doneAt)})`));
+
   // 💡 الأفكار و📝 القوائم (facts only)
   const ideasNew = S.ideas.filter((x) => inP(dayOfTs(x.created)));
   add('ideas', pageLook('ideas', 'الأفكار', '💡'), 'ideas', null, [ideasNew.length && `سجّلت ${plural(ideasNew.length, 'فكرة واحدة', 'فكرتين', 'أفكار', 'فكرة')}، تحرّك منها ${ideasNew.filter((x) => x.status !== 'new').length}`],

@@ -142,6 +142,7 @@ function moreTiles() {
   const readThisYear = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === today().slice(0, 4)).length;
   return [
     // under each name a short fact, or nothing (never a sentence describing the page)
+    ['reminders', 'bell', 'التذكيرات', remActive().length ? `باقٍ: ${remActive().length}` : ''],
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `لم تُنفّذ: ${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length}` : ''],
     ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')}${jStreak() ? ` | ${daysWord(jStreak())} متتالية` : ' | لم تكتب اليوم'}` : ''],
     ['week', 'cal', 'التخطيط الأسبوعي', ''],
