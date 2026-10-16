@@ -69,17 +69,17 @@ function projectOfRow(x) {
   const k = nameKey(x.name);
   return k.length >= 2 ? S.finProjects.find((pr) => pr.kind !== 'save' && nameKey(pr.name) === k) || null : null;
 }
-function projPlanPaid(pr) {
-  if (pr.kind === 'save') return 0;
-  let n = 0;
-  for (const t of S.finTx) {
-    if (t.kind !== 'out' || !t.ref || t.ref === 'out') continue;
-    const p = planForDate(t.d);
-    const r = p && [...p.fixed, ...p.periodic].find((y) => y.id === t.ref);
-    if (r && projectOfRow(r) === pr) n += t.amount;
+// the amounts written for it in every monthly plan whose period has begun (a later month counts when it starts)
+function projPlanLines(pr) {
+  if (pr.kind === 'save') return [];
+  const out = [];
+  for (const p of S.finPlans.filter((x) => x.kind === 'month' && finRange(x) && finRange(x).from <= today())) {
+    for (const r of p.fixed) if (r.amount && projectOfRow(r) === pr) out.push({ p, r, amount: r.amount });
+    for (const r of p.periodic) if (r.amount && projectOfRow(r) === pr) out.push({ p, r, amount: r.amount / (r.every || 12) });
   }
-  return n;
+  return out.sort((a, b) => finRange(a.p).from.localeCompare(finRange(b.p).from));
 }
+const projPlanPaid = (pr) => sum(projPlanLines(pr), (l) => l.amount);
 function normalizeTx(t) {
   return { id: t.id || uid(), d: t.d || today(), amount: num(t.amount), kind: t.kind === 'in' ? 'in' : 'out', item: String(t.item || ''), note: String(t.note || ''), ref: String(t.ref || ''), src: String(t.src || ''), created: t.created || Date.now() };
 }
@@ -322,38 +322,27 @@ function planListHTML(p, list) {
   return `<ul class="pl-list">${rows}</ul>
     <button type="button" class="fin-add" data-action="fin-row-add" data-scope="plan" data-sid="${p.id}" data-list="${list}">${icon('plus')} ${list === 'income' ? 'دخل' : 'بند'}</button>`;
 }
-// the top of a monthly plan: what is to be paid once this period, what was paid, what is left
+// the top of a monthly plan, read top to bottom as one sum (as the user asked: the steps must be plain):
+//   الدخل − المدفوعات لمرة واحدة − المصروفات = المتبقي (أو العجز)
+// with what was paid of the payments and what was spent of the spending under each line
 function planSumHTML(p) {
-  const c = planCalc(p), sp = planSplit(p);
-  const pct = sp.payTotal ? Math.min(100, Math.round((sp.payPaid / sp.payTotal) * 100)) : 0;
-  return `<div class="panel pl-sum">
-    <div class="pl-sum-h"><span>المدفوعات</span><b>${money(sp.payTotal)}</b></div>
-    <div class="progress-line pl-bar"><i style="width:${pct}%"></i></div>
-    <div class="pl-sum-row"><span class="ok">دُفع <b>${money(sp.payPaid)}</b></span><span class="${sp.payLeft ? '' : 'ok'}">${sp.payLeft ? `الباقي <b>${money(sp.payLeft)}</b>` : 'دُفع كله ✓'}</span></div>
-    <div class="pl-sum-foot">
-      <span>الدخل <b>${money(c.income + sp.a.extra)}</b></span>
-      <button type="button" class="pl-go" data-action="fin-spend-of" data-v="${p.month}">المصروفات <b>${money(sp.budget)}</b> ‹</button>
-      <span class="${c.left < 0 ? 'late' : 'ok'}">${c.left < 0 ? 'العجز' : 'المتبقي'} <b>${money(Math.abs(c.left))}</b></span>
-    </div>
-    ${sp.a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${sp.a.loose.length}</small></h4>
-      <ul>${sp.a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
+  const sp = planSplit(p), a = sp.a;
+  const income = a.income + a.extra;
+  const left = income - sp.payTotal - sp.budget;
+  const payPct = sp.payTotal ? Math.min(100, Math.round((sp.payPaid / sp.payTotal) * 100)) : 0;
+  const spent = sp.fromItems + sp.outside;
+  const spendPct = sp.budget ? Math.min(100, Math.round((spent / sp.budget) * 100)) : 0;
+  const line = (sign, label, val, cls = '') => `<div class="pc-line ${cls}"><span><i>${sign}</i>${label}</span><b>${money(val)}</b></div>`;
+  return `<div class="panel pl-calc">
+    ${line('', a.extra ? 'الدخل (ومعه دخل إضافي)' : 'الدخل', income, 'pc-in')}
+    ${line('−', 'المدفوعات لمرة واحدة', sp.payTotal)}
+    ${sp.payTotal ? `<div class="pc-sub"><div class="progress-line pc-bar"><i style="width:${payPct}%"></i></div><small><span class="ok">دُفع ${money(sp.payPaid)}</span><span>${sp.payLeft ? `باقٍ ${money(sp.payLeft)}` : 'دُفعت كلها ✓'}</span></small></div>` : ''}
+    ${line('−', 'المصروفات', sp.budget)}
+    ${sp.budget || spent ? `<button type="button" class="pc-sub pc-go" data-action="fin-spend-of" data-v="${p.month}"><div class="progress-line pc-bar spend${spent > sp.budget + 0.5 ? ' over' : ''}"><i style="width:${spendPct}%"></i></div><small><span>صُرف ${money(spent)}</span><span>${sp.spendLeft >= 0 ? `باقٍ ${money(sp.spendLeft)}` : `تجاوزت ${money(-sp.spendLeft)}`} ‹</span></small></button>` : ''}
+    ${line('=', left < 0 ? 'العجز' : 'المتبقي', Math.abs(left), left < 0 ? 'pc-out neg' : 'pc-out pos')}
+    ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
+      <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
         <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
-  </div>`;
-}
-// savings, emergency money and accounts like Hajj live in «المشاريع»; the plan shows them and moves old accounts there
-function planSavingsHTML(p) {
-  const c = planCalc(p);
-  const projs = S.finProjects.filter((x) => x.kind !== 'save');
-  const sv = typeof savingProject === 'function' ? savingProject() : null;
-  return `<div class="panel"><h3>الادخار والمشاريع</h3>
-    <div class="fin-left ${c.left < 0 ? 'neg' : 'pos'}"><span>${c.left < 0 ? 'العجز' : 'المتبقي للادخار'}</span><b>${money(Math.abs(c.left))}</b></div>
-    ${p.kind === 'month' && sv ? `<button type="button" class="ghost save-link" data-action="proj-open" data-v="${sv.id}">💰 ما يبقى من هذا الشهر يذهب إلى «${esc(sv.name)}» | نقدك الآن ${money(saveCalc(sv).cash)}</button>` : ''}
-    ${projs.length ? `<ul class="pl-list pl-projs">${projs.map((x) => { const pc = projCalc(x); return `<li class="pl-row"><button type="button" class="pl-proj" data-action="proj-open" data-v="${x.id}"><span>${esc(x.name)}</span><b>${money(pc.avail)}</b></button></li>`; }).join('')}</ul>` : ''}
-    <p class="note-text explain">سيولة الطوارئ وحسابات مثل الحج والهواية تكون في «المشاريع». البند في الخطة الذي يحمل اسم مشروع (مثل «ادخار الحج») يصل ما تدفعه له إلى المشروع وحده.</p>
-    ${p.accounts.length ? `<div class="pl-accts"><small>حسابات في هذه الخطة: ${p.accounts.map((a) => `${esc(a.name || 'حساب')} ${money(a.balance)}`).join('، ')}</small>
-      <button type="button" class="ghost sm" data-action="fin-acct-move" data-v="${p.id}">انقلها إلى المشاريع</button></div>` : ''}
-    <label class="field"><span>هدف الادخار</span><input type="text" inputmode="decimal" class="num-in" id="fp-goal" data-fin="plan" data-sid="${p.id}" data-k="goal" value="${p.goal || ''}" placeholder="مثال: 15000" data-novoice></label>
-    ${p.goal && c.left > 0 ? `<p class="note-text">بمعدل ${money(c.left)} شهرياً تبلغ هدفك بعد ${Math.ceil(p.goal / c.left)} ${Math.ceil(p.goal / c.left) <= 10 ? 'أشهر' : 'شهراً'}.</p>` : ''}
   </div>`;
 }
 function planDetailHTML(p) {
@@ -382,7 +371,6 @@ function planDetailHTML(p) {
       <p class="note-text explain">مبالغ لا تُدفع كل شهر (كل سنة أو كل بضعة أشهر)، يُخصَّص لها كل شهر جزء.</p>
       ${planListHTML(p, 'periodic')}</div>
     <div class="panel"><h3>الدخل <small>${money(c.income)}</small></h3>${planListHTML(p, 'income')}</div>
-    ${planSavingsHTML(p)}
     <div class="panel"><h3>ملاحظات</h3><textarea id="fp-notes" data-fin="plan" data-sid="${p.id}" data-k="notes" rows="3" placeholder="مثل: هدف الادخار ١٥ ألفاً بنهاية السنة">${esc(p.notes)}</textarea></div>
     <div class="btn-row">
       ${isActive ? '<span class="note-text">✓ هذه خطتك الحالية</span>' : `<button type="button" class="primary" data-action="fin-active" data-v="${p.id}">اجعلها الخطة الحالية</button>`}
@@ -476,7 +464,7 @@ function finProjectsHTML() {
         <button type="button" data-action="proj-paid" data-sid="${p.id}" data-v="funding" aria-pressed="${p.paidFrom === 'funding'}">مصادر التمويل المذكورة</button></div>
         <small class="note-text">${p.paidFrom === 'funding' ? 'خُصم ثمن ما اشتريته من المتوفر أيضاً، لأنه دُفع منه.' : 'المتوفر باقٍ كما هو، لأنك دفعت من مال آخر.'}</small></div>` : ''}
       <div class="panel"><h3>البنود</h3>${rowsHTML('proj', p.id, 'items', [{ k: 'name', ph: 'البند' }, { k: 'amount', ph: 'المبلغ', num: true }, { k: 'done' }], p.items)}</div>
-      <div class="panel"><h3>مصادر التمويل</h3>${c.fromPlan ? `<p class="pl-fromplan">🔗 من خططك الشهرية (بند بنفس الاسم) <b>${money(c.fromPlan)}</b></p>` : ''}${rowsHTML('proj', p.id, 'funding', [{ k: 'name', ph: 'المصدر' }, { k: 'amount', ph: 'المبلغ', num: true }], p.funding, { addLabel: 'مصدر' })}</div>
+      <div class="panel"><h3>مصادر التمويل</h3>${c.fromPlan ? `<ul class="pl-list pl-from">${projPlanLines(p).map((l) => `<li class="pl-row"><span>🔗 ${esc(planTitle(l.p))} | «${esc(l.r.name)}»</span><b>${money(l.amount)}</b></li>`).join('')}<li class="pl-row pl-from-tot"><span>من خططك الشهرية</span><b>${money(c.fromPlan)}</b></li></ul>` : ''}${rowsHTML('proj', p.id, 'funding', [{ k: 'name', ph: 'المصدر' }, { k: 'amount', ph: 'المبلغ', num: true }], p.funding, { addLabel: 'مصدر' })}</div>
       <div class="panel"><h3>ملاحظات</h3><textarea id="fj-note" data-fin="proj" data-sid="${p.id}" data-k="note" rows="3">${esc(p.note)}</textarea></div>
       <div class="btn-row"><button type="button" class="danger" data-action="proj-del" data-v="${p.id}">حذف المشروع</button></div>
     </section>`;
@@ -1088,23 +1076,6 @@ document.addEventListener('click', (e) => {
       const rg = src.kind === 'month' && src.from && src.to ? { from: addDays(src.to, 1), to: addDays(addMonths(addDays(src.to, 1), 1), -1) } : src.kind === 'month' ? defaultRange(m) : { from: '', to: '' };
       const p = normalizeFinPlan({ ...src, ...rg, id: uid(), name: src.kind === 'month' ? `خطة ${monthName(m)}` : `${src.name} (نسخة)`, month: m, income: clone(src.income), fixed: clone(src.fixed), periodic: clone(src.periodic), accounts: clone(src.accounts), created: Date.now() });
       S.finPlans.push(p); save(); finUi.tab = 'plans'; finUi.plan = p.id; render(); toast('أُنشئت نسخة، عدّل ما تغيّر');
-      break;
-    }
-    case 'fin-acct-move': {
-      // each account of the plan becomes a project (or joins the project of the same name) with its balance
-      const p = getFinPlan(v);
-      if (!p || !p.accounts.length) break;
-      let n = 0;
-      for (const a of p.accounts.filter((x) => x.name || x.balance)) {
-        const k = nameKey(a.name || 'حساب');
-        let pr = S.finProjects.find((x) => x.kind !== 'save' && nameKey(x.name) === k);
-        if (!pr) { pr = normalizeFinProject({ name: a.name || 'حساب' }); S.finProjects.push(pr); }
-        const f = pr.funding.find((x) => x.name === 'الرصيد');
-        if (f) f.amount = a.balance; else pr.funding.push(row({ name: 'الرصيد', amount: a.balance }));
-        n++;
-      }
-      p.accounts = [];
-      save(); render(); toast(`نُقلت ${plural(n, 'حساب واحد', 'حسابان', 'حسابات', 'حساباً')} إلى «المشاريع»`);
       break;
     }
     case 'fin-kind': {
