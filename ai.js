@@ -331,12 +331,19 @@ document.addEventListener('click', async (e) => {
   if (!b) return;
   const a = b.dataset.action;
   if (a === 'ai-save') {
-    const k = ($('aiKey') || {}).value || '';
-    if (!/^sk-ant-/.test(k.trim())) { toast('الصق المفتاح الذي يبدأ بـ sk-ant-'); return; }
+    // copying on a phone can bring spaces, line breaks or invisible direction marks along with the key
+    const k = (($('aiKey') || {}).value || '').replace(/[\s\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '');
+    if (!/^sk-ant-/.test(k)) { toast('الصق المفتاح الذي يبدأ بـ sk-ant-'); return; }
     AI.setKey(k);
     render();
-    const ok = await withAI(null, '', () => AI.ask({ system: SYSTEM_AR, effort: 'low', maxTokens: 200, prompt: 'Reply with one short Arabic greeting sentence for the user of a productivity app.' }));
-    if (ok) toast(`✨ ${ok}`);
+    try {
+      const ok = await AI.ask({ system: SYSTEM_AR, effort: 'low', maxTokens: 200, prompt: 'Reply with one short Arabic greeting sentence for the user of a productivity app.' });
+      toast(`✨ ${ok}`);
+    } catch (e) {
+      // a key Claude refuses is not kept, so the field comes back for the right one
+      if (e && e.status === 401) { AI.clear(); render(); toast('رفض Claude هذا المفتاح فلم يُحفظ. أنشئ مفتاحاً جديداً وانسخه فور ظهوره.'); }
+      else toast(AI.friendly(e));
+    }
   }
   if (a === 'ai-remove') { AI.clear(); render(); toast('أُزيل المفتاح'); }
   if (a === 'ai-test') {
