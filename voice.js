@@ -16,6 +16,8 @@ const Voice = (() => {
   let active = false, finishing = false, useAI = false, buffer = '', interim = '', restarts = 0;
   let sessionEl = null; // the field being dictated into, kept even if focus moves
   let hideTimer = null;
+  let lastHeard = 0, silenceTimer = null; // stops by itself after 5 seconds of silence
+  const SILENCE_MS = 5000;
 
   const cfg = () => ({ lang: 'ar-SA', ai: true, on: true, ...(S.settings.voice || {}) });
 
@@ -107,6 +109,14 @@ const Voice = (() => {
     el.setRangeText(chunk, s, e, 'end');
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
+  // after dictation the cursor goes back to the field dictated into, right after its text
+  function returnCaret(el) {
+    if (!el || !el.isConnected) return;
+    try {
+      el.focus({ preventScroll: true });
+      if (!el.isContentEditable) { const n = el.selectionEnd ?? el.value.length; el.setSelectionRange(n, n); }
+    } catch {}
+  }
 
   function start() {
     if (!target) return;
@@ -117,10 +127,16 @@ const Voice = (() => {
     buffer = ''; interim = ''; restarts = 0;
     rec = new SR();
     rec.lang = c.lang;
-    rec.continuous = true;
+    // one phrase per listening (Android repeats earlier words when listening continuously); it restarts by itself
+    rec.continuous = false;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
+    lastHeard = Date.now();
+    clearInterval(silenceTimer);
+    silenceTimer = setInterval(() => { if (active && Date.now() - lastHeard > SILENCE_MS) stop(); }, 500);
+    rec.onspeechstart = () => { lastHeard = Date.now(); };
     rec.onresult = (ev) => {
+      lastHeard = Date.now();
       interim = '';
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
@@ -144,7 +160,9 @@ const Voice = (() => {
     };
     // phones stop listening after a pause; keep going until the user taps again
     rec.onend = () => {
-      if (active && restarts < 30) { restarts++; try { rec.start(); return; } catch {} }
+      // a phrase heard but not yet final is written before listening again, so nothing heard is lost
+      if (interim && !useAI) { insert(interim); interim = ''; }
+      if (active && restarts < 200) { restarts++; try { rec.start(); return; } catch {} }
       finish();
     };
     try { rec.start(); } catch { toast('تعذّر بدء الإملاء. حاول مرة أخرى.'); return; }
@@ -157,6 +175,7 @@ const Voice = (() => {
 
   function stop() {
     active = false;
+    clearInterval(silenceTimer);
     try { rec && rec.stop(); } catch { finish(); }
   }
 
@@ -166,34 +185,45 @@ const Voice = (() => {
     btn.classList.remove('rec');
     btn.setAttribute('aria-label', 'إملاء صوتي');
     const text = (buffer + (interim ? ' ' + interim : '')).trim();
+    clearInterval(silenceTimer);
     if (!useAI) {
       if (interim) insert(interim);
       interim = '';
       setBubble('');
+      const el = sessionEl;
       sessionEl = null;
+      returnCaret(el);
       return;
     }
     buffer = ''; interim = '';
-    if (!text) { setBubble(''); sessionEl = null; return; }
+    if (!text) { setBubble(''); const el0 = sessionEl; sessionEl = null; returnCaret(el0); return; }
     finishing = true;
     setBubble('جارٍ تنقيح النص…');
     let clean = text;
     try {
       clean = (await AI.ask({
-        system: 'You clean up Arabic voice dictation. Add punctuation, fix obvious speech-recognition mistakes, write numbers as digits, keep the speaker\'s words and dialect. Return only the cleaned text.',
+        // only punctuation: the words stay exactly as they were heard
+        system: 'Add punctuation marks to this Arabic voice dictation. Do NOT change, add, remove, reorder or correct any word, and do not translate. Keep every word exactly as given. Return only the text.',
         effort: 'low',
         maxTokens: 2000,
         prompt: text,
       })) || text;
     } catch { /* keep the raw dictation */ }
+    // a cleanup that changed the words is not used: only what was heard is written
+    const words = (s) => s.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean).join(' ');
+    if (words(clean) !== words(text)) clean = text;
     insert(clean);
     finishing = false;
+    const el = sessionEl;
     sessionEl = null;
     setBubble('');
-    if (!eligible(document.activeElement)) hide();
+    returnCaret(el);
   }
 
-  document.addEventListener('focusin', (e) => show(e.target));
+  document.addEventListener('focusin', (e) => {
+    if (active && sessionEl && e.target !== sessionEl && e.target !== btn) { stop(); return; }
+    show(e.target);
+  });
   document.addEventListener('focusout', () => {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => { if (!eligible(document.activeElement)) hide(); }, 200);
@@ -213,7 +243,7 @@ const Voice = (() => {
       <p class="note-text explain">اضغط على أي خانة كتابة ثم على زر الميكروفون 🎤 بجانبها، وتكلّم. اضغطه مرة أخرى لتتوقف.</p>
       <label class="switch"><input type="checkbox" id="voiceOn"${c.on ? ' checked' : ''}><span>إظهار زر الميكروفون في خانات الكتابة</span></label>
       <label class="field"><span>لغة الإملاء ولهجته</span><select id="voiceLang">${VOICE_LANGS.map(([v, l]) => `<option value="${v}"${c.lang === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="switch"><input type="checkbox" id="voiceAI"${c.ai ? ' checked' : ''}${typeof AI !== 'undefined' && AI.on() ? '' : ' disabled'}><span>تنقيح النص بالذكاء الاصطناعي بعد الإملاء (علامات الترقيم والأخطاء)${typeof AI !== 'undefined' && AI.on() ? '' : ' | فعّل الذكاء الاصطناعي أولاً'}</span></label>
+      <label class="switch"><input type="checkbox" id="voiceAI"${c.ai ? ' checked' : ''}${typeof AI !== 'undefined' && AI.on() ? '' : ' disabled'}><span>علامات الترقيم بالذكاء الاصطناعي بعد الإملاء (لا يغيّر كلمة)${typeof AI !== 'undefined' && AI.on() ? '' : ' | فعّل الذكاء الاصطناعي أولاً'}</span></label>
       <p class="note-text explain">التعرّف على الصوت تقدّمه خدمة جهازك (Google أو Apple) ويحتاج إنترنت.</p>
     </section>`;
   }

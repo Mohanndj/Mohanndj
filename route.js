@@ -9,6 +9,16 @@
 const enDigits = (s) => String(s).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٫/g, '.');
 const smartAll = () => S.settings.smartMode === 'all';
 
+// «ذكّرني أن أعيد الكتاب» → «التذكيرات» (in either mode); with a time or a day («ذكّرني بكرة الساعة ٥ …») it stays a task with its alarm
+function routeRemind(text) {
+  const m = /^(?:ذكّرني|ذكرني|ذكّرنى|ذكرنى|تذكير)\s*(?:[:：\-–]\s*)?(?:أن\s+|ان\s+|بأن\s+|بان\s+|بـ\s*|ب(?=ال))?(.+)$/.exec(String(text).trim());
+  if (!m) return null;
+  const r = SmartParse.parse(text);
+  if (r.time || r.prayer || (r.due && !r.autoDue) || r.kind === 'repeat') return null;
+  return { type: 'remind', text: m[1].trim() };
+}
+const smartRoute = (text) => routeRemind(text) || (smartAll() ? routeSmart(text) : null);
+
 function routeSmart(text) {
   const t = enDigits(text).trim();
   let m;
@@ -41,6 +51,7 @@ function routeSmart(text) {
 function routePreviewHTML(q) {
   const tag = (s, cls = '') => `<span class="tag ${cls}">${s}</span>`;
   const tags = q.type === 'spend' ? [tag('💳 مصروف', 'title'), tag(money(q.amount)), tag(esc(q.what || 'بلا وصف')), q.row ? tag(`🔗 بند «${esc(q.row.name)}»${(() => { const rm = rowRemain(currentPlan(), q.row.id, q.amount); return rm ? ` | ${remainAfter(rm)}` : ''; })()}`, (rowRemain(currentPlan(), q.row.id, q.amount) || {}).left < -0.5 ? 'warn' : '') : tag(currentPlan() ? 'لم يُربط ببند في الخطة' : 'لا خطة لهذا الشهر', 'warn')]
+    : q.type === 'remind' ? [tag(`🔔 ${esc(pageName('reminders'))}`, 'title'), tag(esc(q.text))]
     : q.type === 'shop' ? [tag(`${q.list.icon} ${esc(q.list.name)}`, 'title'), ...q.names.map((n) => tag(esc(n)))]
       : [tag('💡 فكرة', 'title'), tag(esc(excerpt(q.text, 50)))];
   return `<div class="parsed">${tags.join('')}</div>`;
@@ -54,6 +65,7 @@ function runRoute(q) {
     const rm = q.row && rowRemain(currentPlan(), q.row.id);
     return `سُجّل ${money(q.amount)}${q.row ? ` في بند «${q.row.name}»` : ''}${rm ? `: ${rm.text}` : ''}`;
   }
+  if (q.type === 'remind') { S.reminders.push(normalizeReminder({ text: q.text })); S.settings.remShown = Date.now(); save(); return `أُضيف إلى «${pageName('reminders')}»: ${q.text}`; }
   if (q.type === 'shop') { const n = addToShop(q.names, q.list.id); return n ? `أُضيف إلى «${q.list.name}»: ${q.names.join('، ')}` : 'موجود في القائمة'; }
   S.ideas.push(normalizeIdea({ text: q.text, created: Date.now() }));
   save();

@@ -42,6 +42,10 @@
   ],
   "shortcuts": [
     {
+      "name": "تذكير جديد",
+      "url": "./?new=reminder#reminders"
+    },
+    {
       "name": "فكرة جديدة",
       "url": "./?new=idea#ideas"
     },

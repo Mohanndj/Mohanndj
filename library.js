@@ -16,10 +16,15 @@ function normalizeMemo(m) {
     audios: Array.isArray(m.audios) ? m.audios.filter((a) => a && a.mediaId) : [],
   };
 }
+// before v70, a book added as «مقروء» from the «أقرؤه الآن» list kept today's auto start date, and so was
+// counted as read on the day it was added: started, finished and added the same day, with no reading recorded
+const pastReadByMistake = (b) => b.status === 'read' && b.created && b.end && b.end === iso(new Date(b.created)) && (!b.start || b.start === b.end) && !(b.log || []).length && !Number(b.page);
 function normalizeBook(b) {
+  if (pastReadByMistake(b)) b = { ...b, start: '', end: '' };
   return {
     id: b.id || uid(), title: String(b.title || ''), author: String(b.author || ''),
-    status: BOOK_STATUS[b.status] ? b.status : 'want', start: b.start || '', end: b.end || '',
+    status: BOOK_STATUS[b.status] ? b.status : 'want', start: b.start || '',
+    end: b.end || '',
     summary: String(b.summary || ''), created: b.created || Date.now(),
     // a book read in the past: no dates asked, only an optional Hijri year
     hyear: /^\d{3,4}$/.test(String(b.hyear || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))) ? String(b.hyear).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)) : '',
@@ -82,6 +87,8 @@ function normalizeBenefit(f) {
     id: f.id || uid(), bookId: f.bookId || '', book: String(f.book || ''), page: Number.isFinite(page) ? page : '',
     title: String(f.title || ''), lesson: String(f.lesson || ''), created: f.created || Date.now(),
     actionId: f.actionId || '', lastReview: f.lastReview || '', reviews: Number(f.reviews) || 0,
+    // voice notes on it (benvoice.js): the recording stays on the phone, its written-out text with the benefit
+    voices: (Array.isArray(f.voices) ? f.voices : []).filter((v) => v && v.id).map((v) => ({ id: v.id, mediaId: String(v.mediaId || ''), dur: Number(v.dur) || 0, text: String(v.text || ''), created: v.created || Date.now() })),
   };
 }
 
@@ -282,6 +289,8 @@ function benefitCard(f) {
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
     ${f.lesson ? `<p>${esc(excerpt(f.lesson, 260))}</p>` : ''}
+    ${f.voices && f.voices.length ? `<span class="book-line">🎙 التسجيلات: ${f.voices.length} | المفرّغ منها: ${bvTexts(f).length}</span>` : ''}
+    ${bvTexts(f).map((x) => `<p class="bv-text">${esc(excerpt(x, 260))}</p>`).join('')}
     ${f.actionId && getTask(f.actionId) ? `<span class="book-line ok">${icon('check')}تحوّلت إلى عمل: ${esc(getTask(f.actionId).title)}</span>` : ''}
   </button>`;
 }
@@ -366,9 +375,11 @@ function openLib(kind, id, preset = {}) {
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
-      ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>` : ''}`;
+      ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
+      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? ` <small>صفحة ${fb.page}</small>` : ''}${fb.lesson ? `<span>${esc(excerpt(fb.lesson, 160))}</span>` : ''}${bvTexts(fb).map((x) => `<span class="bv-text">🎙 ${esc(x)}</span>`).join('')}</button>`).join('')}</div>` : ''}` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
+    ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
     const bookTitle = id ? benefitBookTitle(fx) : (preset.bookId ? getBook(preset.bookId).title : preset.book || '');
     body = `
       <label class="field"><span>اسم الكتاب</span><input type="text" id="lBook" value="${esc(bookTitle === 'بلا كتاب' ? '' : bookTitle)}" list="bookTitles" autocomplete="off" placeholder="اختر من كتبك أو اكتب اسماً"></label>
@@ -376,6 +387,7 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>رقم الصفحة</span><input type="number" id="lPage" min="0" inputmode="numeric" value="${fx.page}" placeholder="مثال: 45"></label>
       <label class="field"><span>عنوان الفائدة</span><input type="text" id="lTitle" value="${esc(fx.title)}" autocomplete="off" placeholder="مثال: أثر العادة في النجاح"></label>
       <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="6" placeholder="اكتب الفائدة وكيف تطبّقها">${esc(fx.lesson)}</textarea></label>
+      <div id="bvBox"></div>
       ${id ? (fx.actionId && getTask(fx.actionId)
         ? `<div class="row-between"><span class="note-text">${icon('check')} تحوّلت إلى عمل: ${esc(getTask(fx.actionId).title)}</span><button type="button" class="ghost" data-action="open" data-id="${fx.actionId}">عرضه</button></div>`
         : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">اجعلها مهمة</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
@@ -391,6 +403,7 @@ function openLib(kind, id, preset = {}) {
     </div>`;
   libArmed = false;
   updateBookEnd();
+  if (kind === 'benefit') bvRender();
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   f.scrollTop = 0;
@@ -435,6 +448,8 @@ function saveLib() {
     let start = ['reading', 'read'].includes(ldraft.status) ? v('lStart') : ldraft.status === 'stalled' ? v('lStart') : '', end = ['read', 'stalled'].includes(ldraft.status) ? v('lEnd') : '';
     // finished after reading it here: its end defaults to today; a book read in the past keeps no dates
     if (ldraft.status === 'read' && start && !end) end = today();
+    // a book read in the past (no start date) keeps no end date: it never counts as read this year
+    if (ldraft.status === 'read' && !start) end = '';
     if (ldraft.status === 'reading' && !start) start = today();
     if (start && end && end < start) { toast('تاريخ الانتهاء قبل تاريخ البدء.'); return false; }
     const old = getBook(id);
@@ -458,10 +473,13 @@ function saveLib() {
     libUi.bookStatus = b.status;
   } else {
     const title = v('lTitle'), lesson = $('lLesson').value.trim(), bookName = v('lBook');
-    if (!title && !lesson) { toast('اكتب عنوان الفائدة أو نصها.'); return false; }
+    const voices = ldraft.voices || [];
+    if (!title && !lesson && !voices.length) { toast('اكتب عنوان الفائدة أو نصها، أو سجّلها بصوتك.'); return false; }
     const book = S.books.find((b) => b.title === bookName);
     const old = getBenefit(id);
-    const f = normalizeBenefit({ ...(old || {}), id, title, lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName });
+    // a recording removed in the sheet leaves the phone too
+    if (old) for (const x of old.voices || []) if (!voices.some((y) => y.id === x.id)) Media.del(x.mediaId).catch(() => {});
+    const f = normalizeBenefit({ ...(old || {}), id, title: title || (voices.length ? 'فائدة مسجّلة بالصوت' : ''), lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName, voices });
     if (old) Object.assign(old, f); else S.benefits.push(f);
   }
   save();
@@ -664,8 +682,12 @@ document.addEventListener('click', (e) => {
     case 'lib-status':
       ldraft.status = v;
       for (const b of $('lStatus').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+      // a new book's start date filled in by itself (today, for «أقرؤه الآن») goes when another status is chosen:
+      // a book marked «مقروء» right away was read in the past, so it takes no dates
+      if (ldraft.isNew && v !== 'reading' && $('lStart').value === today() && !ldraft.startTyped) $('lStart').value = '';
       if (v === 'reading' && !$('lStart').value) $('lStart').value = today();
-      if (v === 'read' && !$('lEnd').value) $('lEnd').value = today();
+      // (a book read in the past, with no start date, takes no end date: it is not read this year)
+      if (v === 'read' && !$('lEnd').value && $('lStart').value) $('lEnd').value = today();
       updateBookEnd();
       break;
     case 'lib-benefit-from-book': {
@@ -730,7 +752,7 @@ function openBookReview(id) {
     <div id="brvShow" class="brv-show" hidden>
       ${pts.length ? `<h3>ما أردت أن أتذكره</h3><ul>${pts.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${b.summary ? `<h3>فكرته</h3><p>${esc(b.summary)}</p>` : ''}
-      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}</li>`).join('')}</ul>` : ''}
+      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}${bvTexts(f).map((x) => `<br>🎙 ${esc(x)}`).join('')}</li>`).join('')}</ul>` : ''}
       ${!pts.length && !b.summary && !fx.length ? '<p class="note-text">لم تسجّل شيئاً من هذا الكتاب بعد. أضف نقاطاً أو فوائد لتستذكرها في المرة القادمة.</p>' : ''}
       ${b.rvLog.filter((e) => e.recall).length ? `<details class="howto"><summary>ما تذكرته في المرات السابقة</summary>${b.rvLog.filter((e) => e.recall).map((e) => `<p><small>${esc(dateBoth(e.d, true))}</small><br>${esc(e.recall)}</p>`).join('')}</details>` : ''}
     </div>
@@ -781,6 +803,7 @@ document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'lRv') $('lRvPointsW').hidden = !e.target.checked;
   if (id === 'benefitBook') { libUi.benefitBook = e.target.value; render(); }
+  if (id === 'lStart' && ldraft) ldraft.startTyped = true;
   if (id === 'lStart' && $('lStartH')) $('lStartH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
   if (id === 'lEnd' && $('lEndH')) $('lEndH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
 });

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 69;
+const APP_VERSION = 70;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -531,7 +531,7 @@ function smartPreviewHTML() {
   if (!text) {
     return `<div class="examples" aria-label="أمثلة">${SMART_EXAMPLES.map((e) => `<button type="button" data-action="example" data-v="${esc(e)}">${esc(e)}</button>`).join('')}</div>`;
   }
-  const q = smartAll() && routeSmart(text);
+  const q = smartRoute(text);
   if (q) return routePreviewHTML(q);
   const r = SmartParse.parse(text);
   if (!r.title) return '<div class="parsed"><span class="tag warn">اكتب ما تريد فعله</span></div>';
@@ -2388,7 +2388,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('submit', (e) => {
   if (e.target.id !== 'smartForm') return;
   e.preventDefault();
-  const q = smartAll() && routeSmart(ui.smart);
+  const q = smartRoute(ui.smart);
   if (q) { const msg = runRoute(q); ui.smart = ''; render(); toast(msg); return; }
   const r = SmartParse.parse(ui.smart);
   if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبي بكرة الساعة 5'); return; }
@@ -2542,6 +2542,7 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   if (params.get('action') && params.get('id')) alarmAction(params.get('action'), params.get('id'), params.get('key') || '');
   const nw = params.get('new');
   if (nw === 'idea') { ui.tab = 'ideas'; render(); openIdea(null, { quick: true }); }
+  else if (nw === 'reminder') { ui.tab = 'reminders'; render(); setTimeout(() => { const x = document.querySelector('[data-rem-form] input'); if (x) x.focus(); }, 300); }
   else if (nw === 'journal') { ui.tab = 'journal'; render(); openJournal(null, (suggestedTpl() || {}).id); }
   else if (nw) openSheet(null, nw === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
