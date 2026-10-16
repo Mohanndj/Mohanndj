@@ -25,7 +25,8 @@ function linkSources(p) {
   for (const f of S.fines) {
     const paidIn = sum(inPlanList(f.payments, p));
     // each violation is its own item (never joined to another row): its kind, place and date
-    if (fineLeft(f) > 0 || paidIn) out.push({ key: `fine:${f.id}`, name: `${fineName(f)} (${fmtDate(f.date, { day: 'numeric', month: 'short' })})`, amount: fineLeft(f) + paidIn, every: 1, own: true });
+    // only when the user chose to put it in the plan (it may wait for later); one paid in this plan stays
+    if ((f.plan && fineLeft(f) > 0) || paidIn) out.push({ key: `fine:${f.id}`, name: `${fineName(f)} (${fmtDate(f.date, { day: 'numeric', month: 'short' })})`, amount: fineLeft(f) + paidIn, every: 1, own: true });
   }
   return out;
 }

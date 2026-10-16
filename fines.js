@@ -9,6 +9,8 @@ function normalizeFine(x) {
     id: x.id || uid(), amount: num(x.amount), disc: num(x.disc), discUntil: /^\d{4}-\d{2}-\d{2}$/.test(x.discUntil || '') ? x.discUntil : '',
     date: x.date || today(), time: String(x.time || ''), place: String(x.place || ''), kind: String(x.kind || ''),
     number: String(x.number || ''), car: String(x.car || ''),
+    // in the monthly plan or waiting for later (fines from before this choice existed were in the plan)
+    plan: x.plan === undefined ? true : !!x.plan,
     note: String(x.note || ''), payments: payments(x.payments), created: x.created || Date.now(),
   };
 }
@@ -67,11 +69,12 @@ function finFinesHTML() {
       ${discLine(f) ? `<small class="${discOn(f) ? 'ok' : 'late'}">${esc(discLine(f))}</small>` : ''}
       ${f.note ? `<small>${esc(f.note)}</small>` : ''}
     </button>
-    ${fineLeft(f) ? `<div class="btn-row"><button type="button" class="ghost" data-action="fine-pay" data-v="${f.id}">سدّدتها ✓</button></div>` : ''}
+    ${fineLeft(f) ? `<div class="btn-row"><button type="button" class="ghost" data-action="fine-pay" data-v="${f.id}">سدّدتها ✓</button>
+      <button type="button" class="${f.plan ? 'ghost fine-inplan' : 'ghost'}" data-action="fine-plan" data-v="${f.id}">${f.plan ? '✓ في الخطة | أخرجها' : '＋ أضفها إلى الخطة'}</button></div>` : ''}
   </article>`;
   return `<section class="section">
     <div class="section-head"><h2>المخالفات المرورية <small class="num">${money(sum(open, fineLeft))}</small></h2>${addBtn('fine-new', 'مخالفة')}</div>
-    <p class="note-text explain">كل مخالفة لم تُسدَّد تظهر بنداً في خطة هذا الشهر حتى تسددها.</p>
+    <p class="note-text explain">المخالفة لا تدخل خطة الشهر إلا إن اخترت «أضفها إلى الخطة»؛ فإن أجّلت سدادها تبقى هنا حتى تختار.</p>
     ${open.length ? `<div class="book-list">${open.map(card).join('')}</div>` : emptyHTML('لا مخالفات عليك', 'سجّل المخالفة بقيمتها وتاريخها ومكانها، فتدخل خطتك الشهرية حتى تسددها.')}
     ${paid.length ? `<details class="shop-done"><summary>المسدّدة (${paid.length}) | ${money(sum(paid, (f) => sum(f.payments)))}</summary><div class="book-list">${paid.map(card).join('')}</div></details>` : ''}
   </section>`;
@@ -98,6 +101,7 @@ function openFine(id) {
     </div>
     <label class="field"><span>رقم المخالفة</span><input type="text" id="fnNumber" value="${esc(f.number)}" inputmode="numeric" autocomplete="off" data-novoice></label>
     <label class="field"><span>ملاحظة</span><input type="text" id="fnNote" value="${esc(f.note)}" autocomplete="off"></label>
+    <label class="switch"><input type="checkbox" id="fnPlan"${id ? (f.plan ? ' checked' : '') : ''}><span>أضفها إلى خطة هذا الشهر (اتركها إن ستؤجل سدادها)</span></label>
     ${id && f.payments.length ? `<p class="note-text">سُدّد منها ${money(sum(f.payments))} | ${esc(f.payments.map((p) => dateBoth(p.d, true)).join('، '))}</p>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button>${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}</div>`;
   libArmed = false;
@@ -108,7 +112,7 @@ function saveFine() {
   if (!amount && !disc) { toast('اكتب قيمة المخالفة.'); return false; }
   if (disc && amount && disc > amount) { toast('المخفّضة أكبر من الكاملة.'); return false; }
   const old = S.fines.find((x) => x.id === ldraft.id);
-  const f = normalizeFine({ ...(old || {}), id: ldraft.id, amount: amount || disc, disc: disc && disc < (amount || disc) ? disc : 0, discUntil: $('fnUntil').value, date: $('fnDate').value || today(), time: $('fnTime').value, place: $('fnPlace').value.trim(), kind: $('fnKind').value.trim(), car: $('fnCar').value.trim(), number: $('fnNumber').value.trim(), note: $('fnNote').value.trim() });
+  const f = normalizeFine({ ...(old || {}), id: ldraft.id, amount: amount || disc, disc: disc && disc < (amount || disc) ? disc : 0, discUntil: $('fnUntil').value, date: $('fnDate').value || today(), time: $('fnTime').value, place: $('fnPlace').value.trim(), kind: $('fnKind').value.trim(), car: $('fnCar').value.trim(), number: $('fnNumber').value.trim(), note: $('fnNote').value.trim(), plan: $('fnPlan').checked });
   if (old) Object.assign(old, f); else S.fines.push(f);
   syncAllPlans();
   save();
@@ -135,6 +139,16 @@ document.addEventListener('click', (e) => {
   const { action, v } = el.dataset;
   if (action === 'fine-new') openFine(null);
   if (action === 'fine-open') openFine(v);
+  if (action === 'fine-plan') {
+    const f = S.fines.find((x) => x.id === v);
+    if (!f) return;
+    f.plan = !f.plan;
+    // brought back into the plan: forget that it was once removed from this month's plan
+    const cp = currentPlan(); if (f.plan && cp && cp.unlinked) cp.unlinked = cp.unlinked.filter((k) => k !== `fine:${f.id}`);
+    syncAllPlans(); save(); render();
+    toast(f.plan ? 'أُضيفت إلى خطة هذا الشهر' : 'أُخرجت من الخطة، تبقى هنا حتى تختار');
+    return;
+  }
   if (action === 'fine-pay') {
     const f = S.fines.find((x) => x.id === v);
     if (!f) return;

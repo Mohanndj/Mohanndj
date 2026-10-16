@@ -1508,3 +1508,4 @@ html:not(.show-explain) .explain { display: none !important; }
 .pj-amt { flex: 0 0 auto; display: grid; justify-items: end; gap: 0; }
 .pj-amt small { color: var(--muted); font-size: .72rem; }
 .pj-amt b { color: var(--low); font-size: 1.05rem; }
+.fine-inplan { color: var(--low); }
