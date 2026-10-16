@@ -1076,6 +1076,8 @@ function rowDelete(el) {
   const obj = finScope(el.dataset.scope, el.dataset.sid);
   const v = el.dataset.v;
   if (!obj || !obj[el.dataset.list]) return;
+  // deleting ends any typing: the cursor (and the phone's keyboard) leaves the field, nothing jumps to it
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#view')) document.activeElement.blur();
   const r = obj[el.dataset.list].find((x) => x.id === v);
   if (r && r.link && obj.unlinked) { obj.unlinked.push(r.link); toast('حُذف، ولن يُضاف تلقائياً إلى هذه الخطة'); }
   else toast(`حُذف «${r && r.name ? r.name : 'البند'}»`);

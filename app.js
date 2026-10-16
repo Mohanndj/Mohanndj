@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 59;
+const APP_VERSION = 60;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1091,10 +1091,13 @@ function render() {
   const view = $('view');
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
+  // the page stays where it is: redrawing never scrolls to the field that had the cursor
+  const y = window.scrollY;
   view.innerHTML = VIEWS[ui.tab]();
   hydrateImages(view);
+  if (window.scrollY !== y) window.scrollTo(0, y);
   if (active && $(active)) {
-    $(active).focus();
+    $(active).focus({ preventScroll: true });
     try { if (caret != null) $(active).setSelectionRange(caret, caret); } catch {}
   }
   const navTab = MORE_TABS.includes(ui.tab) ? 'more' : ui.tab;
