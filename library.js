@@ -117,8 +117,7 @@ function dailyBenefitHTML() {
     <small>${icon('bulb')} فائدة اليوم للمراجعة</small>
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
-    ${f.text ? `<p class="ben-text">${esc(excerpt(f.text, 240))}</p>` : ''}
-    ${f.lesson ? `<p>${esc(excerpt(f.lesson, 240))}</p>` : ''}
+    ${benBody(f, 400)}
     <div class="btn-row">
       <button type="button" class="primary" data-action="lib-reviewed" data-v="${f.id}">${icon('check')} راجعتها</button>
       ${action ? `<button type="button" class="ghost" data-action="open" data-id="${action.id}">عرض العمل المرتبط</button>` : `<button type="button" class="ghost" data-action="lib-to-action" data-v="${f.id}">اجعلها مهمة</button>`}
@@ -286,14 +285,18 @@ function readingGoalHTML() {
 }
 
 // ---------- benefits ----------
+// a benefit's body, the same on its page, the book's page, the recall and the daily review:
+// its text and each written-out recording in one calm box apiece, then «يُستفاد منها» below them
+function benBody(f, max = 0) {
+  const cut = (s) => esc(max ? excerpt(s, max) : s);
+  return `${f.text ? `<p class="ben-text">${cut(f.text)}</p>` : ''}${bvTexts(f).map((x) => `<p class="ben-text">${cut(x)}</p>`).join('')}${f.lesson ? `<p class="ben-lesson"><b>يُستفاد منها:</b> ${cut(f.lesson)}</p>` : ''}`;
+}
 function benefitCard(f) {
   return `<button type="button" class="benefit" data-action="lib-open-benefit" data-v="${f.id}">
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
-    ${f.text ? `<p class="ben-text">${esc(excerpt(f.text, 260))}</p>` : ''}
-    ${f.lesson ? `<p>${esc(excerpt(f.lesson, 260))}</p>` : ''}
-    ${f.voices && f.voices.length ? `<span class="book-line">🎙 التسجيلات: ${f.voices.length} | المفرّغ منها: ${bvTexts(f).length}</span>` : ''}
-    ${bvTexts(f).map((x) => `<p class="bv-text">${esc(excerpt(x, 260))}</p>`).join('')}
+    ${benBody(f, 400)}
+    ${f.voices && f.voices.length > bvTexts(f).length ? `<span class="book-line">🎙 تسجيلات لم تُفرَّغ: ${f.voices.length - bvTexts(f).length}</span>` : ''}
     ${f.actionId && getTask(f.actionId) ? `<span class="book-line ok">${icon('check')}تحوّلت إلى عمل: ${esc(getTask(f.actionId).title)}</span>` : ''}
   </button>`;
 }
@@ -379,7 +382,7 @@ function openLib(kind, id, preset = {}) {
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
       ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
-      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? ` <small>صفحة ${fb.page}</small>` : ''}${fb.text ? `<span class="ben-text">${esc(excerpt(fb.text, 160))}</span>` : ''}${fb.lesson ? `<span>${esc(excerpt(fb.lesson, 160))}</span>` : ''}${bvTexts(fb).map((x) => `<span class="bv-text">🎙 ${esc(x)}</span>`).join('')}</button>`).join('')}</div>` : ''}` : ''}`;
+      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
     ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
@@ -756,7 +759,7 @@ function openBookReview(id) {
     <div id="brvShow" class="brv-show" hidden>
       ${pts.length ? `<h3>ما أردت أن أتذكره</h3><ul>${pts.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${b.summary ? `<h3>فكرته</h3><p>${esc(b.summary)}</p>` : ''}
-      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><ul>${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<li><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? ` <small>صفحة ${f.page}</small>` : ''}${f.text ? `<br>«${esc(f.text)}»` : ''}${f.lesson ? `<br>${esc(f.lesson)}` : ''}${bvTexts(f).map((x) => `<br>🎙 ${esc(x)}`).join('')}</li>`).join('')}</ul>` : ''}
+      ${fx.length ? `<h3>فوائدي منه (${fx.length})</h3><div class="bk-bens">${fx.sort((a, c) => (a.page || 0) - (c.page || 0)).map((f) => `<div class="bk-ben"><span class="ben-head"><b>${esc(f.title || 'فائدة')}</b>${f.page !== '' ? `<small>صفحة ${f.page}</small>` : ''}</span>${benBody(f)}</div>`).join('')}</div>` : ''}
       ${!pts.length && !b.summary && !fx.length ? '<p class="note-text">لم تسجّل شيئاً من هذا الكتاب بعد. أضف نقاطاً أو فوائد لتستذكرها في المرة القادمة.</p>' : ''}
       ${b.rvLog.filter((e) => e.recall).length ? `<details class="howto"><summary>ما تذكرته في المرات السابقة</summary>${b.rvLog.filter((e) => e.recall).map((e) => `<p><small>${esc(dateBoth(e.d, true))}</small><br>${esc(e.recall)}</p>`).join('')}</details>` : ''}
     </div>
