@@ -253,7 +253,7 @@ function ContentBootstrap() {
           youtube_url: x.youtube_url || "",
           show_youtube: !!x.show_youtube,
           references: x.references || [],
-          short: x.short || "",
+          short: x.short || String(x.id || "").slice(0, 6),
           show_references: !!x.show_references,
         }));
         series = (s.series || []).map((x) => ({ id: x.id, title: x.title, desc: x.desc || "" }));
@@ -1102,13 +1102,168 @@ function ArticleReferences({ post }) {
   );
 }
 
+
+/* ============================================================
+   الروابط المختصرة
+   ============================================================ */
+const shortUrl = (post) => `${window.location.origin}/a/${post.short}`;
+
+/* ============================================================
+   الاستحسان: نجمة ثُمانية تمتلئ ذهبًا، والعدد مشترك بين القرّاء (يُحفظ في الخادم).
+   يختفي كله إن لم يكن الخادم مهيّأً.
+   ============================================================ */
+const LIKED_KEY = "muhannad-liked";
+let likeCounts = null;          // null: لم يُحمَّل أو غير مفعّل
+let likesRequested = false;
+const likeListeners = new Set();
+const bumpLikes = () => likeListeners.forEach((fn) => fn());
+function getLiked() {
+  try { return JSON.parse(localStorage.getItem(LIKED_KEY) || "[]"); } catch { return []; }
+}
+function setLiked(list) {
+  try { localStorage.setItem(LIKED_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+}
+function loadLikes() {
+  if (likesRequested) return;
+  likesRequested = true;
+  fetch("/api/likes").then((r) => (r.ok ? r.json() : null)).then((d) => {
+    if (d && d.counts) { likeCounts = d.counts; bumpLikes(); }
+  }).catch(() => {});
+}
+function useLike(articleId) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const fn = () => force((n) => n + 1);
+    likeListeners.add(fn);
+    loadLikes();
+    return () => likeListeners.delete(fn);
+  }, []);
+  const enabled = likeCounts !== null;
+  const count = enabled ? (likeCounts[articleId] || 0) : 0;
+  const liked = getLiked().includes(articleId);
+  const toggle = async () => {
+    const next = !liked;
+    const list = getLiked().filter((x) => x !== articleId);
+    setLiked(next ? [...list, articleId] : list);
+    likeCounts = { ...likeCounts, [articleId]: Math.max(0, count + (next ? 1 : -1)) };
+    bumpLikes();
+    try {
+      const r = await fetch(`/api/likes/${articleId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liked: next }),
+      });
+      if (r.ok) { likeCounts = { ...likeCounts, [articleId]: (await r.json()).count }; bumpLikes(); }
+    } catch { /* يبقى التحديث المتفائل */ }
+  };
+  return { enabled, count, liked, toggle };
+}
+function likesPhrase(n) {
+  if (n === 0) return "كن أوّل من يستحسنها";
+  if (n === 1) return "استحسنها قارئٌ واحد";
+  if (n === 2) return "استحسنها قارئان";
+  if (n <= 10) return `استحسنها ${ar(n)} قرّاء`;
+  return `استحسنها ${ar(n)} قارئًا`;
+}
+function KhatamStar({ size = 18 }) {
+  // نجمة ثُمانية (خاتم) من مربّعين متراكبين
+  return (
+    <svg className="khatam" width={size} height={size} viewBox={size >= 32 ? "0 0 24 24" : "2 2 20 20"} aria-hidden="true">
+      <rect x="5" y="5" width="14" height="14"/>
+      <rect x="5" y="5" width="14" height="14" transform="rotate(45 12 12)"/>
+      {size >= 32 && <circle cx="12" cy="12" r="2.6"/>}
+    </svg>
+  );
+}
+function LikeButton({ articleId }) {
+  const { enabled, count, liked, toggle } = useLike(articleId);
+  if (!enabled) return null;
+  return (
+    <button className={`icon-btn like-btn ${liked ? "on" : ""}`} onClick={toggle} aria-pressed={liked}
+            aria-label={liked ? "إلغاء الاستحسان" : "استحسان المقالة"} data-testid="like-btn">
+      <KhatamStar size={18}/> <span>{liked ? "استحسنتَها" : "استحسان"}</span>
+      {count > 0 && <span className="like-n">{ar(count)}</span>}
+    </button>
+  );
+}
+function Appreciation({ articleId }) {
+  const { enabled, count, liked, toggle } = useLike(articleId);
+  const [pop, setPop] = useState(false);
+  if (!enabled) return null;
+  const click = () => { if (!liked) { setPop(true); setTimeout(() => setPop(false), 700); } toggle(); };
+  return (
+    <section className={`appreciate no-print ${liked ? "liked" : ""}`} data-testid="appreciate">
+      <p className="appr-q">هل نفعتك المقالة؟</p>
+      <button className={`appr-star ${pop ? "pop" : ""}`} onClick={click} aria-pressed={liked}
+              aria-label={liked ? "إلغاء الاستحسان" : "استحسان المقالة"} data-testid="appreciate-btn">
+        <KhatamStar size={64}/>
+        <span className="appr-burst" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ "--a": `${i * 45}deg` }}/>)}</span>
+      </button>
+      <div className="appr-count" data-testid="appreciate-count">{count > 0 ? ar(count) : ""}</div>
+      <p className="appr-text">{likesPhrase(count)}</p>
+      <p className="appr-hint">{liked ? "شكرًا لك، وصل استحسانك." : "اضغط النجمة إن وجدتَ فيها فائدة."}</p>
+    </section>
+  );
+}
+
+/* ============================================================
+   المشاركة: منشور جاهز (عنوان ومقتطف ورابط مختصر) يُعدَّل قبل الإرسال
+   ============================================================ */
+function sharePost(post, maxExcerpt = 240) {
+  const title = stripInline(post.title);
+  let ex = stripInline(post.excerpt || autoExcerpt(post)).replace(/\s+/g, " ").trim();
+  if (ex.length > maxExcerpt) ex = ex.slice(0, maxExcerpt).replace(/\s+\S*$/, "") + "…";
+  const tag = post.cat ? `#${post.cat.replace(/\s+/g, "_")}` : "";
+  return [`«${title}»`, ex, `✦ اقرأ المقالة كاملة:\n${shortUrl(post)}`, `— ${siteSettings.site_name || "مدونة مهند بن جازي"}${tag ? ` ${tag}` : ""}`]
+    .filter(Boolean).join("\n\n");
+}
+function SharePanel({ post, onClose }) {
+  const [text, setText] = useState(() => sharePost(post));
+  const [done, setDone] = useState("");
+  useEffect(() => {
+    const k = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  const enc = encodeURIComponent;
+  const url = shortUrl(post);
+  // تويتر يحدّ المنشور بـ٢٨٠ حرفًا، فيأخذ نسخة بمقتطف أقصر
+  const xText = text === sharePost(post) ? sharePost(post, 90) : text;
+  const flash = (m) => { setDone(m); setTimeout(() => setDone(""), 2200); };
+  const copy = async (v, m) => { try { await navigator.clipboard.writeText(v); flash(m); } catch { flash("تعذّر النسخ"); } };
+  const native = async () => { try { await navigator.share({ text }); flash("تمّت المشاركة"); } catch { /* أُلغيت */ } };
+  return (
+    <div className="share-overlay no-print" onClick={onClose} data-testid="share-panel">
+      <div className="share-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="مشاركة المقالة">
+        <button className="share-close" onClick={onClose} aria-label="إغلاق"><X size={18}/></button>
+        <p className="eyebrow">شارك المقالة</p>
+        <h3>منشورٌ جاهز</h3>
+        <p className="share-sub">عدّله إن شئت، ثم اختر أين تنشره.</p>
+        <textarea className="share-text" value={text} onChange={(e) => setText(e.target.value)} rows={9} dir="rtl" data-testid="share-text"/>
+        <div className="share-link" dir="ltr">
+          <LinkIcon size={14}/> <span data-testid="share-short">{url.replace(/^https?:\/\//, "")}</span>
+          <button className="icon-btn small" onClick={() => copy(url, "نُسخ الرابط")} data-testid="share-copy-link">نسخ الرابط</button>
+        </div>
+        <div className="share-targets">
+          <a className="share-t x" href={`https://twitter.com/intent/tweet?text=${enc(xText)}`} target="_blank" rel="noopener noreferrer"><Twitter size={16}/> <span>إكس</span></a>
+          <a className="share-t tg" href={`https://t.me/share/url?url=${enc(url)}&text=${enc(text.replace(url, "").trim())}`} target="_blank" rel="noopener noreferrer"><Send size={16}/> <span>تيليجرام</span></a>
+          <a className="share-t wa" href={`https://wa.me/?text=${enc(text)}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={16}/> <span>واتساب</span></a>
+          <button className="share-t" onClick={() => copy(text, "نُسخ المنشور")} data-testid="share-copy-post"><FileText size={16}/> <span>نسخ المنشور</span></button>
+          {typeof navigator !== "undefined" && navigator.share && (
+            <button className="share-t" onClick={native} data-testid="share-native"><Share2 size={16}/> <span>تطبيقات أخرى</span></button>
+          )}
+        </div>
+        <p className="share-done" aria-live="polite">{done}</p>
+      </div>
+    </div>
+  );
+}
+
 function ArticlePage() {
   useLiveContent();
   const { id } = useParams();
   const post = posts.find((p) => p.slug === id || p.id === id || p.real_id === id);
   const [openNote, setOpenNote] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [shareState, setShareState] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
   const endRef = useRef(null);
   useEffect(() => { setOpenNote(null); window.scrollTo(0, 0); }, [id]);
   useReadTracker(post?.id, endRef);
@@ -1164,24 +1319,6 @@ function ArticlePage() {
     }
   }
 
-  async function share() {
-    // Prefer the short-share URL for a cleaner social link.
-    let url = window.location.href;
-    if (post.short) url = `${window.location.origin}/a/${post.short}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: post.title, text: post.excerpt, url });
-        setShareState("shared");
-      } catch { /* dismissed */ }
-    } else {
-      try {
-        await navigator.clipboard.writeText(url);
-        setShareState("copied");
-        setTimeout(() => setShareState(""), 2000);
-      } catch { setShareState(""); }
-    }
-  }
-
   return (
     <main className="wrap inner-page" data-testid="article-page">
       <article className="essay" id="essay-print">
@@ -1199,9 +1336,10 @@ function ArticlePage() {
           <button className="icon-btn" onClick={exportPdf} disabled={busy} data-testid="pdf-export">
             <FileDown size={16}/> <span>{busy ? "جاري التحضير…" : "تصدير PDF"}</span>
           </button>
-          <button className="icon-btn" onClick={share} data-testid="share-btn">
-            <Share2 size={16}/> <span>{shareState === "copied" ? "نُسِخ الرابط" : shareState === "shared" ? "تمّت المشاركة" : "مشاركة"}</span>
+          <button className="icon-btn" onClick={() => setShareOpen(true)} data-testid="share-btn">
+            <Share2 size={16}/> <span>مشاركة</span>
           </button>
+          <LikeButton articleId={post.real_id}/>
         </div>
         <Ornament item={post} className="f-wide"/>
 
@@ -1243,8 +1381,17 @@ function ArticlePage() {
         <div className="pdf-colophon" aria-hidden="true">
           <div>مدونة مهند بن جازي</div>
           <div>{post.date} · {post.cat}</div>
+          <div dir="ltr">{window.location.host}/a/{post.short}</div>
         </div>
       </article>
+
+      <Appreciation articleId={post.real_id}/>
+      <div className="share-cta no-print">
+        <button className="icon-btn" onClick={() => setShareOpen(true)} data-testid="share-btn-end">
+          <Share2 size={16}/> <span>شارك المقالة بمنشورٍ جاهز</span>
+        </button>
+      </div>
+      {shareOpen && <SharePanel post={post} onClose={() => setShareOpen(false)}/>}
 
       {(nextPart || prevPart) && seriesInfo && (
         <section className="series-nav no-print" data-testid="series-nav">

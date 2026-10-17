@@ -1,6 +1,6 @@
 // حسابات لوحة التحكم وجلساتها.
 //
-// الحسابات في Cloudflare KV (الربط USERS)، المفتاح user:<البريد>، وكلمات السر مجزّأة بـ PBKDF2.
+// الحسابات في Cloudflare KV (الربط STORE)، المفتاح user:<البريد>، وكلمات السر مجزّأة بـ PBKDF2.
 // أوّل دخول بكلمة السر ADMIN_PASSWORD (من إعدادات Cloudflare) يُنشئ حساب المالك بالبريد المُدخَل،
 // وبعدها لا تُقبل ADMIN_PASSWORD ما دام للموقع مالك. للاسترجاع: احذف مفتاح المالك من KV.
 // إن لم يُربط KV بعد، تعمل اللوحة بكلمة السر ADMIN_PASSWORD وحدها كما كانت.
@@ -18,7 +18,7 @@ export const json = (obj, status = 200, headers = {}) =>
   new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers } });
 
 export const configured = (env) => !!(env.ADMIN_PASSWORD && env.GITHUB_TOKEN);
-export const hasKv = (env) => !!env.USERS;
+export const hasKv = (env) => !!env.STORE;
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -53,22 +53,22 @@ export async function checkPassword(user, password) {
 /* ---------- الحسابات في KV ---------- */
 
 export async function getUser(env, email) {
-  return env.USERS.get(`user:${normEmail(email)}`, "json");
+  return env.STORE.get(`user:${normEmail(email)}`, "json");
 }
 
 export async function putUser(env, user) {
-  await env.USERS.put(`user:${user.email}`, JSON.stringify(user), { metadata: { role: user.role } });
+  await env.STORE.put(`user:${user.email}`, JSON.stringify(user), { metadata: { role: user.role } });
 }
 
 export async function deleteUser(env, email) {
-  await env.USERS.delete(`user:${normEmail(email)}`);
+  await env.STORE.delete(`user:${normEmail(email)}`);
 }
 
 export async function listUsers(env) {
   const out = [];
   let cursor;
   do {
-    const r = await env.USERS.list({ prefix: "user:", cursor });
+    const r = await env.STORE.list({ prefix: "user:", cursor });
     out.push(...r.keys);
     cursor = r.list_complete ? undefined : r.cursor;
   } while (cursor);

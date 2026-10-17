@@ -96,6 +96,8 @@ ${articles.map((a) => `<item><title>${esc(a.title)}</title><link>${SITE}${articl
 const redirects = [
   ...Object.entries(shortlinks).filter(([, slug]) => articles.some((a) => a.slug === slug))
     .map(([code, slug]) => `/a/${code} /articles/${encodeURIComponent(slug)} 301`),
+  // كل مقالة لها رابط مختصر، ولو أُضيفت بلا رمز (يُشتقّ من معرّفها كما في الواجهة)
+  ...articles.filter((a) => !a.short || !shortlinks[a.short]).map((a) => `/a/${a.short || a.id.slice(0, 6)} ${articleUrl(a)} 301`),
   ...articles.flatMap((a) => (a.old_slugs || []).map((old) => `/articles/${encodeURIComponent(old)} ${articleUrl(a)} 301`)),
 ];
 fs.writeFileSync(path.join(DIST, "_redirects"), redirects.join("\n") + "\n");
