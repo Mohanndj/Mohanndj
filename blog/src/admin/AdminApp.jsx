@@ -1735,6 +1735,52 @@ function StatsPage() {
 /* ============================================================
    النشرة البريدية
    ============================================================ */
+/* تنبيهات الجوال: إرسال إشعار بالمقالة إلى من فعّلوا «نبّهني بالمقالات الجديدة» */
+function PushAdminSection({ arts }) {
+  const [d, setD] = useState(null);
+  const [pick, setPick] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => api("/admin/push").then(setD).catch((e) => setMsg(e.message));
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!pick && arts[0]) setPick(arts[0].id); }, [arts]);
+  const send = async (force = false) => {
+    const a = arts.find((x) => x.id === pick);
+    if (!a || (!force && !window.confirm(`تنبيه ${d.subscribers} جهاز بمقالة «${a.title}»؟`))) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await api("/admin/push", { method: "POST", body: JSON.stringify({ article_id: pick, force }) });
+      setMsg(`وصل التنبيه إلى ${ar(r.delivered)} جهاز${r.removed ? `، وحُذف ${ar(r.removed)} اشتراكٍ منتهٍ` : ""}.`); load();
+    } catch (e) {
+      if (e.code === "already_sent") {
+        if (window.confirm(`نُبّه المشتركون بهذه المقالة من قبل (${fmtDate(e.data.sent_at)}). تنبيههم مرة أخرى؟`)) { setBusy(false); return send(true); }
+      } else setMsg(e.message);
+    } finally { setBusy(false); }
+  };
+  const title = (id) => arts.find((a) => a.id === id)?.title || id;
+  return (
+    <section data-testid="push-admin">
+      <h2 className="admin-sub">تنبيهات الجوال</h2>
+      <p className="hint" style={{ marginTop: -6 }}>
+        يصل التنبيه إلى شريط إشعارات من ضغط «نبّهني بالمقالات الجديدة» في الموقع.
+        {d && <> المشتركون الآن: <b data-testid="push-count">{ar(d.subscribers)}</b> جهاز.</>}
+      </p>
+      <div className="admin-toolbar" style={{ flexWrap: "wrap" }}>
+        <select className="admin-input" value={pick} onChange={(e) => setPick(e.target.value)} style={{ maxWidth: 420 }} data-testid="push-pick">
+          {arts.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
+        </select>
+        <button className="admin-btn" onClick={() => send(false)} disabled={busy || !d || !d.subscribers} data-testid="push-send">{busy ? "جاري التنبيه…" : "نبّه المشتركين"}</button>
+        {msg && <span className="hint" data-testid="push-admin-msg">{msg}</span>}
+      </div>
+      {d?.sends?.length > 0 && (
+        <ul className="cs-list" style={{ marginTop: 12 }}>
+          {d.sends.map((x, i) => <li key={i}><div className="name">{title(x.article_id)}</div><span className="hint">{fmtDate(x.sent_at)} · وصل إلى {ar(x.delivered)} جهاز</span></li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function NewsletterAdminPage() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
@@ -1780,7 +1826,8 @@ function NewsletterAdminPage() {
         <div className="stat-card"><div className="k">ألغوا الاشتراك</div><div className="v">{ar(d.subscribers.length - active.length)}</div></div>
         <div className="stat-card"><div className="k">رسائل أُرسلت</div><div className="v">{ar(d.sends.length)}</div></div>
       </div>
-      <h2 className="admin-sub">إرسال مقالة إلى المشتركين</h2>
+      <PushAdminSection arts={arts}/>
+      <h2 className="admin-sub">إرسال مقالة إلى المشتركين بالبريد</h2>
       {d.sending ? (
         <div className="admin-toolbar" style={{ flexWrap: "wrap" }}>
           <select className="admin-input" value={pick} onChange={(e) => setPick(e.target.value)} style={{ maxWidth: 420 }} data-testid="news-pick">

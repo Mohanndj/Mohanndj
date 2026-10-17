@@ -38,6 +38,9 @@ const SERVER_ERRORS = {
   sending_not_configured: "الإرسال يحتاج إعداد خدمة Resend في Cloudflare.",
   no_subscribers: "لا مشتركين بعد.",
   send_failed: "تعذّر الإرسال من خدمة البريد.",
+  not_live_yet: "المقالة لم يكتمل نشرها على الموقع بعد؛ انتظر دقيقة ثم أعد المحاولة.",
+  no_push_subscribers: "لم يفعّل أحدٌ التنبيهات بعد.",
+  push_not_configured: "التنبيهات تحتاج ربط مخزن KV وقاعدة D1 في إعدادات Cloudflare.",
 };
 
 async function errorFrom(r) {
@@ -297,6 +300,8 @@ export async function api(path, opts = {}) {
   if (route === "GET /admin/subscribers") return server("/subscribers");
   if (route === "DELETE /admin/subscribers") return server(`/subscribers?email=${encodeURIComponent(id)}`, "DELETE");
   if (route === "POST /admin/newsletter") return server("/newsletter/send", "POST", body);
+  if (route === "GET /admin/push") return server("/push/send");
+  if (route === "POST /admin/push") return server("/push/send", "POST", body);
   if (seg[0] === "admin" && seg[1] === "users") {
     return server(`/users${id ? `/${encodeURIComponent(id)}` : ""}`, method, method === "GET" || method === "DELETE" ? undefined : body);
   }

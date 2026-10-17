@@ -1611,6 +1611,20 @@ main.wrap { padding-block: clamp(38px, 6vw, 72px) 90px; }
 
 .share-cta { text-align: center; margin: 1.5rem 0 3rem; }
 
+/* تنبيهات الجوال */
+.push-toggle { text-align: center; }
+.push-toggle.in-article { margin: -2rem 0 3rem; }
+.push-toggle .icon-btn.push-on { border-color: var(--gold); color: var(--gold); }
+.push-off-hint { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); margin-inline-start: 6px; padding-inline-start: 8px; border-inline-start: 1px solid var(--line, rgba(0,0,0,.15)); }
+.push-msg { margin: .5rem 0 0; font-size: 14px; color: var(--muted); }
+.push-msg.ok { color: var(--gold); }
+.push-msg.err { color: #a44; }
+.push-hint { display: flex; gap: 6px; align-items: flex-start; justify-content: center; max-width: 520px; margin: 0 auto 1rem; font-size: 14px; color: var(--muted); line-height: 1.8; }
+.push-hint.in-article { margin: -2rem auto 3rem; }
+.push-hint svg { flex: none; margin-top: 5px; color: var(--gold); }
+.push-alt { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line, rgba(0,0,0,.12)); text-align: center; }
+.push-alt .desc { margin: 0 0 .8rem; }
+
 .share-overlay {
   position: fixed; inset: 0; z-index: 60; background: rgba(15, 17, 20, .55);
   display: grid; place-items: center; padding: 16px; animation: fade-in .2s ease;

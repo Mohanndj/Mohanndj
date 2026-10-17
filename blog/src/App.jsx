@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Search, Sun, Moon, Download, BookOpen, ChevronLeft, Bookmark, BookmarkCheck, Share2, FileDown, Mail, Clock, CheckCircle2, BarChart3, Twitter, Send, MessageCircle, UserPlus, X, Volume2, Youtube, ExternalLink, Link as LinkIcon, FileText, Play } from "lucide-react";
+import { Search, Sun, Moon, Download, BookOpen, ChevronLeft, Bookmark, BookmarkCheck, Share2, FileDown, Mail, Clock, CheckCircle2, BarChart3, Twitter, Send, MessageCircle, UserPlus, X, Volume2, Youtube, ExternalLink, Link as LinkIcon, FileText, Play, Bell, BellOff } from "lucide-react";
 import html2pdf from "html2pdf.js";
 import { quoteCard } from "./og";
 import "@/App.css";
@@ -1630,6 +1630,7 @@ function ArticlePage() {
           <Share2 size={16}/> <span>شارك المقالة بمنشورٍ جاهز</span>
         </button>
       </div>
+      <PushToggle className="in-article"/>
       {shareOpen && <SharePanel post={post} onClose={() => setShareOpen(false)}/>}
       {quoteSel && !quoteOpen && (
         <button className="quote-fab no-print" style={{ left: quoteSel.x, top: quoteSel.y }} data-testid="quote-fab"
@@ -1723,6 +1724,87 @@ function FeedbackBox() {
     </section>
   );
 }
+/* تنبيهات الجوال بالمقالات الجديدة (Web Push): تصل إلى شريط الإشعارات بعلامة قلم الريشة */
+const PUSH_OK = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const IS_IOS = typeof navigator !== "undefined" && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+const keyBytes = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+async function swReg() {
+  return (await navigator.serviceWorker.getRegistration()) || navigator.serviceWorker.register("/sw.js");
+}
+
+function PushToggle({ className = "" }) {
+  useLiveContent(); // يظهر حين يتبيّن أن قاعدة البيانات مفعّلة
+  const [state, setState] = useState("idle"); // idle | on | busy
+  const [msg, setMsg] = useState({ kind: "", text: "" });
+  useEffect(() => {
+    if (!PUSH_OK) return;
+    navigator.serviceWorker.getRegistration()
+      .then((reg) => reg && reg.pushManager.getSubscription())
+      .then((s) => { if (s && Notification.permission === "granted") setState("on"); })
+      .catch(() => {});
+  }, []);
+  if (!newsletterOn) return null;
+  if (!PUSH_OK) {
+    // سفاري الآيفون لا يتيح التنبيهات إلا للتطبيق المثبّت على الشاشة الرئيسية
+    if (!IS_IOS) return null;
+    return (
+      <p className={`push-hint ${className}`} data-testid="push-ios-hint">
+        <Bell size={14}/> لتصلك التنبيهات على الآيفون: من زر المشاركة اختر «إضافة إلى الشاشة الرئيسية»، ثم افتح المدونة من أيقونتها وفعّل التنبيهات.
+      </p>
+    );
+  }
+  const enable = async () => {
+    setState("busy"); setMsg({ kind: "", text: "" });
+    try {
+      // طلب الإذن أولًا ما دامت ضغطة القارئ قائمة (يشترطه سفاري)
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error(perm === "denied" ? "التنبيهات محظورة لهذا الموقع؛ اسمح بها من إعدادات المتصفح ثم أعد المحاولة." : "لم تُفعَّل التنبيهات.");
+      const r = await fetch("/api/push/key");
+      if (!r.ok) throw new Error("التنبيهات غير متاحة الآن، حاول لاحقًا.");
+      const { publicKey } = await r.json();
+      const reg = await swReg();
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && sub.options?.applicationServerKey) {
+        const cur = new Uint8Array(sub.options.applicationServerKey), want = keyBytes(publicKey);
+        if (cur.length !== want.length || cur.some((b, i) => b !== want[i])) { await sub.unsubscribe(); sub = null; }
+      }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+      const s = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+      if (!s.ok) throw new Error("تعذّر التفعيل الآن، حاول لاحقًا.");
+      setState("on"); setMsg({ kind: "ok", text: "ستصلك المقالة الجديدة في شريط الإشعارات حين تُنشر." });
+    } catch (err) {
+      setState("idle"); setMsg({ kind: "err", text: err.message && /[\u0600-\u06FF]/.test(err.message) ? err.message : "تعذّر تفعيل التنبيهات على هذا المتصفح." });
+    }
+  };
+  const disable = async () => {
+    setState("busy"); setMsg({ kind: "", text: "" });
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+      setState("idle"); setMsg({ kind: "ok", text: "أُوقفت التنبيهات." });
+    } catch { setState("on"); setMsg({ kind: "err", text: "تعذّر الإيقاف، حاول لاحقًا." }); }
+  };
+  return (
+    <div className={`push-toggle no-print ${className}`} data-testid="push-toggle">
+      {state === "on" ? (
+        <button className="icon-btn push-on" onClick={disable} data-testid="push-disable" title="اضغط لإيقاف التنبيهات">
+          <Bell size={16}/> <span>التنبيهات مفعّلة</span> <span className="push-off-hint"><BellOff size={13}/> إيقاف</span>
+        </button>
+      ) : (
+        <button className="icon-btn" onClick={enable} disabled={state === "busy"} data-testid="push-enable">
+          <Bell size={16}/> <span>{state === "busy" ? "لحظة…" : "نبّهني بالمقالات الجديدة"}</span>
+        </button>
+      )}
+      {msg.text && <p className={`push-msg ${msg.kind}`} data-testid="push-msg">{msg.text}</p>}
+    </div>
+  );
+}
+
 function NewsletterPage() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ status: "idle", message: "" });
@@ -1776,6 +1858,10 @@ function NewsletterPage() {
         {state.status === "ok" && <p className="news-msg ok" data-testid="newsletter-success">{state.message}</p>}
         {state.status === "err" && <p className="news-msg err" data-testid="newsletter-error">{state.message}</p>}
       </form>
+      <div className="push-alt">
+        <p className="desc">أو بلا بريد: تنبيهٌ في شريط إشعارات جوالك حين تُنشر مقالة جديدة.</p>
+        <PushToggle/>
+      </div>
     </main>
   );
 }
