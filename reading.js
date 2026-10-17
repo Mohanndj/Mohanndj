@@ -18,6 +18,8 @@ const scheduled = (b) => b.status === 'reading' && b.rdays.length > 0 && b.rpage
 const inReadingProject = (b) => !!(b.topic && topicProject(b.topic));
 // the next reading day from today (today itself if its session is not done yet)
 function nextReadingDay(b, t) {
+  // a session moved to another day («للغد») is due that day, until it is read or the day has passed
+  if (t && t.readOn && t.readOn >= today() && !t.completions[t.readOn]) return t.readOn;
   for (let i = 0; i < 8; i++) { const d = addDays(today(), i); if (b.rdays.includes(parse(d).getDay()) && !(t && t.completions[d]) && !(i === 0 && readToday(b))) return d; }
   return '';
 }

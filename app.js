@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 89;
+const APP_VERSION = 90;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -153,6 +153,7 @@ function normalize(t) {
     habit: repeat ? normalizeHabit(t.habit) : null,
     bookId: t.bookId || '',
     readPages: t.readPages && typeof t.readPages === 'object' ? t.readPages : {}, // a book task: pages actually read per session day
+    readOn: /^\d{4}-\d{2}-\d{2}$/.test(t.readOn || '') ? t.readOn : '', // a reading session moved to another day («للغد» in the evening close)
   };
 }
 

@@ -157,7 +157,10 @@ document.addEventListener('click', (e) => {
     if (isCounted(t)) { setCount(t, t0, t.target); save(); render(); } else toggle(t.id, t0);
     return;
   }
-  if (action === 'close-tomorrow' && t) { t.due = addDays(t0, 1); save(); render(); toast(`«${t.title}» للغد`); return; }
+  if (action === 'close-tomorrow' && t) {
+    // a reading project's session has its date worked out from the reading days: the move is kept apart
+    if (t.bookId) t.readOn = addDays(t0, 1);
+    t.due = addDays(t0, 1); save(); render(); toast(`«${t.title}» للغد`); return; }
   if (action === 'close-skip' && t) {
     // a task set aside loses its date (it waits in «بلا موعد»); a goal is just left for today
     if (!isRepeat(t) && !isGoal(t)) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
