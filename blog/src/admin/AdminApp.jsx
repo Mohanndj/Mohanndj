@@ -347,6 +347,38 @@ function emptyArticle() {
   };
 }
 
+/* فهرس المقالة: كل عنوان يشير إلى فقرة من الجسد */
+function TocEditor({ doc, patch }) {
+  const toc = Array.isArray(doc.toc) ? doc.toc : [];
+  const blocks = (doc.body || []).map((b, i) => {
+    const o = readBlock(b);
+    return { i, hr: o.type === "hr", label: `${ar(i + 1)} — ${(o.text || "").replace(/\*\*|~\{[a-z]+:|\}~|⟨\d+⟩/g, "").trim().slice(0, 70) || "(فارغة)"}` };
+  }).filter((x) => !x.hr);
+  const set = (next) => patch({ toc: [...next].sort((a, b) => a.at - b.at) });
+  const upd = (k, part) => set(toc.map((x, idx) => (idx === k ? { ...x, ...part } : x)));
+  const add = () => {
+    const used = new Set(toc.map((x) => x.at));
+    const free = blocks.find((b) => !used.has(b.i));
+    if (free) set([...toc, { at: free.i, title: "" }]);
+  };
+  return (
+    <div className="field" data-testid="toc-editor">
+      <label>فهرس المقالة</label>
+      <div className="hint" style={{ marginBottom: 8 }}>عناوين تصوغها لأقسام المقالة، يشير كلٌّ منها إلى الفقرة التي يبدأ عندها القسم. يظهر الفهرس إذا كان فيه عنوانان فأكثر.</div>
+      {toc.map((x, k) => (
+        <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.3fr) auto", gap: 6, marginBottom: 6 }}>
+          <select className="admin-input" value={x.at} onChange={(e) => upd(k, { at: Number(e.target.value) })} data-testid={`toc-at-${k}`}>
+            {blocks.map((b) => <option key={b.i} value={b.i}>{b.label}</option>)}
+          </select>
+          <input className="admin-input" value={x.title} placeholder="عنوان القسم" onChange={(e) => upd(k, { title: e.target.value })} data-testid={`toc-title-${k}`}/>
+          <button type="button" className="admin-btn danger small" onClick={() => set(toc.filter((_, idx) => idx !== k))}>حذف</button>
+        </div>
+      ))}
+      <button type="button" className="admin-btn ghost small" onClick={add} data-testid="toc-add">+ عنوان</button>
+    </div>
+  );
+}
+
 function ArticleEditor() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -700,6 +732,8 @@ function ArticleEditor() {
               })}
               <button type="button" className="admin-btn ghost small" onClick={() => insertBlock(doc.body.length - 1, "p")}>+ فقرة جديدة</button>
             </div>
+
+            <TocEditor doc={doc} patch={patch}/>
 
             {/* Footnotes editor */}
             <div className="footnotes-editor" data-testid="footnotes-editor">
@@ -1416,7 +1450,7 @@ function SettingsPage() {
           <input type="checkbox" checked={s.show_toc !== false}
                  onChange={(e) => patch({ show_toc: e.target.checked })}
                  data-testid="s-show-toc"/>
-          <span>إظهار «فهرس المقالة» في المقالات التي فيها ثلاثة عناوين فأكثر</span>
+          <span>إظهار «فهرس المقالة» في أعلى المقالات</span>
         </label>
 
         <div className="field">

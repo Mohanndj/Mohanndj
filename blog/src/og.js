@@ -107,32 +107,51 @@ export async function articleCard({ title, category, cover, site, host }) {
   return toBlob(c);
 }
 
-/* بطاقة الاقتباس ١٠٨٠×١٠٨٠: ورق، وعلامتا تنصيص ذهبيتان، والنص في الوسط */
+/* بطاقة الاقتباس ١٠٨٠×١٠٨٠: ورق، وعلامتا تنصيص ذهبيتان، والنص في الوسط.
+   التذييل (اسم المقالة والمدونة والرابط) ثابت في الأسفل، والنص يصغر خطّه ليتّسع له
+   ما بين العلامة والتذييل، فإن طال جدًّا قُصّ بنقاط. */
 export async function quoteCard({ quote, title, site, url }) {
   await fontsReady();
-  const W = 1080, H = 1080;
+  const W = 1080, H = 1080, PAD = 120;
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d");
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
   frame(ctx, W, H, GOLD, 40);
-  ctx.direction = "rtl"; ctx.textAlign = "center";
-  ctx.font = '700 150px "Amiri", serif'; ctx.fillStyle = GOLD; ctx.globalAlpha = .9;
-  ctx.direction = "ltr"; ctx.fillText("«", W / 2, 230); ctx.direction = "rtl"; ctx.globalAlpha = 1;
-  let size = 52, wrapped;
-  do { ctx.font = `400 ${size}px "Amiri", serif`; wrapped = wrap(ctx, quote, W - 220, 8); size -= 3; } while (wrapped.truncated && size > 30);
-  const lh = (size + 3) * 1.7;
-  const blockH = wrapped.lines.length * lh;
-  const top = Math.max(300, (H - blockH) / 2 + 20);
-  ctx.fillStyle = INK;
-  wrapped.lines.forEach((l, i) => ctx.fillText(l, W / 2, top + i * lh));
-  const after = top + blockH + 30;
-  diamond(ctx, W / 2, after, 7, GOLD);
-  ctx.font = '400 30px "Amiri", serif'; ctx.fillStyle = "#5E6167";
-  const t = wrap(ctx, `من مقالة «${title}»`, W - 260, 2);
-  t.lines.forEach((l, i) => ctx.fillText(l, W / 2, after + 62 + i * 44));
-  ctx.font = '700 40px "Aref Ruqaa", "Amiri", serif'; ctx.fillStyle = GOLD;
-  ctx.fillText(site, W / 2, H - 120);
+  ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+
+  // التذييل من الأسفل إلى الأعلى
   ctx.font = '400 26px "Amiri", serif'; ctx.fillStyle = "#5E6167"; ctx.direction = "ltr";
-  ctx.fillText(url, W / 2, H - 78);
+  ctx.fillText(url, W / 2, H - 82);
+  ctx.direction = "rtl";
+  ctx.font = '700 40px "Aref Ruqaa", "Amiri", serif'; ctx.fillStyle = GOLD;
+  ctx.fillText(site, W / 2, H - 128);
+  ctx.font = '400 28px "Amiri", serif'; ctx.fillStyle = "#5E6167";
+  const t = wrap(ctx, `من مقالة «${title}»`, W - PAD * 2, 2);
+  const titleTop = H - 196 - (t.lines.length - 1) * 40;
+  t.lines.forEach((l, i) => ctx.fillText(l, W / 2, titleTop + i * 40));
+  const footerTop = titleTop - 40;
+  diamond(ctx, W / 2, footerTop - 14, 7, GOLD);
+
+  // علامة التنصيص
+  ctx.font = '700 130px "Amiri", serif'; ctx.fillStyle = GOLD; ctx.globalAlpha = .9;
+  ctx.direction = "ltr"; ctx.fillText("«", W / 2, 205); ctx.direction = "rtl"; ctx.globalAlpha = 1;
+
+  // النص: أكبر خطٍّ يتّسع للمساحة المتاحة
+  const top = 260, bottom = footerTop - 52, avail = bottom - top;
+  let size = 52, lines, lh;
+  for (; size >= 34; size -= 2) {
+    ctx.font = `400 ${size}px "Amiri", serif`;
+    lh = size * 1.75;
+    lines = wrap(ctx, quote, W - PAD * 2, 99).lines;
+    if (lines.length * lh <= avail) break;
+  }
+  if (lines.length * lh > avail) {
+    const max = Math.max(1, Math.floor(avail / lh));
+    lines = wrap(ctx, quote, W - PAD * 2, max).lines;
+  }
+  const blockH = lines.length * lh;
+  const y0 = top + (avail - blockH) / 2 + size;
+  ctx.fillStyle = INK;
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, y0 + i * lh));
   return toBlob(c);
 }

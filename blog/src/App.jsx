@@ -256,6 +256,7 @@ function ContentBootstrap() {
           references: x.references || [],
           short: x.short || String(x.id || "").slice(0, 6),
           hide_toc: !!x.hide_toc,
+          toc: Array.isArray(x.toc) ? x.toc : [],
           og_image: x.og_image || "",
           show_references: !!x.show_references,
         }));
@@ -1112,7 +1113,9 @@ function ArticleReferences({ post }) {
 /* ============================================================
    الروابط المختصرة
    ============================================================ */
-const shortUrl = (post) => `${window.location.origin}/a/${post.short}`;
+// الرابط على النطاق الأصلي دائمًا، ولو فُتح الموقع من رابط Cloudflare المؤقت
+const SITE_URL = "https://mohanndjazi.com";
+const shortUrl = (post) => `${SITE_URL}/a/${post.short}`;
 
 /* ============================================================
    الاستحسان: نجمة ثُمانية تمتلئ ذهبًا، والعدد مشترك بين القرّاء (يُحفظ في الخادم).
@@ -1369,14 +1372,18 @@ function ReadProgress({ targetRef }) {
 }
 
 /* ============================================================
-   فهرس المقالة (يُخفى من الإعدادات أو لكل مقالة، ويطويه القارئ)
+   فهرس المقالة: عناوين مصوغة لكل مقالة (toc) تشير إلى فقراتها،
+   ويُخفى من الإعدادات أو لكل مقالة، ويطويه القارئ
    ============================================================ */
-const headingText = (raw) => stripInline(typeof raw === "string" ? raw.slice(1) : (raw?.text || "")).trim();
-const isHeading = (raw) => (typeof raw === "string" ? raw.startsWith("#") : raw?.type === "h");
+function sectionsLabel(n) {
+  if (n === 2) return "قسمان";
+  if (n <= 10) return `${ar(n)} أقسام`;
+  return `${ar(n)} قسمًا`;
+}
 function ArticleToc({ post }) {
-  const heads = (post.body || []).map((raw, i) => ({ raw, i })).filter(({ raw }) => isHeading(raw) && headingText(raw));
+  const items = (post.toc || []).filter((x) => x && x.title && Number.isInteger(x.at) && x.at < (post.body || []).length);
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("muhannad-toc") !== "closed"; } catch { return true; } });
-  if (heads.length < 3 || siteSettings.show_toc === false || post.hide_toc) return null;
+  if (items.length < 2 || siteSettings.show_toc === false || post.hide_toc) return null;
   const toggle = () => { const n = !open; setOpen(n); try { localStorage.setItem("muhannad-toc", n ? "open" : "closed"); } catch { /* ignore */ } };
   const go = (e, i) => {
     e.preventDefault();
@@ -1386,11 +1393,11 @@ function ArticleToc({ post }) {
   return (
     <nav className={`toc no-print ${open ? "open" : ""}`} aria-label="فهرس المقالة" data-testid="toc">
       <button className="toc-head" onClick={toggle} aria-expanded={open} data-testid="toc-toggle">
-        <span>فهرس المقالة</span><span className="toc-n">{ar(heads.length)} أقسام</span><ChevronLeft size={15} className="toc-chev"/>
+        <span>فهرس المقالة</span><span className="toc-n">{sectionsLabel(items.length)}</span><ChevronLeft size={15} className="toc-chev"/>
       </button>
       {open && (
         <ol>
-          {heads.map(({ raw, i }) => <li key={i}><a href={`#sec-${i}`} onClick={(e) => go(e, i)}>{headingText(raw)}</a></li>)}
+          {items.map((x) => <li key={x.at}><a href={`#sec-${x.at}`} onClick={(e) => go(e, x.at)}>{x.title}</a></li>)}
         </ol>
       )}
     </nav>
@@ -1593,7 +1600,7 @@ function ArticlePage() {
             const sizeClass = size ? `text-size-${size}` : "";
             if (type === "h") return <h3 key={i} id={`sec-${i}`} style={style} className={sizeClass}>{renderInline(text)}</h3>;
             return (
-              <div key={i} style={style} className={sizeClass}>
+              <div key={i} id={`sec-${i}`} style={style} className={sizeClass}>
                 <Paragraph
                   text={text}
                   notes={post.notes}
@@ -1612,7 +1619,7 @@ function ArticlePage() {
         <div className="pdf-colophon" aria-hidden="true">
           <div>مدونة مهند بن جازي</div>
           <div>{post.date} · {post.cat}</div>
-          <div dir="ltr">{window.location.host}/a/{post.short}</div>
+          <div dir="ltr">{SITE_URL.replace(/^https?:\/\//, "")}/a/{post.short}</div>
         </div>
       </article>
 

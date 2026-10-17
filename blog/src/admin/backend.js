@@ -185,7 +185,7 @@ function newShortCode(shortlinks) {
 
 const ARTICLE_FIELDS = ["slug", "title", "category", "series", "part", "date", "excerpt", "show_excerpt", "cover", "cover_outside",
   "body", "notes", "pinned", "seo_title", "seo_description", "audio_url", "show_audio", "youtube_url", "show_youtube",
-  "references", "show_references", "status", "hide_toc", "og_image", "og_key"];
+  "references", "show_references", "status", "hide_toc", "og_image", "og_key", "toc"];
 
 function cleanArticle(src) {
   const a = {};
