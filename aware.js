@@ -198,6 +198,7 @@ function awareStats(P) {
   // were left in the approved textbook when the period began), and the reviews done
   const stRows = [], stDetail = [];
   let stReq = 0, stDone = 0, stRv = 0;
+  const stQa = [], stPrev = P.prev ? periodOf(P.type, P.prev) : { start: '9999', end: '' };
   for (const s of S.study) {
     const b = sciBook(s), lessons = s.books.flatMap((x) => x.lessons);
     const doneIn = lessons.filter((l) => inP(l.completedAt));
@@ -215,14 +216,30 @@ function awareStats(P) {
       req = Math.min(dueN, leftAtStart);
       left = Math.max(0, Math.min(dueLeft, req - doneIn.length));
     }
-    if (!req && !doneIn.length && !rvIn.length) continue;
-    stReq += req; stDone += Math.min(doneIn.length, req || doneIn.length);
-    const rv = sum(rvIn, (x) => x.n); stRv += rv;
-    stRows.push(`${s.name}${b ? ` («${b.title}»)` : ''}: ${req ? `الدروس المقررة ${req}، أتممت منها ${doneIn.length || 'صفر'}${pc(Math.min(doneIn.length, req), req)}` : `أتممت ${plural(doneIn.length, 'درساً واحداً', 'درسين', 'دروس', 'درساً')}`}${rv ? ` | راجعت ${plural(rv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}` : ''}${leftTxt(left ? plural(left, 'درس واحد', 'درسان', 'دروس', 'درساً') : 0)}`);
-    stDetail.push(...doneIn.map((l) => `${s.name}: أتممت «${l.title}» (${dS(l.completedAt)})`), ...rvIn.map((x) => `${s.name}: راجعت «${x.l.title}» ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`));
+    if (req || doneIn.length || rvIn.length) {
+      stReq += req; stDone += Math.min(doneIn.length, req || doneIn.length);
+      const rv = sum(rvIn, (x) => x.n); stRv += rv;
+      stRows.push(`${s.name}${b ? ` («${b.title}»)` : ''}: ${req ? `الدروس المقررة ${req}، أتممت منها ${doneIn.length || 'صفر'}${pc(Math.min(doneIn.length, req), req)}` : `أتممت ${plural(doneIn.length, 'درساً واحداً', 'درسين', 'دروس', 'درساً')}`}${rv ? ` | راجعت ${plural(rv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}` : ''}${leftTxt(left ? plural(left, 'درس واحد', 'درسان', 'دروس', 'درساً') : 0)}`);
+      stDetail.push(...doneIn.map((l) => `${s.name}: أتممت «${l.title}» (${dS(l.completedAt)})`), ...rvIn.map((x) => `${s.name}: راجعت «${x.l.title}» ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`));
+    }
+    // tests: the attempts in the period, their average score, and against the period before
+    const qa = s.quizzes.flatMap((z) => z.attempts.filter((x) => inP(x.d) && x.total).map((x) => ({ z, a: x })));
+    const qNew = s.quizzes.filter((z) => inP(dayOfTs(z.created)));
+    if (qa.length) {
+      const avg = Math.round(sum(qa, (x) => qzPct(x.a)) / qa.length);
+      const pa = s.quizzes.flatMap((z) => z.attempts.filter((x) => x.total && x.d >= stPrev.start && x.d <= stPrev.end));
+      const prev = pa.length ? Math.round(sum(pa, (x) => qzPct(x)) / pa.length) : null;
+      const byTime = qa.slice().sort((x, y) => x.a.at - y.a.at), f0 = qzPct(byTime[0].a), f1 = qzPct(byTime[byTime.length - 1].a);
+      const k = new Set(qa.map((x) => x.z.id)).size, dlt = prev === null ? 0 : avg - prev;
+      stQa.push(...qa);
+      stRows.push(`اختبارات ${s.name}: ${plural(qa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')} في ${plural(k, 'اختبار واحد', 'اختبارين', 'اختبارات', 'اختباراً')} | متوسط درجاتك: ${avg}٪${prev !== null ? ` | مقارنة بـ${P.word} السابق (${prev}٪): ${dlt ? `${dlt > 0 ? '▲' : '▼'} ${Math.abs(dlt)} ${Math.abs(dlt) === 1 ? 'نقطة' : 'نقاط'}` : 'بلا تغيّر'}` : qa.length > 1 ? ` | من ${f0}٪ في أول محاولة إلى ${f1}٪ في آخرها` : ''}`);
+    }
+    if (qNew.length) stRows.push(`أضفت ${plural(qNew.length, 'اختباراً واحداً', 'اختبارين', 'اختبارات', 'اختباراً')} في ${s.name}`);
+    stDetail.push(...qa.sort((x, y) => x.a.at - y.a.at).map((x) => `${s.name}: حللت «${x.z.title}»: ${x.a.score} من ${x.a.total} (${qzPct(x.a)}٪) (${dS(x.a.d)})`));
   }
   add('study', pageLook('study', 'الدراسة', '🎓'), 'study', stReq ? pctOf(stDone, stReq) : null, [
     ...stRows,
+    S.study.filter((s) => s.quizzes.some((z) => z.attempts.some((x) => inP(x.d)))).length > 1 && `مجموع الاختبارات: ${plural(stQa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')} | متوسط درجاتك: ${Math.round(sum(stQa, (x) => qzPct(x.a)) / stQa.length)}٪`,
     stRv && stRows.length > 1 && `مجموع المراجعات: ${plural(stRv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
     P.current && studyDue().length && `للمراجعة الآن: ${plural(studyDue().length, 'درس واحد', 'درسان', 'دروس', 'درساً')}`,
   ], stDetail);

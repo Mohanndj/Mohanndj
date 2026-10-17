@@ -9,7 +9,7 @@ const STUDY_STAGES = ['قرأت المتن', 'سمعت الشرح', 'لخّصت 
 const SBOOK_STATUS = { current: 'الكتاب المعتمد', next: 'التالي في السلّم', done: 'أتممته' };
 const SBOOK_KIND = { matn: 'متن بشرحه', book: 'كتاب' };
 const SHARH_KIND = { recorded: 'شرح مسجّل', written: 'شرح مكتوب' };
-const studyUi = { sci: '', selMode: false, sel: new Set() };
+const studyUi = { sci: '', selMode: false, sel: new Set(), qq: '', qsort: 'new', qtopic: '' };
 
 const stList = (a, f) => (Array.isArray(a) ? a.filter((x) => x && typeof x === 'object').map(f) : []);
 const stDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : '');
@@ -39,7 +39,9 @@ function normalizeScience(s) {
     id: s.id || uid(), name: String(s.name || ''), emoji: String(s.emoji || ''), note: String(s.note || ''),
     days: Array.isArray(s.days) ? [...new Set(s.days.map(Number).filter((d) => d >= 0 && d <= 6))] : [], per: Math.max(1, Math.min(10, Math.round(Number(s.per) || 1))),
     stages: stages.length ? stages : STUDY_STAGES.map((name) => ({ id: uid(), name })),
-    books: stList(s.books, normalizeSBook), created: s.created || Date.now(), updated: s.updated || Date.now(),
+    books: stList(s.books, normalizeSBook),
+    // quiz.js: the tests of this science, each with its questions and attempts
+    quizzes: stList(s.quizzes, normalizeQuiz), created: s.created || Date.now(), updated: s.updated || Date.now(),
   };
 }
 const getSci = (id) => S.study.find((s) => s.id === id);
@@ -78,7 +80,7 @@ function sciCard(s) {
     ${b ? `${n ? `<span class="pbar"><i style="width:${Math.round((done / n) * 100)}%"></i></span>` : ''}
       <span class="book-line">${[n ? `أتممت ${done} من ${plural(n, 'درس واحد', 'درسين', 'دروس', 'درساً')}` : 'لا دروس بعد', nx[0] ? `الدرس القادم: ${nx[0].title}` : n ? 'أتممت دروسه كلها' : ''].filter(Boolean).map(esc).join(' | ')}</span>`
     : '<span class="book-line">لا كتاب معتمد بعد</span>'}
-    <span class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
+    <span class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : '', s.quizzes.length ? `الاختبارات: ${s.quizzes.length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
   </button>`;
 }
 function lessonRow(s, b, l, next) {
@@ -145,6 +147,7 @@ function viewStudy() {
     <div class="section-head"><h2>الدروس${b.lessons.length ? ` <small>(${b.lessons.length})</small>` : ''}</h2>${studyUi.selMode ? '' : `<div class="btn-row">${b.lessons.length ? '<button type="button" class="ghost sm" data-action="study-sel-mode">☑ تحديد</button>' : ''}<button type="button" class="ghost sm" data-action="study-paste" data-v="${b.id}">ألصق قائمة دروس</button>${addBtn('study-lesson-new', 'درس', ` data-v="${b.id}"`)}</div>`}</div>
     ${b.lessons.length ? `<ol class="st-lessons">${b.lessons.map((l) => lessonRow(s, b, l, nx[0] === l)).join('')}</ol>${studyUi.selMode ? selBar('study', b.lessons.filter((l) => studyUi.sel.has(l.id)).length, b.lessons.length) : ''}` : emptyHTML('لا دروس بعد', 'أضف دروس الكتاب بموضوعاتها، واحداً واحداً أو بلصق قائمتها كاملة (كل سطر درس).')}
   </section>` : ''}
+  ${quizSectionHTML(s)}
   <section class="section st-sec">
     <div class="section-head"><h2>كتب إثرائية${en.length ? ` <small>(${en.length})</small>` : ''}</h2>${addBtn('study-enrich-new', 'كتاب إثرائي')}</div>
     ${en.length ? `<div class="book-list">${en.map((x) => `<button type="button" class="book-card s-${x.status}" data-action="lib-open-book" data-v="${x.id}"><span class="book-top"><strong>${esc(x.title)}</strong>${x.author ? `<small>${esc(x.author)}</small>` : ''}</span><span class="book-line">${esc(BOOK_STATUS[x.status])}</span></button>`).join('')}</div>`
@@ -331,7 +334,7 @@ document.addEventListener('click', (e) => {
   const { action, v } = el.dataset;
   const armed = (label) => { if (el.classList.contains('armed')) return true; el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = label; } }, 4000); return false; };
   switch (action) {
-    case 'study-open': studyUi.sci = v; studyUi.selMode = false; studyUi.sel.clear(); render(); window.scrollTo({ top: 0 }); break;
+    case 'study-open': studyUi.sci = v; studyUi.selMode = false; studyUi.sel.clear(); studyUi.qq = ''; studyUi.qtopic = ''; render(); window.scrollTo({ top: 0 }); break;
     case 'study-back': studyUi.sci = ''; studyUi.selMode = false; studyUi.sel.clear(); render(); window.scrollTo({ top: 0 }); break;
     case 'study-sci-new': openSci(null); break;
     // choosing several lessons of the approved book and deleting them together

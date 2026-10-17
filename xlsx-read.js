@@ -10,7 +10,8 @@ const XlsxRead = (() => {
   }
 
   // the zip's central directory → { name: Uint8Array }
-  async function unzip(buf) {
+  // (the parts of an Excel file by default; a Word file's text is asked for by name)
+  async function unzip(buf, want = /^xl\/(workbook\.xml|sharedStrings\.xml|worksheets\/[^/]+\.xml|_rels\/workbook\.xml\.rels)$/) {
     const dv = new DataView(buf);
     let eocd = -1;
     for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
@@ -27,7 +28,7 @@ const XlsxRead = (() => {
       const off = dv.getUint32(p + 42, true);
       const name = dec.decode(new Uint8Array(buf, p + 46, nlen));
       p += 46 + nlen + xlen + clen;
-      if (!/^xl\/(workbook\.xml|sharedStrings\.xml|worksheets\/[^/]+\.xml|_rels\/workbook\.xml\.rels)$/.test(name)) continue;
+      if (!want.test(name)) continue;
       const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
       const raw = new Uint8Array(buf, start, csize);
       files[name] = method === 8 ? await inflate(raw) : method === 0 ? raw : null;
@@ -75,5 +76,5 @@ const XlsxRead = (() => {
     return sheets;
   }
 
-  return { read };
+  return { read, unzip };
 })();
