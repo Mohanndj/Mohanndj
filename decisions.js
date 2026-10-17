@@ -125,7 +125,7 @@ function viewDecisions() {
 // ---------- editor (and review) ----------
 // one sheet on tabs: the decision, its options, its criteria, the deciding (reasons, expectation,
 // confidence, review period) and, once made and due, its review
-const DEC_TABS = [['main', 'القرار'], ['opts', 'الخيارات'], ['crit', 'المعايير'], ['decide', 'الحسم'], ['review', 'المراجعة']];
+const DEC_TABS = [['main', 'القرار'], ['opts', 'الخيارات'], ['crit', 'المعايير'], ['cmp', 'المقارنة'], ['decide', 'الحسم'], ['review', 'المراجعة']];
 function decOptCard(x, o) {
   const scored = x.criteria.filter((c) => o.scores[c.id] !== undefined).length;
   const high = o.risks.filter((r) => r.prob === 3 || r.impact === 3).length;
@@ -150,7 +150,7 @@ function openDecision(id, review, tab) {
   const x = id ? getDec(id) : normalizeDecision({ status: 'thinking' });
   const rv = review || (id && x.status === 'decided' && (x.reviewedAt || x.reviewAt <= today()));
   const after = id ? daysBetween(x.date, x.reviewAt) : 90;
-  ldraft = { kind: 'decision', id: x.id, isNew: !id, conf: x.confidence, state: x.state, result: x.result, review: rv, after, status: x.status, tab: tab || (rv ? 'review' : 'main') };
+  ldraft = { kind: 'decision', id: x.id, isNew: !id, conf: x.confidence, state: x.state, result: x.result, review: rv, after, status: x.status, tab: tab || (rv ? 'review' : 'main'), tw: {}, showCalc: false };
   const tabs = DEC_TABS.filter(([k]) => k !== 'review' || rv);
   if (!tabs.some(([k]) => k === ldraft.tab)) ldraft.tab = 'main';
   const os = decOpts(x), total = decWeightTotal(x);
@@ -188,6 +188,7 @@ function openDecision(id, review, tab) {
       ${x.criteria.length ? `<p class="note-text">مجموع الأوزان: ${plural(total, 'نقطة واحدة', 'نقطتان', 'نقاط', 'نقطة')}، ونصيب كل معيار بقدر وزنه منها.</p><div class="book-list">${x.criteria.map((c) => decCritRow(c, total)).join('')}</div>` : '<p class="note-text">لا معايير بعد. أضف ما تفاضل به بين الخيارات، أو المعايير المقترحة لنوع القرار.</p>'}
       <div class="btn-row"><button type="button" class="ghost" data-action="dec-crit-new">${icon('plus')} معيار</button><button type="button" class="ghost" data-action="dec-tpl">المعايير المقترحة لنوع القرار</button></div>
     </div>
+    <div ${pane('cmp')}>${id ? decCompareHTML(x) : '<p class="note-text">احفظ القرار وأضف خياراته ومعاييره لتظهر المقارنة.</p>'}</div>
     <div ${pane('decide')}>
       <label class="field"><span>لماذا اخترت هذا؟</span><textarea id="dReasons" rows="3">${esc(x.reasons)}</textarea></label>
       <label class="field"><span>ماذا أتوقع أن يحدث؟</span><textarea id="dExpect" rows="2" placeholder="كن محدداً، لتعرف لاحقاً هل أصبت">${esc(x.expect)}</textarea></label>
@@ -249,6 +250,160 @@ function saveDecision() {
   if (old) Object.assign(old, x); else S.decisions.push(x);
   save();
   return true;
+}
+
+// ---------- comparing the options ----------
+// the user's limits: results «متقاربة» under 5 points apart (of 100), information «ناقصة» under 70%
+const DEC_CLOSE = 5, DEC_FULL = 70;
+const decIsPerson = (x) => !!(DEC_TEMPLATES[x.kind] && DEC_TEMPLATES[x.kind].person);
+const decFmt = (n) => (Math.round(Number(n) * 100) / 100).toLocaleString('en-US');
+function decShow(c, v) {
+  if (v === undefined) return '؟ مجهول';
+  if (c.type === 'score') return `${v} من ٥`;
+  if (c.type === 'yesno') return v === 'yes' ? 'نعم' : 'لا';
+  if (c.type === 'text') return String(v);
+  return `${decFmt(v)}${c.unit ? ` ${c.unit}` : ''}`;
+}
+// a rating as 0..100, the best being 100: a score on its scale, yes/no, money and durations
+// against the other options' values; a description is shown and never computed; unknown is null
+function decNorm(c, v, all) {
+  if (v === undefined || c.type === 'text') return null;
+  if (c.type === 'yesno') return v === 'yes' ? 100 : 0;
+  if (c.type === 'score') { const p = ((Number(v) - 1) / 4) * 100; return c.dir === 'low' ? 100 - p : p; }
+  const ns = all.filter((y) => y !== undefined).map(Number);
+  const lo = Math.min(...ns), hi = Math.max(...ns);
+  if (hi === lo) return 100;
+  const p = ((Number(v) - lo) / (hi - lo)) * 100;
+  return c.dir === 'low' ? 100 - p : p;
+}
+// a condition that must hold: pass | fail | unknown (not rated yet) | open (a must with no limit to check)
+function decMust(c, v) {
+  if (v === undefined) return 'unknown';
+  if (c.type === 'yesno') return v === 'yes' ? 'pass' : 'fail';
+  if (c.min === '') return 'open';
+  return (c.dir === 'low' ? Number(v) <= c.min : Number(v) >= c.min) ? 'pass' : 'fail';
+}
+// every option's result; `weights` tries other weights without saving them
+function decScores(x, weights) {
+  const w = (c) => (weights && weights[c.id] != null ? weights[c.id] : c.weight);
+  const opts = decOpts(x);
+  return opts.map((o) => {
+    const cells = x.criteria.map((c) => {
+      const v = o.scores[c.id];
+      return { c, v, norm: decNorm(c, v, opts.map((y) => y.scores[c.id])), must: c.must ? decMust(c, v) : '' };
+    });
+    // the score counts only what is known; how complete the information is counts every criterion by its weight
+    // (a description counts as 1), so a heavy criterion left unknown weighs more than a light one
+    let sum = 0, sw = 0, tw = 0, kw = 0;
+    for (const k of cells) {
+      const ww = k.c.type === 'text' ? 1 : w(k.c);
+      tw += ww;
+      if (k.v !== undefined) kw += ww;
+      if (k.norm !== null) { sum += ww * k.norm; sw += ww; }
+    }
+    const questions = o.questions.split('\n').map((q) => q.trim()).filter(Boolean);
+    const known = cells.filter((k) => k.norm !== null).sort((a, b) => b.norm - a.norm);
+    const r = {
+      o, cells, score: sw ? Math.round(sum / sw) : null, complete: tw ? Math.round((kw / tw) * 100) : 0,
+      fails: cells.filter((k) => k.must === 'fail'), mustUnknown: cells.filter((k) => k.must === 'unknown'),
+      questions, missing: cells.filter((k) => k.v === undefined).map((k) => k.c.name),
+      // the same lines as the table's colours: a strength is green (67 and more), a weakness red (under 34)
+      strong: known.length >= 3 ? known.slice(0, 2).filter((k) => k.norm >= 67) : [],
+      weak: known.length >= 3 ? known.slice(-2).reverse().filter((k) => k.norm < 34) : [],
+      risks: o.risks.filter((y) => y.prob === 3 || y.impact === 3),
+    };
+    r.short = r.complete < DEC_FULL || r.mustUnknown.length > 0 || r.questions.length > 0;
+    return r;
+  });
+}
+// only an option that failed none of the must-conditions and has a score can lead
+const decRanked = (rows) => rows.filter((r) => !r.fails.length && r.score !== null).sort((a, b) => b.score - a.score);
+function decCompare(x, weights) {
+  const rows = decScores(x, weights);
+  const ranked = decRanked(rows);
+  const leader = ranked[0] || null, second = ranked[1] || null;
+  // a small change (a fifth up or down) in one weight that would put another option first
+  let flip = null;
+  const w = (c) => (weights && weights[c.id] != null ? weights[c.id] : c.weight);
+  if (leader && second) {
+    for (const c of x.criteria.filter((y) => y.type !== 'text')) {
+      for (const f of [1.2, 0.8]) {
+        const ws = Object.fromEntries(x.criteria.map((y) => [y.id, w(y)]));
+        ws[c.id] = w(c) * f;
+        const top = decRanked(decScores(x, ws))[0];
+        if (top && top.o.id !== leader.o.id) { flip = { c, up: f > 1, to: top.o }; break; }
+      }
+      if (flip) break;
+    }
+  }
+  return { rows, ranked, leader, close: !!(leader && second && leader.score - second.score < DEC_CLOSE), gap: leader && second ? leader.score - second.score : null, flip };
+}
+function decCompareHTML(x) {
+  const opts = decOpts(x), calc = x.criteria.filter((c) => c.type !== 'text');
+  if (opts.length < 2 || !x.criteria.length) return '<p class="note-text">أضف خيارين على الأقل ومعياراً واحداً لتظهر المقارنة.</p>';
+  const tw = ldraft.tw || {};
+  const cmp = decCompare(x, tw);
+  const person = decIsPerson(x), showCalc = !person || ldraft.showCalc;
+  const total = calc.reduce((n, c) => n + (tw[c.id] != null ? tw[c.id] : c.weight), 0);
+  const cls = (k) => (k.v === undefined ? 'unk' : k.norm === null ? '' : k.norm >= 67 ? 'good' : k.norm < 34 ? 'bad' : 'mid');
+  const mustMark = { pass: ' ✓', fail: ' ✗', unknown: '', open: '' };
+  const names = (ks) => ks.map((k) => k.c.name).join('، ');
+  // the summary: who leads now, and every reason not to trust that too quickly
+  let sum;
+  if (!showCalc) {
+    sum = `<div class="dec-sum"><b>قرار يتعلق بأشخاص</b><p>لا تُعرض هنا درجة إجمالية: الأرقام لا تختزل إنساناً. انظر إلى ما يتوافق وما يتعارض وما زال مجهولاً لكل خيار.</p><button type="button" class="ghost sm" data-action="dec-show-calc">أظهر الحساب</button></div>`;
+  } else {
+    const cautions = [];
+    if (cmp.leader) {
+      if (cmp.close) cautions.push(cmp.gap === 0 ? `النتيجتان الأوليان متساويتان: ${cmp.ranked[1].o.name} في نفس الدرجة` : `النتيجتان الأوليان متقاربتان: الفرق ${plural(cmp.gap, 'نقطة واحدة', 'نقطتان', 'نقاط', 'نقطة')} فقط`);
+      if (cmp.leader.complete < DEC_FULL) cautions.push(`معلومات المتصدر ناقصة: اكتمالها ${cmp.leader.complete}%`);
+      if (cmp.leader.mustUnknown.length) cautions.push(`لم يُعرف بعد هل يحقق المتصدر شرطه الأساسي: ${names(cmp.leader.mustUnknown)}`);
+      if (cmp.leader.questions.length) cautions.push(`بقيت أسئلة قبل الحسم عن المتصدر: ${cmp.leader.questions.length}`);
+      if (cmp.flip) cautions.push(`انتبه: لو ${cmp.flip.up ? 'زاد' : 'نقص'} وزن «${cmp.flip.c.name}» قليلاً لتصدّر «${cmp.flip.to.name}»`);
+    }
+    const failed = cmp.rows.filter((r) => r.fails.length);
+    sum = `<div class="dec-sum">
+      ${cmp.leader ? `<b>المتصدر حالياً: ${esc(cmp.leader.o.name)} (${cmp.leader.score} من ١٠٠)</b>` : '<b>لا يتصدّر أي خيار بعد</b><p>كل الخيارات أخفقت في شرط أساسي، أو لم تُقيَّم بعد.</p>'}
+      ${cautions.length ? `<ul class="dec-cautions">${cautions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : cmp.leader ? '<p>لا تحفّظ ظاهر على هذه النتيجة، لكنها أداة لتنظيم تفكيرك لا قرار عنك.</p>' : ''}
+      ${failed.length ? `<p class="dec-fail">لم يحقق شرطاً أساسياً: ${failed.map((r) => `${esc(r.o.name)} (${esc(names(r.fails))})`).join('، ')}</p>` : ''}
+      ${person ? '<p class="note-text">هذا الحساب أداة لتنظيم التفكير وكشف التوافق والنقص، لا حكم على أحد.</p>' : ''}
+    </div>`;
+  }
+  const head = `<tr><th>المعيار</th>${opts.map((o) => `<th>${esc(o.name)}</th>`).join('')}</tr>`;
+  const body = x.criteria.map((c, i) => {
+    const wv = tw[c.id] != null ? tw[c.id] : c.weight;
+    return `<tr><th><span>${esc(c.name)}</span><small>${c.type === 'text' ? 'وصف لا يُحسب' : `الوزن ${wv} (${total ? Math.round((wv / total) * 100) : 0}%)`}${c.must ? ' | شرط أساسي' : ''}</small></th>
+      ${cmp.rows.map((r) => { const k = r.cells[i]; return `<td class="${cls(k)}${k.must === 'fail' ? ' fail' : ''}">${esc(decShow(c, k.v))}${mustMark[k.must] || ''}</td>`; }).join('')}</tr>`;
+  }).join('');
+  const foot = `${showCalc ? `<tr class="dec-total"><th>النتيجة</th>${cmp.rows.map((r) => `<td>${r.fails.length ? 'لم يحقق شرطاً' : r.score === null ? '؟' : `${r.score} من ١٠٠`}</td>`).join('')}</tr>` : ''}
+    <tr><th>اكتمال المعلومات</th>${cmp.rows.map((r) => `<td class="${r.complete < DEC_FULL ? 'unk' : ''}">${r.complete}%</td>`).join('')}</tr>
+    <tr><th>الشروط الأساسية</th>${cmp.rows.map((r) => `<td>${r.fails.length ? 'لم تتحقق' : r.mustUnknown.length ? 'لم تُعرف بعد' : x.criteria.some((c) => c.must) ? 'تحققت' : 'لا شروط'}</td>`).join('')}</tr>
+    <tr><th>أسئلة قبل الحسم</th>${cmp.rows.map((r) => `<td>${r.questions.length || 'لا'}</td>`).join('')}</tr>`;
+  const cards = cmp.rows.map((r) => {
+    const lines = [
+      r.strong.length && `${person ? 'يتوافق في' : 'أبرز قوته'}: ${names(r.strong)}`,
+      r.weak.length && `${person ? 'يتعارض في' : 'أبرز ضعفه'}: ${names(r.weak)}`,
+      r.fails.length && `لم يحقق: ${names(r.fails)}`,
+      r.missing.length && `لا يزال مجهولاً: ${r.missing.join('، ')}`,
+      r.o.unknown.trim() && `ما سجّلته مجهولاً: ${excerpt(r.o.unknown.trim(), 120)}`,
+      r.questions.length && `أسئلة قبل الحسم: ${r.questions.join('، ')}`,
+    ].filter(Boolean);
+    return `<div class="dec-ocmp"><b>${r.o.defer ? '⏸ ' : ''}${esc(r.o.name)}</b>
+      ${lines.length ? `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+      ${r.risks.length ? `<div class="dec-risks"><small>مخاطر جوهرية (منفصلة عن الحساب)</small><ul>${r.risks.map((y) => `<li>${esc(y.text)} <small>(الاحتمال: ${RISK_LVL[y.prob]} | الأثر: ${RISK_LVL[y.impact]})</small></li>`).join('')}</ul></div>` : ''}
+    </div>`;
+  }).join('');
+  const changed = calc.some((c) => tw[c.id] != null && tw[c.id] !== c.weight);
+  const trial = calc.length && showCalc ? `<details class="dec-trial"${changed || ldraft.trialOpen ? ' open' : ''}><summary>جرّب أوزاناً أخرى</summary>
+    <p class="note-text">غيّر وزن أي معيار وانظر كيف يتغير الترتيب. لا يُحفظ شيء حتى تعتمد.</p>
+    ${calc.map((c) => `<div class="dec-tw"><span>${esc(c.name)}</span><div class="seg" role="group">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-action="dec-tw" data-c="${c.id}" data-v="${n}" aria-pressed="${(tw[c.id] != null ? tw[c.id] : c.weight) === n}">${n}</button>`).join('')}</div></div>`).join('')}
+    ${changed ? '<div class="btn-row"><button type="button" class="primary" data-action="dec-tw-save">اعتمد هذه الأوزان</button><button type="button" class="ghost" data-action="dec-tw-reset">أرجع</button></div>' : ''}
+  </details>` : '';
+  return `${sum}<div class="dec-tablewrap"><table class="dec-table"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>${cards}${trial}`;
+}
+function decCmpRedraw() {
+  const pane = document.querySelector('#libForm [data-dtab="cmp"]');
+  if (pane) pane.innerHTML = decCompareHTML(getDec(ldraft.id));
 }
 
 // ---------- an option's card ----------
@@ -391,6 +546,15 @@ document.addEventListener('click', (e) => {
       for (const b of $('dTabs').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
       $('libForm').scrollTop = 0;
       break;
+    case 'dec-tw': ldraft.tw[el.dataset.c] = Number(v); decCmpRedraw(); break;
+    case 'dec-tw-reset': ldraft.tw = {}; decCmpRedraw(); break;
+    case 'dec-tw-save': {
+      const x = getDec(ldraft.id);
+      for (const c of x.criteria) if (ldraft.tw[c.id] != null) c.weight = ldraft.tw[c.id];
+      ldraft.tw = {}; save(); decCmpRedraw(); toast('اعتُمدت الأوزان الجديدة');
+      break;
+    }
+    case 'dec-show-calc': ldraft.showCalc = true; decCmpRedraw(); break;
     case 'dec-status':
       ldraft.status = v;
       for (const b of $('dStatus').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
@@ -455,6 +619,8 @@ document.addEventListener('input', (e) => {
   const id = e.target.id;
   if (id === 'dDeadline' && $('dDeadW')) $('dDeadW').hidden = !e.target.value;
 });
+// the weight trial stays open while it is being used, though the comparison redraws
+document.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('dec-trial') && ldraft) ldraft.trialOpen = e.target.open; }, true);
 document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'dKind') $('dKindNameW').hidden = e.target.value !== 'custom';

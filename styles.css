@@ -1013,6 +1013,30 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .dec-row input { grid-column: 1 / -1; min-width: 0; }
 .dec-risk { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
 .dec-risk .row-between input { flex: 1; min-width: 0; }
+.dec-sum { display: grid; gap: 6px; background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; }
+.dec-sum p { margin: 0; }
+.dec-cautions { margin: 0; padding-inline-start: 18px; display: grid; gap: 3px; }
+.dec-fail { color: var(--high); }
+.dec-tablewrap { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; }
+.dec-table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+.dec-table th, .dec-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; min-width: 84px; }
+.dec-table thead th { background: var(--bg); }
+.dec-table tbody th { display: grid; gap: 2px; font-weight: 600; min-width: 110px; }
+.dec-table tbody th small { font-weight: 400; color: var(--muted); }
+.dec-table td.good { background: color-mix(in srgb, var(--low) 16%, transparent); }
+.dec-table td.mid { background: color-mix(in srgb, var(--mid) 12%, transparent); }
+.dec-table td.bad { background: color-mix(in srgb, var(--high) 12%, transparent); }
+.dec-table td.unk { color: var(--muted); font-style: italic; }
+.dec-table td.fail { color: var(--high); font-weight: 600; }
+.dec-table tfoot th, .dec-table tfoot td { background: var(--bg); }
+.dec-total td { font-weight: 700; }
+.dec-ocmp { display: grid; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+.dec-ocmp ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 2px; font-size: .92rem; }
+.dec-risks { border-inline-start: 3px solid var(--high); padding-inline-start: 8px; }
+.dec-trial { background: var(--bg); border-radius: 12px; padding: 8px 10px; }
+.dec-trial summary { cursor: pointer; font-weight: 600; }
+.dec-tw { display: grid; gap: 4px; margin-top: 8px; }
+[data-dtab="cmp"]:not([hidden]) { display: grid; gap: 10px; }
 
 .quit-card { display: grid; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; list-style: none; }
 .quit-top { display: flex; align-items: center; gap: 10px; }
