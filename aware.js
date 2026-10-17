@@ -194,6 +194,39 @@ function awareStats(P) {
     reviews && `راجعت ${plural(reviews, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
   ], [...hPlans, ...learned.map((h) => `حفظت «${hzTitle(h)}»: ${uw(h.type, parsePoemLen(h))} (${dS(h.learnedAt)})`), ...reviewsBy.map((x) => `راجعت «${hzTitle(x.h)}»: ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`)]);
 
+  // 🎓 الدراسة: lessons completed in the period against the lessons due on its study days (never more than
+  // were left in the approved textbook when the period began), and the reviews done
+  const stRows = [], stDetail = [];
+  let stReq = 0, stDone = 0, stRv = 0;
+  for (const s of S.study) {
+    const b = sciBook(s), lessons = s.books.flatMap((x) => x.lessons);
+    const doneIn = lessons.filter((l) => inP(l.completedAt));
+    const rvIn = lessons.map((l) => ({ l, n: l.rvLog.filter(inP).length })).filter((x) => x.n);
+    let req = 0, left = 0;
+    if (b) {
+      const leftAtStart = b.lessons.filter((l) => !l.completedAt || l.completedAt >= start).length;
+      const doneToday = b.lessons.filter((l) => l.completedAt === t0).length;
+      let dueN = 0, dueLeft = 0;
+      for (const d of all) {
+        if (d < dayOfTs(s.created) || !s.days.includes(parse(d).getDay())) continue;
+        dueN += s.per;
+        if (d > t0) dueLeft += s.per; else if (d === t0) dueLeft += Math.max(0, s.per - doneToday);
+      }
+      req = Math.min(dueN, leftAtStart);
+      left = Math.max(0, Math.min(dueLeft, req - doneIn.length));
+    }
+    if (!req && !doneIn.length && !rvIn.length) continue;
+    stReq += req; stDone += Math.min(doneIn.length, req || doneIn.length);
+    const rv = sum(rvIn, (x) => x.n); stRv += rv;
+    stRows.push(`${s.name}${b ? ` («${b.title}»)` : ''}: ${req ? `الدروس المقررة ${req}، أتممت منها ${doneIn.length || 'صفر'}${pc(Math.min(doneIn.length, req), req)}` : `أتممت ${plural(doneIn.length, 'درساً واحداً', 'درسين', 'دروس', 'درساً')}`}${rv ? ` | راجعت ${plural(rv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}` : ''}${leftTxt(left ? plural(left, 'درس واحد', 'درسان', 'دروس', 'درساً') : 0)}`);
+    stDetail.push(...doneIn.map((l) => `${s.name}: أتممت «${l.title}» (${dS(l.completedAt)})`), ...rvIn.map((x) => `${s.name}: راجعت «${x.l.title}» ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`));
+  }
+  add('study', pageLook('study', 'الدراسة', '🎓'), 'study', stReq ? pctOf(stDone, stReq) : null, [
+    ...stRows,
+    stRv && stRows.length > 1 && `مجموع المراجعات: ${plural(stRv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
+    P.current && studyDue().length && `للمراجعة الآن: ${plural(studyDue().length, 'درس واحد', 'درسان', 'دروس', 'درساً')}`,
+  ], stDetail);
+
   // 📚 الكتب: measured in pages, as on the books page: the pages really read in the period against the pages
   // planned on its reading days (never more than was left of the book); sessions, finished books, benefits, recall
   const per = new Map();

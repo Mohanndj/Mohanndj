@@ -4,7 +4,7 @@
 
 const TODAY_PARTS = [
   ['close', 'إغلاق اليوم (مساءً)'], ['quote', 'عبارة اليوم'], ['smart', 'الإضافة السريعة'], ['summary', 'ملخص اليوم'], ['prayer', 'أوقات الصلاة'],
-  ['hifz', 'الحفظ'], ['habits', 'بناء العادات'], ['health', 'الصحة'], ['books', 'الكتب'], ['benefits', 'الفوائد'],
+  ['hifz', 'الحفظ'], ['study', 'الدراسة'], ['habits', 'بناء العادات'], ['health', 'الصحة'], ['books', 'الكتب'], ['benefits', 'الفوائد'],
   ['decisions', 'سجل القرارات'], ['people', 'الأحبّة'], ['bills', 'الاشتراكات والفواتير'], ['later', 'الشراء المؤجّل'],
   ['journal', 'يومياتي وتأملاتي'], ['spend', 'المصروف'], ['lists', 'القوائم'], ['reminders', 'التذكيرات'], ['tasks', 'المهام والأهداف'],
 ];
@@ -38,7 +38,7 @@ const lookOf = (k) => moreLook()[k] || {};
 // «اليوم» and the button to it, the evening close, the report, files exported from it and messages
 const PAGE_NAMES = {
   reminders: 'التذكيرات', ideas: 'الأفكار', journal: 'يومياتي وتأملاتي', week: 'التخطيط الأسبوعي', health: 'الصحة', shop: 'القوائم',
-  finance: 'المالية', cv: 'سيرتي الذاتية', hifz: 'الحفظ', people: 'الأحبّة', decisions: 'سجل القرارات', notes: 'الملاحظات',
+  finance: 'المالية', cv: 'سيرتي الذاتية', hifz: 'الحفظ', study: 'الدراسة', people: 'الأحبّة', decisions: 'سجل القرارات', notes: 'الملاحظات',
   books: 'الكتب', benefits: 'الفوائد', archive: 'الأرشيف', inspire: 'الإلهام', report: 'التقارير', stats: 'الإحصائيات',
 };
 const pageName = (tab) => (lookOf(tab).name || PAGE_NAMES[tab] || '').trim();
@@ -52,7 +52,7 @@ function renameHeads(root) {
   }
 }
 // «اليوم» parts that are a page's section carry that page's name in «رتّب صفحة اليوم»
-const PART_PAGE = { hifz: 'hifz', health: 'health', books: 'books', benefits: 'benefits', decisions: 'decisions', people: 'people', journal: 'journal', lists: 'shop', reminders: 'reminders' };
+const PART_PAGE = { hifz: 'hifz', health: 'health', books: 'books', benefits: 'benefits', decisions: 'decisions', people: 'people', journal: 'journal', lists: 'shop', reminders: 'reminders', study: 'study' };
 function renderLayout() {
   const { which, names, order, hidden } = ldraft;
   const isToday = which === 'today';

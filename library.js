@@ -29,6 +29,8 @@ function normalizeBook(b) {
     // a book read in the past: no dates asked, only an optional Hijri year
     hyear: /^\d{3,4}$/.test(String(b.hyear || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))) ? String(b.hyear).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)) : '',
     // reading.js: topic, and reading days with pages per session
+    // study.js: an enrichment book of a science of «الدراسة»
+    studyId: String(b.studyId || ''),
     topic: String(b.topic || '').trim(), rdays: Array.isArray(b.rdays) ? [...new Set(b.rdays.map(Number).filter((d) => d >= 0 && d <= 6))] : [], rpages: Number(b.rpages) > 0 ? Math.round(Number(b.rpages)) : 0,
     pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
     log: Array.isArray(b.log) ? b.log.filter((e) => e && e.d && Number.isFinite(e.p)) : [],
@@ -163,6 +165,7 @@ function moreTiles() {
     ['finance', 'wallet', 'المالية', ''],
     ['cv', 'user', 'سيرتي الذاتية', S.cvs.length ? `${plural(S.cvs.length, 'نسخة واحدة', 'نسختان', 'نسخ', 'نسخة')}` : ''],
     ['hifz', 'book', 'الحفظ', S.hifz.length || S.hplans.length ? `${hzDue().length ? `للمراجعة اليوم: ${hzDue().length} | ` : ''}محفوظ: ${S.hifz.filter((h) => h.state === 'review').length}` : ''],
+    ['study', 'book', 'الدراسة', S.study.length ? `${studyDue().length ? `للمراجعة اليوم: ${studyDue().length} | ` : ''}العلوم: ${S.study.length}` : ''],
     ['people', 'heart', 'الأحبّة', S.people.length ? `حان التواصل: ${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'لا أحد'}` : ''],
     ['decisions', 'scale', 'سجل القرارات', S.decisions.length ? `${decDue().length ? `للمراجعة: ${decDue().length} | ` : ''}القرارات: ${S.decisions.length}` : ''],
     ['notes', 'note', 'الملاحظات', S.memos.length ? `${plural(S.memos.length, 'ملاحظة واحدة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')}` : ''],
@@ -240,6 +243,7 @@ function bookCard(b) {
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
     ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${[b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : '', libUi.bookTopic ? esc(BOOK_STATUS[b.status]) : '', b.status === 'reading' && scheduleLine(b) ? `📅 ${esc(scheduleLine(b))}` : ''].filter(Boolean).join(' | ')}</span>` : ''}
+    ${b.studyId && getSci(b.studyId) ? `<span class="book-line"><span class="topic-tag">${esc(`إثرائي في ${getSci(b.studyId).name}`)}</span></span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
       <span class="book-line">قرأت ${pace.pct}% | صفحة ${b.page} من ${b.pages}${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بأيام قراءتك' : 'بسرعتك الحالية'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
     ${b.status === 'reading' && !b.pages ? `<span class="book-line">${icon('steps')}أضف عدد صفحاته لتتابع تقدّمك</span>` : ''}
@@ -378,7 +382,7 @@ function openLib(kind, id, preset = {}) {
       <label class="switch"><input type="checkbox" id="lPinned"${m.pinned ? ' checked' : ''}><span>تثبيت في الأعلى</span></label>
       ${id ? `<p class="note-text">أُنشئت ${esc(dateBoth(iso(new Date(m.created)), true))}${m.updated > m.created + 60000 ? ` | عُدّلت ${esc(dateBoth(iso(new Date(m.updated)), true))}` : ''}</p>` : ''}`;
   } else if (kind === 'book') {
-    const b = id ? getBook(id) : normalizeBook({ status: preset.status || libUi.bookStatus, start: (preset.status || libUi.bookStatus) === 'reading' ? today() : '' });
+    const b = id ? getBook(id) : normalizeBook({ status: preset.status || libUi.bookStatus, start: (preset.status || libUi.bookStatus) === 'reading' ? today() : '', studyId: preset.studyId || '' });
     ldraft.status = b.status;
     const n = id ? benefitsOf(id).length : 0;
     // an existing book opens on two tabs: its data, and its benefits (not under the data)
@@ -388,6 +392,7 @@ function openLib(kind, id, preset = {}) {
       <div id="bkData"${ldraft.tab === 'bens' ? ' hidden' : ''}>
       <label class="field"><span>اسم الكتاب</span><input type="text" id="lTitle" value="${esc(b.title)}" autocomplete="off" placeholder="مثال: الأيام"></label>
       <label class="field"><span>المؤلف (اختياري)</span><input type="text" id="lAuthor" value="${esc(b.author)}" autocomplete="off" placeholder="مثال: طه حسين"></label>
+      ${S.study.length || b.studyId ? `<label class="field"><span>كتاب إثرائي في علم (اختياري)</span><select id="lStudy"><option value="">لا</option>${S.study.map((s) => `<option value="${s.id}"${b.studyId === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>` : ''}
       <div class="field"><span>الحالة</span><div class="seg seg-wrap" id="lStatus">${BOOK_ORDER.map((s) => `<button type="button" data-action="lib-status" data-v="${s}" aria-pressed="${b.status === s}">${BOOK_STATUS[s]}</button>`).join('')}</div></div>
       <div class="grid2">
         <label class="field" id="lStartWrap"><span>تاريخ البدء</span><input type="date" id="lStart" value="${b.start}"><small class="hint" id="lStartH">${esc(b.start ? fmtHijri(b.start) : '')}</small></label>
@@ -515,7 +520,7 @@ function saveLib() {
     const rv = status === 'read' && $('lRv').checked;
     const rvFields = { rv, rvPoints: $('lRvPoints').value.trim() };
     if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: addDays(today(), BOOK_RV[0]) });
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, studyId: $('lStudy') ? $('lStudy').value : old ? old.studyId : '', topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
@@ -857,8 +862,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();
