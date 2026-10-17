@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./AdminApp.css";
-import { api, getToken, setToken, clearToken, uploadMedia, mediaSrc, listBooks, addBook, deleteBook, backupJson } from "./backend";
+import { api, login, logout, uploadMedia, mediaSrc, listBooks, addBook, deleteBook, backupJson } from "./backend";
 
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 const ar = (v) => String(v).replace(/[0-9]/g, (d) => AR_DIGITS[+d]);
@@ -13,13 +13,11 @@ function AuthProvider({ children }) {
   const [state, setState] = useState({ me: null, ready: false });
   useEffect(() => {
     (async () => {
-      if (!getToken()) { setState({ me: null, ready: true }); return; }
       try {
         const me = await api("/auth/me");
         setState({ me, ready: true });
       } catch (e) {
-        if (e.status === 401) clearToken();
-        setState({ me: null, ready: true });
+        setState({ me: null, ready: true, error: e.status === 401 ? "" : e.message });
       }
     })();
   }, []);
@@ -39,52 +37,34 @@ function Protected({ children }) {
    Login
    ============================================================ */
 function LoginPage() {
-  const [token, setTok] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const nav = useNavigate();
-  useEffect(() => {
-    if (getToken()) nav("/admin", { replace: true });
-  }, [nav]);
+  const { error } = useAuth();
+  const [err, setErr] = useState(error || "");
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setErr("");
-    setToken(token.trim());
     try {
-      await api("/auth/me");
+      await login(password);
       window.location.href = "/admin";
-    } catch (e) {
-      clearToken();
-      setErr(e.status === 401 ? "المفتاح غير صحيح أو منتهي الصلاحية." : (e.message || "تعذّر الدخول."));
-    } finally { setBusy(false); }
+    } catch (e) { setErr(e.message || "تعذّر الدخول."); }
+    finally { setBusy(false); }
   }
   return (
     <div className="admin-shell">
       <div className="admin-login">
         <form className="admin-login-card" onSubmit={submit} data-testid="admin-login">
           <h1>لوحة التحكم</h1>
-          <p className="hint">الدخول لصاحب المدونة فقط، بمفتاح من حسابك في GitHub.</p>
-          <label htmlFor="t">مفتاح GitHub</label>
-          <input id="t" className="admin-input" type="password" required autoFocus dir="ltr" autoComplete="off"
-                 value={token} onChange={(e) => setTok(e.target.value)} placeholder="github_pat_…" data-testid="login-token"/>
+          <p className="hint">الدخول لصاحب المدونة فقط.</p>
+          <label htmlFor="p">كلمة السرّ</label>
+          <input id="p" className="admin-input" type="password" required autoFocus
+                 value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password"/>
           <div style={{ marginTop: 22 }}>
             <button className="admin-btn" type="submit" disabled={busy} data-testid="login-submit">
               {busy ? "…" : "دخول"}
             </button>
           </div>
           {err && <div className="admin-error" data-testid="login-error">{err}</div>}
-          <details className="hint" style={{ marginTop: 18, lineHeight: 1.9 }}>
-            <summary style={{ cursor: "pointer" }}>كيف أحصل على المفتاح؟</summary>
-            <ol style={{ paddingInlineStart: 18, margin: "8px 0 0" }}>
-              <li>افتح <a className="admin-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">صفحة إنشاء مفتاح في GitHub</a>.</li>
-              <li>في <b>Token name</b> اكتب: لوحة المدونة.</li>
-              <li>في <b>Expiration</b> اختر مدة (سنة مثلًا).</li>
-              <li>في <b>Repository access</b> اختر <b>Only select repositories</b> ثم <b>Mohanndj/Mohanndj</b>.</li>
-              <li>في <b>Permissions</b> أضف <b>Contents</b> واجعلها <b>Read and write</b>.</li>
-              <li>اضغط <b>Generate token</b>، وانسخ المفتاح والصقه هنا.</li>
-            </ol>
-            <p style={{ marginTop: 8 }}>يُحفظ المفتاح على هذا الجهاز فقط، ولا يُرسل إلا إلى GitHub.</p>
-          </details>
         </form>
       </div>
     </div>
@@ -112,7 +92,7 @@ function Sidebar() {
   const roleLabel = role === "owner" ? "المالك" : role === "editor" ? "محرّر" : "قارئ";
   const on = (it) => it.exact ? loc.pathname === it.to : loc.pathname.startsWith(it.to);
   const signOut = async () => {
-    clearToken();
+    await logout();
     nav("/admin/login", { replace: true });
   };
   return (

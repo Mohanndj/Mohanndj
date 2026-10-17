@@ -1,6 +1,7 @@
 /* ============================================================
    خادم لوحة التحكم: بدل خادم Emergent، تقرأ اللوحة ملفات المحتوى
-   من مستودع GitHub وتكتبها فيه مباشرة (public/data/*.json والوسائط).
+   من مستودع GitHub وتكتبها فيه (public/data/*.json والوسائط)، عبر الوسيط
+   /api/gh في functions/ الذي يحمل مفتاح GitHub ويتحقق من جلسة الدخول.
    كل حفظ = commit واحد على فرع النشر، فيعيد Cloudflare بناء الموقع تلقائيًا.
 
    تحاكي الدالة api() مسارات الخادم القديم (/admin/articles …) حتى تبقى
@@ -10,8 +11,7 @@
 const REPO = "Mohanndj/Mohanndj";
 const BRANCH = __CONTENT_BRANCH__; // يُحدَّد عند البناء (فرع النشر في Cloudflare)
 const ROOT = "blog/public";
-const GH = "https://api.github.com";
-export const TOKEN_KEY = "blog-github-token";
+const GH = "/api/gh";
 
 const FILES = {
   articles: "data/articles.json",
@@ -23,31 +23,43 @@ const FILES = {
   shortlinks: "data/shortlinks.json",
 };
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
-export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
-
 class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status; }
+}
+
+const SERVER_ERRORS = {
+  not_configured: "لم تُضبط كلمة السر ومفتاح GitHub في إعدادات Cloudflare بعد.",
+  github_token_invalid: "مفتاح GitHub في إعدادات Cloudflare غير صالح أو انتهت مدته.",
+  invalid_credentials: "كلمة السر خاطئة.",
+  unauthorized: "انتهت الجلسة؛ سجّل الدخول من جديد.",
+};
+
+async function errorFrom(r) {
+  let detail = "";
+  try { const j = await r.json(); detail = j.detail || j.message || ""; } catch { /* ignore */ }
+  return new ApiError(SERVER_ERRORS[detail] || detail || `خطأ ${r.status}`, r.status);
+}
+
+export async function login(password) {
+  const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+  if (!r.ok) throw await errorFrom(r);
+}
+
+export async function logout() {
+  cache = null;
+  await fetch("/api/login", { method: "DELETE" }).catch(() => {});
 }
 
 async function gh(path, { method = "GET", body, accept } = {}) {
   const r = await fetch(`${GH}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${getToken()}`,
       Accept: accept || "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (r.status === 401) throw new ApiError("unauthorized", 401);
-  if (!r.ok) {
-    let msg = `GitHub ${r.status}`;
-    try { msg = (await r.json()).message || msg; } catch { /* ignore */ }
-    throw new ApiError(msg, r.status);
-  }
+  if (!r.ok) throw await errorFrom(r);
   if (r.status === 204) return null;
   return accept && accept.includes("raw") ? r.text() : r.json();
 }
@@ -250,10 +262,9 @@ export async function api(path, opts = {}) {
   const action = seg[3];
 
   if (route === "GET /auth/me") {
-    const user = await gh("/user");
     const repo = await gh(`/repos/${REPO}`);
-    if (!repo.permissions?.push) throw new ApiError("هذا الحساب لا يملك صلاحية الكتابة في المستودع.", 403);
-    return { email: user.login, role: "owner" };
+    if (repo.permissions && !repo.permissions.push) throw new ApiError("مفتاح GitHub لا يملك صلاحية الكتابة في المستودع.", 403);
+    return { email: "صاحب المدونة", role: "owner" };
   }
 
   /* المقالات */
