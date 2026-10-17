@@ -49,12 +49,9 @@ function page(route, { title, description, image, type = "website", content }) {
       .replace(`<meta name="twitter:card" content="summary"/>`, `<meta name="twitter:card" content="summary_large_image"/>`)
       .replace("</head>", `<meta property="og:image" content="${esc(SITE + image)}"/>\n<meta name="twitter:image" content="${esc(SITE + image)}"/>\n</head>`);
   }
-  // React يستبدل هذا المحتوى فور تحميله؛ وجوده لمحركات البحث فقط، فلا يُرى في الحالة العادية.
-  // وإن لم يكتمل التحميل خلال ٣ ثوانٍ (اتصال بطيء أو جافاسكربت معطّلة) يظهر بدل صفحة فارغة.
-  html = html
-    .replace("</head>", `<style>.prerender{opacity:0;animation:prerender-show .3s 3s forwards;padding:24px 16px;font-family:Amiri,serif;line-height:1.9}@keyframes prerender-show{to{opacity:1}}</style>\n</head>`)
-    .replace('<div id="root"></div>', `<div id="root"><div class="prerender">${content}</div></div>`);
-  // /articles/x تُكتب articles/x.html لا articles/x/index.html، كي لا يحوّلها Cloudflare إلى /articles/x/
+  // نسخة نصية لمحركات البحث، مخفية عن الزائر دائمًا؛ يرى بدلها شاشة «نهيئ لك المقالات» حتى يجهز التطبيق.
+  html = html.replace(/(<div id="root">[\s\S]*?<\/p><\/div>)/, (m) => `${m}<div class="prerender" hidden>${content}</div>`);
+  if (!html.includes('class="prerender"')) throw new Error("prerender: لم يُعثر على موضع الإدراج في index.html");
   const file = route === "/" ? path.join(DIST, "index.html") : path.join(DIST, decodeURIComponent(route) + ".html");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, html);

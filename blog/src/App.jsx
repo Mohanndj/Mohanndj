@@ -1157,19 +1157,18 @@ function useLike(articleId) {
   return { enabled, count, liked, toggle };
 }
 function likesPhrase(n) {
-  if (n === 0) return "كن أوّل من يستحسنها";
-  if (n === 1) return "استحسنها قارئٌ واحد";
-  if (n === 2) return "استحسنها قارئان";
-  if (n <= 10) return `استحسنها ${ar(n)} قرّاء`;
-  return `استحسنها ${ar(n)} قارئًا`;
+  if (n === 0) return "كن أوّل من يدعو للكاتب";
+  if (n === 1) return "دعا بها قارئٌ واحد";
+  if (n === 2) return "دعا بها قارئان";
+  if (n <= 10) return `دعا بها ${ar(n)} قرّاء`;
+  return `دعا بها ${ar(n)} قارئًا`;
 }
 function KhatamStar({ size = 18 }) {
   // نجمة ثُمانية (خاتم) من مربّعين متراكبين
   return (
-    <svg className="khatam" width={size} height={size} viewBox={size >= 32 ? "0 0 24 24" : "2 2 20 20"} aria-hidden="true">
+    <svg className="khatam" width={size} height={size} viewBox="2 2 20 20" aria-hidden="true">
       <rect x="5" y="5" width="14" height="14"/>
       <rect x="5" y="5" width="14" height="14" transform="rotate(45 12 12)"/>
-      {size >= 32 && <circle cx="12" cy="12" r="2.6"/>}
     </svg>
   );
 }
@@ -1178,28 +1177,68 @@ function LikeButton({ articleId }) {
   if (!enabled) return null;
   return (
     <button className={`icon-btn like-btn ${liked ? "on" : ""}`} onClick={toggle} aria-pressed={liked}
-            aria-label={liked ? "إلغاء الاستحسان" : "استحسان المقالة"} data-testid="like-btn">
-      <KhatamStar size={18}/> <span>{liked ? "استحسنتَها" : "استحسان"}</span>
+            aria-label={liked ? "التراجع عن الدعاء" : "جزاك الله خيرًا"} data-testid="like-btn">
+      <KhatamStar size={18}/> <span>جزاك الله خيرًا</span>
       {count > 0 && <span className="like-n">{ar(count)}</span>}
     </button>
   );
 }
+/* شمسة المخطوطات: حلقة من ستّ عشرة ورقة، ونجمة ثُمانية، وفي قلبها الدعاء */
+function Shamsa() {
+  const petals = Array.from({ length: 16 }, (_, i) => {
+    const a = (i * 22.5 * Math.PI) / 180;
+    const x = 100 + 85 * Math.sin(a), y = 100 - 85 * Math.cos(a);
+    return <rect key={i} className="sh-petal" x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(${i * 22.5 + 45} ${x} ${y})`}/>;
+  });
+  return (
+    <svg className="shamsa" viewBox="0 0 200 200" aria-hidden="true">
+      <defs>
+        <radialGradient id="sh-gold" cx="50%" cy="38%" r="70%">
+          <stop offset="0" stopColor="#E9CC7F"/><stop offset=".55" stopColor="#C49A45"/><stop offset="1" stopColor="#8E6A27"/>
+        </radialGradient>
+      </defs>
+      <circle className="sh-ring" cx="100" cy="100" r="97"/>
+      <g className="sh-petals">{petals}</g>
+      <circle className="sh-ring sh-ring-in" cx="100" cy="100" r="73"/>
+      <g className="sh-star">
+        <rect x="45" y="45" width="110" height="110"/>
+        <rect x="45" y="45" width="110" height="110" transform="rotate(45 100 100)"/>
+      </g>
+      <circle className="sh-core" cx="100" cy="100" r="50"/>
+    </svg>
+  );
+}
 function Appreciation({ articleId }) {
   const { enabled, count, liked, toggle } = useLike(articleId);
-  const [pop, setPop] = useState(false);
+  const [stamp, setStamp] = useState(false);
+  const [seen, setSeen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || typeof IntersectionObserver === "undefined") { setSeen(true); return; }
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { threshold: 0.4 });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [enabled]);
   if (!enabled) return null;
-  const click = () => { if (!liked) { setPop(true); setTimeout(() => setPop(false), 700); } toggle(); };
+  const click = () => {
+    if (!liked) { setStamp(false); requestAnimationFrame(() => setStamp(true)); setTimeout(() => setStamp(false), 1400); }
+    toggle();
+  };
   return (
-    <section className={`appreciate no-print ${liked ? "liked" : ""}`} data-testid="appreciate">
-      <p className="appr-q">هل نفعتك المقالة؟</p>
-      <button className={`appr-star ${pop ? "pop" : ""}`} onClick={click} aria-pressed={liked}
-              aria-label={liked ? "إلغاء الاستحسان" : "استحسان المقالة"} data-testid="appreciate-btn">
-        <KhatamStar size={64}/>
-        <span className="appr-burst" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} style={{ "--a": `${i * 45}deg` }}/>)}</span>
+    <section ref={ref} className={`appreciate no-print ${liked ? "liked" : ""} ${seen ? "seen" : ""}`} data-testid="appreciate">
+      <p className="appr-eyebrow">إن نفعتك المقالة</p>
+      <button className={`appr-seal ${stamp ? "stamp" : ""}`} onClick={click} aria-pressed={liked}
+              aria-label={liked ? "التراجع عن الدعاء" : "جزاك الله خيرًا"} data-testid="appreciate-btn">
+        <span className="appr-ripple" aria-hidden="true"/>
+        <span className="appr-rays" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ "--a": `${i * 30}deg` }}/>)}</span>
+        <Shamsa/>
+        <span className="appr-words"><b>جزاك الله</b><b>خيرًا</b></span>
       </button>
-      <div className="appr-count" data-testid="appreciate-count">{count > 0 ? ar(count) : ""}</div>
-      <p className="appr-text">{likesPhrase(count)}</p>
-      <p className="appr-hint">{liked ? "شكرًا لك، وصل استحسانك." : "اضغط النجمة إن وجدتَ فيها فائدة."}</p>
+      <div className="appr-tally">
+        {count > 0 && <span key={count} className="appr-count" data-testid="appreciate-count">{ar(count)}</span>}
+        <span className="appr-text">{likesPhrase(count)}</span>
+      </div>
+      <p className={`appr-reply ${liked ? "show" : ""}`} aria-live="polite">{liked ? "وإيّاك، شكر الله لك." : "اضغط الشمسة لتدعو للكاتب"}</p>
     </section>
   );
 }
@@ -1208,12 +1247,13 @@ function Appreciation({ articleId }) {
    المشاركة: منشور جاهز (عنوان ومقتطف ورابط مختصر) يُعدَّل قبل الإرسال
    ============================================================ */
 function sharePost(post, maxExcerpt = 240) {
-  const title = stripInline(post.title);
+  // أسطر متتالية بلا فراغات، وكل سطر يبدأ بحرف عربي كي لا ينقلب اتجاهه في تطبيقات المراسلة
+  const title = stripInline(post.title).trim();
   let ex = stripInline(post.excerpt || autoExcerpt(post)).replace(/\s+/g, " ").trim();
   if (ex.length > maxExcerpt) ex = ex.slice(0, maxExcerpt).replace(/\s+\S*$/, "") + "…";
-  const tag = post.cat ? `#${post.cat.replace(/\s+/g, "_")}` : "";
-  return [`«${title}»`, ex, `✦ اقرأ المقالة كاملة:\n${shortUrl(post)}`, `— ${siteSettings.site_name || "مدونة مهند بن جازي"}${tag ? ` ${tag}` : ""}`]
-    .filter(Boolean).join("\n\n");
+  const site = siteSettings.site_name || "مدونة مهند بن جازي";
+  const tag = post.cat ? ` #${post.cat.replace(/\s+/g, "_")}` : "";
+  return [`«${title}»`, ex, `اقرأ المقالة كاملة في ${site}:`, shortUrl(post), tag.trim()].filter(Boolean).join("\n");
 }
 function SharePanel({ post, onClose }) {
   const [text, setText] = useState(() => sharePost(post));
@@ -1237,14 +1277,14 @@ function SharePanel({ post, onClose }) {
         <p className="eyebrow">شارك المقالة</p>
         <h3>منشورٌ جاهز</h3>
         <p className="share-sub">عدّله إن شئت، ثم اختر أين تنشره.</p>
-        <textarea className="share-text" value={text} onChange={(e) => setText(e.target.value)} rows={9} dir="rtl" data-testid="share-text"/>
+        <textarea className="share-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} dir="rtl" data-testid="share-text"/>
         <div className="share-link" dir="ltr">
           <LinkIcon size={14}/> <span data-testid="share-short">{url.replace(/^https?:\/\//, "")}</span>
           <button className="icon-btn small" onClick={() => copy(url, "نُسخ الرابط")} data-testid="share-copy-link">نسخ الرابط</button>
         </div>
         <div className="share-targets">
           <a className="share-t x" href={`https://twitter.com/intent/tweet?text=${enc(xText)}`} target="_blank" rel="noopener noreferrer"><Twitter size={16}/> <span>إكس</span></a>
-          <a className="share-t tg" href={`https://t.me/share/url?url=${enc(url)}&text=${enc(text.replace(url, "").trim())}`} target="_blank" rel="noopener noreferrer"><Send size={16}/> <span>تيليجرام</span></a>
+          <a className="share-t tg" href={`https://t.me/share/url?url=${enc(text)}`} target="_blank" rel="noopener noreferrer"><Send size={16}/> <span>تيليجرام</span></a>
           <a className="share-t wa" href={`https://wa.me/?text=${enc(text)}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={16}/> <span>واتساب</span></a>
           <button className="share-t" onClick={() => copy(text, "نُسخ المنشور")} data-testid="share-copy-post"><FileText size={16}/> <span>نسخ المنشور</span></button>
           {typeof navigator !== "undefined" && navigator.share && (
