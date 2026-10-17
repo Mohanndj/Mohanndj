@@ -298,10 +298,16 @@ function awareStats(P) {
   const made = S.decisions.filter((x) => inP(x.date));
   const dueRev = S.decisions.filter((x) => x.status === 'decided' && x.reviewAt && x.reviewAt >= start && x.reviewAt <= end);
   const revd = dueRev.filter((x) => x.reviewedAt).length;
+  const logged = (type) => S.decisions.flatMap((x) => (x.history || []).filter((h) => h.type === type && inP(h.at)).map((h) => ({ x, h })));
+  const adopted = logged('decided'), deferred = logged('postponed'), dropped = logged('cancelled');
   add('decisions', pageLook('decisions', 'سجل القرارات', '⚖️'), 'decisions', pctOf(revd, dueRev.length), [
     made.length && `سجّلت ${plural(made.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
+    adopted.length && `حسمت ${plural(adopted.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')} بعد المفاضلة`,
+    deferred.length && `أجّلت ${plural(deferred.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
+    dropped.length && `ألغيت ${plural(dropped.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
     dueRev.length && `راجعت ${revd} من ${dueRev.length} حان وقت مراجعته`,
-  ], [...made.map((x) => `قرار: «${x.title}» (${dS(x.date)})`), ...dueRev.map((x) => `مراجعة «${x.title}» (${dS(x.reviewAt)}): ${x.reviewedAt ? '✓ راجعته' : x.reviewAt < t0 ? '✗ لم تراجعه' : 'لم يحن بعد'}`)]);
+  ], [...made.map((x) => `قرار: «${x.title}» (${dS(x.date)})`), ...adopted.map(({ x, h }) => `حسمت «${x.title}»${h.snap && h.snap.chosenName ? ` بخيار «${h.snap.chosenName}»` : ''} (${dS(h.at)})`),
+    ...dueRev.map((x) => `مراجعة «${x.title}» (${dS(x.reviewAt)}): ${x.reviewedAt ? '✓ راجعته' : x.reviewAt < t0 ? '✗ لم تراجعه' : 'لم يحن بعد'}`)]);
 
   // 🥗 الصحة: only days on which you recorded what you ate
   let planned = 0, ate = 0, tracked = 0, kcal = 0;

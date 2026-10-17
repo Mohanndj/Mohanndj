@@ -671,7 +671,9 @@ function excelSheets(kind) {
     add('القرارات', [
       { title: 'القرار', width: 30, wrap: true }, { title: 'التاريخ', width: 12 }, { title: 'لماذا', width: 40, wrap: true }, { title: 'التوقع', width: 30, wrap: true },
       { title: 'الثقة', width: 8 }, { title: 'الحالة وقتها', width: 10 }, { title: 'ما حدث', width: 30, wrap: true }, { title: 'النتيجة', width: 10 }, { title: 'الدرس', width: 30, wrap: true },
-    ], S.decisions.slice().sort((a, b) => b.date.localeCompare(a.date)).map((x) => [x.title, x.date, x.reasons, x.expect, `${x.confidence}%`, DEC_STATE[x.state] || '', x.outcome, x.result ? DEC_RESULT[x.result][0] : '', x.lesson]));
+      { title: 'حالة القرار', width: 12 }, { title: 'النوع', width: 18 }, { title: 'الخيار المختار', width: 22, wrap: true }, { title: 'آخر موعد للحسم', width: 12 }, { title: 'القرار الآن', width: 12 },
+    ], S.decisions.slice().sort((a, b) => b.date.localeCompare(a.date)).map((x) => [x.title, x.date, x.reasons, x.expect, `${x.confidence}%`, DEC_STATE[x.state] || '', x.outcome, x.result ? DEC_RESULT[x.result][0] : '', x.lesson,
+      DEC_STATUS[x.status], decKindName(x), x.orig ? x.orig.chosenName : '', x.deadline, x.verdict ? DEC_VERDICT[x.verdict] : '']));
   }
   if (kind === 'all' || kind === 'finance') {
     const flat = [];

@@ -1037,6 +1037,17 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .dec-trial summary { cursor: pointer; font-weight: 600; }
 .dec-tw { display: grid; gap: 4px; margin-top: 8px; }
 [data-dtab="cmp"]:not([hidden]) { display: grid; gap: 10px; }
+.dec-h { margin: 6px 0 0; font-size: 1.02rem; }
+.dec-frozen { display: grid; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-inline-start: 4px solid var(--accent); border-radius: 12px; padding: 10px 12px; }
+.dec-frozen small { color: var(--muted); }
+.dec-move { display: grid; gap: 6px; margin-top: 6px; }
+.dec-move input { min-width: 0; }
+.dec-hist summary { cursor: pointer; font-weight: 600; }
+.dec-hist ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.dec-hist li { background: var(--bg); border-radius: 10px; padding: 6px 10px; }
+.dec-hist li small { color: var(--muted); display: block; }
+.dec-tpls { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dec-tpls li { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--bg); border-radius: 10px; padding: 2px 4px 2px 10px; }
 
 .quit-card { display: grid; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; list-style: none; }
 .quit-top { display: flex; align-items: center; gap: 10px; }

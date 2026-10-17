@@ -14,6 +14,11 @@ const CRIT_TYPES = { score: 'درجة من ٥', yesno: 'نعم أو لا', money
 const RISK_LVL = { 1: 'منخفض', 2: 'متوسط', 3: 'مرتفع' };
 const SRC_TRUST = { high: 'موثوق', mid: 'متوسط', low: 'ضعيف' };
 const DEFER_NAME = 'تأجيل القرار / عدم الاختيار حاليًّا';
+const DEC_INFO = { yes: 'صحيحة', partly: 'بعضها صحيح', no: 'لم تكن صحيحة' };
+const DEC_VERDICT = { keep: 'أستمر فيه', adjust: 'أعدّله', reverse: 'أتراجع عنه' };
+// what the expectations and the decision were when it was adopted, kept as they were
+const DEC_SNAP = [['chosenName', 'الخيار المختار'], ['expect', 'النتيجة المتوقعة'], ['exBenefits', 'المنافع المتوقعة'], ['exCosts', 'التكاليف أو الخسائر المتوقعة'], ['exWorst', 'أسوأ نتيجة معقولة'], ['exSignals', 'مؤشرات النجاح'],
+  ['reasons', 'أسباب الاختيار'], ['basis', 'المعلومات التي بُني عليها'], ['accepted', 'المخاطر المقبولة'], ['whyNot', 'لماذا استُبعدت البدائل'], ['nextStep', 'الخطوة التالية']];
 const cr = (name, o = {}) => ({ name, weight: 3, type: 'score', dir: 'high', ...o });
 // suggested criteria for each kind of decision: all of them can be edited, removed or added to
 const DEC_TEMPLATES = {
@@ -54,6 +59,14 @@ function normalizeDecision(x) {
     question: String(x.question || ''), goal: String(x.goal || ''), deadline: /^\d{4}-\d{2}-\d{2}$/.test(x.deadline || '') ? x.deadline : '',
     deadRemind: x.deadRemind == null || !Number.isFinite(Number(x.deadRemind)) ? 3 : Math.max(0, Math.min(60, Math.round(Number(x.deadRemind)))), deadOff: !!x.deadOff,
     allowDefer: !!x.allowDefer, criteria: (Array.isArray(x.criteria) ? x.criteria : []).map(normalizeCrit), opts: (Array.isArray(x.opts) ? x.opts : []).map(normalizeOpt),
+    // stage 3: what is expected (a draft until the decision is adopted), the decision itself, its frozen
+    // original (`orig`, written once when adopted and never changed after), the review and the log of changes
+    exBenefits: String(x.exBenefits || ''), exCosts: String(x.exCosts || ''), exWorst: String(x.exWorst || ''), exSignals: String(x.exSignals || ''),
+    chosen: String(x.chosen || ''), basis: String(x.basis || ''), accepted: String(x.accepted || ''), whyNot: String(x.whyNot || ''), nextStep: String(x.nextStep || ''),
+    orig: x.orig && typeof x.orig === 'object' && !Array.isArray(x.orig) ? x.orig : null,
+    history: (Array.isArray(x.history) ? x.history : []).filter((h) => h && h.at).map((h) => ({ id: h.id || uid(), at: String(h.at), type: String(h.type || ''), text: String(h.text || ''), ...(h.snap && typeof h.snap === 'object' ? { snap: h.snap } : {}) })),
+    rvGot: String(x.rvGot || ''), rvMissed: String(x.rvMissed || ''), rvWhy: String(x.rvWhy || ''), rvInfo: DEC_INFO[x.rvInfo] ? x.rvInfo : '', rvInfoNote: String(x.rvInfoNote || ''),
+    verdict: DEC_VERDICT[x.verdict] ? x.verdict : '',
   };
 }
 const getDec = (id) => S.decisions.find((x) => x.id === id);
@@ -66,7 +79,10 @@ function decDeadText(x) {
   return n < 0 ? `فات الموعد منذ ${-n === 2 ? 'يومين' : daysWord(-n)}` : n === 0 ? 'آخر موعد للحسم: اليوم' : `آخر موعد للحسم: ${relDate(x.deadline)} (${afterDays(n)})`;
 }
 const decOpts = (x) => x.opts.filter((o) => !o.defer || x.allowDefer);
-const decKindName = (x) => (x.kind === 'custom' ? x.kindName : DEC_TEMPLATES[x.kind] ? DEC_TEMPLATES[x.kind].name : '');
+// the user's own templates (criteria saved from a decision), kept in the settings so they sync and are backed up
+const decUserTpl = () => (Array.isArray(S.settings.decTpl) ? S.settings.decTpl : []);
+const decTplOf = (kind) => (String(kind).startsWith('u:') ? decUserTpl().find((t) => `u:${t.id}` === kind) : DEC_TEMPLATES[kind]) || null;
+const decKindName = (x) => (x.kind === 'custom' ? x.kindName : decTplOf(x.kind) ? decTplOf(x.kind).name : '');
 
 function decStats() {
   const done = S.decisions.filter((x) => x.result);
@@ -150,13 +166,13 @@ function openDecision(id, review, tab) {
   const x = id ? getDec(id) : normalizeDecision({ status: 'thinking' });
   const rv = review || (id && x.status === 'decided' && (x.reviewedAt || x.reviewAt <= today()));
   const after = id ? daysBetween(x.date, x.reviewAt) : 90;
-  ldraft = { kind: 'decision', id: x.id, isNew: !id, conf: x.confidence, state: x.state, result: x.result, review: rv, after, status: x.status, tab: tab || (rv ? 'review' : 'main'), tw: {}, showCalc: false };
+  ldraft = { kind: 'decision', id: x.id, isNew: !id, conf: x.confidence, state: x.state, result: x.result, review: rv, after, status: x.status, tab: tab || (rv ? 'review' : 'main'), tw: {}, showCalc: false, verdict: x.verdict, rvInfo: x.rvInfo };
   const tabs = DEC_TABS.filter(([k]) => k !== 'review' || rv);
   if (!tabs.some(([k]) => k === ldraft.tab)) ldraft.tab = 'main';
   const os = decOpts(x), total = decWeightTotal(x);
   const label = (k, l) => (k === 'opts' && os.length ? `${l} (${os.length})` : k === 'crit' && x.criteria.length ? `${l} (${x.criteria.length})` : l);
   const pane = (k) => `data-dtab="${k}"${ldraft.tab === k ? '' : ' hidden'}`;
-  const kinds = [['', 'بلا نوع'], ...Object.entries(DEC_TEMPLATES).map(([k, t]) => [k, t.name]), ['custom', 'نوع آخر أكتبه']];
+  const kinds = [['', 'بلا نوع'], ...Object.entries(DEC_TEMPLATES).map(([k, t]) => [k, t.name]), ...decUserTpl().map((t) => [`u:${t.id}`, `${t.name} (قالبي)`]), ['custom', 'نوع آخر أكتبه']];
   $('libForm').innerHTML = `
     <div class="sheet-head"><h2>${id ? (rv ? 'مراجعة القرار' : 'القرار') : 'قرار جديد'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -187,26 +203,30 @@ function openDecision(id, review, tab) {
     <div ${pane('crit')}>
       ${x.criteria.length ? `<p class="note-text">مجموع الأوزان: ${plural(total, 'نقطة واحدة', 'نقطتان', 'نقاط', 'نقطة')}، ونصيب كل معيار بقدر وزنه منها.</p><div class="book-list">${x.criteria.map((c) => decCritRow(c, total)).join('')}</div>` : '<p class="note-text">لا معايير بعد. أضف ما تفاضل به بين الخيارات، أو المعايير المقترحة لنوع القرار.</p>'}
       <div class="btn-row"><button type="button" class="ghost" data-action="dec-crit-new">${icon('plus')} معيار</button><button type="button" class="ghost" data-action="dec-tpl">المعايير المقترحة لنوع القرار</button></div>
+      ${x.criteria.length ? `<div class="dec-remind"><span>احفظ هذه المعايير قالباً لك تختاره في قرارات قادمة (اسم قالب موجود يُستبدل به)</span><div class="dec-num"><input type="text" id="dTplName" autocomplete="off" placeholder="اسم القالب" value="${esc(decTplOf(x.kind) && String(x.kind).startsWith('u:') ? decTplOf(x.kind).name : '')}"><button type="button" class="ghost sm" data-action="dec-tpl-save">احفظ القالب</button></div></div>` : ''}
+      ${decUserTpl().length ? `<div class="field"><span>قوالبي</span><ul class="dec-tpls">${decUserTpl().map((t) => `<li><span>${esc(t.name)} <small>(${plural(t.criteria.length, 'معيار واحد', 'معياران', 'معايير', 'معياراً')})</small></span><button type="button" class="fin-del" data-action="dec-tpl-del" data-v="${t.id}" aria-label="حذف">✕</button></li>`).join('')}</ul></div>` : ''}
     </div>
     <div ${pane('cmp')}>${id ? decCompareHTML(x) : '<p class="note-text">احفظ القرار وأضف خياراته ومعاييره لتظهر المقارنة.</p>'}</div>
-    <div ${pane('decide')}>
-      <label class="field"><span>لماذا اخترت هذا؟</span><textarea id="dReasons" rows="3">${esc(x.reasons)}</textarea></label>
-      <label class="field"><span>ماذا أتوقع أن يحدث؟</span><textarea id="dExpect" rows="2" placeholder="كن محدداً، لتعرف لاحقاً هل أصبت">${esc(x.expect)}</textarea></label>
-      <div class="field"><span>كم أنا واثق؟</span><div class="seg" id="dConf" role="group">${[50, 60, 70, 80, 90].map((c) => `<button type="button" data-action="dec-conf" data-v="${c}" aria-pressed="${x.confidence === c}">${c}%</button>`).join('')}</div></div>
-      <div class="field"><span>حالتي وأنا أقرر</span><div class="seg seg-wrap" id="dState" role="group">${Object.entries(DEC_STATE).map(([k, v]) => `<button type="button" data-action="dec-state" data-v="${k}" aria-pressed="${x.state === k}">${v}</button>`).join('')}</div></div>
-      <label class="field"><span>ذكّرني بمراجعته بعد</span><select id="dAfter">${DEC_AFTER.map(([d, l]) => `<option value="${d}"${Math.abs(after - d) < 5 ? ' selected' : ''}>${l}</option>`).join('')}${DEC_AFTER.some(([d]) => Math.abs(after - d) < 5) ? '' : `<option value="${after}" selected>${afterDays(after)}</option>`}</select></label>
-    </div>
+    <div ${pane('decide')}>${decDecideHTML(x, after)}</div>
     ${rv ? `<div ${pane('review')}><div class="dec-review">
       <h3>${esc(x.title)}</h3>
       <dl class="habit-plan">
         ${x.context ? `<div><dt>الموقف</dt><dd>${esc(x.context)}</dd></div>` : ''}
-        ${x.reasons ? `<div><dt>لماذا اخترته</dt><dd>${esc(x.reasons)}</dd></div>` : ''}
-        ${x.expect ? `<div><dt>ما توقعته</dt><dd>${esc(x.expect)}</dd></div>` : ''}
+        ${(x.orig || x).chosenName ? `<div><dt>الخيار المختار</dt><dd>${esc(x.orig.chosenName)}</dd></div>` : ''}
+        ${(x.orig || x).reasons ? `<div><dt>لماذا اخترته</dt><dd>${esc((x.orig || x).reasons)}</dd></div>` : ''}
+        ${(x.orig || x).expect ? `<div><dt>ما توقعته</dt><dd>${esc((x.orig || x).expect)}</dd></div>` : ''}
+        ${[['exBenefits', 'المنافع المتوقعة'], ['exCosts', 'التكاليف المتوقعة'], ['exWorst', 'أسوأ نتيجة توقعتها'], ['exSignals', 'مؤشرات النجاح']].filter(([k]) => (x.orig || x)[k]).map(([k, l]) => `<div><dt>${l}</dt><dd>${esc((x.orig || x)[k])}</dd></div>`).join('')}
         <div><dt>ثقتي</dt><dd>${x.confidence}% | ${esc(dateBoth(x.date, true))}${x.state ? ` | كنت ${DEC_STATE[x.state]}` : ''}</dd></div>
       </dl>
       <label class="field"><span>ماذا حدث فعلاً؟</span><textarea id="dOutcome" rows="3">${esc(x.outcome)}</textarea></label>
+      <label class="field"><span>ما الذي تحقق مما توقعته؟</span><textarea id="dRvGot" rows="2">${esc(x.rvGot)}</textarea></label>
+      <label class="field"><span>وما الذي لم يتحقق؟</span><textarea id="dRvMissed" rows="2">${esc(x.rvMissed)}</textarea></label>
+      <label class="field"><span>لماذا اختلفت النتيجة عن المتوقع؟</span><textarea id="dRvWhy" rows="2">${esc(x.rvWhy)}</textarea></label>
+      <div class="field"><span>هل كانت معلوماتي وتقديراتي وقتها صحيحة؟</span><div class="seg" id="dRvInfo" role="group">${Object.entries(DEC_INFO).map(([k, v]) => `<button type="button" data-action="dec-rvinfo" data-v="${k}" aria-pressed="${x.rvInfo === k}">${v}</button>`).join('')}</div>
+        <input type="text" id="dRvInfoNote" value="${esc(x.rvInfoNote)}" autocomplete="off" placeholder="ما الذي كان صحيحاً أو خاطئاً منها؟"></div>
       <div class="field"><span>هل أصبت؟</span><div class="seg" id="dResult" role="group">${Object.entries(DEC_RESULT).map(([k, v]) => `<button type="button" data-action="dec-result" data-v="${k}" aria-pressed="${x.result === k}">${v[1]} ${v[0]}</button>`).join('')}</div></div>
       <label class="field"><span>ماذا تعلّمت؟</span><textarea id="dLesson" rows="3" placeholder="ما الذي ستفعله بشكل مختلف في المرة القادمة؟">${esc(x.lesson)}</textarea></label>
+      <div class="field"><span>والقرار الآن؟</span><div class="seg" id="dVerdict" role="group">${Object.entries(DEC_VERDICT).map(([k, v]) => `<button type="button" data-action="dec-verdict" data-v="${k}" aria-pressed="${x.verdict === k}">${v}</button>`).join('')}</div></div>
       ${x.reviewedAt ? '' : '<button type="button" class="ghost" data-action="dec-later">ليس بعد، ذكّرني بعد شهر</button>'}
     </div></div>` : ''}
     <div class="sheet-actions">
@@ -222,15 +242,70 @@ function openDecision(id, review, tab) {
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   $('libForm').scrollTop = 0;
 }
+// «الحسم»: before deciding, the expectations (a draft) and the decision; once adopted, what was written
+// then, frozen; a decision recorded before stage 3 keeps its fields as they always were
+function decSnapHTML(o) {
+  return `<dl class="habit-plan">${DEC_SNAP.filter(([k]) => o[k]).map(([k, l]) => `<div><dt>${l}</dt><dd>${esc(o[k])}</dd></div>`).join('')}
+    <div><dt>ثقتي</dt><dd>${o.confidence}%${o.state ? ` | كنت ${DEC_STATE[o.state]}` : ''}${o.date ? ` | تاريخ القرار: ${esc(dateBoth(o.date, true))}` : ''}</dd></div></dl>
+    ${o.cmp && o.cmp.length ? `<p class="note-text">نتائج المقارنة وقتها: ${o.cmp.map((c) => `${esc(c.name)}: ${c.fails ? 'لم يحقق شرطاً' : c.score == null ? '؟' : `${c.score} من ١٠٠`} (اكتمال ${c.complete}%)`).join(' | ')}</p>` : ''}`;
+}
+function decDecideHTML(x, after) {
+  const afterSel = `<label class="field"><span>ذكّرني بمراجعته بعد</span><select id="dAfter">${DEC_AFTER.map(([d, l]) => `<option value="${d}"${Math.abs(after - d) < 5 ? ' selected' : ''}>${l}</option>`).join('')}${DEC_AFTER.some(([d]) => Math.abs(after - d) < 5) ? '' : `<option value="${after}" selected>${afterDays(after)}</option>`}</select></label>`;
+  const confState = `<div class="field"><span>كم أنا واثق؟</span><div class="seg" id="dConf" role="group">${[50, 60, 70, 80, 90].map((c) => `<button type="button" data-action="dec-conf" data-v="${c}" aria-pressed="${x.confidence === c}">${c}%</button>`).join('')}</div></div>
+      <div class="field"><span>حالتي وأنا أقرر</span><div class="seg seg-wrap" id="dState" role="group">${Object.entries(DEC_STATE).map(([k, v]) => `<button type="button" data-action="dec-state" data-v="${k}" aria-pressed="${x.state === k}">${v}</button>`).join('')}</div></div>`;
+  const move = x.status === 'decided' && !x.reviewedAt ? `<div class="dec-remind"><span>موعد المراجعة: ${esc(dateBoth(x.reviewAt, true))}</span>
+      <details><summary>طرأ حدث مهم؟ قدّم موعد المراجعة</summary><div class="dec-move"><input type="date" id="dRevAt" value="${today()}" max="${x.reviewAt}"><input type="text" id="dRevWhy" autocomplete="off" placeholder="ما الذي طرأ؟ (اختياري)"><button type="button" class="ghost sm" data-action="dec-rev-move">قدّمه</button></div></details></div>` : '';
+  const hist = x.history.length ? `<details class="dec-hist"><summary>سجل التغييرات (${x.history.length})</summary><ul>${x.history.slice().reverse().map((h) => `<li><small>${esc(dateBoth(h.at, true))}</small> ${esc(h.text)}${h.snap ? `<details><summary>ما كان مسجلاً وقتها</summary>${decSnapHTML(h.snap)}</details>` : ''}</li>`).join('')}</ul></details>` : '';
+  if (x.orig && x.status !== 'thinking' && x.status !== 'postponed') {
+    return `<div class="dec-frozen"><b>🔒 ما سجّلته وقت الحسم (${esc(dateBoth(x.orig.at, true))})</b><small>محفوظ كما كان، ولا يتغير بعد الحسم.</small>${decSnapHTML(x.orig)}</div>
+      ${x.status === 'cancelled' ? `<p class="dec-fail">أُلغي هذا القرار بعد حسمه، وبقي ما سجّلته وقتها.</p><div hidden>${afterSel}</div>` : afterSel}${move}
+      <div class="btn-row"><button type="button" class="ghost" data-action="dec-reopen">${x.status === 'cancelled' ? 'أعد فتحه للتعديل' : 'عدّل القرار'}</button></div>
+      <p class="note-text explain">التعديل يعيد القرار «قيد التفكير» لتعتمده من جديد، ويبقى ما سجّلته الآن في سجل التغييرات.</p>${hist}`;
+  }
+  if (x.status === 'decided') {
+    return `<label class="field"><span>لماذا اخترت هذا؟</span><textarea id="dReasons" rows="3">${esc(x.reasons)}</textarea></label>
+      <label class="field"><span>ماذا أتوقع أن يحدث؟</span><textarea id="dExpect" rows="2" placeholder="كن محدداً، لتعرف لاحقاً هل أصبت">${esc(x.expect)}</textarea></label>
+      ${confState}${afterSel}${move}${hist}`;
+  }
+  const os = decOpts(x);
+  return `<h3 class="dec-h">التوقعات قبل الحسم</h3>
+      <p class="note-text">مسودة تعدّلها كما تشاء حتى تعتمد القرار، ثم تُحفظ كما هي لتقارنها بالنتيجة عند المراجعة.</p>
+      <label class="field"><span>النتيجة التي أتوقعها من الخيار الذي سأختاره</span><textarea id="dExpect" rows="2" placeholder="كن محدداً، لتعرف لاحقاً هل أصبت">${esc(x.expect)}</textarea></label>
+      <label class="field"><span>المنافع المتوقعة</span><textarea id="dExBen" rows="2">${esc(x.exBenefits)}</textarea></label>
+      <label class="field"><span>التكاليف أو الخسائر المتوقعة</span><textarea id="dExCost" rows="2">${esc(x.exCosts)}</textarea></label>
+      <label class="field"><span>أسوأ نتيجة معقولة</span><textarea id="dExWorst" rows="2">${esc(x.exWorst)}</textarea></label>
+      <label class="field"><span>المؤشرات التي سأحكم بها على نجاح القرار</span><textarea id="dExSig" rows="2" placeholder="مثال: أتعلم مهارة جديدة خلال ستة أشهر">${esc(x.exSignals)}</textarea></label>
+      <h3 class="dec-h">اعتماد القرار</h3>
+      ${os.length ? `<label class="field"><span>الخيار المختار</span><select id="dChosen"><option value="">اختر</option>${os.map((o) => `<option value="${o.id}"${x.chosen === o.id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}</select></label>` : ''}
+      <label class="field"><span>أسباب الاختيار النهائية</span><textarea id="dReasons" rows="3">${esc(x.reasons)}</textarea></label>
+      <label class="field"><span>المعلومات التي بنيت عليها القرار</span><textarea id="dBasis" rows="2">${esc(x.basis)}</textarea></label>
+      <label class="field"><span>المخاطر التي قبلت بها</span><textarea id="dAccepted" rows="2">${esc(x.accepted)}</textarea></label>
+      ${os.length > 1 ? `<label class="field"><span>لماذا استبعدت البدائل الأخرى؟</span><textarea id="dWhyNot" rows="2">${esc(x.whyNot)}</textarea></label>` : ''}
+      <label class="field"><span>الخطوة التالية التي ينبغي تنفيذها</span><input type="text" id="dNext" value="${esc(x.nextStep)}" autocomplete="off"></label>
+      ${confState}
+      <div class="grid2"><label class="field"><span>تاريخ القرار</span><input type="date" id="dDecDate" value="${today()}"></label>${afterSel}</div>
+      <button type="button" class="primary" data-action="dec-adopt">اعتمد القرار</button>${hist}`;
+}
+function decSnap(x) {
+  const ch = x.opts.find((o) => o.id === x.chosen);
+  const cmp = decOpts(x).length >= 2 && x.criteria.length ? decScores(x).map((r) => ({ name: r.o.name, score: r.score, complete: r.complete, fails: r.fails.length > 0 })) : [];
+  return { at: today(), date: x.date, chosen: x.chosen, chosenName: ch ? ch.name : '', expect: x.expect, exBenefits: x.exBenefits, exCosts: x.exCosts, exWorst: x.exWorst, exSignals: x.exSignals,
+    reasons: x.reasons, basis: x.basis, accepted: x.accepted, whyNot: x.whyNot, nextStep: x.nextStep, confidence: x.confidence, state: x.state, cmp };
+}
+const decLog = (x, type, text, snap) => x.history.push({ id: uid(), at: today(), type, text, ...(snap ? { snap } : {}) });
 function saveDecision() {
   const title = $('dTitle').value.trim();
   if (!title) { toast('اكتب القرار.'); return false; }
   const old = getDec(ldraft.id);
   const date = $('dDate').value || today();
   const kind = $('dKind').value;
+  // a field not on screen (an adopted decision shows its frozen copy instead) keeps what it had
+  const tv = (id, k) => ($(id) ? $(id).value.trim() : old ? old[k] : '');
   const x = normalizeDecision({
-    ...(old || {}), id: ldraft.id, title, date, context: $('dContext').value.trim(), options: $('dOptions') ? $('dOptions').value.trim() : (old ? old.options : ''),
-    reasons: $('dReasons').value.trim(), expect: $('dExpect').value.trim(), confidence: ldraft.conf, state: ldraft.state,
+    ...(old || {}), id: ldraft.id, title, date, context: $('dContext').value.trim(), options: tv('dOptions', 'options'),
+    reasons: tv('dReasons', 'reasons'), expect: tv('dExpect', 'expect'), confidence: ldraft.conf, state: ldraft.state,
+    exBenefits: tv('dExBen', 'exBenefits'), exCosts: tv('dExCost', 'exCosts'), exWorst: tv('dExWorst', 'exWorst'), exSignals: tv('dExSig', 'exSignals'),
+    chosen: tv('dChosen', 'chosen'), basis: tv('dBasis', 'basis'), accepted: tv('dAccepted', 'accepted'), whyNot: tv('dWhyNot', 'whyNot'), nextStep: tv('dNext', 'nextStep'),
     status: ldraft.status, kind, kindName: kind === 'custom' ? $('dKindName').value.trim() : '', question: $('dQuestion').value.trim(), goal: $('dGoal').value.trim(),
     deadline: $('dDeadline').value, deadOff: !$('dDeadOn').checked, deadRemind: $('dDeadDays').value === '' ? 3 : $('dDeadDays').value, allowDefer: $('dDefer').checked,
   });
@@ -242,10 +317,30 @@ function saveDecision() {
   if (ldraft.review) {
     x.outcome = $('dOutcome').value.trim();
     x.lesson = $('dLesson').value.trim();
+    x.rvGot = $('dRvGot').value.trim(); x.rvMissed = $('dRvMissed').value.trim(); x.rvWhy = $('dRvWhy').value.trim();
+    x.rvInfo = ldraft.rvInfo; x.rvInfoNote = $('dRvInfoNote').value.trim(); x.verdict = ldraft.verdict;
     x.result = ldraft.result;
     if (x.result && !x.reviewedAt) x.reviewedAt = today();
-    if (!x.result && (x.outcome || x.lesson)) { toast('اختر: هل أصبت أم أخطأت؟'); return false; }
+    if (!x.result && (x.outcome || x.lesson || x.rvGot || x.rvMissed || x.rvWhy)) { toast('اختر: هل أصبت أم أخطأت؟'); return false; }
     if (!x.result) x.reviewedAt = ''; // a review emptied is not a review
+  }
+  // adopting: the decision is made now; what was expected and decided is frozen once, as it was
+  if (ldraft.adopt) {
+    if (decOpts(x).length && !decOpts(x).some((o) => o.id === x.chosen)) { toast('اختر الخيار الذي حسمت به.'); return false; }
+    x.status = 'decided';
+    x.date = ($('dDecDate') && $('dDecDate').value) || today();
+    x.reviewAt = addDays(x.date, after);
+    x.orig = decSnap(x);
+    decLog(x, 'decided', x.orig.chosenName ? `حُسم القرار: «${x.orig.chosenName}»` : 'حُسم القرار', x.orig);
+  } else if (!old) decLog(x, 'created', `سُجّل القرار (${DEC_STATUS[x.status]})`);
+  else if (old.status !== x.status) {
+    // an adopted decision put back to thinking or postponed: its frozen copy goes to the log, as with «عدّل القرار»
+    if (old.orig && (x.status === 'thinking' || x.status === 'postponed')) { decLog(x, x.status === 'postponed' ? 'postponed' : 'reopened', `صار «${DEC_STATUS[x.status]}» بعد حسمه`, old.orig); x.orig = null; }
+    else decLog(x, x.status, `صار «${DEC_STATUS[x.status]}»`);
+  }
+  if (ldraft.review && old) {
+    if (x.reviewedAt && !old.reviewedAt) decLog(x, 'reviewed', `روجع: ${DEC_RESULT[x.result][0]}${x.verdict ? ` | ${DEC_VERDICT[x.verdict]}` : ''}`);
+    else if (old.reviewedAt && x.verdict && x.verdict !== old.verdict) decLog(x, 'verdict', `القرار الآن: ${DEC_VERDICT[x.verdict]}`);
   }
   if (old) Object.assign(old, x); else S.decisions.push(x);
   save();
@@ -255,7 +350,7 @@ function saveDecision() {
 // ---------- comparing the options ----------
 // the user's limits: results «متقاربة» under 5 points apart (of 100), information «ناقصة» under 70%
 const DEC_CLOSE = 5, DEC_FULL = 70;
-const decIsPerson = (x) => !!(DEC_TEMPLATES[x.kind] && DEC_TEMPLATES[x.kind].person);
+const decIsPerson = (x) => !!(decTplOf(x.kind) && decTplOf(x.kind).person);
 const decFmt = (n) => (Math.round(Number(n) * 100) / 100).toLocaleString('en-US');
 function decShow(c, v) {
   if (v === undefined) return '؟ مجهول';
@@ -555,7 +650,70 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'dec-show-calc': ldraft.showCalc = true; decCmpRedraw(); break;
+    case 'dec-verdict': pick('dVerdict', 'verdict', v); break;
+    case 'dec-rvinfo': pick('dRvInfo', 'rvInfo', v); break;
+    // a decision is made by adopting it, with its expectations written first
+    case 'dec-adopt': {
+      if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟ تُحفظ توقعاتك كما هي ولا تتغير بعد ذلك'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = 'اعتمد القرار'; } }, 5000); break; }
+      const id = ldraft.id;
+      ldraft.adopt = true;
+      if (!saveDecision()) { ldraft.adopt = false; el.classList.remove('armed'); el.textContent = 'اعتمد القرار'; break; }
+      render(); openDecision(id, false, 'decide'); toast('اعتُمد القرار، وحُفظت توقعاتك كما هي');
+      break;
+    }
+    // changing an adopted decision: it is open again, and what was frozen goes to the log, not away
+    case 'dec-reopen': {
+      if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = 'عدّل القرار'; } }, 4000); break; }
+      const id = ldraft.id;
+      if (!saveDecision()) break;
+      const x = getDec(id);
+      decLog(x, 'reopened', 'أُعيد فتح القرار لتعديله', x.orig);
+      x.orig = null; x.status = 'thinking';
+      save(); render(); openDecision(id, false, 'decide'); toast('القرار «قيد التفكير»، عدّله واعتمده من جديد');
+      break;
+    }
+    case 'dec-rev-move': {
+      const id = ldraft.id, at = $('dRevAt').value, why = $('dRevWhy').value.trim();
+      const before = getDec(id).reviewAt;
+      if (!at || at >= before) { toast('اختر موعداً أقرب من الموعد الحالي.'); break; }
+      if (!saveDecision()) break;
+      const x = getDec(id);
+      decLog(x, 'review-moved', `قُدّم موعد المراجعة من ${dateBoth(before, true)} إلى ${dateBoth(at, true)}${why ? `: ${why}` : ''}`);
+      x.reviewAt = at;
+      save(); render(); openDecision(id); toast('قُدّم موعد المراجعة');
+      break;
+    }
+    case 'dec-tpl-save': {
+      const name = $('dTplName').value.trim();
+      if (!name) { toast('اكتب اسماً للقالب.'); break; }
+      const id = ldraft.id;
+      if (!saveDecision()) break;
+      const x = getDec(id);
+      const list = decUserTpl().slice();
+      const same = list.find((t) => t.name === name);
+      const tpl = { id: same ? same.id : uid(), name, person: decIsPerson(x), criteria: x.criteria.map(({ id: _, ...c }) => c) };
+      S.settings.decTpl = same ? list.map((t) => (t.id === same.id ? tpl : t)) : [...list, tpl];
+      save(); render(); openDecision(id, false, 'crit');
+      toast(same ? `عُدّل قالب «${name}»` : `حُفظ قالب «${name}»، تجده في «نوع القرار»`);
+      break;
+    }
+    case 'dec-tpl-del': {
+      if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 4000); break; }
+      S.settings.decTpl = decUserTpl().filter((t) => t.id !== v);
+      save();
+      el.closest('li').remove();
+      toast('حُذف القالب، والقرارات التي استعملته باقية بمعاييرها');
+      break;
+    }
     case 'dec-status':
+      // «حُسم» is reached by adopting the decision, after writing what is expected of it
+      if (v === 'decided' && ldraft.status !== 'decided') {
+        for (const p of document.querySelectorAll('#libForm [data-dtab]')) p.hidden = p.dataset.dtab !== 'decide';
+        for (const b of $('dTabs').children) b.setAttribute('aria-pressed', String(b.dataset.v === 'decide'));
+        ldraft.tab = 'decide'; $('libForm').scrollTop = 0;
+        toast('سجّل توقعاتك ثم اضغط «اعتمد القرار»');
+        break;
+      }
       ldraft.status = v;
       for (const b of $('dStatus').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
       break;
@@ -570,7 +728,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'dec-tpl': {
-      const t = DEC_TEMPLATES[$('dKind').value];
+      const t = decTplOf($('dKind').value);
       if (!t) { toast('اختر نوع القرار في تبويب «القرار» أولاً.'); break; }
       const id = ldraft.id;
       if (!saveDecision()) break;
