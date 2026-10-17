@@ -470,7 +470,10 @@ function libBackFrom() {
   return null;
 }
 function libBack(back) {
-  if (!back || !getBook(back.id)) return;
+  if (!back) return;
+  // an option or a criterion of a decision goes back to its decision, on the tab it came from
+  if (back.kind === 'decision') { if (getDec(back.id)) { openDecision(back.id, false, back.tab); $('libForm').scrollTop = back.scroll || 0; } return; }
+  if (!getBook(back.id)) return;
   if (back.kind === 'bookbens') openBookBenefits(back.id); else openLib('book', back.id, { tab: 'bens' });
   $('libForm').scrollTop = back.scroll || 0;
 }
@@ -852,7 +855,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick'].includes(kind);
   if (!saver()) return;
   closeLib();

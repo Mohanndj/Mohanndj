@@ -38,7 +38,7 @@ function booksTodayHTML() {
 }
 
 function decisionsTodayHTML() {
-  return todayBlock('سجل القرارات', 'decisions', tList(decDue().map((x) => tRow('⚖️', `راجع قرارك: ${x.title}`, '', 'dec-open', x.id))));
+  return todayBlock('سجل القرارات', 'decisions', tList([...decDeadSoon().map((x) => tRow('⏳', `احسم قرارك: ${x.title}`, decDeadText(x), 'dec-open', x.id)), ...decDue().map((x) => tRow('⚖️', `راجع قرارك: ${x.title}`, '', 'dec-open', x.id))]));
 }
 
 // الأحبّة: an occasion on its day, and whoever is due to be contacted

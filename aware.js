@@ -296,7 +296,7 @@ function awareStats(P) {
 
   // ⚖️ سجل القرارات
   const made = S.decisions.filter((x) => inP(x.date));
-  const dueRev = S.decisions.filter((x) => x.reviewAt && x.reviewAt >= start && x.reviewAt <= end);
+  const dueRev = S.decisions.filter((x) => x.status === 'decided' && x.reviewAt && x.reviewAt >= start && x.reviewAt <= end);
   const revd = dueRev.filter((x) => x.reviewedAt).length;
   add('decisions', pageLook('decisions', 'سجل القرارات', '⚖️'), 'decisions', pctOf(revd, dueRev.length), [
     made.length && `سجّلت ${plural(made.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
