@@ -8,7 +8,8 @@ const DIST = path.resolve(import.meta.dirname, "../dist");
 const DATA = path.resolve(import.meta.dirname, "../public/data");
 const read = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), "utf8"));
 
-const { articles } = read("articles.json");
+// المسوّدات لا تُنشر
+const articles = read("articles.json").articles.filter((a) => (a.status || "published") === "published");
 const { series } = read("series.json");
 const settings = read("settings.json");
 const shortlinks = read("shortlinks.json");
@@ -81,7 +82,7 @@ page("/about", { title: `عن المدونة — ${SITE_NAME}`, description: SIT
 const urls = ["/", "/series", "/books", "/about", ...series.map((s) => `/series/${encodeURIComponent(s.id)}`), ...articles.map(articleUrl)];
 fs.writeFileSync(path.join(DIST, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${SITE}${u}</loc></url>`).join("\n")}\n</urlset>\n`);
-fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
+fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${SITE}/sitemap.xml\n`);
 
 // feed.xml (RSS)
 fs.writeFileSync(path.join(DIST, "feed.xml"), `<?xml version="1.0" encoding="UTF-8"?>
@@ -91,8 +92,12 @@ ${articles.map((a) => `<item><title>${esc(a.title)}</title><link>${SITE}${articl
 </channel></rss>
 `);
 
-// _redirects (Cloudflare Pages): الروابط المختصرة القديمة /a/xxxx
-fs.writeFileSync(path.join(DIST, "_redirects"),
-  Object.entries(shortlinks).map(([code, slug]) => `/a/${code} /articles/${encodeURIComponent(slug)} 301`).join("\n") + "\n");
+// _redirects (Cloudflare Pages): الروابط المختصرة /a/xxxx، والروابط القديمة لمقالات تغيّر رابطها
+const redirects = [
+  ...Object.entries(shortlinks).filter(([, slug]) => articles.some((a) => a.slug === slug))
+    .map(([code, slug]) => `/a/${code} /articles/${encodeURIComponent(slug)} 301`),
+  ...articles.flatMap((a) => (a.old_slugs || []).map((old) => `/articles/${encodeURIComponent(old)} ${articleUrl(a)} 301`)),
+];
+fs.writeFileSync(path.join(DIST, "_redirects"), redirects.join("\n") + "\n");
 
 console.log(`prerendered ${articles.length} articles, ${series.length} series; sitemap has ${urls.length} urls`);

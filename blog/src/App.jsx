@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Search, Sun, Moon, Download, BookOpen, ChevronLeft, Bookmark, BookmarkCheck, Share2, FileDown, Mail, Clock, CheckCircle2, BarChart3, Twitter, Send, MessageCircle, UserPlus, X, Volume2, Youtube, ExternalLink, Link as LinkIcon, FileText, Play } from "lucide-react";
 import html2pdf from "html2pdf.js";
@@ -6,6 +6,9 @@ import "@/App.css";
 
 /* المحتوى ملفات ثابتة في public/data — لا خادم */
 const DATA = "/data";
+
+/* لوحة التحكم تُحمَّل عند فتح /admin فقط، فلا تُثقل الموقع العام */
+const AdminApp = lazy(() => import("./admin/AdminApp"));
 
 /* أرقام عربية-هندية */
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -239,7 +242,7 @@ function ContentBootstrap() {
           fetch(`${DATA}/settings.json`).then((r) => r.json()).catch(() => null),
         ]);
         if (!alive) return;
-        posts = (a.articles || []).map((x) => ({
+        posts = (a.articles || []).filter((x) => (x.status || "published") === "published").map((x) => ({
           id: x.slug || x.id, slug: x.slug || "", real_id: x.id, title: x.title, cat: x.category, date: x.date,
           excerpt: x.excerpt, show_excerpt: x.show_excerpt, series: x.series, part: x.part,
           cover: x.cover || "",
@@ -1644,6 +1647,7 @@ function App() {
     <BrowserRouter>
       <ContentBootstrap/>
       <Routes>
+        <Route path="/admin/*" element={<Suspense fallback={null}><AdminApp/></Suspense>}/>
         <Route path="/*" element={<PublicShell/>}/>
       </Routes>
     </BrowserRouter>
