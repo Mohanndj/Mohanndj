@@ -996,6 +996,23 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .dec-due small { color: var(--muted); }
 .dec-review { display: grid; gap: 10px; }
 .dec-review h3 { margin: 0; }
+.dec-card.s-thinking { border-inline-start-color: var(--accent); }
+.dec-card.s-postponed { border-inline-start-color: var(--mid); border-style: dashed; }
+.dec-card.s-cancelled { opacity: .65; }
+.dec-card.defer { border-style: dashed; }
+.dec-card b small, .dec-crit-in b small { font-weight: 400; }
+.dec-must { color: var(--high); font-size: .78rem; }
+.dec-tabs { margin-bottom: 4px; }
+.dec-remind { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 8px 10px; }
+.dec-days { display: inline-flex; align-items: center; gap: 6px; }
+.dec-days input { width: 72px; }
+.dec-crit-in { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.dec-num { display: flex; align-items: center; gap: 8px; }
+.dec-num input { flex: 1; min-width: 0; }
+.dec-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; margin-bottom: 8px; }
+.dec-row input { grid-column: 1 / -1; min-width: 0; }
+.dec-risk { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+.dec-risk .row-between input { flex: 1; min-width: 0; }
 
 .quit-card { display: grid; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; list-style: none; }
 .quit-top { display: flex; align-items: center; gap: 10px; }
