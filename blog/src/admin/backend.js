@@ -34,12 +34,18 @@ const SERVER_ERRORS = {
   unauthorized: "انتهت الجلسة؛ سجّل الدخول من جديد.",
   kv_not_configured: "الحسابات تحتاج ربط مخزن KV في إعدادات Cloudflare أولًا.",
   viewer_read_only: "حسابك «قارئ»: التصفّح فقط دون تعديل.",
+  db_not_configured: "تحتاج ربط قاعدة D1 باسم DB في إعدادات Cloudflare أولًا.",
+  sending_not_configured: "الإرسال يحتاج إعداد خدمة Resend في Cloudflare.",
+  no_subscribers: "لا مشتركين بعد.",
+  send_failed: "تعذّر الإرسال من خدمة البريد.",
 };
 
 async function errorFrom(r) {
-  let detail = "";
-  try { const j = await r.json(); detail = j.detail || j.message || ""; } catch { /* ignore */ }
-  return new ApiError(SERVER_ERRORS[detail] || detail || `خطأ ${r.status}`, r.status);
+  let detail = "", j = {};
+  try { j = await r.json(); detail = j.detail || j.message || ""; } catch { /* ignore */ }
+  const e = new ApiError(SERVER_ERRORS[detail] || detail || `خطأ ${r.status}`, r.status);
+  e.code = detail; e.data = j;
+  return e;
 }
 
 export async function login(email, password) {
@@ -179,7 +185,7 @@ function newShortCode(shortlinks) {
 
 const ARTICLE_FIELDS = ["slug", "title", "category", "series", "part", "date", "excerpt", "show_excerpt", "cover", "cover_outside",
   "body", "notes", "pinned", "seo_title", "seo_description", "audio_url", "show_audio", "youtube_url", "show_youtube",
-  "references", "show_references", "status"];
+  "references", "show_references", "status", "hide_toc", "og_image", "og_key"];
 
 function cleanArticle(src) {
   const a = {};
@@ -257,6 +263,10 @@ export async function deleteBook(id) {
   await mutate(`Delete book: ${b.title}`, (d) => { d.books.books = d.books.books.filter((x) => x.id !== id); }, extra);
 }
 
+export async function siteName() {
+  try { return (await getData()).settings.site_name || "مدونة مهند بن جازي"; } catch { return "مدونة مهند بن جازي"; }
+}
+
 export async function backupJson() {
   const d = await getData({ fresh: true });
   return new Blob([JSON.stringify(d, null, 1)], { type: "application/json" });
@@ -281,6 +291,10 @@ export async function api(path, opts = {}) {
     return { ...me, email: me.accounts ? me.email : "صاحب المدونة" };
   }
   if (route === "POST /auth/change-password") return server("/password", "POST", body);
+  if (route === "GET /admin/stats") return server("/stats");
+  if (route === "GET /admin/subscribers") return server("/subscribers");
+  if (route === "DELETE /admin/subscribers") return server(`/subscribers?email=${encodeURIComponent(id)}`, "DELETE");
+  if (route === "POST /admin/newsletter") return server("/newsletter/send", "POST", body);
   if (seg[0] === "admin" && seg[1] === "users") {
     return server(`/users${id ? `/${encodeURIComponent(id)}` : ""}`, method, method === "GET" || method === "DELETE" ? undefined : body);
   }

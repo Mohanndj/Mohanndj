@@ -65,7 +65,7 @@ for (const a of articles) {
   page(articleUrl(a), {
     title: `${a.seo_title || a.title} — ${SITE_NAME}`,
     description: plain(description).trim(),
-    image: a.cover || a.cover_outside || "",
+    image: a.og_image || a.cover_outside || a.cover || "",
     type: "article",
     content: `<main><article><h1>${esc(a.title)}</h1>${bodyHtml(a.body)}</article></main>`,
   });
@@ -101,5 +101,13 @@ const redirects = [
   ...articles.flatMap((a) => (a.old_slugs || []).map((old) => `/articles/${encodeURIComponent(old)} ${articleUrl(a)} 301`)),
 ];
 fs.writeFileSync(path.join(DIST, "_redirects"), redirects.join("\n") + "\n");
+
+// عامل الخدمة: رقم البناء، وما يُخزَّن مسبقًا ليعمل الموقع دون إنترنت
+const entry = [...template.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+const precache = ["/", ...entry, ...fs.readdirSync(DATA).map((f) => `/data/${f}`)];
+const swPath = path.join(DIST, "sw.js");
+fs.writeFileSync(swPath, fs.readFileSync(swPath, "utf8")
+  .replace('"__BUILD__"', JSON.stringify(String(Date.now())))
+  .replace("__PRECACHE__", JSON.stringify(precache)));
 
 console.log(`prerendered ${articles.length} articles, ${series.length} series; sitemap has ${urls.length} urls`);

@@ -1,3 +1,5 @@
 /admin*
   X-Robots-Tag: noindex, nofollow
   Cache-Control: no-store
+/sw.js
+  Cache-Control: no-cache

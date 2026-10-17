@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Search, Sun, Moon, Download, BookOpen, ChevronLeft, Bookmark, BookmarkCheck, Share2, FileDown, Mail, Clock, CheckCircle2, BarChart3, Twitter, Send, MessageCircle, UserPlus, X, Volume2, Youtube, ExternalLink, Link as LinkIcon, FileText, Play } from "lucide-react";
 import html2pdf from "html2pdf.js";
+import { quoteCard } from "./og";
 import "@/App.css";
 
 /* المحتوى ملفات ثابتة في public/data — لا خادم */
@@ -254,6 +255,8 @@ function ContentBootstrap() {
           show_youtube: !!x.show_youtube,
           references: x.references || [],
           short: x.short || String(x.id || "").slice(0, 6),
+          hide_toc: !!x.hide_toc,
+          og_image: x.og_image || "",
           show_references: !!x.show_references,
         }));
         series = (s.series || []).map((x) => ({ id: x.id, title: x.title, desc: x.desc || "" }));
@@ -263,6 +266,7 @@ function ContentBootstrap() {
         if (st) siteSettings = { ...siteSettings, ...st };
         contentLoaded = true;
         bumpContent();
+        fetch("/api/subscribe").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.enabled) { newsletterOn = true; bumpContent(); } }).catch(() => {});
       } catch (e) { /* ignore */ }
     })();
     return () => { alive = false; };
@@ -783,6 +787,7 @@ function Header() {
             قائمتي<SavedBadge/>
           </Link>
           <Link to="/stats" data-testid="nav-stats" className={location.pathname === "/stats" ? "on" : ""}>إحصاءاتي</Link>
+          {newsletterOn && <Link to="/newsletter" data-testid="nav-newsletter" className={location.pathname === "/newsletter" ? "on" : ""}>النشرة</Link>}
           <Link to="/about" data-testid="nav-about" className={location.pathname === "/about" ? "on" : ""}>عن المدونة</Link>
           {pagesData.filter((p) => p.in_nav).map((p) => (
             <Link key={p.id} to={`/p/${p.slug}`}
@@ -819,6 +824,7 @@ function Home() {
   const [first, ...rest] = items;
   return (
     <main className="wrap" data-testid="home-page">
+      {first && <ContinueReading/>}
       {!first ? (
         posts.length === 0 ? (
         <p className="empty" data-testid="empty-home">حيّاك الله… نهيّئ لك المقالات</p> 
@@ -1183,28 +1189,18 @@ function LikeButton({ articleId }) {
     </button>
   );
 }
-/* شمسة المخطوطات: حلقة من ستّ عشرة ورقة، ونجمة ثُمانية، وفي قلبها الدعاء «نفع الله بك» */
-function Shamsa() {
-  const petals = Array.from({ length: 16 }, (_, i) => {
-    const a = (i * 22.5 * Math.PI) / 180;
-    const x = 100 + 85 * Math.sin(a), y = 100 - 85 * Math.cos(a);
-    return <rect key={i} className="sh-petal" x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(${i * 22.5 + 45} ${x} ${y})`}/>;
-  });
+/* دائرة الدعاء: حلقتان رفيعتان وقرص يمتلئ ذهبًا */
+function SealRing() {
   return (
-    <svg className="shamsa" viewBox="0 0 200 200" aria-hidden="true">
+    <svg className="seal-ring" viewBox="0 0 200 200" aria-hidden="true">
       <defs>
-        <radialGradient id="sh-gold" cx="50%" cy="38%" r="70%">
-          <stop offset="0" stopColor="#E9CC7F"/><stop offset=".55" stopColor="#C49A45"/><stop offset="1" stopColor="#8E6A27"/>
+        <radialGradient id="seal-gold" cx="50%" cy="35%" r="75%">
+          <stop offset="0" stopColor="#E3C277"/><stop offset=".6" stopColor="#B88A3B"/><stop offset="1" stopColor="#8A6526"/>
         </radialGradient>
       </defs>
-      <circle className="sh-ring" cx="100" cy="100" r="97"/>
-      <g className="sh-petals">{petals}</g>
-      <circle className="sh-ring sh-ring-in" cx="100" cy="100" r="73"/>
-      <g className="sh-star">
-        <rect x="45" y="45" width="110" height="110"/>
-        <rect x="45" y="45" width="110" height="110" transform="rotate(45 100 100)"/>
-      </g>
-      <circle className="sh-core" cx="100" cy="100" r="50"/>
+      <circle className="sr-outer" cx="100" cy="100" r="97"/>
+      <circle className="sr-inner" cx="100" cy="100" r="89"/>
+      <circle className="sr-disc" cx="100" cy="100" r="80"/>
     </svg>
   );
 }
@@ -1230,15 +1226,14 @@ function Appreciation({ articleId }) {
       <button className={`appr-seal ${stamp ? "stamp" : ""}`} onClick={click} aria-pressed={liked}
               aria-label={liked ? "التراجع عن الدعاء" : "نفع الله بك"} data-testid="appreciate-btn">
         <span className="appr-ripple" aria-hidden="true"/>
-        <span className="appr-rays" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ "--a": `${i * 30}deg` }}/>)}</span>
-        <Shamsa/>
+        <SealRing/>
         <span className="appr-words"><b>نفع الله</b><b>بك</b></span>
       </button>
       <div className="appr-tally">
         {count > 0 && <span key={count} className="appr-count" data-testid="appreciate-count">{ar(count)}</span>}
         <span className="appr-text">{likesPhrase(count)}</span>
       </div>
-      <p className={`appr-reply ${liked ? "show" : ""}`} aria-live="polite">{liked ? "وبك، شكر الله لك." : "اضغط الشمسة لتدعو للكاتب"}</p>
+      <p className={`appr-reply ${liked ? "show" : ""}`} aria-live="polite">{liked ? "وبك، شكر الله لك." : "اضغط الدائرة لتدعو للكاتب"}</p>
     </section>
   );
 }
@@ -1255,8 +1250,17 @@ function sharePost(post, maxExcerpt = 240) {
   const tag = post.cat ? ` #${post.cat.replace(/\s+/g, "_")}` : "";
   return [`«${title}»`, ex, `اقرأ المقالة كاملة في ${site}:`, shortUrl(post), tag.trim()].filter(Boolean).join("\n");
 }
-function SharePanel({ post, onClose }) {
-  const [text, setText] = useState(() => sharePost(post));
+function quotePost(post, quote, max = 600) {
+  let q = quote.replace(/\s+/g, " ").trim();
+  if (q.length > max) q = q.slice(0, max).replace(/\s+\S*$/, "") + "…";
+  const site = siteSettings.site_name || "مدونة مهند بن جازي";
+  return [`«${q}»`, `من مقالة «${stripInline(post.title).trim()}» في ${site}:`, shortUrl(post)].join("\n");
+}
+function SharePanel({ post, quote, onClose }) {
+  const original = quote ? quotePost(post, quote) : sharePost(post);
+  const [text, setText] = useState(original);
+  const [card, setCard] = useState(null); // صورة الاقتباس
+  const [cardBusy, setCardBusy] = useState(false);
   const [done, setDone] = useState("");
   useEffect(() => {
     const k = (e) => e.key === "Escape" && onClose();
@@ -1266,7 +1270,23 @@ function SharePanel({ post, onClose }) {
   const enc = encodeURIComponent;
   const url = shortUrl(post);
   // تويتر يحدّ المنشور بـ٢٨٠ حرفًا، فيأخذ نسخة بمقتطف أقصر
-  const xText = text === sharePost(post) ? sharePost(post, 90) : text;
+  const xText = text !== original ? text : (quote ? quotePost(post, quote, 170) : sharePost(post, 90));
+  const makeCard = async () => {
+    setCardBusy(true);
+    try {
+      const blob = await quoteCard({ quote: quote.replace(/\s+/g, " ").trim(), title: stripInline(post.title).trim(),
+        site: siteSettings.site_name || "مدونة مهند بن جازي", url: url.replace(/^https?:\/\//, "") });
+      setCard({ blob, src: URL.createObjectURL(blob) });
+    } finally { setCardBusy(false); }
+  };
+  const shareCard = async () => {
+    const file = new File([card.blob], "اقتباس.jpg", { type: "image/jpeg" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text }); flash("تمّت المشاركة"); } catch { /* أُلغيت */ }
+    } else {
+      const a = document.createElement("a"); a.href = card.src; a.download = "اقتباس.jpg"; a.click(); flash("نُزّلت الصورة");
+    }
+  };
   const flash = (m) => { setDone(m); setTimeout(() => setDone(""), 2200); };
   const copy = async (v, m) => { try { await navigator.clipboard.writeText(v); flash(m); } catch { flash("تعذّر النسخ"); } };
   const native = async () => { try { await navigator.share({ text }); flash("تمّت المشاركة"); } catch { /* أُلغيت */ } };
@@ -1274,7 +1294,7 @@ function SharePanel({ post, onClose }) {
     <div className="share-overlay no-print" onClick={onClose} data-testid="share-panel">
       <div className="share-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="مشاركة المقالة">
         <button className="share-close" onClick={onClose} aria-label="إغلاق"><X size={18}/></button>
-        <p className="eyebrow">شارك المقالة</p>
+        <p className="eyebrow">{quote ? "شارك الاقتباس" : "شارك المقالة"}</p>
         <h3>منشورٌ جاهز</h3>
         <p className="share-sub">عدّله إن شئت، ثم اختر أين تنشره.</p>
         <textarea className="share-text" value={text} onChange={(e) => setText(e.target.value)} rows={6} dir="rtl" data-testid="share-text"/>
@@ -1291,22 +1311,190 @@ function SharePanel({ post, onClose }) {
             <button className="share-t" onClick={native} data-testid="share-native"><Share2 size={16}/> <span>تطبيقات أخرى</span></button>
           )}
         </div>
+        {quote && (
+          <div className="quote-card">
+            {card ? (
+              <>
+                <img src={card.src} alt="صورة الاقتباس" data-testid="quote-card-img"/>
+                <button className="share-t" onClick={shareCard} data-testid="quote-card-share"><Share2 size={16}/> <span>شارك الصورة أو نزّلها</span></button>
+              </>
+            ) : (
+              <button className="share-t gold" onClick={makeCard} disabled={cardBusy} data-testid="quote-card-make">
+                <FileText size={16}/> <span>{cardBusy ? "نصمّم الصورة…" : "اصنع صورة مزخرفة للاقتباس"}</span>
+              </button>
+            )}
+          </div>
+        )}
         <p className="share-done" aria-live="polite">{done}</p>
       </div>
     </div>
   );
 }
 
+/* ============================================================
+   مدة القراءة وشريط التقدّم
+   ============================================================ */
+function readingMinutes(post) {
+  const words = (post.body || []).reduce((n, b) => {
+    const t = typeof b === "string" ? b : (b?.text || "");
+    return n + stripInline(t).split(/\s+/).filter(Boolean).length;
+  }, 0);
+  return Math.max(1, Math.round(words / 180));
+}
+function minutesLabel(m) {
+  if (m === 1) return "دقيقة واحدة";
+  if (m === 2) return "دقيقتين";
+  if (m <= 10) return `${ar(m)} دقائق`;
+  return `${ar(m)} دقيقة`;
+}
+function ReadProgress({ targetRef }) {
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const calc = () => {
+      raf = 0;
+      const el = targetRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const total = r.height - window.innerHeight;
+      setPct(total <= 0 ? 1 : Math.min(1, Math.max(0, -r.top / total)));
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(calc); };
+    calc();
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    return () => { window.removeEventListener("scroll", on); window.removeEventListener("resize", on); if (raf) cancelAnimationFrame(raf); };
+  }, [targetRef]);
+  return <div className="read-progress no-print" aria-hidden="true"><i style={{ transform: `scaleX(${pct})` }}/></div>;
+}
+
+/* ============================================================
+   فهرس المقالة (يُخفى من الإعدادات أو لكل مقالة، ويطويه القارئ)
+   ============================================================ */
+const headingText = (raw) => stripInline(typeof raw === "string" ? raw.slice(1) : (raw?.text || "")).trim();
+const isHeading = (raw) => (typeof raw === "string" ? raw.startsWith("#") : raw?.type === "h");
+function ArticleToc({ post }) {
+  const heads = (post.body || []).map((raw, i) => ({ raw, i })).filter(({ raw }) => isHeading(raw) && headingText(raw));
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem("muhannad-toc") !== "closed"; } catch { return true; } });
+  if (heads.length < 3 || siteSettings.show_toc === false || post.hide_toc) return null;
+  const toggle = () => { const n = !open; setOpen(n); try { localStorage.setItem("muhannad-toc", n ? "open" : "closed"); } catch { /* ignore */ } };
+  const go = (e, i) => {
+    e.preventDefault();
+    const el = document.getElementById(`sec-${i}`);
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 24, behavior: "smooth" });
+  };
+  return (
+    <nav className={`toc no-print ${open ? "open" : ""}`} aria-label="فهرس المقالة" data-testid="toc">
+      <button className="toc-head" onClick={toggle} aria-expanded={open} data-testid="toc-toggle">
+        <span>فهرس المقالة</span><span className="toc-n">{ar(heads.length)} أقسام</span><ChevronLeft size={15} className="toc-chev"/>
+      </button>
+      {open && (
+        <ol>
+          {heads.map(({ raw, i }) => <li key={i}><a href={`#sec-${i}`} onClick={(e) => go(e, i)}>{headingText(raw)}</a></li>)}
+        </ol>
+      )}
+    </nav>
+  );
+}
+
+/* ============================================================
+   «واصل القراءة»: يُحفظ موضع القارئ في كل مقالة على جهازه
+   ============================================================ */
+const RESUME_KEY = "muhannad-resume";
+function getResume() { try { return JSON.parse(localStorage.getItem(RESUME_KEY) || "{}") || {}; } catch { return {}; } }
+function setResume(m) { try { localStorage.setItem(RESUME_KEY, JSON.stringify(m)); } catch { /* ignore */ } }
+function useResumeTracker(post, targetRef) {
+  useEffect(() => {
+    if (!post) return;
+    let t = 0;
+    const save = () => {
+      t = 0;
+      const el = targetRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const total = r.height - window.innerHeight;
+      const pct = total <= 0 ? 1 : Math.min(1, Math.max(0, -r.top / total));
+      const m = getResume();
+      if (pct >= 0.92) delete m[post.id];
+      else if (pct > 0.04) m[post.id] = { title: post.title, pct, y: window.scrollY, at: Date.now() };
+      setResume(m);
+    };
+    const on = () => { if (!t) t = setTimeout(save, 600); };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => { window.removeEventListener("scroll", on); if (t) clearTimeout(t); };
+  }, [post?.id]);
+}
+function ContinueReading() {
+  const [, force] = useState(0);
+  const m = getResume();
+  const MONTH = 30 * 864e5;
+  const last = Object.entries(m)
+    .filter(([id, v]) => posts.some((p) => p.id === id) && Date.now() - v.at < MONTH)
+    .sort((a, b) => b[1].at - a[1].at)[0];
+  if (!last) return null;
+  const [id, v] = last;
+  const dismiss = () => { const n = getResume(); delete n[id]; setResume(n); force((x) => x + 1); };
+  return (
+    <aside className="resume-card" data-testid="continue-reading">
+      <button className="resume-x" onClick={dismiss} aria-label="إخفاء" data-testid="continue-dismiss"><X size={16}/></button>
+      <p className="eyebrow">واصل القراءة</p>
+      <Link to={`/articles/${encodeURIComponent(id)}?resume=1`} className="resume-link" data-testid="continue-link">
+        <span className="resume-title">{v.title}</span>
+        <span className="resume-meta">توقفتَ عند {ar(Math.round(v.pct * 100))}٪ ← تابع من حيث وقفت</span>
+      </Link>
+      <div className="resume-bar"><i style={{ width: `${Math.round(v.pct * 100)}%` }}/></div>
+    </aside>
+  );
+}
+
 function ArticlePage() {
   useLiveContent();
   const { id } = useParams();
-  const post = posts.find((p) => p.slug === id || p.id === id || p.real_id === id);
+  // توحيد ترتيب الحركات (الشدّة والفتحة مثلًا) كي يُعثر على المقالة مهما نُسخ رابطها
+  const nid = String(id || "").normalize("NFC");
+  const post = posts.find((p) => p.slug === id || p.id === id || p.real_id === id || String(p.slug).normalize("NFC") === nid);
   const [openNote, setOpenNote] = useState(null);
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [quoteSel, setQuoteSel] = useState(null);   // {text, x, y}
+  const [quoteOpen, setQuoteOpen] = useState(null); // نص الاقتباس المفتوح في نافذة المشاركة
   const endRef = useRef(null);
+  const essayRef = useRef(null);
+  const location = useLocation();
   useEffect(() => { setOpenNote(null); window.scrollTo(0, 0); }, [id]);
   useReadTracker(post?.id, endRef);
+  useResumeTracker(post, essayRef);
+  useEffect(() => {
+    if (!post?.real_id) return;
+    try {
+      const seen = JSON.parse(sessionStorage.getItem("muhannad-viewed") || "[]");
+      if (seen.includes(post.real_id)) return;
+      sessionStorage.setItem("muhannad-viewed", JSON.stringify([...seen, post.real_id]));
+    } catch { /* ignore */ }
+    fetch(`/api/view/${post.real_id}`, { method: "POST", keepalive: true }).catch(() => {});
+  }, [post?.real_id]);
+  // تحديد نصٍّ من المقالة يُظهر زرّ «شارك الاقتباس» تحته
+  useEffect(() => {
+    let t = 0;
+    const check = () => {
+      t = 0;
+      const sel = window.getSelection();
+      const text = sel ? sel.toString().trim() : "";
+      const body = essayRef.current?.querySelector(".body");
+      if (!text || text.length < 12 || !sel.rangeCount || !body || !body.contains(sel.anchorNode) || !body.contains(sel.focusNode)) { setQuoteSel(null); return; }
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      setQuoteSel({ text, x: r.left + r.width / 2 + window.scrollX, y: r.bottom + window.scrollY + 12 });
+    };
+    const on = () => { if (t) clearTimeout(t); t = setTimeout(check, 250); };
+    document.addEventListener("selectionchange", on);
+    return () => { document.removeEventListener("selectionchange", on); if (t) clearTimeout(t); };
+  }, [post?.id]);
+  // العودة إلى موضع القارئ حين يأتي من «واصل القراءة»
+  useEffect(() => {
+    if (!post || !new URLSearchParams(location.search).has("resume")) return;
+    const v = getResume()[post.id];
+    if (v) setTimeout(() => window.scrollTo({ top: v.y, behavior: "smooth" }), 350);
+  }, [post?.id, location.search]);
   const related = post ? posts.filter((p) => p.cat === post.cat && p.id !== post.id).slice(0, 3) : [];
 
   // Next-part card if this article is a series member
@@ -1321,7 +1509,7 @@ function ArticlePage() {
   const abs = (u) => (u && u.startsWith("http")) ? u : (u ? `${process.env.REACT_APP_BACKEND_URL || ""}${u}` : "");
   const shareTitle = post ? stripInline(post.title) : (siteSettings.site_name || "");
   const shareDesc = post ? stripInline(post.excerpt || autoExcerpt(post)) : "";
-  const shareImg = abs(post?.cover_outside || post?.cover);
+  const shareImg = abs(post?.og_image || post?.cover_outside || post?.cover);
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   useSocialMetaTags({ title: shareTitle, description: shareDesc, image: shareImg, url: shareUrl, type: "article" });
 
@@ -1361,7 +1549,8 @@ function ArticlePage() {
 
   return (
     <main className="wrap inner-page" data-testid="article-page">
-      <article className="essay" id="essay-print">
+      <ReadProgress targetRef={essayRef}/>
+      <article className="essay" id="essay-print" ref={essayRef}>
         <Link className="back no-print" to="/" data-testid="back-to-home"><ChevronLeft size={14}/> عودة إلى الفهرس</Link>
         {post.series && (
           <div className="serieschip" data-testid="series-chip">
@@ -1371,6 +1560,7 @@ function ArticlePage() {
         )}
         <h2 data-testid="article-title">{post.title}</h2>
         <Meta post={post}/>
+        <p className="readtime" data-testid="read-time"><Clock size={13}/> تُقرأ في {minutesLabel(readingMinutes(post))}</p>
         <div className="article-actions no-print">
           <SaveButton id={post.id} title={post.title}/>
           <button className="icon-btn" onClick={exportPdf} disabled={busy} data-testid="pdf-export">
@@ -1384,6 +1574,7 @@ function ArticlePage() {
         <Ornament item={post} className="f-wide"/>
 
         <ArticleExtrasTop post={post}/>
+        <ArticleToc post={post}/>
 
         <div className="body">
           {post.body.map((raw, i) => {
@@ -1400,7 +1591,7 @@ function ArticlePage() {
             if (align) { style.textAlign = align; if (align === "justify") style.textAlignLast = "right"; }
             if (color) { style.color = ({gold:"var(--gold, #a88e35)",lapis:"var(--lapis, #254a7a)",green:"var(--green, #3e6f4a)",red:"var(--red, #a44444)",muted:"var(--muted, #8b8577)"})[color]; }
             const sizeClass = size ? `text-size-${size}` : "";
-            if (type === "h") return <h3 key={i} style={style} className={sizeClass}>{renderInline(text)}</h3>;
+            if (type === "h") return <h3 key={i} id={`sec-${i}`} style={style} className={sizeClass}>{renderInline(text)}</h3>;
             return (
               <div key={i} style={style} className={sizeClass}>
                 <Paragraph
@@ -1432,6 +1623,14 @@ function ArticlePage() {
         </button>
       </div>
       {shareOpen && <SharePanel post={post} onClose={() => setShareOpen(false)}/>}
+      {quoteSel && !quoteOpen && (
+        <button className="quote-fab no-print" style={{ left: quoteSel.x, top: quoteSel.y }} data-testid="quote-fab"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setQuoteOpen(quoteSel.text); setQuoteSel(null); }}>
+          <Share2 size={14}/> شارك الاقتباس
+        </button>
+      )}
+      {quoteOpen && <SharePanel post={post} quote={quoteOpen} onClose={() => setQuoteOpen(null)}/>}
 
       {(nextPart || prevPart) && seriesInfo && (
         <section className="series-nav no-print" data-testid="series-nav">
@@ -1470,6 +1669,67 @@ function ArticlePage() {
           </ul>
         </section>
       )}
+    </main>
+  );
+}
+
+/* ============================================================
+   النشرة البريدية (تظهر حين تُفعَّل قاعدة البيانات)
+   ============================================================ */
+let newsletterOn = false;
+function NewsletterPage() {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState({ status: "idle", message: "" });
+  const [hp, setHp] = useState(""); // حقل مخفي للروبوتات
+  async function submit(e) {
+    e.preventDefault();
+    if (!email) return;
+    setState({ status: "loading", message: "" });
+    try {
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, website: hp }),
+      });
+      if (!res.ok) throw new Error(res.status === 400 ? "تحقّق من صيغة البريد." : "تعذّر الاشتراك الآن، حاول لاحقًا.");
+      const data = await res.json();
+      const msg = data.already ? "بريدك مشترك من قبل، وستصلك المقالات الجديدة." : "تمّ الاشتراك. ستصلك المقالات الجديدة حين تُنشر.";
+      setState({ status: "ok", message: msg });
+      setEmail("");
+    } catch (err) {
+      setState({ status: "err", message: err.message || "حدث خطأ." });
+    }
+  }
+  return (
+    <main className="wrap inner-page" data-testid="newsletter-page">
+      <Link className="back" to="/"><ChevronLeft size={14}/> عودة إلى الفهرس</Link>
+      <div className="page-head">
+        <p className="eyebrow">نشرة</p>
+        <h2>اشترك في النشرة</h2>
+        <p className="desc">يصلك المقال الجديد بمجرّد نشره، ولا يصلك من هذا العنوان شيءٌ سواه.</p>
+      </div>
+      <form className="news-form" onSubmit={submit} noValidate>
+        <label className="visually-hidden" htmlFor="news-email">البريد الإلكتروني</label>
+        <div className="news-row">
+          <Mail size={16} aria-hidden="true"/>
+          <input
+            id="news-email"
+            type="email"
+            required
+            placeholder="بريدك الإلكتروني"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            data-testid="newsletter-email"
+            dir="ltr"
+          />
+          <button type="submit" disabled={state.status === "loading"} data-testid="newsletter-submit">
+            {state.status === "loading" ? "…" : "اشتراك"}
+          </button>
+        </div>
+        <input type="text" name="website" value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1 }}/>
+        {state.status === "ok" && <p className="news-msg ok" data-testid="newsletter-success">{state.message}</p>}
+        {state.status === "err" && <p className="news-msg err" data-testid="newsletter-error">{state.message}</p>}
+      </form>
     </main>
   );
 }
@@ -1683,6 +1943,21 @@ function About() {
 /* ============================================================
    التذييل
    ============================================================ */
+/* تثبيت المدونة تطبيقًا: يلتقط المتصفح الحدث مبكرًا، فيظهر الزرّ حين يكون التثبيت ممكنًا */
+let installPrompt = null;
+const installListeners = new Set();
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; installListeners.forEach((f) => f()); });
+  window.addEventListener("appinstalled", () => { installPrompt = null; installListeners.forEach((f) => f()); });
+}
+function InstallLink() {
+  const [, force] = useState(0);
+  useEffect(() => { const f = () => force((n) => n + 1); installListeners.add(f); return () => installListeners.delete(f); }, []);
+  if (!installPrompt) return null;
+  const install = async () => { const p = installPrompt; installPrompt = null; p.prompt(); await p.userChoice.catch(() => {}); force((n) => n + 1); };
+  return <button className="install-link" onClick={install} data-testid="install-app">ثبّت المدونة على جهازك</button>;
+}
+
 function Footer() {
   useLiveContent();
   const s = useSocial();
@@ -1706,8 +1981,9 @@ function Footer() {
         <span className="dot">·</span>
         <Link to="/saved" data-testid="footer-saved">قائمتي</Link>
         <span className="dot">·</span>
-        <span className="dot">·</span>
+        {newsletterOn && <><Link to="/newsletter" data-testid="footer-newsletter">النشرة</Link><span className="dot">·</span></>}
         <Link to="/about" data-testid="footer-about">عن المدونة</Link>
+        <InstallLink/>
         {socials.length > 0 && (
           <div className="footer-socials" data-testid="footer-socials">
             {socials.map(({ key, label, url, Icon }) => (
@@ -1820,6 +2096,7 @@ function PublicShell() {
         <Route path="/saved" element={<SavedPage/>}/>
         <Route path="/stats" element={<StatsPage/>}/>
         <Route path="/about" element={<About/>}/>
+        <Route path="/newsletter" element={<NewsletterPage/>}/>
         <Route path="/p/:slug" element={<PagePublic/>}/>
         <Route path="/a/:code" element={<ShortLinkResolver/>}/>
         <Route path="*" element={<Home/>}/>

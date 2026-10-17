@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import "./AdminApp.css";
-import { api, login, logout, uploadMedia, mediaSrc, listBooks, addBook, deleteBook, backupJson } from "./backend";
+import { api, login, logout, uploadMedia, mediaSrc, listBooks, addBook, deleteBook, backupJson, siteName } from "./backend";
+import { articleCard } from "../og";
 
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 const ar = (v) => String(v).replace(/[0-9]/g, (d) => AR_DIGITS[+d]);
@@ -90,6 +91,8 @@ function Sidebar() {
     { to: "/admin/categories", label: "التصنيفات" },
     { to: "/admin/series", label: "السلاسل" },
     { to: "/admin/books", label: "الكتب" },
+    { to: "/admin/stats", label: "الإحصاءات" },
+    { to: "/admin/newsletter", label: "النشرة", ownerOnly: true },
     { to: "/admin/users", label: "الأعضاء", ownerOnly: true, accounts: true },
     { to: "/admin/settings", label: "الإعدادات", ownerOnly: true },
     { to: "/admin/password", label: "كلمة السرّ", accounts: true },
@@ -528,6 +531,19 @@ function ArticleEditor() {
     setSaving("saving");
     try {
       const body = { ...doc };
+      // صورة المشاركة: تُرسم من جديد إذا تغيّر العنوان أو الغلاف أو التصنيف
+      if (body.status === "published") {
+        const cover = body.cover_outside || body.cover || "";
+        const key = [body.title, cover, body.category].join("|");
+        if (body.og_key !== key) {
+          try {
+            const plain = String(body.title).replace(/\*\*/g, "").replace(/~\{[a-z]+:/g, "").replace(/\}~/g, "");
+            const blob = await articleCard({ title: plain, category: body.category, cover: mediaSrc(cover), site: await siteName(), host: "mohanndjazi.com" });
+            const { url } = await uploadMedia(new File([blob], "og.jpg", { type: "image/jpeg" }), "image");
+            body.og_image = url; body.og_key = key;
+          } catch { /* تبقى صورة الغلاف بديلًا */ }
+        }
+      }
       let saved;
       if (isNew || !doc.id) {
         saved = await api("/admin/articles", { method: "POST", body: JSON.stringify(body) });
@@ -842,6 +858,10 @@ function ArticleEditor() {
           <label className="field" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input type="checkbox" checked={!!doc.pinned} onChange={(e) => patch({ pinned: e.target.checked })} data-testid="editor-pin" disabled={!isOwner}/>
             <span>تثبيت على الرئيسية</span>
+          </label>
+          <label className="field" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={!!doc.hide_toc} onChange={(e) => patch({ hide_toc: e.target.checked })} data-testid="editor-hide-toc"/>
+            <span>إخفاء فهرس هذه المقالة</span>
           </label>
 
           <h4>التصنيف والسلسلة</h4>
@@ -1392,6 +1412,12 @@ function SettingsPage() {
                  data-testid="s-excerpt-default"/>
           <span>إظهار المقتطف افتراضيًا في القوائم للمقالات الجديدة</span>
         </label>
+        <label className="field" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={s.show_toc !== false}
+                 onChange={(e) => patch({ show_toc: e.target.checked })}
+                 data-testid="s-show-toc"/>
+          <span>إظهار «فهرس المقالة» في المقالات التي فيها ثلاثة عناوين فأكثر</span>
+        </label>
 
         <div className="field">
           <label>روابط التواصل</label>
@@ -1617,6 +1643,145 @@ function UsersPage() {
   );
 }
 
+/* ============================================================
+   الإحصاءات
+   ============================================================ */
+function StatsPage() {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [sort, setSort] = useState("total");
+  useEffect(() => { api("/admin/stats").then(setD).catch((e) => setErr(e.message)); }, []);
+  if (err) return <><h1 className="admin-title">الإحصاءات</h1><div className="admin-error">{err}</div></>;
+  if (!d) return <div className="admin-empty">جاري التحميل…</div>;
+  const days = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - (29 - i) * 864e5).toISOString().slice(0, 10));
+  const byDay = Object.fromEntries(d.daily.map((x) => [x.day, x.n]));
+  const series = days.map((day) => ({ day, n: byDay[day] || 0 }));
+  const max = Math.max(1, ...series.map((x) => x.n));
+  const sum = (k) => d.articles.reduce((n, a) => n + (a[k] || 0), 0);
+  const rows = [...d.articles].sort((a, b) => b[sort] - a[sort] || b.total - a.total);
+  const cards = [
+    { label: "زيارات آخر ٣٠ يومًا", v: sum("month") },
+    { label: "زيارات آخر ٧ أيام", v: sum("week") },
+    { label: "كل الزيارات", v: sum("total") },
+    { label: "دعوات «نفع الله بك»", v: sum("likes") },
+    { label: "مشتركو النشرة", v: d.subscribers },
+  ];
+  const Th = ({ k, children }) => <th onClick={() => setSort(k)} style={{ cursor: "pointer", color: sort === k ? "var(--gold)" : undefined }}>{children}{sort === k ? " ↓" : ""}</th>;
+  return (
+    <>
+      <h1 className="admin-title">الإحصاءات</h1>
+      <div className="stat-cards">
+        {cards.map((c) => <div key={c.label} className="stat-card"><div className="k">{c.label}</div><div className="v">{ar(c.v)}</div></div>)}
+      </div>
+      <h2 className="admin-sub">الزيارات اليومية</h2>
+      <div className="day-chart" data-testid="stats-chart">
+        {series.map((x) => <div key={x.day} className="bar" style={{ height: `${Math.max(2, (x.n / max) * 100)}%` }} title={`${x.day}: ${x.n}`}/>)}
+      </div>
+      <div className="day-axis"><span>قبل ٣٠ يومًا</span><span>اليوم</span></div>
+      <h2 className="admin-sub">المقالات</h2>
+      <div style={{ overflowX: "auto" }}>
+        <table className="admin-table" data-testid="stats-table">
+          <thead><tr><th>المقالة</th><Th k="week">٧ أيام</Th><Th k="month">٣٠ يومًا</Th><Th k="total">الكل</Th><Th k="likes">نفع الله بك</Th></tr></thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id}>
+                <td><a href={`/articles/${encodeURIComponent(a.slug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>{a.title}</a></td>
+                <td>{ar(a.week)}</td><td>{ar(a.month)}</td><td><b>{ar(a.total)}</b></td><td>{ar(a.likes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint" style={{ marginTop: 12 }}>تُعدّ الزيارة مرةً لكل قارئ في الجلسة، ولا تُعدّ زيارات محركات البحث ومعاينات الروابط. ولا يُحفظ عن القارئ شيء.</p>
+    </>
+  );
+}
+
+/* ============================================================
+   النشرة البريدية
+   ============================================================ */
+function NewsletterAdminPage() {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [arts, setArts] = useState([]);
+  const [pick, setPick] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => api("/admin/subscribers").then(setD).catch((e) => setErr(e.message));
+  useEffect(() => {
+    load();
+    api("/admin/articles?status=published").then((r) => { setArts(r.articles); setPick(r.articles[0]?.id || ""); }).catch(() => {});
+  }, []);
+  if (err) return <><h1 className="admin-title">النشرة البريدية</h1><div className="admin-error">{err}</div></>;
+  if (!d) return <div className="admin-empty">جاري التحميل…</div>;
+  const active = d.subscribers.filter((x) => x.status === "active");
+  const send = async (force = false) => {
+    const a = arts.find((x) => x.id === pick);
+    if (!a || (!force && !window.confirm(`إرسال «${a.title}» إلى ${active.length} مشترك؟`))) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await api("/admin/newsletter", { method: "POST", body: JSON.stringify({ article_id: pick, force }) });
+      setMsg(`أُرسلت إلى ${ar(r.sent)} مشترك.`); load();
+    } catch (e) {
+      if (e.code === "already_sent") {
+        if (window.confirm(`أُرسلت هذه المقالة من قبل (${fmtDate(e.data.sent_at)}). إرسالها مرة أخرى؟`)) { setBusy(false); return send(true); }
+      } else setMsg(e.message);
+    } finally { setBusy(false); }
+  };
+  const del = async (email) => {
+    if (!window.confirm(`حذف ${email} من القائمة؟`)) return;
+    await api(`/admin/subscribers/${encodeURIComponent(email)}`, { method: "DELETE" }); load();
+  };
+  const title = (id) => arts.find((a) => a.id === id)?.title || id;
+  return (
+    <>
+      <div className="admin-toolbar">
+        <h1 className="admin-title" style={{ margin: 0 }}>النشرة البريدية</h1>
+        <div className="grow"/>
+        <a className="admin-btn ghost" href="/api/subscribers?format=csv" data-testid="subs-export">تصدير القائمة (CSV)</a>
+      </div>
+      <div className="stat-cards">
+        <div className="stat-card"><div className="k">المشتركون</div><div className="v">{ar(active.length)}</div></div>
+        <div className="stat-card"><div className="k">ألغوا الاشتراك</div><div className="v">{ar(d.subscribers.length - active.length)}</div></div>
+        <div className="stat-card"><div className="k">رسائل أُرسلت</div><div className="v">{ar(d.sends.length)}</div></div>
+      </div>
+      <h2 className="admin-sub">إرسال مقالة إلى المشتركين</h2>
+      {d.sending ? (
+        <div className="admin-toolbar" style={{ flexWrap: "wrap" }}>
+          <select className="admin-input" value={pick} onChange={(e) => setPick(e.target.value)} style={{ maxWidth: 420 }} data-testid="news-pick">
+            {arts.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
+          </select>
+          <button className="admin-btn" onClick={() => send(false)} disabled={busy || !active.length} data-testid="news-send">{busy ? "جاري الإرسال…" : "أرسل"}</button>
+          {msg && <span className="hint">{msg}</span>}
+        </div>
+      ) : (
+        <p className="hint" data-testid="news-setup">الإرسال غير مفعّل بعد. يُجمع المشتركون الآن، وحين تُعدّ خدمة البريد (Resend) يظهر هنا زرّ الإرسال.</p>
+      )}
+      {d.sends.length > 0 && (
+        <ul className="cs-list" style={{ marginTop: 12 }}>
+          {d.sends.map((x, i) => <li key={i}><div className="name">{title(x.article_id)}</div><span className="hint">{fmtDate(x.sent_at)} · {ar(x.recipients)} مستلم</span></li>)}
+        </ul>
+      )}
+      <h2 className="admin-sub">المشتركون</h2>
+      {d.subscribers.length === 0 ? <p className="hint">لا مشتركين بعد. رابط الاشتراك في الموقع: /newsletter</p> : (
+        <table className="admin-table" data-testid="subs-table">
+          <thead><tr><th>البريد</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+          <tbody>
+            {d.subscribers.map((x) => (
+              <tr key={x.email}>
+                <td dir="ltr" style={{ textAlign: "right" }}>{x.email}</td>
+                <td>{x.status === "active" ? "مشترك" : "ألغى"}</td>
+                <td style={{ fontSize: 12, color: "var(--muted)" }}>{fmtDate(x.created_at)}</td>
+                <td><button className="admin-btn danger small" onClick={() => del(x.email)}>حذف</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
 export default function AdminApp() {
   return (
     <AuthProvider>
@@ -1632,6 +1797,8 @@ export default function AdminApp() {
         <Route path="/books" element={<Protected><Shell><BooksPage/></Shell></Protected>}/>
         <Route path="/settings" element={<Protected><Shell><SettingsPage/></Shell></Protected>}/>
         <Route path="/users" element={<Protected><Shell><UsersPage/></Shell></Protected>}/>
+        <Route path="/stats" element={<Protected><Shell><StatsPage/></Shell></Protected>}/>
+        <Route path="/newsletter" element={<Protected><Shell><NewsletterAdminPage/></Shell></Protected>}/>
         <Route path="/password" element={<Protected><Shell><ChangePasswordPage/></Shell></Protected>}/>
       </Routes>
     </AuthProvider>
