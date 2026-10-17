@@ -570,7 +570,7 @@ function ArticleEditor() {
         if (body.og_key !== key) {
           try {
             const plain = String(body.title).replace(/\*\*/g, "").replace(/~\{[a-z]+:/g, "").replace(/\}~/g, "");
-            const blob = await articleCard({ title: plain, category: body.category, cover: mediaSrc(cover), site: await siteName(), host: "mohanndjazi.com" });
+            const blob = await articleCard({ title: plain, category: body.category, cover: mediaSrc(cover), site: await siteName(), host: "www.mohanndjazi.com" });
             const { url } = await uploadMedia(new File([blob], "og.jpg", { type: "image/jpeg" }), "image");
             body.og_image = url; body.og_key = key;
           } catch { /* تبقى صورة الغلاف بديلًا */ }

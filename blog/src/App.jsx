@@ -1278,7 +1278,7 @@ function SharePanel({ post, quote, onClose }) {
     setCardBusy(true);
     try {
       const blob = await quoteCard({ quote: quote.replace(/\s+/g, " ").trim(), title: stripInline(post.title).trim(),
-        site: siteSettings.site_name || "مدونة مهند بن جازي", url: url.replace(/^https?:\/\//, "") });
+        site: siteSettings.site_name || "مدونة مهند بن جازي", url: "www.mohanndjazi.com" });
       setCard({ blob, src: URL.createObjectURL(blob) });
     } finally { setCardBusy(false); }
   };

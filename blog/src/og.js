@@ -126,7 +126,7 @@ export async function quoteCard({ quote, title, site, url }) {
   ctx.font = '700 40px "Aref Ruqaa", "Amiri", serif'; ctx.fillStyle = GOLD;
   ctx.fillText(site, W / 2, H - 128);
   ctx.font = '400 28px "Amiri", serif'; ctx.fillStyle = "#5E6167";
-  const t = wrap(ctx, `من مقالة «${title}»`, W - PAD * 2, 2);
+  const t = wrap(ctx, `«${title}»`, W - PAD * 2, 2);
   const titleTop = H - 196 - (t.lines.length - 1) * 40;
   t.lines.forEach((l, i) => ctx.fillText(l, W / 2, titleTop + i * 40));
   const footerTop = titleTop - 40;
