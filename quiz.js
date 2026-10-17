@@ -29,20 +29,19 @@ const QZ_PROMPT = `اكتب لي اختباراً في: [اكتب هنا الع�
 
 س٣: نص سؤال إجابته كتابة
 النوع: نصي
-الإجابة: الإجابة النموذجية
-الكلمات: ما يجب أن تتضمنه الإجابة لتُعدّ صحيحة، مفصولاً بفواصل
+الإجابة: الإجابة النموذجية كاملة
+العناصر:
+- العنصر الأول من معنى الإجابة النموذجية (٢)
+- العنصر الثاني (١)
+التوضيح: ...
 
-القواعد: لكل سؤال اختيار من متعدد إجابة واحدة بحرفها. اترك سطراً فارغاً بين الأسئلة.`;
+القواعد: لكل سؤال اختيار من متعدد إجابة واحدة بحرفها. «العناصر» أجزاء المعنى التي تُصحَّح بها الإجابة النصية، كل عنصر في سطر يبدأ بشرطة، ودرجته بين قوسين. اترك سطراً فارغاً بين الأسئلة.`;
 
 // ---------- text helpers ----------
 const qzDigits = (s) => String(s).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
 // for comparing answers: no diacritics or tatweel, one form of alef, ya and ta marbuta, no punctuation
 const qzNorm = (s) => qzDigits(s).replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
   .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-// words without «ال» and its joined prefixes, so «النظافة» is found in «نظافة البدن»
-const qzWords = (s, joined) => ` ${qzNorm(s).split(' ').map((w) => { const x = w.replace(/^(وال|بال|كال|فال|لل|ال)(?=\S\S)/, ''); return joined && x === w ? x.replace(/^[وفبلك](?=\S\S\S)/, '') : x; }).join(' ')} `;
-// a required word is found as written, or with a joined «و ف ب ل ك» before it («ونزاهة» has «نزاهة»)
-const qzHas = (a, k) => qzWords(a).includes(qzWords(k)) || qzWords(a, true).includes(qzWords(k));
 const QZ_T = ['صح', 'صحيح', 'صحيحه', 'صواب', 'نعم', 'true', 't'];
 const QZ_F = ['خطا', 'خاطي', 'خاطئ', 'خاطيه', 'خاطئه', 'غلط', 'لا', 'false', 'f'];
 const qzBool = (s) => { const w = qzNorm(s).split(' ')[0] || ''; return QZ_T.includes(w) ? true : QZ_F.includes(w) ? false : null; };
@@ -57,10 +56,21 @@ const QZ_RX = {
   type: /^(?:النوع|نوع السؤال)\s*[:：]\s*(.+)$/,
   ans: /^(?:الإجابة الصحيحة|الاجابة الصحيحة|الإجابة النموذجية|الاجابة النموذجية|الإجابة|الاجابة|الجواب|ج|answer)\s*[:：]\s*(.*)$/i,
   exp: /^(?:التوضيح|الشرح|التعليل|السبب|التفسير|explanation)\s*[:：]\s*(.*)$/i,
-  keys: /^(?:الكلمات المفتاحية|الكلمات المطلوبة|الكلمات|معيار التصحيح|المعيار|عناصر الإجابة)\s*[:：]\s*(.*)$/,
+  elems: /^(?:عناصر الإجابة|عناصر التصحيح|العناصر|معيار التصحيح|المعيار|الكلمات المفتاحية|الكلمات المطلوبة|الكلمات)\s*[:：]\s*(.*)$/,
+  elemLine: /^(?:[-•*▪◦]|[0-9٠-٩]+\s*[-–.)])\s*(.+)$/,
   opt: new RegExp(`^[(\\[]?\\s*(${QZ_LETTER})\\s*[)\\]\\-–.]\\s*(.+)$`, 'i'),
   bullet: /^[-•*▪◦]\s*(.+)$/,
 };
+// an element of a written answer and its mark: «تعريفها لغة (٢)»، «… [١]»، «… - درجتان»; no mark written = 1
+const QZ_W_WORD = { درجة: 1, درجتان: 2, درجتين: 2, نقطة: 1, نقطتان: 2 };
+function qzElem(s) {
+  let t = String(s).trim(), w = 1, m;
+  if ((m = t.match(/\s*[(\[]\s*([0-9٠-٩]+(?:[.,٫][0-9٠-٩]+)?)\s*(?:درجة|درجات|درجتان|درجتين|نقطة|نقاط)?\s*[)\]]\s*$/))) { w = Number(qzDigits(m[1]).replace(/[,٫]/, '.')); t = t.slice(0, m.index); }
+  else if ((m = t.match(/\s*[(\[]\s*(درجة|درجتان|درجتين|نقطة|نقطتان)\s*[)\]]\s*$/))) { w = QZ_W_WORD[m[1]]; t = t.slice(0, m.index); }
+  else if ((m = t.match(/\s*[-–—:]\s*([0-9٠-٩]+(?:[.,٫][0-9٠-٩]+)?)\s*(?:درجة|درجات|درجتان|نقطة|نقاط)\s*$/))) { w = Number(qzDigits(m[1]).replace(/[,٫]/, '.')); t = t.slice(0, m.index); }
+  else if ((m = t.match(/\s*[-–—:]\s*(درجة|درجتان|درجتين|نقطة|نقطتان)\s*$/))) { w = QZ_W_WORD[m[1]]; t = t.slice(0, m.index); }
+  return { id: uid(), t: t.trim(), w: w > 0 ? w : 1 };
+}
 // an option marked as the right one inside the list: «✓» or «(صحيح)» after it
 const QZ_MARK = /\s*(?:✓|✔|\((?:صحيح|الصحيح|الإجابة الصحيحة|الاجابة الصحيحة|correct)\)|\*)\s*$/i;
 
@@ -83,9 +93,10 @@ function qzParse(text) {
     if (QZ_RX.keyHead.test(line)) { keyMode = true; cur = null; last = ''; continue; }
     if (!cur && (m = line.match(QZ_RX.title))) { out.title = m[1].trim(); continue; }
     if (!cur && (m = line.match(QZ_RX.topic))) { out.topic = m[1].trim(); continue; }
+    if (cur && last === 'elems' && (m = line.match(QZ_RX.elemLine))) { cur.elems.push(qzElem(m[1])); continue; }
     if ((m = line.match(QZ_RX.q)) && (m[4] || '').trim()) {
       const no = m[1] || m[2] || m[3];
-      cur = { no: no ? +qzDigits(no) : 0, q: m[4].trim(), opts: [], type: '', ansRaw: '', hasAns: false, exp: '', keys: [], marked: -1 };
+      cur = { no: no ? +qzDigits(no) : 0, q: m[4].trim(), opts: [], type: '', ansRaw: '', hasAns: false, exp: '', elems: [], marked: -1 };
       out.items.push(cur); last = 'q';
       continue;
     }
@@ -93,7 +104,7 @@ function qzParse(text) {
     if ((m = line.match(QZ_RX.type))) { cur.type = m[1]; last = ''; continue; }
     if ((m = line.match(QZ_RX.ans))) { cur.ansRaw = m[1].trim(); cur.hasAns = true; last = 'ans'; continue; }
     if ((m = line.match(QZ_RX.exp))) { cur.exp = m[1].trim(); last = 'exp'; continue; }
-    if ((m = line.match(QZ_RX.keys))) { cur.keys = m[1].split(/[،,؛;]+/).map((x) => x.trim()).filter(Boolean); last = ''; continue; }
+    if ((m = line.match(QZ_RX.elems))) { cur.elems.push(...m[1].split(/[،,؛;]+/).map((x) => x.trim()).filter(Boolean).map(qzElem)); last = 'elems'; continue; }
     const choosing = !cur.hasAns && !cur.exp;
     if (choosing && QZ_RX.opt.test(line)) {
       // several options on one line: «أ) طهور ب) طاهر ج) نجس»
@@ -132,7 +143,10 @@ function qzFromJSON(data) {
       const m = t.match(QZ_RX.opt);
       return m ? { label: m[1], text: m[2].trim() } : { label: '', text: t };
     });
-    const c = { no: i + 1, q: String(x.question || x.q || x.text || '').trim(), opts, type: String(x.type || ''), ansRaw: '', hasAns: false, exp: String(x.explanation || x.explain || x.reason || '').trim(), keys: (Array.isArray(x.keywords) ? x.keywords : typeof x.keywords === 'string' ? x.keywords.split(/[،,]+/) : []).map((k) => String(k).trim()).filter(Boolean), marked: -1 };
+    const c = { no: i + 1, q: String(x.question || x.q || x.text || '').trim(), opts, type: String(x.type || ''), ansRaw: '', hasAns: false, exp: String(x.explanation || x.explain || x.reason || '').trim(), elems: [
+      ...(Array.isArray(x.elements) ? x.elements : Array.isArray(x.rubric) ? x.rubric : []).map((el) => (el && typeof el === 'object' ? { ...qzElem(el.text || el.element || el.t || ''), ...(Number(el.points ?? el.weight ?? el.w) > 0 ? { w: Number(el.points ?? el.weight ?? el.w) } : {}) } : qzElem(el))),
+      ...(Array.isArray(x.keywords) ? x.keywords : typeof x.keywords === 'string' ? x.keywords.split(/[،,]+/) : []).map((k) => qzElem(String(k))),
+    ].filter((el) => el.t), marked: -1 };
     const idx = x.answer_index ?? x.answerIndex ?? x.correct_index ?? x.correctIndex;
     const a = x.answer ?? x.correct ?? x.correct_answer ?? x.model_answer;
     if (Number.isInteger(idx)) { c.marked = idx >= 0 && idx < opts.length ? idx : -3; c.hasAns = true; }
@@ -145,9 +159,9 @@ function qzFromJSON(data) {
   return { title: String((!Array.isArray(data) && (data.title || data.name)) || '').trim(), topic: String((!Array.isArray(data) && data.topic) || '').trim(), qs: items.map(qzResolve), stray: [] };
 }
 
-// one read question → { type, q, opts, ans, keys, explain, bad }: bad says what could not be understood
+// one read question → { type, q, opts, ans, elems, explain, bad }: bad says what could not be understood
 function qzResolve(c) {
-  const q = { id: uid(), type: '', q: c.q.trim(), opts: c.opts.map((o) => o.text.trim()), ans: null, keys: c.keys, explain: c.exp.trim(), bad: '' };
+  const q = { id: uid(), type: '', q: c.q.trim(), opts: c.opts.map((o) => o.text.trim()), ans: null, elems: c.elems.filter((el) => el.t), explain: c.exp.trim(), bad: '' };
   const t = qzNorm(c.type);
   const tfOpts = q.opts.length === 2 && q.opts.every((o) => qzBool(o) !== null) && qzBool(q.opts[0]) !== qzBool(q.opts[1]);
   q.type = /صح|خطا/.test(t) ? 'tf' : /نص|مقال|قصير|كتاب|اكمل|اذكر|عرف/.test(t) ? 'text' : /اختيار|متعدد/.test(t) ? 'mc'
@@ -200,7 +214,7 @@ function qzText(z) {
     if (q.type === 'tf') L.push('النوع: صح وخطأ');
     if (q.type === 'text') L.push('النوع: نصي');
     if (q.ans !== null && q.ans !== '') L.push(`الإجابة: ${q.type === 'mc' ? QZ_LET[q.ans] || q.ans + 1 : q.type === 'tf' ? (q.ans ? 'صح' : 'خطأ') : q.ans}`);
-    if (q.keys.length) L.push(`الكلمات: ${q.keys.join('، ')}`);
+    if (q.elems.length) L.push('العناصر:', ...q.elems.map((el) => `- ${el.t} (${el.w})`));
     if (q.explain) L.push(`التوضيح: ${q.explain}`);
   });
   return L.join('\n').trim();
@@ -215,14 +229,21 @@ function normalizeQQ(q) {
   else if (type === 'tf') ans = typeof ans === 'boolean' ? ans : null;
   else ans = typeof ans === 'string' && ans.trim() ? ans : null;
   return {
-    id: q.id || uid(), type, q: String(q.q || ''), opts, ans, keys: (Array.isArray(q.keys) ? q.keys : []).map(String).filter((k) => k.trim()), explain: String(q.explain || ''),
+    id: q.id || uid(), type, q: String(q.q || ''), opts, ans,
+    // the elements of a written answer and their marks (the words of version 88 become elements of one mark each)
+    elems: type !== 'text' ? [] : (Array.isArray(q.elems) ? q.elems.filter((el) => el && typeof el === 'object').map((el) => ({ id: el.id || uid(), t: String(el.t || ''), w: Number(el.w) > 0 ? Number(el.w) : 1 }))
+      : (Array.isArray(q.keys) ? q.keys : []).map((k) => ({ id: uid(), t: String(k), w: 1 }))).filter((el) => el.t.trim()),
+    explain: String(q.explain || ''),
     bad: String(q.bad || '') || (ans === null ? 'لم أجد إجابة هذا السؤال' : ''),
   };
 }
 function normalizeAttempt(a) {
   const res = {};
   for (const [k, v] of Object.entries(a.res && typeof a.res === 'object' ? a.res : {})) res[k] = v === null ? null : Math.max(0, Math.min(1, Number(v) || 0));
-  return { id: a.id || uid(), at: Number(a.at) || Date.now(), d: stDate(a.d) || today(), ans: a.ans && typeof a.ans === 'object' ? a.ans : {}, res, total: Math.max(0, Number(a.total) || 0), score: qzSum(res) };
+  const obj = (x) => (x && typeof x === 'object' ? x : {});
+  const el = {};
+  for (const [q, m] of Object.entries(obj(a.el))) { el[q] = {}; for (const [k, v] of Object.entries(obj(m))) if ([0, 0.5, 1].includes(Number(v))) el[q][k] = Number(v); }
+  return { id: a.id || uid(), at: Number(a.at) || Date.now(), d: stDate(a.d) || today(), ans: obj(a.ans), res, el, why: obj(a.why), by: obj(a.by), total: Math.max(0, Number(a.total) || 0), score: qzSum(res) };
 }
 const qzSum = (res) => Math.round(Object.values(res).reduce((s, v) => s + (v || 0), 0) * 100) / 100;
 function normalizeQuiz(z) {
@@ -242,14 +263,24 @@ const qzScoreTxt = (a) => `${qzZ(a.score)} من ${a.total} (${qzPct(a)}٪)`;
 const qzPend = (a) => Object.values(a.res).filter((v) => v === null).length;
 const getQuiz = (s, id) => (s ? s.quizzes.find((z) => z.id === id) : null);
 
-// grading one answer against the key: 1 right, 0 wrong, a part for a written answer with required words,
-// or null when a written answer has no required words and differs from the model: you judge it
+// grading one answer against the key: 1 right, 0 wrong. A written answer is not marked by its words: the same
+// text as the model answer is full marks, an empty one is zero, and anything else waits for each of its
+// elements to be judged by meaning (by Claude or by you), the question's mark being their marks added up
 function qzGrade(q, a) {
   if (a === undefined || a === null || a === '') return 0;
   if (q.type !== 'text') return a === q.ans ? 1 : 0;
-  if (q.keys.length) return Math.round((q.keys.filter((k) => qzHas(a, k)).length / q.keys.length) * 100) / 100;
   return qzNorm(a) === qzNorm(q.ans) ? 1 : null;
 }
+// the elements a written answer is judged by: its own, or the whole model answer as one element
+const qzElems = (q) => (q.elems.length ? q.elems : [{ id: '_', t: q.ans || '', w: 1 }]);
+const qzElW = (q) => qzElems(q).reduce((s, el) => s + el.w, 0);
+// the question's mark once every element is judged (each element: achieved 1, partly ½, not 0, times its mark)
+function qzElScore(q, m) {
+  const E = qzElems(q);
+  if (!m || E.some((el) => m[el.id] === undefined)) return null;
+  return Math.round((E.reduce((s, el) => s + m[el.id] * el.w, 0) / qzElW(q)) * 100) / 100;
+}
+const qzNum = (n) => (n ? String(Math.round(n * 100) / 100) : 'صفر');
 
 // ---------- the section in the science page ----------
 function quizSectionHTML(s) {
@@ -328,7 +359,7 @@ function qzShowPreview() {
       <span class="qz-chip">${esc(QZ_TYPES[q.type])}</span>
       ${q.type === 'mc' ? `<span class="qz-popts">${q.opts.map((o, j) => `<span class="${j === q.ans ? 'on' : ''}">${esc(`${QZ_LET[j] || j + 1}) ${o}`)}</span>`).join('')}</span>` : ''}
       ${q.bad ? `<small class="late">${esc(q.bad)}</small>` : `<small>${esc(`الإجابة: ${ansTxt(q)}`)}</small>`}
-      ${q.keys.length ? `<small>${esc(`الكلمات المطلوبة: ${q.keys.join('، ')}`)}</small>` : ''}
+      ${q.type === 'text' ? `<small>${esc(q.elems.length ? `عناصر الإجابة: ${q.elems.map((el) => `${el.t} (${qzNum(el.w)})`).join(' | ')}` : 'بلا عناصر: تُصحَّح الإجابة كاملة عنصراً واحداً')}</small>` : ''}
       ${q.explain ? `<small>${esc(`التوضيح: ${q.explain}`)}</small>` : ''}</li>`).join('')}</ol>`;
 }
 function saveQuizEdit() {
@@ -342,7 +373,13 @@ function saveQuizEdit() {
   const old = getQuiz(s, ldraft.id);
   // a question kept with the same text keeps its id, so earlier attempts still point to it
   const pool = old ? old.qs.slice() : [];
-  for (const q of p.qs) { const k = pool.findIndex((x) => qzNorm(x.q) === qzNorm(q.q)); if (k >= 0) { q.id = pool[k].id; pool.splice(k, 1); } }
+  for (const q of p.qs) {
+    const k = pool.findIndex((x) => qzNorm(x.q) === qzNorm(q.q));
+    if (k < 0) continue;
+    q.id = pool[k].id;
+    for (const el of q.elems) { const o = (pool[k].elems || []).find((x) => qzNorm(x.t) === qzNorm(el.t)); if (o) el.id = o.id; }
+    pool.splice(k, 1);
+  }
   const z = normalizeQuiz({ ...(old || {}), id: ldraft.id, title: p.title || `اختبار ${fmtDate(today())}`, topic: p.topic, qs: p.qs, updated: Date.now() });
   if (old) Object.assign(old, z); else s.quizzes.push(z);
   s.updated = Date.now();
@@ -437,12 +474,85 @@ function qzSubmit() {
     return false;
   }
   const res = {};
-  for (const q of qs) res[q.id] = qzGrade(q, ans[q.id]);
-  const a = normalizeAttempt({ ans, res, total: qs.length, d: today(), at: Date.now() });
+  const el = {};
+  for (const q of qs) {
+    res[q.id] = qzGrade(q, ans[q.id]);
+    if (q.type === 'text' && res[q.id] !== null) el[q.id] = Object.fromEntries(qzElems(q).map((x) => [x.id, res[q.id]]));
+  }
+  const a = normalizeAttempt({ ans, res, el, total: qs.length, d: today(), at: Date.now() });
   z.attempts.push(a);
   save();
   openQuizResult(ldraft.sci, z.id, a.id);
   return false;
+}
+// a written answer in the results: the model answer, each element with its mark and what you got for it
+// (with the reason when Claude judged it), what is missing, and how the question's mark was reached
+const QZ_EL = { 1: ['ok', '✓ حققته'], 0.5: ['part', '½ جزئياً'], 0: ['no', '✗ لم يتحقق'] };
+function qzTextBody(q, a, my, r) {
+  const E = qzElems(q), m = a.el[q.id] || {}, why = (a.why || {})[q.id] || {}, W = qzElW(q);
+  const got = E.reduce((s, el) => s + (m[el.id] || 0) * el.w, 0), left = E.filter((el) => m[el.id] === undefined).length;
+  const miss = E.filter((el) => m[el.id] !== undefined && m[el.id] < 1);
+  const rows = E.map((el) => {
+    const v = m[el.id], st = v === undefined ? 'pend' : QZ_EL[v][0];
+    return `<li class="qz-el ${st}"><div class="qz-el-h"><span>${esc(q.elems.length ? el.t : 'الإجابة النموذجية كاملة')}</span><small>${esc(v === undefined ? `درجته: ${qzNum(el.w)}` : `حصلت: ${qzNum(v * el.w)} من ${qzNum(el.w)}`)}</small></div>
+      ${why[el.id] ? `<p class="qz-why"><small>${a.by[q.id] === 'ai' ? 'تعليل Claude:' : 'السبب:'}</small> ${esc(why[el.id])}</p>` : ''}
+      ${my ? `<div class="qz-el-b">${[1, 0.5, 0].map((x) => `<button type="button" class="ghost sm" data-action="qz-el" data-q="${q.id}" data-e="${el.id}" data-v="${x}" aria-pressed="${v === x}">${QZ_EL[x][1]}</button>`).join('')}</div>` : ''}</li>`;
+  }).join('');
+  const how = !my ? 'لم تجب عنه، فدرجته صفر.'
+    : left ? `بقي الحكم على ${plural(left, 'عنصر واحد', 'عنصرين', 'عناصر', 'عنصراً')}: احكم على كل عنصر بمعناه في إجابتك${AI.on() ? '، أو اطلب من Claude أن يصحّحها' : ''}.`
+      : `حصلت على ${qzNum(got)} من ${qzNum(W)} من درجات العناصر، فدرجة السؤال ${qzNum(got)} ÷ ${qzNum(W)} = ${qzNum(r)} من ١.`;
+  return `<div class="qz-rl"><small>إجابتك:</small> ${my ? esc(my) : '<span class="late">لم تجب عنه</span>'}</div>
+    <div class="qz-model"><small>الإجابة النموذجية</small>${esc(q.ans)}</div>
+    <div class="qz-els"><small>${q.elems.length ? 'عناصر الإجابة ودرجاتها' : 'التصحيح'}</small><ol>${rows}</ol></div>
+    ${miss.length ? `<div class="qz-miss"><small>ما نقصك</small>${miss.map((el) => `<span>${esc(`${q.elems.length ? el.t : 'الإجابة لا تطابق النموذجية'}${m[el.id] === 0.5 ? ' (جزئياً)' : ''}`)}</span>`).join('')}</div>` : ''}
+    <p class="qz-how"><small>كيف احتُسبت الدرجة:</small> ${esc(how)}</p>
+    ${r !== null && !a.el[q.id] ? `<p class="note-text">${esc(`درجته المحفوظة ${qzNum(r * 100)}٪ حُسبت بطريقة سابقة؛ احكم على عناصره لإعادة حسابها بالمعنى.`)}</p>` : ''}`;
+}
+// Claude judges each element of the written answers waiting in this attempt, by meaning, with a reason
+async function qzAIGrade(btn) {
+  const s = getSci(ldraft.sci), z = getQuiz(s, ldraft.id), a = z && z.attempts.find((x) => x.id === ldraft.att);
+  if (!a) return;
+  const qs = z.qs.filter((q) => q.type === 'text' && q.id in a.res && a.ans[q.id] && qzElems(q).some((el) => (a.el[q.id] || {})[el.id] === undefined));
+  if (!qs.length) { toast('لا إجابة نصية تنتظر التصحيح.'); return; }
+  const box = $('qzAiMsg');
+  box.innerHTML = '<span class="spin"></span> يصحّح Claude الإجابات النصية بمعناها…';
+  btn.disabled = true;
+  try {
+    const res = await AI.ask({
+      system: SYSTEM_AR,
+      effort: 'medium',
+      maxTokens: 6000,
+      prompt: `You grade a student's written answers in an Arabic study app. For every element of each question, decide by MEANING whether the student's answer states it correctly:
+"1" = the element's meaning is stated correctly (other wording or synonyms are fine);
+"0.5" = stated partly, vaguely or with a mistake in it;
+"0" = missing, wrong, contradicted, or only its words appear without its correct meaning.
+Never give credit for repeated words alone. For each element give a short Arabic reason that says what in the student's answer supports the decision.
+
+${qs.map((q) => `Question id ${q.id}: ${q.q}
+Model answer: ${q.ans}
+Elements:
+${qzElems(q).map((el) => `- element id ${el.id}: ${el.t}`).join('\n')}
+Student answer: ${a.ans[q.id]}`).join('\n\n')}`,
+      schema: { type: 'object', additionalProperties: false, required: ['questions'], properties: { questions: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['qid', 'elements'], properties: { qid: { type: 'string' }, elements: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['eid', 'score', 'reason'], properties: { eid: { type: 'string' }, score: { type: 'string', enum: ['1', '0.5', '0'] }, reason: { type: 'string' } } } } } } } } },
+    });
+    let n = 0;
+    for (const rq of (res && res.questions) || []) {
+      const q = qs.find((x) => x.id === rq.qid);
+      if (!q) continue;
+      const m = a.el[q.id] || (a.el[q.id] = {}), w = a.why[q.id] || (a.why[q.id] = {});
+      for (const re of rq.elements || []) if (qzElems(q).some((el) => el.id === re.eid) && QZ_EL[re.score]) { m[re.eid] = Number(re.score); w[re.eid] = String(re.reason || '').trim(); n++; }
+      a.by[q.id] = 'ai';
+      a.res[q.id] = qzElScore(q, m);
+    }
+    a.score = qzSum(a.res);
+    save();
+    const top = $('libForm').scrollTop;
+    openQuizResult(ldraft.sci, z.id, a.id);
+    $('libForm').scrollTop = top;
+    if ($('qzAiMsg')) $('qzAiMsg').innerHTML = n ? `<span class="ok">صحّح Claude ${plural(n, 'عنصراً واحداً', 'عنصرين', 'عناصر', 'عنصراً')}. راجع حكمه، ويمكنك تغييره.</span>` : '<span class="late">لم يرجع Claude بحكم يمكن قراءته. احكم بنفسك أو حاول مرة أخرى.</span>';
+  } catch (e) {
+    if ($('qzAiMsg')) $('qzAiMsg').innerHTML = `<span class="late">${esc(AI.friendly(e))}</span>`;
+  } finally { if (btn.isConnected) btn.disabled = false; }
 }
 function openQuizResult(sciId, quizId, attId) {
   const z = getQuiz(getSci(sciId), quizId), a = z && z.attempts.find((x) => x.id === attId);
@@ -452,23 +562,24 @@ function openQuizResult(sciId, quizId, attId) {
   const qs = z.qs.filter((q) => q.id in a.res);
   const right = qs.filter((q) => a.res[q.id] === 1).length, wrong = qs.filter((q) => a.res[q.id] === 0).length;
   const part = qs.filter((q) => a.res[q.id] !== null && a.res[q.id] > 0 && a.res[q.id] < 1).length;
-  const tf = (v) => (v ? 'صح' : 'خطأ');
   const row = (q, i) => {
     const r = a.res[q.id], my = a.ans[q.id], st = r === null ? 'pend' : r === 1 ? 'ok' : r === 0 ? 'no' : 'part';
     let body = '';
     if (q.type === 'mc') body = `<div class="qz-ropts">${q.opts.map((o, j) => `<span class="${j === q.ans ? 'right' : j === my ? 'wrong' : ''}">${j === q.ans ? '✓' : j === my ? '✗' : ''} ${esc(`${QZ_LET[j] || j + 1}) ${o}`)}${j === my ? ' <small>(إجابتك)</small>' : ''}</span>`).join('')}</div>${my === undefined ? '<small class="late">لم تجب عنه</small>' : ''}`;
-    else if (q.type === 'tf') body = `<div class="qz-rl"><small>إجابتك:</small> ${my === undefined ? '<span class="late">لم تجب عنه</span>' : esc(tf(my))}</div><div class="qz-rl"><small>الصحيح:</small> ${esc(tf(q.ans))}</div>`;
-    else {
-      body = `<div class="qz-rl"><small>إجابتك:</small> ${my ? esc(my) : '<span class="late">لم تجب عنه</span>'}</div><div class="qz-rl"><small>الإجابة النموذجية:</small> ${esc(q.ans)}</div>
-        ${q.keys.length && my ? `<div class="qz-rl"><small>الكلمات المطلوبة:</small> ${q.keys.map((k) => `<span class="qz-key ${qzHas(my, k) ? 'on' : ''}">${qzHas(my, k) ? '✓' : '✗'} ${esc(k)}</span>`).join(' ')}</div>` : ''}
-        ${r === null ? `<div class="qz-judge"><span>قارن إجابتك بالنموذجية واحكم:</span><button type="button" class="ghost sm" data-action="qz-judge" data-q="${q.id}" data-v="1">✓ أصبت</button><button type="button" class="ghost sm" data-action="qz-judge" data-q="${q.id}" data-v="0.5">نصف</button><button type="button" class="ghost sm" data-action="qz-judge" data-q="${q.id}" data-v="0">✗ أخطأت</button></div>` : ''}`;
-    }
+    else if (q.type === 'tf') {
+      // two separate things: was your answer right, and is the statement itself true
+      const st2 = (v) => (v ? 'صحيحة' : 'خاطئة');
+      body = `<div class="qz-verdict ${my === undefined ? 'none' : r === 1 ? 'ok' : 'no'}">${my === undefined ? 'لم تجب عنه' : r === 1 ? '✓ إجابتك صحيحة' : '✗ إجابتك خاطئة'}</div>
+        ${my === undefined ? '' : `<div class="qz-rl"><small>اخترت أن العبارة:</small> ${st2(my)}</div>`}
+        <div class="qz-truth"><small>حكم العبارة نفسها</small><b>العبارة: ${st2(q.ans)}</b></div>`;
+    } else body = qzTextBody(q, a, my, r);
     return `<div class="qz-r ${st}"><div class="qz-qh"><span class="qz-n">${i + 1}</span><b>${esc(q.q)}</b><span class="qz-mark">${st === 'ok' ? '✓' : st === 'no' ? '✗' : st === 'part' ? `${r * 100}٪` : '؟'}</span></div>${body}${q.explain ? `<div class="qz-exp"><small>التوضيح</small>${esc(q.explain)}</div>` : ''}</div>`;
   };
   $('libForm').innerHTML = `${sheetHead(esc(`نتيجة المحاولة ${no}`))}
     <p class="note-text">${esc(`${z.title} | ${relDate(a.d)}`)}</p>
     <div class="qz-score ${qzTone(p)}"><b>${esc(`${qzZ(a.score)} من ${a.total}`)}</b><span>${p ? `${p}٪` : 'صفر٪'}</span></div>
-    <p class="book-line">${esc([`صحيحة: ${qzZ(right)}`, `خاطئة: ${qzZ(wrong)}`, part ? `صحيحة جزئياً: ${part}` : '', pend ? `تنتظر حكمك: ${pend}` : ''].filter(Boolean).join(' | '))}</p>
+    <p class="book-line">${esc([`صحيحة: ${qzZ(right)}`, `خاطئة: ${qzZ(wrong)}`, part ? `صحيحة جزئياً: ${part}` : '', pend ? `تنتظر الحكم: ${pend}` : ''].filter(Boolean).join(' | '))}</p>
+    ${pend ? `<div class="qz-ai">${AI.on() ? `<button type="button" class="ai-btn" data-action="qz-ai">${icon('spark')}صحّح الإجابات النصية بـClaude</button>` : '<span class="note-text">احكم على عناصر كل إجابة نصية بمعناها، لا بمجرد ورود ألفاظها.</span>'}<div id="qzAiMsg"></div></div>` : '<div id="qzAiMsg"></div>'}
     ${qs.map(row).join('')}
     ${z.qs.length && !qs.length ? '<p class="note-text">تغيّرت أسئلة هذا الاختبار بعد هذه المحاولة، فبقيت درجتها وحدها.</p>' : ''}
     <div class="sheet-actions"><button type="button" class="primary" data-action="qz-take">أعد الحل</button><button type="button" class="ghost" data-action="qz-back">الاختبار ونتائجه</button></div>`;
@@ -505,10 +616,17 @@ document.addEventListener('click', async (e) => {
       qzCount();
       break;
     }
-    case 'qz-judge': {
-      const z = getQuiz(s, ldraft.id), a = z && z.attempts.find((x) => x.id === ldraft.att);
-      if (!a) break;
-      a.res[el.dataset.q] = Number(v);
+    case 'qz-ai': qzAIGrade(el); break;
+    case 'qz-el': {
+      const z = getQuiz(s, ldraft.id), a = z && z.attempts.find((x) => x.id === ldraft.att), q = z && z.qs.find((x) => x.id === el.dataset.q);
+      if (!a || !q) break;
+      const m = a.el[q.id] || (a.el[q.id] = {});
+      // your own judgement replaces Claude's for that element (its reason goes with it)
+      m[el.dataset.e] = Number(v);
+      if (a.why[q.id]) delete a.why[q.id][el.dataset.e];
+      const r = qzElScore(q, m);
+      // until every element is judged the question keeps the mark it had (a mark from an older version stays)
+      if (r !== null || a.res[q.id] === null) a.res[q.id] = r;
       a.score = qzSum(a.res);
       save();
       const top = $('libForm').scrollTop;

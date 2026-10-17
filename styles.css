@@ -1763,3 +1763,34 @@ li.sel .sel-box { background: var(--high); }
 .qz-judge { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: color-mix(in srgb, var(--mid) 10%, var(--card)); border-radius: 10px; padding: 8px 10px; font-size: .9rem; }
 .qz-exp { display: grid; gap: 2px; background: color-mix(in srgb, #d99a1e 10%, var(--card)); border-inline-start: 3px solid var(--mid); border-radius: 8px; padding: 8px 10px; line-height: 1.8; }
 .qz-exp small { color: var(--mid); font-weight: 700; }
+/* the verdict of a true/false answer, apart from whether the statement itself is true (v89) */
+.qz-verdict { justify-self: start; border-radius: 10px; padding: 6px 12px; font-weight: 700; }
+.qz-verdict.ok { background: color-mix(in srgb, var(--low) 16%, var(--card)); color: var(--low); }
+.qz-verdict.no { background: color-mix(in srgb, var(--high) 13%, var(--card)); color: var(--high); }
+.qz-verdict.none { background: var(--bg); color: var(--muted); }
+.qz-truth { display: grid; gap: 2px; background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; }
+.qz-truth small { color: var(--muted); font-size: .78rem; }
+/* a written answer: the model answer, its elements and marks, what is missing, how the mark was reached */
+.qz-model, .qz-els, .qz-miss { display: grid; gap: 4px; background: var(--bg); border-radius: 10px; padding: 8px 10px; line-height: 1.8; }
+.qz-model > small, .qz-els > small, .qz-miss > small, .qz-how > small { color: var(--muted); font-size: .78rem; }
+.qz-els ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qz-el { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.qz-el.ok { border-inline-start-color: var(--low); }
+.qz-el.part { border-inline-start-color: var(--mid); }
+.qz-el.no { border-inline-start-color: var(--high); }
+.qz-el-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.qz-el-h span { min-width: 0; overflow-wrap: anywhere; }
+.qz-el-h small { flex: none; color: var(--muted); }
+.qz-el.ok .qz-el-h small { color: var(--low); font-weight: 700; }
+.qz-el.part .qz-el-h small { color: var(--mid); font-weight: 700; }
+.qz-el.no .qz-el-h small { color: var(--high); font-weight: 700; }
+.qz-el-b { display: flex; flex-wrap: wrap; gap: 6px; }
+.qz-el-b button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.qz-why { margin: 0; font-size: .88rem; line-height: 1.7; }
+.qz-why small { color: var(--muted); }
+.qz-miss span { color: var(--high); }
+.qz-how { margin: 0; line-height: 1.8; font-size: .9rem; }
+.qz-ai { display: grid; gap: 6px; }
+#qzAiMsg:empty { display: none; }
+#qzAiMsg { font-size: .9rem; }
+#qzAiMsg .ok { color: var(--low); }
