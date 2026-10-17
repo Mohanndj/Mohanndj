@@ -1,12 +1,14 @@
-import { validSession, configured, json } from "../../_auth.js";
+import { requireUser, json } from "../../_auth.js";
 
 // وسيط بين لوحة التحكم وواجهة GitHub: يضيف مفتاح GitHub المحفوظ في Cloudflare
 // فلا يصل المفتاح إلى المتصفح أبدًا، ولا يسمح إلا بمستودع المدونة.
 const REPO = "Mohanndj/Mohanndj";
 
 export async function onRequest({ request, env, params }) {
-  if (!configured(env)) return json({ detail: "not_configured" }, 503);
-  if (!(await validSession(request, env))) return json({ detail: "unauthorized" }, 401);
+  const { user, error } = await requireUser(request, env);
+  if (error) return error;
+  // القارئ يتصفّح اللوحة ولا يكتب شيئًا
+  if (user.role === "viewer" && request.method !== "GET") return json({ detail: "viewer_read_only" }, 403);
 
   const path = "/" + (params.path || []).join("/");
   const allowed = path === `/repos/${REPO}` || path.startsWith(`/repos/${REPO}/git/`) || path.startsWith(`/repos/${REPO}/contents/`);

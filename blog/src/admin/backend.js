@@ -32,6 +32,8 @@ const SERVER_ERRORS = {
   github_token_invalid: "مفتاح GitHub في إعدادات Cloudflare غير صالح أو انتهت مدته.",
   invalid_credentials: "كلمة السر خاطئة.",
   unauthorized: "انتهت الجلسة؛ سجّل الدخول من جديد.",
+  kv_not_configured: "الحسابات تحتاج ربط مخزن KV في إعدادات Cloudflare أولًا.",
+  viewer_read_only: "حسابك «قارئ»: التصفّح فقط دون تعديل.",
 };
 
 async function errorFrom(r) {
@@ -40,9 +42,20 @@ async function errorFrom(r) {
   return new ApiError(SERVER_ERRORS[detail] || detail || `خطأ ${r.status}`, r.status);
 }
 
-export async function login(password) {
-  const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+export async function login(email, password) {
+  const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
   if (!r.ok) throw await errorFrom(r);
+}
+
+// مسارات الحسابات في functions/api
+async function server(path, method = "GET", body) {
+  const r = await fetch(`/api${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw await errorFrom(r);
+  return r.json();
 }
 
 export async function logout() {
@@ -262,9 +275,14 @@ export async function api(path, opts = {}) {
   const action = seg[3];
 
   if (route === "GET /auth/me") {
+    const me = await server("/me");
     const repo = await gh(`/repos/${REPO}`);
     if (repo.permissions && !repo.permissions.push) throw new ApiError("مفتاح GitHub لا يملك صلاحية الكتابة في المستودع.", 403);
-    return { email: "صاحب المدونة", role: "owner" };
+    return { ...me, email: me.accounts ? me.email : "صاحب المدونة" };
+  }
+  if (route === "POST /auth/change-password") return server("/password", "POST", body);
+  if (seg[0] === "admin" && seg[1] === "users") {
+    return server(`/users${id ? `/${encodeURIComponent(id)}` : ""}`, method, method === "GET" || method === "DELETE" ? undefined : body);
   }
 
   /* المقالات */

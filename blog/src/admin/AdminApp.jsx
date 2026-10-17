@@ -37,6 +37,7 @@ function Protected({ children }) {
    Login
    ============================================================ */
 function LoginPage() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const { error } = useAuth();
@@ -45,7 +46,7 @@ function LoginPage() {
     e.preventDefault();
     setBusy(true); setErr("");
     try {
-      await login(password);
+      await login(email, password);
       window.location.href = "/admin";
     } catch (e) { setErr(e.message || "تعذّر الدخول."); }
     finally { setBusy(false); }
@@ -56,8 +57,11 @@ function LoginPage() {
         <form className="admin-login-card" onSubmit={submit} data-testid="admin-login">
           <h1>لوحة التحكم</h1>
           <p className="hint">الدخول لصاحب المدونة فقط.</p>
+          <label htmlFor="e">البريد الإلكتروني</label>
+          <input id="e" className="admin-input" type="email" required autoFocus dir="ltr" autoComplete="username"
+                 value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email"/>
           <label htmlFor="p">كلمة السرّ</label>
-          <input id="p" className="admin-input" type="password" required autoFocus
+          <input id="p" className="admin-input" type="password" required autoComplete="current-password"
                  value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password"/>
           <div style={{ marginTop: 22 }}>
             <button className="admin-btn" type="submit" disabled={busy} data-testid="login-submit">
@@ -86,9 +90,11 @@ function Sidebar() {
     { to: "/admin/categories", label: "التصنيفات" },
     { to: "/admin/series", label: "السلاسل" },
     { to: "/admin/books", label: "الكتب" },
+    { to: "/admin/users", label: "الأعضاء", ownerOnly: true, accounts: true },
     { to: "/admin/settings", label: "الإعدادات", ownerOnly: true },
+    { to: "/admin/password", label: "كلمة السرّ", accounts: true },
   ];
-  const items = allItems.filter((it) => !it.ownerOnly || role === "owner");
+  const items = allItems.filter((it) => (!it.ownerOnly || role === "owner") && (!it.accounts || me?.accounts));
   const roleLabel = role === "owner" ? "المالك" : role === "editor" ? "محرّر" : "قارئ";
   const on = (it) => it.exact ? loc.pathname === it.to : loc.pathname.startsWith(it.to);
   const signOut = async () => {
@@ -1425,6 +1431,192 @@ function SettingsPage() {
 /* ============================================================
    Root
    ============================================================ */
+/* ============================================================
+   Change password
+   ============================================================ */
+function ChangePasswordPage() {
+  const [cur, setCur] = useState("");
+  const [npw, setNpw] = useState("");
+  const [ok, setOk] = useState("");
+  const [err, setErr] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setOk(""); setErr("");
+    try {
+      await api("/auth/change-password", { method: "POST", body: JSON.stringify({ current_password: cur, new_password: npw }) });
+      setOk("تمّ التغيير. أعد الدخول.");
+      setTimeout(() => { window.location.href = "/admin/login"; }, 1500);
+    } catch (e) {
+      setErr(e.message === "wrong_current_password" ? "كلمة السرّ الحالية خاطئة." :
+             e.message === "password_too_short" ? "الكلمة الجديدة قصيرة (٨ أحرف على الأقل)." :
+             e.message || "خطأ.");
+    }
+  };
+  return (
+    <>
+      <h1 className="admin-title">تغيير كلمة السرّ</h1>
+      <form onSubmit={submit} style={{ maxWidth: 480 }} data-testid="pw-form">
+        <div className="field">
+          <label>كلمة السرّ الحالية</label>
+          <input className="admin-input" type="password" required value={cur} onChange={(e) => setCur(e.target.value)} data-testid="pw-current"/>
+        </div>
+        <div className="field">
+          <label>كلمة السرّ الجديدة (٨ أحرف على الأقلّ)</label>
+          <input className="admin-input" type="password" required minLength={8} value={npw} onChange={(e) => setNpw(e.target.value)} data-testid="pw-new"/>
+        </div>
+        <button className="admin-btn" type="submit" data-testid="pw-submit">تغيير</button>
+        {ok && <div className="admin-ok">{ok}</div>}
+        {err && <div className="admin-error">{err}</div>}
+      </form>
+    </>
+  );
+}
+
+/* ============================================================
+   Users management (owner only)
+   ============================================================ */
+const ROLE_LABELS = { owner: "مالك", editor: "محرّر", viewer: "قارئ", writer: "كاتب" };
+const ROLE_HINTS = {
+  owner: "كل الصلاحيات (نشر، حذف، إدارة المستخدمين).",
+  editor: "يكتب ويعدّل، لا ينشر ولا يحذف ولا يديري المستخدمين.",
+  viewer: "قراءة فقط داخل اللوحة.",
+};
+
+function UsersPage() {
+  const { me } = useAuth();
+  const [users, setUsers] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addEmail, setAddEmail] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addPw, setAddPw] = useState("");
+  const [addRole, setAddRole] = useState("editor");
+
+  const load = async () => {
+    try { setUsers((await api("/admin/users")).users); }
+    catch (e) { setErr(e.message === "owner_only" ? "هذه الصفحة للمالك فقط." : e.message); setUsers([]); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try {
+      await api("/admin/users", { method: "POST", body: JSON.stringify({
+        email: addEmail.trim().toLowerCase(), name: addName.trim(),
+        password: addPw, role: addRole,
+      })});
+      setAddEmail(""); setAddName(""); setAddPw(""); setAddRole("editor");
+      setShowAdd(false);
+      await load();
+    } catch (e) {
+      setErr(e.message === "email_exists" ? "البريد مستخدم." :
+             e.message === "invalid_email" ? "البريد غير صالح." :
+             e.message === "invalid_role" ? "دور غير صالح." :
+             e.message.includes("password") ? "الكلمة قصيرة (٨ أحرف على الأقل)." : e.message);
+    } finally { setBusy(false); }
+  };
+
+  const changeRole = async (u, role) => {
+    if (u.role === role) return;
+    if (!window.confirm(`تغيير دور ${u.email} إلى «${ROLE_LABELS[role]}»؟`)) return;
+    try { await api(`/admin/users/${encodeURIComponent(u.id)}`, { method: "PUT", body: JSON.stringify({ role }) }); await load(); }
+    catch (e) { alert(e.message === "cannot_demote_last_owner" ? "لا يمكن تنزيل آخر مالك." : e.message); }
+  };
+
+  const resetPw = async (u) => {
+    const pw = window.prompt(`كلمة سرّ جديدة لـ ${u.email} (٨ أحرف فأكثر):`);
+    if (!pw) return;
+    try { await api(`/admin/users/${encodeURIComponent(u.id)}`, { method: "PUT", body: JSON.stringify({ password: pw }) }); alert("تمّ."); }
+    catch (e) { alert(e.message); }
+  };
+
+  const del = async (u) => {
+    if (!window.confirm(`حذف الحساب ${u.email} نهائيًّا؟`)) return;
+    try { await api(`/admin/users/${encodeURIComponent(u.id)}`, { method: "DELETE" }); await load(); }
+    catch (e) { alert(e.message === "cannot_delete_last_owner" ? "لا يمكن حذف آخر مالك." :
+                     e.message === "cannot_delete_self" ? "لا يمكنك حذف حسابك." : e.message); }
+  };
+
+  if (me?.role !== "owner") {
+    return <><h1 className="admin-title">الأعضاء</h1><div className="admin-error">هذه الصفحة للمالك فقط.</div></>;
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1 className="admin-title" style={{ margin: 0 }}>الأعضاء</h1>
+        <button className="admin-btn" onClick={() => setShowAdd((v) => !v)} data-testid="users-toggle-add">
+          {showAdd ? "إغلاق" : "إضافة عضو"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={create} className="admin-card" style={{ padding: 16, marginBottom: 20 }} data-testid="users-add-form">
+          <div className="field">
+            <label>البريد</label>
+            <input className="admin-input" type="email" required dir="ltr"
+                   value={addEmail} onChange={(e) => setAddEmail(e.target.value)} data-testid="add-email"/>
+          </div>
+          <div className="field">
+            <label>الاسم (اختياري)</label>
+            <input className="admin-input" value={addName} onChange={(e) => setAddName(e.target.value)} data-testid="add-name"/>
+          </div>
+          <div className="field">
+            <label>كلمة السرّ الأوليّة (٨ فأكثر)</label>
+            <input className="admin-input" type="password" required minLength={8}
+                   value={addPw} onChange={(e) => setAddPw(e.target.value)} data-testid="add-password"/>
+          </div>
+          <div className="field">
+            <label>الدور</label>
+            <select className="admin-input" value={addRole} onChange={(e) => setAddRole(e.target.value)} data-testid="add-role">
+              <option value="editor">محرّر — يكتب ويعدّل، بلا نشر</option>
+              <option value="viewer">قارئ — قراءة فقط</option>
+              <option value="owner">مالك — كل الصلاحيّات</option>
+            </select>
+            <div className="hint" style={{ marginTop: 6 }}>{ROLE_HINTS[addRole]}</div>
+          </div>
+          <button className="admin-btn" type="submit" disabled={busy} data-testid="add-submit">
+            {busy ? "…" : "إنشاء"}
+          </button>
+          {err && <div className="admin-error" style={{ marginTop: 10 }}>{err}</div>}
+        </form>
+      )}
+
+      {users === null ? <div className="hint">جاري التحميل…</div> :
+       users.length === 0 ? <div className="hint">{err || "لا أعضاء."}</div> : (
+        <ul className="admin-list" data-testid="users-list">
+          {users.map((u) => (
+            <li key={u.id} className="admin-card" style={{ padding: 14, marginBottom: 10 }} data-testid={`user-${u.email}`}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{u.name || u.email}</div>
+                  <div className="hint" dir="ltr" style={{ direction: "ltr" }}>{u.email}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <select className="admin-input" style={{ padding: "4px 8px" }} value={u.role}
+                          onChange={(e) => changeRole(u, e.target.value)}
+                          disabled={u.email === me.email}
+                          data-testid={`role-${u.email}`}>
+                    <option value="owner">مالك</option>
+                    <option value="editor">محرّر</option>
+                    <option value="viewer">قارئ</option>
+                  </select>
+                  <button className="admin-btn ghost small" onClick={() => resetPw(u)} data-testid={`resetpw-${u.email}`}>تعيين كلمة سرّ</button>
+                  {u.email !== me.email && (
+                    <button className="admin-btn danger small" onClick={() => del(u)} data-testid={`del-${u.email}`}>حذف</button>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 export default function AdminApp() {
   return (
     <AuthProvider>
@@ -1439,6 +1631,8 @@ export default function AdminApp() {
         <Route path="/series" element={<Protected><Shell><SeriesPage/></Shell></Protected>}/>
         <Route path="/books" element={<Protected><Shell><BooksPage/></Shell></Protected>}/>
         <Route path="/settings" element={<Protected><Shell><SettingsPage/></Shell></Protected>}/>
+        <Route path="/users" element={<Protected><Shell><UsersPage/></Shell></Protected>}/>
+        <Route path="/password" element={<Protected><Shell><ChangePasswordPage/></Shell></Protected>}/>
       </Routes>
     </AuthProvider>
   );
