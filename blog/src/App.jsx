@@ -1177,13 +1177,13 @@ function LikeButton({ articleId }) {
   if (!enabled) return null;
   return (
     <button className={`icon-btn like-btn ${liked ? "on" : ""}`} onClick={toggle} aria-pressed={liked}
-            aria-label={liked ? "التراجع عن الدعاء" : "جزاك الله خيرًا"} data-testid="like-btn">
-      <KhatamStar size={18}/> <span>جزاك الله خيرًا</span>
+            aria-label={liked ? "التراجع عن الدعاء" : "نفع الله بك"} data-testid="like-btn">
+      <KhatamStar size={18}/> <span>نفع الله بك</span>
       {count > 0 && <span className="like-n">{ar(count)}</span>}
     </button>
   );
 }
-/* شمسة المخطوطات: حلقة من ستّ عشرة ورقة، ونجمة ثُمانية، وفي قلبها الدعاء */
+/* شمسة المخطوطات: حلقة من ستّ عشرة ورقة، ونجمة ثُمانية، وفي قلبها الدعاء «نفع الله بك» */
 function Shamsa() {
   const petals = Array.from({ length: 16 }, (_, i) => {
     const a = (i * 22.5 * Math.PI) / 180;
@@ -1228,17 +1228,17 @@ function Appreciation({ articleId }) {
     <section ref={ref} className={`appreciate no-print ${liked ? "liked" : ""} ${seen ? "seen" : ""}`} data-testid="appreciate">
       <p className="appr-eyebrow">إن نفعتك المقالة</p>
       <button className={`appr-seal ${stamp ? "stamp" : ""}`} onClick={click} aria-pressed={liked}
-              aria-label={liked ? "التراجع عن الدعاء" : "جزاك الله خيرًا"} data-testid="appreciate-btn">
+              aria-label={liked ? "التراجع عن الدعاء" : "نفع الله بك"} data-testid="appreciate-btn">
         <span className="appr-ripple" aria-hidden="true"/>
         <span className="appr-rays" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ "--a": `${i * 30}deg` }}/>)}</span>
         <Shamsa/>
-        <span className="appr-words"><b>جزاك الله</b><b>خيرًا</b></span>
+        <span className="appr-words"><b>نفع الله</b><b>بك</b></span>
       </button>
       <div className="appr-tally">
         {count > 0 && <span key={count} className="appr-count" data-testid="appreciate-count">{ar(count)}</span>}
         <span className="appr-text">{likesPhrase(count)}</span>
       </div>
-      <p className={`appr-reply ${liked ? "show" : ""}`} aria-live="polite">{liked ? "وإيّاك، شكر الله لك." : "اضغط الشمسة لتدعو للكاتب"}</p>
+      <p className={`appr-reply ${liked ? "show" : ""}`} aria-live="polite">{liked ? "وبك، شكر الله لك." : "اضغط الشمسة لتدعو للكاتب"}</p>
     </section>
   );
 }
