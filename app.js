@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 86;
+const APP_VERSION = 87;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -461,6 +461,21 @@ function itemHTML(t, date, opts) {
 
 const emptyHTML = (title, text, action) =>
   `<div class="empty"><strong>${title}</strong><span>${text}</span>${action || ''}</div>`;
+// choosing several items to delete together (القوائم، دروس الدراسة): the bar above them, and a delete
+// that asks «متأكد؟» on the first tap and deletes on the second
+const selBar = (p, n, total) => `<div class="sel-bar" role="toolbar">
+    <b>${n ? `المحدد: ${n} من ${total}` : 'اضغط ما تريد حذفه لتحدده'}</b>
+    <div class="btn-row"><button type="button" class="ghost sm" data-action="${p}-sel-all">${n === total ? 'ألغِ تحديد الكل' : 'حدّد الكل'}</button>
+      <button type="button" class="danger sel-del" data-action="${p}-sel-del"${n ? '' : ' disabled'}>احذف المحدد (${n})</button>
+      <button type="button" class="ghost sm" data-action="${p}-sel-done">إلغاء</button></div>
+  </div>`;
+function selArmed(el) {
+  if (el.classList.contains('armed')) return true;
+  const label = el.textContent;
+  el.classList.add('armed'); el.textContent = 'متأكد؟ اضغط للحذف';
+  setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = label; } }, 4000);
+  return false;
+}
 const addBtn = (action, label, extra = '') => `<button type="button" class="add-btn" data-action="${action}"${extra}>${icon('plus')}${label}</button>`;
 
 function itemsOn(d) {

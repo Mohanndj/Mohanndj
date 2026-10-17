@@ -1676,3 +1676,14 @@ html:not(.show-explain) .explain { display: none !important; }
 .st-next { justify-self: start; background: var(--accent); color: var(--accent-fg); border-radius: 99px; padding: 0 8px; font-size: .74rem; }
 .st-ref { color: var(--muted); font-size: .8rem; }
 .st-stage { margin-bottom: 6px; }
+
+/* choosing several items to delete together (القوائم، دروس الدراسة) */
+.sel-bar { display: grid; gap: 8px; background: var(--card); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 12px; position: sticky; bottom: calc(var(--tabbar-h) + 10px + env(safe-area-inset-bottom, 0px)); z-index: 3; box-shadow: 0 4px 18px rgba(0, 0, 0, .12); }
+.sel-bar .btn-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sel-del { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--high); font-size: .85rem; }
+.sel-del:disabled { opacity: .45; }
+.sel-box { width: 22px; height: 22px; flex: none; border: 2px solid var(--high); border-radius: 6px; display: grid; place-items: center; font-size: .8rem; color: #fff; }
+li.sel .sel-box { background: var(--high); }
+.shop-list li.sel .shop-name { text-decoration: none; color: inherit; }
+.shop-list li.sel, .st-lesson.sel > button { background: color-mix(in srgb, var(--high) 8%, var(--card)); border-radius: 10px; }
+.st-lesson.sel > button { border-color: var(--high); box-shadow: none; }

@@ -9,7 +9,7 @@ const STUDY_STAGES = ['قرأت المتن', 'سمعت الشرح', 'لخّصت 
 const SBOOK_STATUS = { current: 'الكتاب المعتمد', next: 'التالي في السلّم', done: 'أتممته' };
 const SBOOK_KIND = { matn: 'متن بشرحه', book: 'كتاب' };
 const SHARH_KIND = { recorded: 'شرح مسجّل', written: 'شرح مكتوب' };
-const studyUi = { sci: '' };
+const studyUi = { sci: '', selMode: false, sel: new Set() };
 
 const stList = (a, f) => (Array.isArray(a) ? a.filter((x) => x && typeof x === 'object').map(f) : []);
 const stDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : '');
@@ -82,6 +82,13 @@ function sciCard(s) {
   </button>`;
 }
 function lessonRow(s, b, l, next) {
+  // choosing lessons to delete together: a tap selects the lesson instead of opening it
+  if (studyUi.selMode) {
+    const on = studyUi.sel.has(l.id);
+    return `<li class="st-lesson${on ? ' sel' : ''}"><button type="button" data-action="study-sel" data-v="${l.id}" aria-pressed="${on}">
+      <span class="sel-box" aria-hidden="true">${on ? '✓' : ''}</span><span class="st-no">${lessonNo(b, l)}</span>
+      <span class="st-body"><b>${esc(l.title)}</b></span></button></li>`;
+  }
   const due = l.completedAt && l.rvDue && l.rvDue <= today();
   return `<li class="st-lesson${l.completedAt ? ' done' : ''}${next ? ' next' : ''}"><button type="button" data-action="study-lesson" data-v="${s.id}|${b.id}|${l.id}">
     <span class="st-no">${lessonNo(b, l)}</span>
@@ -135,8 +142,8 @@ function viewStudy() {
     : emptyHTML('لا كتاب معتمد', 'أضف الكتاب الذي تدرسه الآن في هذا العلم، متناً بشرحه أو كتاباً.', addBtn('study-book-new', 'كتاب'))}
   </section>
   ${b ? `<section class="section st-sec">
-    <div class="section-head"><h2>الدروس${b.lessons.length ? ` <small>(${b.lessons.length})</small>` : ''}</h2><div class="btn-row"><button type="button" class="ghost sm" data-action="study-paste" data-v="${b.id}">ألصق قائمة دروس</button>${addBtn('study-lesson-new', 'درس', ` data-v="${b.id}"`)}</div></div>
-    ${b.lessons.length ? `<ol class="st-lessons">${b.lessons.map((l) => lessonRow(s, b, l, nx[0] === l)).join('')}</ol>` : emptyHTML('لا دروس بعد', 'أضف دروس الكتاب بموضوعاتها، واحداً واحداً أو بلصق قائمتها كاملة (كل سطر درس).')}
+    <div class="section-head"><h2>الدروس${b.lessons.length ? ` <small>(${b.lessons.length})</small>` : ''}</h2>${studyUi.selMode ? '' : `<div class="btn-row">${b.lessons.length ? '<button type="button" class="ghost sm" data-action="study-sel-mode">☑ تحديد</button>' : ''}<button type="button" class="ghost sm" data-action="study-paste" data-v="${b.id}">ألصق قائمة دروس</button>${addBtn('study-lesson-new', 'درس', ` data-v="${b.id}"`)}</div>`}</div>
+    ${b.lessons.length ? `<ol class="st-lessons">${b.lessons.map((l) => lessonRow(s, b, l, nx[0] === l)).join('')}</ol>${studyUi.selMode ? selBar('study', b.lessons.filter((l) => studyUi.sel.has(l.id)).length, b.lessons.length) : ''}` : emptyHTML('لا دروس بعد', 'أضف دروس الكتاب بموضوعاتها، واحداً واحداً أو بلصق قائمتها كاملة (كل سطر درس).')}
   </section>` : ''}
   <section class="section st-sec">
     <div class="section-head"><h2>كتب إثرائية${en.length ? ` <small>(${en.length})</small>` : ''}</h2>${addBtn('study-enrich-new', 'كتاب إثرائي')}</div>
@@ -324,9 +331,29 @@ document.addEventListener('click', (e) => {
   const { action, v } = el.dataset;
   const armed = (label) => { if (el.classList.contains('armed')) return true; el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = label; } }, 4000); return false; };
   switch (action) {
-    case 'study-open': studyUi.sci = v; render(); window.scrollTo({ top: 0 }); break;
-    case 'study-back': studyUi.sci = ''; render(); window.scrollTo({ top: 0 }); break;
+    case 'study-open': studyUi.sci = v; studyUi.selMode = false; studyUi.sel.clear(); render(); window.scrollTo({ top: 0 }); break;
+    case 'study-back': studyUi.sci = ''; studyUi.selMode = false; studyUi.sel.clear(); render(); window.scrollTo({ top: 0 }); break;
     case 'study-sci-new': openSci(null); break;
+    // choosing several lessons of the approved book and deleting them together
+    case 'study-sel-mode': studyUi.selMode = true; studyUi.sel.clear(); render(); break;
+    case 'study-sel-done': studyUi.selMode = false; studyUi.sel.clear(); render(); break;
+    case 'study-sel': studyUi.sel.has(v) ? studyUi.sel.delete(v) : studyUi.sel.add(v); render(); break;
+    case 'study-sel-all': {
+      const b = getSci(studyUi.sci) && sciBook(getSci(studyUi.sci));
+      if (!b) break;
+      if (b.lessons.every((l) => studyUi.sel.has(l.id))) studyUi.sel.clear(); else b.lessons.forEach((l) => studyUi.sel.add(l.id));
+      render(); break;
+    }
+    case 'study-sel-del': {
+      const s = getSci(studyUi.sci), b = s && sciBook(s);
+      const n = b ? b.lessons.filter((l) => studyUi.sel.has(l.id)).length : 0;
+      if (!n || !selArmed(el)) break;
+      b.lessons = b.lessons.filter((l) => !studyUi.sel.has(l.id));
+      s.updated = Date.now();
+      studyUi.selMode = false; studyUi.sel.clear();
+      save(); render(); toast(`حُذف ${plural(n, 'درس واحد', 'درسان', 'دروس', 'درساً')}`);
+      break;
+    }
     case 'study-sci-edit': openSci(v); break;
     case 'study-day': { const d = Number(v); ldraft.days = ldraft.days.includes(d) ? ldraft.days.filter((x) => x !== d) : [...ldraft.days, d]; el.setAttribute('aria-pressed', String(ldraft.days.includes(d))); break; }
     case 'study-stage-add': stReadStages(); ldraft.stages.push({ id: uid(), name: '' }); $('scStages').innerHTML = stStageRows(); $(`scSt-${ldraft.stages.length - 1}`).focus(); break;

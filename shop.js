@@ -5,7 +5,7 @@
 
 const LIST_ICONS = ['🏠', '👤', '🛒', '✈️', '🧳', '🎒', '🎁', '💊', '📚', '🧰', '🍼', '📝'];
 const DEFAULT_LISTS = [{ id: 'home', name: 'مشتريات البيت', icon: '🏠' }, { id: 'me', name: 'مشترياتي الشخصية', icon: '👤' }];
-const shopUi = { cat: 'home' };
+const shopUi = { cat: 'home', selMode: false, sel: new Set() };
 
 function normalizeList(x) {
   return { id: x.id || uid(), name: String(x.name || 'قائمة'), icon: LIST_ICONS.includes(x.icon) ? x.icon : '📝', created: x.created || Date.now() };
@@ -47,6 +47,12 @@ function addToShop(names, cat) {
 
 const t0Done = (x) => !x.need && x.boughtAt === today();
 function itemRow(x, compact) {
+  // choosing items to delete together: a tap selects the item instead of ticking it
+  if (!compact && shopUi.selMode) {
+    const on = shopUi.sel.has(x.id);
+    return `<li class="${x.need ? '' : 'got'}${on ? ' sel' : ''}"><button type="button" class="shop-item" data-action="shop-sel" data-v="${x.id}" aria-pressed="${on}">
+      <span class="sel-box" aria-hidden="true">${on ? '✓' : ''}</span><span class="shop-name">${esc(x.name)}${x.qty ? ` <small>${esc(x.qty)}</small>` : ''}</span></button></li>`;
+  }
   return `<li class="${x.need ? '' : 'got'}"><button type="button" class="shop-item" data-action="shop-toggle" data-v="${x.id}" aria-pressed="${!x.need}">
       <span class="shop-box" aria-hidden="true">${x.need ? '' : '✓'}</span><span class="shop-name">${esc(x.name)}${x.qty ? ` <small>${esc(x.qty)}</small>` : ''}</span>
     </button>${compact ? '' : `<button type="button" class="fin-del" data-action="shop-del" data-v="${x.id}" aria-label="حذف نهائي">✕</button>`}</li>`;
@@ -83,11 +89,12 @@ function viewShop() {
     <h2>القوائم</h2>
     <p class="note-text explain">ما تشطبه لا يُحذف: يبقى في «تم» لتعيده بضغطة حين تحتاجه مرة أخرى. وكل ما بقي دون شطب يظهر لك في «اليوم».</p>
     <div class="chips list-chips" role="group" aria-label="القوائم">${S.lists.map((x) => `<button type="button" class="chip" data-action="shop-cat" data-v="${x.id}" aria-pressed="${x.id === l.id}">${x.icon} ${esc(x.name)}${listLeft(x.id) ? ` <span class="num">${listLeft(x.id)}</span>` : ''}</button>`).join('')}<button type="button" class="chip" data-action="shop-list-new">${icon('plus')} قائمة</button></div>
-    <div class="section-head"><h3>${l.icon} ${esc(l.name)}</h3><button type="button" class="ghost sm" data-action="shop-list-edit" data-v="${l.id}">${icon('edit')} تعديل</button></div>
-    ${addForm(l)}
+    <div class="section-head"><h3>${l.icon} ${esc(l.name)}</h3><div class="btn-row">${items.length && !shopUi.selMode ? '<button type="button" class="ghost sm" data-action="shop-sel-mode">☑ تحديد</button>' : ''}<button type="button" class="ghost sm" data-action="shop-list-edit" data-v="${l.id}">${icon('edit')} تعديل</button></div></div>
+    ${shopUi.selMode ? '' : addForm(l)}
     ${need.length || doneToday.length ? `<ul class="shop-list">${need.map((x) => itemRow(x)).join('')}${doneToday.map((x) => itemRow(x)).join('')}</ul>` : `<p class="note-text">${items.length ? 'شطبت كل ما فيها ✓' : 'القائمة فارغة. أضف ما تتذكره قبل أن تنساه.'}</p>`}
-    ${done.length ? `<details class="shop-done"><summary>تم (${done.length}) | اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
-    ${allDone.length > 1 ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text explain">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
+    ${done.length ? `<details class="shop-done"${shopUi.selMode ? ' open' : ''}><summary>تم (${done.length}) | اضغط أي بند لتعيده إلى القائمة</summary><ul class="shop-list">${done.map((x) => itemRow(x)).join('')}</ul></details>` : ''}
+    ${shopUi.selMode ? selBar('shop', items.filter((x) => shopUi.sel.has(x.id)).length, items.length) : ''}
+    ${allDone.length > 1 && !shopUi.selMode ? `<button type="button" class="ghost" data-action="shop-reset" data-v="${l.id}">${icon('repeat')} أعد كل البنود إلى القائمة</button><small class="note-text explain">مفيد لقائمة تتكرر، مثل أغراض السفر.</small>` : ''}
   </section>`;
 }
 
@@ -125,7 +132,24 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="shop-"]');
   if (!el) return;
   const { action, v } = el.dataset;
-  if (action === 'shop-cat') { shopUi.cat = v; shopUi.picked = true; render(); return; }
+  if (action === 'shop-cat') { shopUi.cat = v; shopUi.picked = true; shopUi.selMode = false; shopUi.sel.clear(); render(); return; }
+  // choosing several items of the open list and deleting them together
+  if (action === 'shop-sel-mode') { shopUi.selMode = true; shopUi.sel.clear(); render(); return; }
+  if (action === 'shop-sel-done') { shopUi.selMode = false; shopUi.sel.clear(); render(); return; }
+  if (action === 'shop-sel') { shopUi.sel.has(v) ? shopUi.sel.delete(v) : shopUi.sel.add(v); render(); return; }
+  if (action === 'shop-sel-all') {
+    const ids = listItems((curList() || {}).id).map((i) => i.id);
+    if (ids.every((id) => shopUi.sel.has(id))) shopUi.sel.clear(); else ids.forEach((id) => shopUi.sel.add(id));
+    render(); return;
+  }
+  if (action === 'shop-sel-del') {
+    const ids = new Set(listItems((curList() || {}).id).map((i) => i.id).filter((id) => shopUi.sel.has(id)));
+    if (!ids.size || !selArmed(el)) return;
+    S.shop = S.shop.filter((i) => !ids.has(i.id));
+    shopUi.selMode = false; shopUi.sel.clear();
+    save(); render(); toast(`حُذف ${plural(ids.size, 'بند واحد', 'بندان', 'بنود', 'بنداً')}`);
+    return;
+  }
   if (action === 'shop-list-new') { openListEditor(null); return; }
   if (action === 'shop-list-edit') { openListEditor(v); return; }
   if (action === 'shop-icon') { ldraft.icon = v; for (const b of el.parentElement.children) b.setAttribute('aria-pressed', String(b === el)); return; }
