@@ -381,7 +381,11 @@ function openLib(kind, id, preset = {}) {
     const b = id ? getBook(id) : normalizeBook({ status: preset.status || libUi.bookStatus, start: (preset.status || libUi.bookStatus) === 'reading' ? today() : '' });
     ldraft.status = b.status;
     const n = id ? benefitsOf(id).length : 0;
+    // an existing book opens on two tabs: its data, and its benefits (not under the data)
+    ldraft.tab = id && preset.tab === 'bens' ? 'bens' : 'data';
     body = `
+      ${id ? `<div class="seg" id="bkTabs" role="group"><button type="button" data-action="lib-bk-tab" data-v="data" aria-pressed="${ldraft.tab === 'data'}">البيانات</button><button type="button" data-action="lib-bk-tab" data-v="bens" aria-pressed="${ldraft.tab === 'bens'}">💡 الفوائد (${n})</button></div>` : ''}
+      <div id="bkData"${ldraft.tab === 'bens' ? ' hidden' : ''}>
       <label class="field"><span>اسم الكتاب</span><input type="text" id="lTitle" value="${esc(b.title)}" autocomplete="off" placeholder="مثال: الأيام"></label>
       <label class="field"><span>المؤلف (اختياري)</span><input type="text" id="lAuthor" value="${esc(b.author)}" autocomplete="off" placeholder="مثال: طه حسين"></label>
       <div class="field"><span>الحالة</span><div class="seg seg-wrap" id="lStatus">${BOOK_ORDER.map((s) => `<button type="button" data-action="lib-status" data-v="${s}" aria-pressed="${b.status === s}">${BOOK_STATUS[s]}</button>`).join('')}</div></div>
@@ -403,8 +407,9 @@ function openLib(kind, id, preset = {}) {
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
-      ${id ? `<div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
-      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}` : ''}`;
+      </div>
+      ${id ? `<div id="bkBens"${ldraft.tab === 'bens' ? '' : ' hidden'}><div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
+      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}</div>` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
     ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
@@ -454,6 +459,20 @@ function updateBookEnd() {
   $('lYearWrap').hidden = !(st === 'read' && !started);
   $('lEndWrap').querySelector('span').textContent = st === 'stalled' ? 'تاريخ التوقف' : 'تاريخ الانتهاء';
   if ($('lRvWrap')) $('lRvWrap').hidden = ldraft.status !== 'read';
+}
+
+// where a benefit was opened from (the book's benefits tab, or its benefits window), to go back to it
+function libBackFrom() {
+  if (!ldraft) return null;
+  const scroll = $('libForm').scrollTop;
+  if (ldraft.kind === 'bookbens') return { kind: 'bookbens', id: ldraft.id, scroll };
+  if (ldraft.kind === 'book' && ldraft.tab === 'bens') return { kind: 'book', id: ldraft.id, scroll };
+  return null;
+}
+function libBack(back) {
+  if (!back || !getBook(back.id)) return;
+  if (back.kind === 'bookbens') openBookBenefits(back.id); else openLib('book', back.id, { tab: 'bens' });
+  $('libForm').scrollTop = back.scroll || 0;
 }
 
 function closeLib() {
@@ -708,7 +727,20 @@ document.addEventListener('click', (e) => {
     case 'lib-open-book': openLib('book', v); break;
     case 'lib-book-bens': openBookBenefits(v); break;
     case 'lib-ben-read': libUi.benRead = !libUi.benRead; render(); break;
-    case 'lib-open-benefit': openLib('benefit', v); break;
+    case 'lib-open-benefit': {
+      const back = libBackFrom();
+      // the book's own changes are kept before its benefit opens, as when adding one
+      if (back && back.kind === 'book' && !saveLib()) break;
+      openLib('benefit', v);
+      ldraft.back = back;
+      break;
+    }
+    case 'lib-bk-tab':
+      ldraft.tab = v;
+      $('bkData').hidden = v !== 'data';
+      $('bkBens').hidden = v !== 'bens';
+      for (const b of $('bkTabs').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+      break;
     case 'lib-book-status': libUi.bookStatus = v; libUi.bookQ = ''; render(); break;
     case 'lib-status':
       ldraft.status = v;
@@ -723,22 +755,26 @@ document.addEventListener('click', (e) => {
       break;
     case 'lib-benefit-from-book': {
       const id = ldraft.id;
+      const back = libBackFrom();
       if (ldraft.kind !== 'bookbens' && !saveLib()) break;
       closeLib();
       render();
       openLib('benefit', null, { bookId: id });
+      ldraft.back = back;
       break;
     }
-    case 'lib-close': closeLib(); break;
+    case 'lib-close': { const back = ldraft && ldraft.back; closeLib(); libBack(back); break; }
     case 'lib-delete': {
       if (!libArmed) {
         libArmed = true; el.textContent = 'تأكيد الحذف'; el.classList.add('armed');
         setTimeout(() => { libArmed = false; if (el.isConnected) { el.textContent = 'حذف'; el.classList.remove('armed'); } }, 3000);
         break;
       }
+      const back = ldraft.back;
       deleteLib();
       closeLib();
       render();
+      libBack(back);
       toast('حُذف');
       break;
     }
@@ -815,12 +851,13 @@ document.addEventListener('submit', (e) => {
     return;
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
-  const kind = ldraft.kind, quick = ldraft.quick;
+  const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
   const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick'].includes(kind);
   if (!saver()) return;
   closeLib();
   render();
+  libBack(back);
   if (!silent) toast(kind === 'idea' && wasNew ? (quick ? `حُفظت الفكرة في «${pageName('ideas')}»` : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
 });
 
