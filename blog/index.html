@@ -38,6 +38,7 @@ html{background:#F2F1EC}html[data-theme=dark]{background:#12151A}
   color:#B0873C;opacity:0;animation:boot-in .5s .35s ease forwards}
 html[data-theme=dark] .boot{color:#C9A055}
 .boot img{width:76px;height:76px;animation:boot-breathe 2.4s ease-in-out infinite}
+html[data-theme=dark] .boot img{filter:invert(1) sepia(.35) brightness(.95)}
 .boot p{margin:0;font-family:"Aref Ruqaa","Amiri",serif;font-size:26px;color:#1A1D22}
 html[data-theme=dark] .boot p{color:#E6E3DA}
 .boot p span{display:inline-block;animation:boot-dot 1.4s infinite;opacity:.2}
@@ -48,7 +49,7 @@ html[data-theme=dark] .boot p{color:#E6E3DA}
 </head>
 <body>
 <noscript><style>.boot{display:none}</style><p style="text-align:center;padding:40px 16px;font-family:Majalla,Amiri,serif">يتطلّب تصفّح هذه المدونة تفعيل جافاسكربت.</p></noscript>
-<div id="root"><div class="boot" role="status"><img src="/icons/kufi-gold.png" width="76" height="76" alt=""/><p>نهيئ لك المقالات<span>.</span><span>.</span><span>.</span></p></div></div>
+<div id="root"><div class="boot" role="status"><img src="/icons/kufi.png" width="76" height="76" alt=""/><p>نهيئ لك المقالات<span>.</span><span>.</span><span>.</span></p></div></div>
 <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

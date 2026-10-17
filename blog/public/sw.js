@@ -3,7 +3,7 @@
    الملفات ذات البصمة والصور: المخزّن أولًا. لوحة التحكم وواجهات الخادم لا تمرّ به. */
 const VERSION = "__BUILD__";
 const PRECACHE = __PRECACHE__;
-const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v2", FONTS = "fonts-v1";
+const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v3", FONTS = "fonts-v1";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
