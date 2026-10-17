@@ -3,7 +3,7 @@
    الملفات ذات البصمة والصور: المخزّن أولًا. لوحة التحكم وواجهات الخادم لا تمرّ به. */
 const VERSION = "__BUILD__";
 const PRECACHE = __PRECACHE__;
-const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v3", FONTS = "fonts-v1";
+const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v4", FONTS = "fonts-v1";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -62,7 +62,7 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(d.title || "مهند بن جازي", {
-    body: d.body || "", icon: "/icons/icon-192.png", badge: "/icons/badge-96.png",
+    body: d.body || "", icon: "/icons/icon-192.png?v=4", badge: "/icons/badge-96.png",
     dir: "rtl", lang: "ar", data: { url: d.url || "/" },
   }));
 });
