@@ -3,7 +3,7 @@
    الملفات ذات البصمة والصور: المخزّن أولًا. لوحة التحكم وواجهات الخادم لا تمرّ به. */
 const VERSION = "__BUILD__";
 const PRECACHE = __PRECACHE__;
-const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v1", FONTS = "fonts-v1";
+const SHELL = `shell-${VERSION}`, RUNTIME = `runtime-${VERSION}`, MEDIA = "media-v2", FONTS = "fonts-v1";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -11,7 +11,7 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(
-    keys.filter((k) => (k.startsWith("shell-") && k !== SHELL) || (k.startsWith("runtime-") && k !== RUNTIME)).map((k) => caches.delete(k))
+    keys.filter((k) => (k.startsWith("shell-") && k !== SHELL) || (k.startsWith("runtime-") && k !== RUNTIME) || (k.startsWith("media-") && k !== MEDIA)).map((k) => caches.delete(k))
   )).then(() => self.clients.claim()));
 });
 

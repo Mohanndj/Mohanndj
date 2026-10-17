@@ -292,6 +292,8 @@ export async function api(path, opts = {}) {
   }
   if (route === "POST /auth/change-password") return server("/password", "POST", body);
   if (route === "GET /admin/stats") return server("/stats");
+  if (route === "GET /admin/feedback") return server("/feedback");
+  if (route === "DELETE /admin/feedback") return server(`/feedback?id=${encodeURIComponent(id)}`, "DELETE");
   if (route === "GET /admin/subscribers") return server("/subscribers");
   if (route === "DELETE /admin/subscribers") return server(`/subscribers?email=${encodeURIComponent(id)}`, "DELETE");
   if (route === "POST /admin/newsletter") return server("/newsletter/send", "POST", body);

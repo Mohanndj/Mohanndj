@@ -92,6 +92,7 @@ function Sidebar() {
     { to: "/admin/series", label: "السلاسل" },
     { to: "/admin/books", label: "الكتب" },
     { to: "/admin/stats", label: "الإحصاءات" },
+    { to: "/admin/feedback", label: "الملاحظات" },
     { to: "/admin/newsletter", label: "النشرة", ownerOnly: true },
     { to: "/admin/users", label: "الأعضاء", ownerOnly: true, accounts: true },
     { to: "/admin/settings", label: "الإعدادات", ownerOnly: true },
@@ -162,7 +163,7 @@ function Dashboard() {
         ].map((s, i) => (
           <Link to={s.to} key={i} style={{ display: "block", padding: 20, border: "1px solid var(--line)", background: "var(--shade)", color: "inherit" }}>
             <div style={{ fontSize: 12, color: "var(--muted)" }}>{s.label}</div>
-            <div style={{ fontSize: 28, fontFamily: "Amiri, serif", fontWeight: 700, marginTop: 8 }}>{ar(s.v)}</div>
+            <div style={{ fontSize: 28, fontFamily: '"Majalla", Amiri, serif', fontWeight: 700, marginTop: 8 }}>{ar(s.v)}</div>
           </Link>
         ))}
       </div>
@@ -1158,7 +1159,7 @@ function BooksPage() {
         </div>
       </form>
 
-      <h2 style={{ fontFamily: "Amiri, serif", fontSize: "1.4rem", marginTop: 40, marginBottom: 14 }}>
+      <h2 style={{ fontFamily: '"Majalla", Amiri, serif', fontSize: "1.4rem", marginTop: 40, marginBottom: 14 }}>
         الكتب المرفوعة ({ar(books.length)})
       </h2>
       {books.length === 0 ? (
@@ -1476,7 +1477,7 @@ function SettingsPage() {
         </div>
 
         <hr style={{ margin: "40px 0 20px", border: 0, borderTop: "1px solid var(--line)" }}/>
-        <h3 style={{ fontFamily: "Amiri, serif", fontSize: "1.3rem", marginBottom: 12 }}>سلامة البيانات</h3>
+        <h3 style={{ fontFamily: '"Majalla", Amiri, serif', fontSize: "1.3rem", marginBottom: 12 }}>سلامة البيانات</h3>
         <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 16px" }}>
           صدّر نسخة كاملة من مقالاتك وتصنيفاتك وسلاسلك وصفحاتك وإعداداتك بصيغة JSON. وكل تعديل محفوظ أيضًا في سجلّ مستودعك على GitHub.
         </p>
@@ -1816,6 +1817,42 @@ function NewsletterAdminPage() {
   );
 }
 
+/* ============================================================
+   ملاحظات القرّاء
+   ============================================================ */
+function FeedbackPage() {
+  const { me } = useAuth();
+  const [items, setItems] = useState(null);
+  const [err, setErr] = useState("");
+  const load = () => api("/admin/feedback").then((r) => setItems(r.feedback)).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, []);
+  const del = async (id) => {
+    if (!window.confirm("حذف هذه الملاحظة؟")) return;
+    try { await api(`/admin/feedback/${id}`, { method: "DELETE" }); load(); } catch (e) { alert(e.message); }
+  };
+  if (err) return <><h1 className="admin-title">ملاحظات القرّاء</h1><div className="admin-error">{err}</div></>;
+  if (!items) return <div className="admin-empty">جاري التحميل…</div>;
+  return (
+    <>
+      <h1 className="admin-title">ملاحظات القرّاء</h1>
+      <p className="hint" style={{ marginTop: -8 }}>تصل من صندوق «ملاحظة أو اقتراح» في آخر الصفحة الرئيسية، بلا بريد ولا اسم.</p>
+      {items.length === 0 ? <div className="admin-empty" data-testid="feedback-empty">لا ملاحظات بعد.</div> : (
+        <ul className="feedback-list" data-testid="feedback-list">
+          {items.map((f) => (
+            <li key={f.id}>
+              <p>{f.body}</p>
+              <div className="meta">
+                <span>{fmtDate(f.created_at)}</span>
+                {me?.role === "owner" && <button className="admin-btn danger small" onClick={() => del(f.id)}>حذف</button>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 export default function AdminApp() {
   return (
     <AuthProvider>
@@ -1832,6 +1869,7 @@ export default function AdminApp() {
         <Route path="/settings" element={<Protected><Shell><SettingsPage/></Shell></Protected>}/>
         <Route path="/users" element={<Protected><Shell><UsersPage/></Shell></Protected>}/>
         <Route path="/stats" element={<Protected><Shell><StatsPage/></Shell></Protected>}/>
+        <Route path="/feedback" element={<Protected><Shell><FeedbackPage/></Shell></Protected>}/>
         <Route path="/newsletter" element={<Protected><Shell><NewsletterAdminPage/></Shell></Protected>}/>
         <Route path="/password" element={<Protected><Shell><ChangePasswordPage/></Shell></Protected>}/>
       </Routes>

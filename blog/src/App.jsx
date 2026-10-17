@@ -880,6 +880,7 @@ function Home() {
               ))}
             </div>
           </section>
+          <FeedbackBox/>
         </>
       )}
     </main>
@@ -1230,7 +1231,7 @@ function Appreciation({ articleId }) {
               aria-label={liked ? "التراجع عن الدعاء" : "نفع الله بك"} data-testid="appreciate-btn">
         <span className="appr-ripple" aria-hidden="true"/>
         <SealRing/>
-        <span className="appr-words"><b>نفع الله</b><b>بك</b></span>
+        <span className="appr-words"><b>نفع الله بك</b></span>
       </button>
       <div className="appr-tally">
         {count > 0 && <span key={count} className="appr-count" data-testid="appreciate-count">{ar(count)}</span>}
@@ -1683,7 +1684,45 @@ function ArticlePage() {
 /* ============================================================
    النشرة البريدية (تظهر حين تُفعَّل قاعدة البيانات)
    ============================================================ */
-let newsletterOn = false;
+let newsletterOn = false; // قاعدة البيانات مفعّلة: النشرة وصندوق الملاحظات
+
+/* صندوق الملاحظات في آخر الرئيسية: بلا بريد ولا اسم */
+function FeedbackBox() {
+  const [body, setBody] = useState("");
+  const [hp, setHp] = useState("");
+  const [state, setState] = useState({ status: "idle", msg: "" });
+  if (!newsletterOn) return null;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (body.trim().length < 3) { setState({ status: "err", msg: "اكتب ملاحظتك أولًا." }); return; }
+    setState({ status: "busy", msg: "" });
+    try {
+      const r = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, page: window.location.pathname, website: hp }) });
+      if (r.status === 429) throw new Error("أرسلتَ ملاحظات كثيرة في وقت قصير؛ حاول بعد قليل.");
+      if (!r.ok) throw new Error("تعذّر الإرسال الآن، حاول لاحقًا.");
+      setBody(""); setState({ status: "ok", msg: "وصلت ملاحظتك، جزاك الله خيرًا." });
+    } catch (err) { setState({ status: "err", msg: err.message }); }
+  };
+  return (
+    <section className="feedback-box" data-testid="feedback-box">
+      <p className="eyebrow">ملاحظة أو اقتراح</p>
+      <h3>رأيك يهمّني</h3>
+      <p className="fb-sub">اكتب ما تراه في المدونة أو ما تقترحه من موضوعات، ولا حاجة إلى بريدك.</p>
+      <form onSubmit={submit}>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4}
+                  placeholder="اكتب ملاحظتك هنا…" data-testid="feedback-text"/>
+        <input type="text" name="website" value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" className="hp-field"/>
+        <div className="fb-row">
+          <button type="submit" className="icon-btn" disabled={state.status === "busy"} data-testid="feedback-send">
+            <Send size={15}/> <span>{state.status === "busy" ? "جاري الإرسال…" : "أرسل"}</span>
+          </button>
+          {state.msg && <span className={`fb-msg ${state.status}`} data-testid="feedback-msg">{state.msg}</span>}
+        </div>
+      </form>
+    </section>
+  );
+}
 function NewsletterPage() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ status: "idle", message: "" });
@@ -1733,7 +1772,7 @@ function NewsletterPage() {
             {state.status === "loading" ? "…" : "اشتراك"}
           </button>
         </div>
-        <input type="text" name="website" value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1 }}/>
+        <input type="text" name="website" value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" className="hp-field"/>
         {state.status === "ok" && <p className="news-msg ok" data-testid="newsletter-success">{state.message}</p>}
         {state.status === "err" && <p className="news-msg err" data-testid="newsletter-error">{state.message}</p>}
       </form>

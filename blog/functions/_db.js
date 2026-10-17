@@ -10,6 +10,7 @@ export function db(env) {
       env.DB.prepare("CREATE TABLE IF NOT EXISTS views (article_id TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (article_id, day))"),
       env.DB.prepare("CREATE TABLE IF NOT EXISTS subscribers (email TEXT PRIMARY KEY, token TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL)"),
       env.DB.prepare("CREATE TABLE IF NOT EXISTS sends (article_id TEXT NOT NULL, sent_at TEXT NOT NULL, recipients INTEGER NOT NULL)"),
+      env.DB.prepare("CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL, page TEXT, reader TEXT, created_at TEXT NOT NULL)"),
     ]).catch((e) => { ready = null; throw e; });
   }
   return ready.then(() => env.DB);
