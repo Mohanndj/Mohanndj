@@ -81,11 +81,11 @@ function sciCard(s) {
     <span class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
   </button>`;
 }
-function lessonRow(s, b, l) {
+function lessonRow(s, b, l, next) {
   const due = l.completedAt && l.rvDue && l.rvDue <= today();
-  return `<li class="st-lesson${l.completedAt ? ' done' : ''}"><button type="button" data-action="study-lesson" data-v="${s.id}|${b.id}|${l.id}">
+  return `<li class="st-lesson${l.completedAt ? ' done' : ''}${next ? ' next' : ''}"><button type="button" data-action="study-lesson" data-v="${s.id}|${b.id}|${l.id}">
     <span class="st-no">${lessonNo(b, l)}</span>
-    <span class="st-body"><b>${esc(l.title)}</b>
+    <span class="st-body"><b>${esc(l.title)}</b>${next ? '<small class="st-next">الدرس القادم</small>' : ''}${l.ref || l.sharhRef ? `<small class="st-ref">${esc([l.ref && `من الكتاب: ${l.ref}`, l.sharhRef && `من الشرح: ${l.sharhRef}`].filter(Boolean).join(' | '))}</small>` : ''}
       <span class="st-stages">${s.stages.map((x) => `<small class="${l.done[x.id] ? 'on' : ''}">${l.done[x.id] ? '✓ ' : ''}${esc(x.name)}</small>`).join('')}</span>
       ${due ? '<small class="late">حان وقت مراجعته</small>' : l.completedAt && l.rvDue ? `<small class="st-rv">المراجعة القادمة: ${esc(relDate(l.rvDue))}</small>` : ''}
     </span></button></li>`;
@@ -103,34 +103,43 @@ function viewStudy() {
         : emptyHTML('أضف أول علم تدرسه', 'مثل: الفقه، النحو، أصول الفقه، العقيدة. ثم كتابه المعتمد ودروسه.', addBtn('study-sci-new', 'علم'))}
     </section>`;
   }
-  const b = sciBook(s), others = s.books.filter((x) => x.status !== 'current'), en = sciEnrich(s);
-  const doneN = b ? b.lessons.filter((l) => l.completedAt).length : 0;
-  return `${moreCrumb()}
-  <div class="crumbs"><button type="button" class="back" data-action="study-back">${icon('back')} العلوم</button></div>
+  const b = sciBook(s), en = sciEnrich(s);
+  const doneN = b ? b.lessons.filter((l) => l.completedAt).length : 0, nx = nextLessons(s);
+  const fact = (label, value) => `<div class="st-fact"><small>${esc(label)}</small><b>${esc(value)}</b></div>`;
+  const sharh = b && (b.sharh.title || b.sharh.by) ? [b.sharh.title, b.sharh.by].filter(Boolean).join('، ') + (b.sharh.kind ? ` (${SHARH_KIND[b.sharh.kind]})` : '') : '';
+  // one way back (to the sciences), the science's settings as labelled facts, then each part in its own section
+  return `<div class="crumbs"><button type="button" class="back" data-action="study-back">${icon('back')} ${esc(pageName('study'))}</button></div>
   <section class="section">
     <div class="section-head"><h2>${esc(s.emoji ? `${s.emoji} ${s.name}` : s.name)}</h2><button type="button" class="ghost sm" data-action="study-sci-edit" data-v="${s.id}">${icon('edit')} تعديل العلم</button></div>
-    <p class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', `في الجلسة: ${plural(s.per, 'درس واحد', 'درسان', 'دروس', 'درساً')}`, `مراحل الدرس: ${s.stages.map((x) => x.name).join('، ')}`].map(esc).join(' | ')}</p>
-    ${s.note ? `<p class="note-text">${esc(s.note)}</p>` : ''}
+    <div class="st-facts">
+      ${fact('أيام الدراسة', s.days.length ? sciDayName(s) : 'لم تُحدَّد')}
+      ${fact('في كل جلسة', plural(s.per, 'درس واحد', 'درسان', 'دروس', 'درساً'))}
+    </div>
+    <div class="st-fact"><small>مراحل الدرس</small><span class="st-chips">${s.stages.map((x) => `<span>${esc(x.name)}</span>`).join('')}</span></div>
+    ${s.note ? `<p class="st-note">${esc(s.note)}</p>` : ''}
   </section>
-  <section class="section">
-    <div class="section-head"><h2>الكتاب المعتمد</h2></div>
-    ${b ? `<button type="button" class="book-card st-main" data-action="study-book-edit" data-v="${b.id}">
-      <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
-      <span class="book-line">${[SBOOK_KIND[b.kind], b.sharh.title || b.sharh.by ? `الشرح المعتمد: ${[b.sharh.title, b.sharh.by].filter(Boolean).join('، ')}${b.sharh.kind ? ` (${SHARH_KIND[b.sharh.kind]})` : ''}` : '', b.started ? `بدأته: ${relDate(b.started)}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
-      ${b.lessons.length ? `<span class="pbar"><i style="width:${Math.round((doneN / b.lessons.length) * 100)}%"></i></span><span class="book-line">${esc(`أتممت ${doneN} من ${plural(b.lessons.length, 'درس واحد', 'درسين', 'دروس', 'درساً')}`)}</span>` : ''}
+  <section class="section st-sec">
+    <h2>الكتاب المعتمد</h2>
+    ${b ? `<button type="button" class="st-book" data-action="study-book-edit" data-v="${b.id}">
+      <span class="st-book-title"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
+      <span class="st-rows">
+        <span><small>النوع</small>${esc(SBOOK_KIND[b.kind])}</span>
+        ${sharh ? `<span><small>الشرح المعتمد</small>${esc(sharh)}</span>` : ''}
+        ${b.started ? `<span><small>بدأته</small>${esc(relDate(b.started))}</span>` : ''}
+      </span>
+      ${b.lessons.length ? `<span class="st-prog"><span class="pbar"><i style="width:${Math.round((doneN / b.lessons.length) * 100)}%"></i></span>
+        <span>${esc(`أتممت ${doneN || 'صفر'} من ${plural(b.lessons.length, 'درس واحد', 'درسين', 'دروس', 'درساً')}`)}</span>
+        ${nx[0] ? `<span><small>الدرس القادم:</small> ${esc(nx[0].title)}</span>` : '<span>أتممت دروسه كلها ✓</span>'}</span>` : ''}
     </button>
-    ${b.sharh.link ? `<a class="ghost sm st-link" href="${esc(b.sharh.link)}" target="_blank" rel="noopener">افتح الشرح</a>` : ''}
-    <div class="section-head"><h3>الدروس</h3><div class="btn-row"><button type="button" class="ghost sm" data-action="study-paste" data-v="${b.id}">ألصق قائمة دروس</button>${addBtn('study-lesson-new', 'درس', ` data-v="${b.id}"`)}</div></div>
-    ${b.lessons.length ? `<ol class="st-lessons">${b.lessons.map((l) => lessonRow(s, b, l)).join('')}</ol>` : emptyHTML('لا دروس بعد', 'أضف دروس الكتاب بموضوعاتها، واحداً واحداً أو بلصق قائمتها كاملة (كل سطر درس).')}`
+    ${b.sharh.link ? `<a class="ghost st-link" href="${esc(b.sharh.link)}" target="_blank" rel="noopener">▶ افتح الشرح</a>` : ''}`
     : emptyHTML('لا كتاب معتمد', 'أضف الكتاب الذي تدرسه الآن في هذا العلم، متناً بشرحه أو كتاباً.', addBtn('study-book-new', 'كتاب'))}
   </section>
-  <section class="section">
-    <div class="section-head"><h2>سلّم العلم</h2>${b ? addBtn('study-book-new', 'كتاب') : ''}</div>
-    ${others.length ? `<div class="book-list">${others.map((x) => `<button type="button" class="book-card" data-action="study-book-edit" data-v="${x.id}"><span class="book-top"><strong>${esc(x.title)}</strong>${x.author ? `<small>${esc(x.author)}</small>` : ''}</span><span class="book-line">${[SBOOK_STATUS[x.status], x.lessons.length ? `الدروس: ${x.lessons.length}` : '', x.finished ? `أتممته: ${fmtDate(x.finished)}` : ''].filter(Boolean).map(esc).join(' | ')}</span></button>`).join('')}</div>`
-      : '<p class="note-text">الكتب التي ستدرسها بعد الكتاب المعتمد في هذا العلم، والكتب التي أتممتها.</p>'}
-  </section>
-  <section class="section">
-    <div class="section-head"><h2>كتب إثرائية</h2>${addBtn('study-enrich-new', 'كتاب إثرائي')}</div>
+  ${b ? `<section class="section st-sec">
+    <div class="section-head"><h2>الدروس${b.lessons.length ? ` <small>(${b.lessons.length})</small>` : ''}</h2><div class="btn-row"><button type="button" class="ghost sm" data-action="study-paste" data-v="${b.id}">ألصق قائمة دروس</button>${addBtn('study-lesson-new', 'درس', ` data-v="${b.id}"`)}</div></div>
+    ${b.lessons.length ? `<ol class="st-lessons">${b.lessons.map((l) => lessonRow(s, b, l, nx[0] === l)).join('')}</ol>` : emptyHTML('لا دروس بعد', 'أضف دروس الكتاب بموضوعاتها، واحداً واحداً أو بلصق قائمتها كاملة (كل سطر درس).')}
+  </section>` : ''}
+  <section class="section st-sec">
+    <div class="section-head"><h2>كتب إثرائية${en.length ? ` <small>(${en.length})</small>` : ''}</h2>${addBtn('study-enrich-new', 'كتاب إثرائي')}</div>
     ${en.length ? `<div class="book-list">${en.map((x) => `<button type="button" class="book-card s-${x.status}" data-action="lib-open-book" data-v="${x.id}"><span class="book-top"><strong>${esc(x.title)}</strong>${x.author ? `<small>${esc(x.author)}</small>` : ''}</span><span class="book-line">${esc(BOOK_STATUS[x.status])}</span></button>`).join('')}</div>`
       : `<p class="note-text">كتب في موضوع هذا العلم تقرؤها للإثراء. تُضاف إلى «${esc(pageName('books'))}» وتُحسب في قراءتك، وتظهر هنا أيضاً.</p>`}
   </section>`;
