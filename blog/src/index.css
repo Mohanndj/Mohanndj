@@ -1,0 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Amiri+Quran&family=Aref+Ruqaa:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Readex+Pro:wght@300;400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html{direction:rtl;scroll-behavior:smooth}body{margin:0;font-family:"Amiri","Noto Naskh Arabic",serif;letter-spacing:normal;word-spacing:normal;-webkit-font-smoothing:antialiased}button,input{font-family:inherit;letter-spacing:normal}::selection{background:#2C5C8F;color:#F2F1EC}

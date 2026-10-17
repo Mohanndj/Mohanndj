@@ -1,0 +1,1553 @@
+/* ============================================================
+   مدونة مهند بن جازي — تنسيقات
+   RTL — خطوط عربية أنيقة — وضع نهاري/ليلي
+   ============================================================ */
+
+:root {
+  --paper: #F2F1EC;
+  --ink: #1A1D22;
+  --muted: #5E6167;
+  --lapis: #2C5C8F;
+  --gold: #B0873C;
+  --green: #3e6f4a;
+  --red: #a44444;
+  --line: #D8D5CC;
+  --line-soft: #E8E5DC;
+  --shade: #EAE7DE;
+}
+html[data-theme="dark"] {
+  --paper: #12151A;
+  --ink: #E6E3DA;
+  --muted: #9A9791;
+  --lapis: #7FA9D6;
+  --gold: #C9A055;
+  --green: #6ea080;
+  --red: #d47474;
+  --line: #262A31;
+  --line-soft: #1E2229;
+  --shade: #191D24;
+}
+
+* { box-sizing: border-box; }
+html { direction: rtl; scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Amiri", "Noto Naskh Arabic", serif;
+  font-size: 18px;
+  line-height: 1.85;
+  letter-spacing: normal;
+  word-spacing: normal;
+  transition: background-color .25s ease, color .25s ease;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--lapis); outline-offset: 3px; border-radius: 2px; }
+::selection { background: var(--lapis); color: var(--paper); }
+
+.wrap {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 56px);
+}
+
+/* ============================================================
+   الترويسة
+   ============================================================ */
+.site-header {
+  padding-block: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+.site-header .topbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 22px;
+  margin-bottom: 18px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+.site-header .tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  transition: color .18s;
+}
+.site-header .tool:hover { color: var(--lapis); }
+
+/* زرّ «تابعني» في الترويسة */
+.follow-root { position: relative; }
+.follow-btn { color: var(--lapis); }
+.follow-pop {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  min-width: 180px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 6px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown .18s ease;
+}
+.follow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  transition: background .18s, color .18s;
+}
+.follow-item:hover { background: var(--shade); color: var(--lapis); }
+.follow-item svg { color: var(--gold); flex-shrink: 0; }
+.site-header .brand { text-align: center; }
+.site-header .brand h1 {
+  font-family: "Aref Ruqaa", "Noto Naskh Arabic", serif;
+  font-weight: 400;
+  font-size: clamp(2.6rem, 5.2vw, 4.2rem);
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: normal;
+  word-spacing: normal;
+  color: var(--ink);
+}
+.site-header .brand h1 a { display: inline-block; }
+.site-header .searchbar {
+  max-width: 520px;
+  margin: 18px auto 0;
+  border-bottom: 1px solid var(--ink);
+  padding-block: 6px;
+  animation: slideDown .18s ease;
+}
+.site-header .searchbar input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 15px;
+  padding: 6px 2px;
+  outline: 0;
+}
+.site-header .rule {
+  height: 1px;
+  background: var(--line);
+  margin-top: 22px;
+}
+.site-header .cats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding-block: 16px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-weight: 300;
+  font-size: 0.95rem;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+.site-header .cats a { position: relative; padding-block: 4px; transition: color .18s; }
+.site-header .cats a:hover { color: var(--ink); }
+.site-header .cats a.on { color: var(--lapis); }
+.site-header .cats a.on::after {
+  content: "";
+  position: absolute;
+  right: 0; left: 0; bottom: -2px;
+  height: 1px;
+  background: var(--lapis);
+}
+.site-header .cats .sep { color: var(--line); margin-inline: 4px; }
+
+/* ============================================================
+   الصفحة الرئيسة
+   ============================================================ */
+main.wrap { padding-block: clamp(38px, 6vw, 72px) 90px; }
+
+.eyebrow {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: normal;
+  margin: 0 0 20px;
+  text-transform: none;
+}
+
+.lead { max-width: 780px; margin-inline: auto; margin-bottom: 88px; }
+.lead .frame { margin-bottom: 30px; }
+.lead h2 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: clamp(2rem, 4.4vw, 3.2rem);
+  line-height: 1.3;
+  margin: 0 0 12px;
+}
+.lead h2 a { display: inline; }
+.lead h2 a:hover { color: var(--lapis); }
+.lead .excerpt {
+  font-family: "Amiri", serif;
+  font-size: clamp(1.05rem, 1.4vw, 1.2rem);
+  line-height: 1.95;
+  color: var(--ink);
+  margin: 18px 0 20px;
+  max-width: 42rem;
+}
+.lead .more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lapis);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 14px;
+  position: relative;
+}
+.lead .more::after {
+  content: "";
+  position: absolute;
+  right: 0; bottom: -3px;
+  width: 100%;
+  height: 1px;
+  background: var(--lapis);
+  transform-origin: right;
+  transform: scaleX(.5);
+  transition: transform .25s;
+}
+.lead .more:hover::after { transform: scaleX(1); }
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+}
+.meta .dot { color: var(--line); }
+
+.section { margin-top: 78px; }
+.section .eyebrow { text-align: center; margin-bottom: 32px; }
+
+/* شبكة المقالات */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 34px 40px;
+}
+.card { border: 1px solid var(--line); padding: 24px; }
+.card a { display: block; }
+.card .frame { margin-bottom: 16px; }
+.card h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  margin: 0 0 8px;
+  transition: color .18s;
+}
+.card a:hover h3 { color: var(--lapis); }
+.card .card-excerpt {
+  font-family: "Amiri", serif;
+  font-size: .95rem;
+  line-height: 1.85;
+  color: var(--muted);
+  margin: 10px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* السلاسل — بطاقتان جنبًا إلى جنب */
+.bundles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 38px;
+}
+.bundle { display: grid; grid-template-columns: 140px 1fr; gap: 22px; align-items: start; }
+.bundle-frame { width: 140px; }
+.bundle h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  margin: 0 0 6px;
+  transition: color .18s;
+}
+.bundle a:hover h3 { color: var(--lapis); }
+.bundle .count {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: normal;
+  margin-bottom: 10px;
+}
+.bundle p {
+  font-family: "Amiri", serif;
+  font-size: .98rem;
+  line-height: 1.85;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ============================================================
+   الإطار الزخرفي
+   ============================================================ */
+.frame {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--shade);
+  border-radius: 10px;
+}
+
+.frame svg { width: 100%; height: 100%; display: block; }
+.f-wide { aspect-ratio: 5 / 2; }
+.book-frame { aspect-ratio: 2 / 3; }
+
+/* ============================================================
+   الصفحات الداخلية
+   ============================================================ */
+.inner-page { max-width: 900px; }
+.inner-page .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lapis);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  margin-bottom: 34px;
+}
+.inner-page .back:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* السلاسل — الصفحة المفردة */
+.serieshead { text-align: center; margin-bottom: 46px; }
+.serieshead .back { display: inline-flex; margin-bottom: 22px; }
+.serieshead .f-wide { margin: 18px auto 22px; max-width: 620px; }
+.serieshead h2 {
+  font-family: "Amiri", serif;
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  font-weight: 700;
+  margin: 6px 0 8px;
+}
+.serieshead .desc {
+  font-family: "Amiri", serif;
+  color: var(--muted);
+  max-width: 40rem;
+  margin: 16px auto 0;
+  line-height: 1.85;
+}
+.parts { list-style: none; padding: 0; margin: 0; max-width: 720px; margin-inline: auto; }
+.parts li {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 18px;
+  align-items: center;
+  padding-block: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.parts li:first-child { border-top: 1px solid var(--line); }
+.parts .part-number {
+  font-family: "Aref Ruqaa", serif;
+  font-size: 2rem;
+  color: var(--gold);
+  line-height: 1;
+}
+.parts h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+  transition: color .18s;
+}
+.parts a:hover h3 { color: var(--lapis); }
+
+/* ============================================================
+   المقالة
+   ============================================================ */
+.essay { max-width: 720px; margin-inline: auto; }
+.essay .serieschip {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: normal;
+  margin-bottom: 14px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.essay .serieschip a { color: var(--lapis); text-decoration: underline; text-underline-offset: 3px; }
+.essay .serieschip .dot { color: var(--line); }
+.essay h2 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3.6vw, 2.8rem);
+  line-height: 1.35;
+  margin: 8px 0 12px;
+}
+.essay > .f-wide { margin: 28px 0 36px; }
+.featured-image {
+  margin: 0 0 32px;
+  border: 1px solid var(--line);
+  background: var(--shade);
+  overflow: hidden;
+}
+.featured-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Reader comments */
+.comments {
+  border-top: 2px solid var(--ink);
+  padding-top: 32px;
+  margin-top: 48px;
+}
+
+/* Series navigation (prev/next part) */
+.series-nav {
+  margin: 40px 0 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+.series-nav-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  text-align: center;
+}
+.series-nav-label a { color: var(--lapis); font-family: "Amiri", serif; font-size: 1.05rem; }
+.series-nav-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 700px) {
+  .series-nav-cards { grid-template-columns: 1fr; }
+}
+.series-nav-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  background: var(--shade);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.series-nav-card:hover {
+  border-color: var(--lapis);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.series-nav-card.prev { text-align: right; }
+.series-nav-card.next { text-align: left; }
+.sn-eyebrow { font-size: 11px; letter-spacing: 0.05em; color: var(--muted); text-transform: uppercase; }
+.sn-title { font-family: "Amiri", serif; font-size: 1.15rem; line-height: 1.6; color: var(--ink); }
+.sn-hint { font-size: 12px; color: var(--lapis); margin-top: auto; }
+.comments h4 {
+  font-family: "Amiri", serif;
+  font-size: 1.4rem;
+  margin: 0 0 20px;
+  color: var(--ink);
+}
+.comment-list { list-style: none; padding: 0; margin: 0 0 32px; }
+.comment-list li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.comment-list li:last-child { border-bottom: 0; }
+.c-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 12px; flex-wrap: wrap; }
+.c-head strong { font-family: "Amiri", serif; font-size: 1.05rem; color: var(--lapis); }
+.c-date { font-size: 12px; color: var(--muted); }
+.c-body { margin: 0; font-family: "Amiri", serif; font-size: 1.05rem; line-height: 1.9; color: var(--ink); }
+.comment-form { border-top: 1px solid var(--line); padding-top: 24px; }
+.comment-form .c-row { margin-bottom: 12px; }
+.comment-form input, .comment-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 15px;
+  background: var(--paper);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+.comment-form textarea { font-family: "Amiri", serif; font-size: 16px; line-height: 1.8; resize: vertical; }
+.comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: var(--lapis); }
+.c-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.c-msg { color: var(--muted); font-size: 13px; }
+
+/* Prominent divider block (author-inserted) */
+.essay hr.essay-divider,
+.essay-body hr.essay-divider,
+.inner-page .body hr.essay-divider {
+  border: 0;
+  border-top: 2px solid var(--ink);
+  margin: 32px auto;
+  max-width: 240px;
+  opacity: 0.85;
+}
+
+/* Per-block text sizes (author-controlled) */
+.essay .body .text-size-sm,
+.inner-page .body .text-size-sm { font-size: 0.92rem; line-height: 1.9; }
+.essay .body .text-size-lg,
+.inner-page .body .text-size-lg { font-size: 1.25rem; line-height: 2.05; }
+.essay .body .text-size-xl,
+.inner-page .body .text-size-xl { font-size: 1.5rem; line-height: 2.1; }
+.essay .body .text-size-xxl,
+.inner-page .body .text-size-xxl { font-size: 1.9rem; line-height: 2.2; }
+.essay .body {
+  font-family: "Amiri", serif;
+  font-size: 1.15rem;
+  line-height: 2;
+  color: var(--ink);
+}
+.essay .body h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.45rem;
+  color: var(--lapis);
+  margin: 40px 0 16px;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--gold);
+}
+.essay .body p { margin: 0 0 22px; }
+.essay .endmark {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-block: 3rem;
+  color: var(--gold);
+  font-size: 1.4rem;
+  text-align: center;
+}
+.essay .endmark::before,
+.essay .endmark::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* الحاشية الانتقالية */
+.p-block { margin-bottom: 22px; }
+.p-block > p { margin: 0; }
+.fn-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--lapis);
+  background: transparent;
+  color: var(--lapis);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: super;
+  margin-inline: 4px;
+  padding: 0;
+  transition: background .18s, color .18s, transform .18s;
+}
+.fn-marker:hover { background: var(--lapis); color: var(--paper); }
+.fn-marker.on {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--paper);
+  transform: translateY(-1px);
+}
+.fn-inline {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height .28s ease, opacity .2s ease, margin .2s ease;
+  margin: 0;
+}
+.fn-inline.open {
+  max-height: 300px;
+  opacity: 1;
+  margin: 14px 0 6px;
+  padding: 14px 16px;
+  background: var(--shade);
+  border-inline-start: 3px solid var(--gold);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: .92rem;
+  line-height: 1.85;
+  color: var(--muted);
+}
+.fn-inline .fn-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: .78rem;
+  letter-spacing: normal;
+  margin-bottom: 6px;
+}
+.fn-inline .fn-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--lapis);
+}
+.fn-inline .k-تعليق { background: var(--lapis); }
+.fn-inline .k-تخريج { background: var(--gold); }
+.fn-inline .k-إحالة { background: var(--muted); }
+.fn-inline .fn-text { color: var(--ink); }
+
+/* مقالات ذات صلة */
+.related {
+  max-width: 720px;
+  margin: 4rem auto 0;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+.related h4 {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  letter-spacing: normal;
+  color: var(--gold);
+  margin: 0 0 20px;
+  font-weight: 500;
+}
+.related ul { list-style: none; padding: 0; margin: 0; }
+.related li { border-bottom: 1px solid var(--line); padding-block: 2.5rem; }
+.related li:first-child { border-top: 1px solid var(--line); }
+.related a {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: baseline;
+  font-family: "Amiri", serif;
+  font-size: 1.1rem;
+  transition: color .18s;
+}
+.related a:hover { color: var(--lapis); }
+
+/* ============================================================
+   صفحة الكتب
+   ============================================================ */
+.page-head { text-align: center; margin-bottom: 44px; }
+.page-head h2 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: clamp(2rem, 3.8vw, 2.8rem);
+  margin: 4px 0 14px;
+}
+.page-head .desc {
+  font-family: "Amiri", serif;
+  color: var(--muted);
+  max-width: 34rem;
+  margin: 0 auto;
+  line-height: 1.85;
+}
+.books { display: grid; gap: 46px; }
+.book {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 32px;
+  padding-block: 26px;
+  border-bottom: 1px solid var(--line);
+}
+.book:first-child { border-top: 1px solid var(--line); }
+.book-cover { position: relative; width: 180px; }
+.book-cover .book-glyph {
+  position: absolute;
+  top: 50%; right: 50%;
+  transform: translate(50%, -50%);
+  color: var(--gold);
+  opacity: .55;
+}
+.book-body h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.55rem;
+  margin: 0 0 6px;
+}
+.book-body p {
+  font-family: "Amiri", serif;
+  font-size: 1rem;
+  line-height: 1.85;
+  color: var(--muted);
+  margin: 12px 0 18px;
+  max-width: 34rem;
+}
+.book-body .download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  transition: background .18s, color .18s;
+}
+.book-body .download:hover { background: var(--ink); color: var(--paper); }
+
+/* ============================================================
+   عن المدونة
+   ============================================================ */
+.about { max-width: 640px; margin-inline: auto; }
+.about h2 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  margin: 20px 0 22px;
+}
+.about p {
+  font-family: "Amiri", serif;
+  font-size: 1.15rem;
+  line-height: 2;
+  color: var(--ink);
+  margin: 0 0 20px;
+}
+.about .contact { color: var(--muted); }
+.about a { color: var(--lapis); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ============================================================
+   التذييل
+   ============================================================ */
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding-block: 28px 40px;
+  text-align: center;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+.site-footer .inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.site-footer a:hover { color: var(--lapis); }
+.site-footer .dot { color: var(--line); }
+.site-footer .copy { flex: 1 0 100%; margin-top: 10px; color: var(--muted); }
+.site-footer .footer-socials {
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 10px;
+}
+.site-footer .footer-socials a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  transition: color .18s, border-color .18s, background .18s;
+}
+.site-footer .footer-socials a:hover {
+  color: var(--paper);
+  background: var(--lapis);
+  border-color: var(--lapis);
+}
+
+/* شبكة حقول روابط التواصل داخل المحرّر */
+.social-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 8px;
+}
+.social-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .social-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   الحالات الفارغة والحركة
+   ============================================================ */
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-family: "Amiri", serif;
+  font-size: 1.15rem;
+  padding: 80px 20px;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ============================================================
+   استجابة الشاشات الصغيرة
+   ============================================================ */
+
+/* الآية القرآنية — Amiri Quran فقط، ولا وراثة لسطرٍ ضيّق */
+.ayah-wrap {
+  display: inline;
+}
+.ayah {
+  font-family: "Amiri Quran", serif;
+  color: var(--lapis);
+  padding: 0 4px;
+  line-height: 2.6;
+  margin-block: 0.6em;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-stroke: 0;
+  font-feature-settings: "calt" 1, "liga" 1;
+  vertical-align: baseline;
+}
+.ayah-ref {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-weight: 300;
+  font-size: 0.72em;
+  color: var(--gold);
+  padding-inline-start: 4px;
+  padding-inline-end: 2px;
+  vertical-align: baseline;
+  white-space: nowrap;
+  letter-spacing: normal;
+}
+/* أي فقرةٍ تحوي آيةً تلين سطرها كي لا يصطدم التشكيل بالسطر أعلاه */
+.p-block.has-ayah > p {
+  line-height: 2.6;
+  margin-block: 0.6em;
+}
+
+/* شارة القائمة في الترويسة */
+.saved-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  margin-inline-start: 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--paper);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* بطاقات الإحصاءات */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin-block: 6px 40px;
+}
+.stat {
+  padding: 22px 20px;
+  border: 1px solid var(--line);
+  background: var(--shade);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stat svg { color: var(--gold); }
+.stat-value {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.stat-label {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-weight: 300;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stats-list { list-style: none; padding: 0; margin: 0; }
+.stats-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding-block: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.stats-list li:first-child { border-top: 1px solid var(--line); }
+.stats-list h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin: 0 0 6px;
+  transition: color .18s;
+}
+.stats-list a:hover h3 { color: var(--lapis); }
+.stats-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+}
+.chip {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.chip-done { color: var(--gold); border-color: var(--gold); }
+.chip-in { color: var(--lapis); border-color: var(--lapis); }
+.stats-time { color: var(--muted); }
+.stats-actions {
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* ============================================================
+   محرّر المقتطفات
+   ============================================================ */
+.editor-global {
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--shade);
+  margin-bottom: 34px;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.switch-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--lapis);
+}
+.editor-label {
+  display: block;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-weight: 300;
+  font-size: 13px;
+  color: var(--muted);
+  margin-block: 12px 8px;
+}
+.editor-list { list-style: none; padding: 0; margin: 0; }
+.editor-item {
+  padding: 26px 22px;
+  border: 1px solid var(--line);
+  margin-bottom: 22px;
+}
+.editor-head { margin-bottom: 12px; }
+.editor-head h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 4px;
+}
+.editor-textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Amiri", serif;
+  font-size: 1rem;
+  line-height: 1.85;
+  padding: 12px 14px;
+  outline: 0;
+  resize: vertical;
+  min-height: 80px;
+}
+.editor-textarea:focus { border-color: var(--lapis); }
+.editor-textarea.over { border-color: #a44; }
+.editor-counter {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  text-align: end;
+}
+.editor-counter.over { color: #a44; }
+.editor-preview {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--shade);
+  border-inline-start: 3px solid var(--gold);
+}
+.editor-preview-label {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-weight: 300;
+  font-size: 11px;
+  color: var(--muted);
+  margin-inline-end: 8px;
+}
+.editor-preview-text {
+  font-family: "Amiri", serif;
+  font-size: 1rem;
+  line-height: 1.85;
+  color: var(--ink);
+}
+.editor-actions { margin-top: 14px; }
+.editor-bottom {
+  margin-top: 28px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.editor-flash {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  color: var(--gold);
+}
+
+/* حقول نصّية عامة داخل المحرّر */
+.text-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Amiri", serif;
+  font-size: 1rem;
+  padding: 10px 14px;
+  outline: 0;
+}
+.text-input:focus { border-color: var(--lapis); }
+
+/* شبكة رفع الملفّين */
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-block: 14px 22px;
+}
+.upload-grid input[type="file"] {
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+}
+.file-note {
+  margin-top: 6px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* قائمة الكتب المرفوعة (إدارية) */
+.admin-books-list { list-style: none; padding: 0; margin: 14px 0 0; }
+.admin-books-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+  gap: 20px;
+}
+.admin-books-list li:first-child { border-top: 1px solid var(--line); }
+.admin-books-list li strong {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.admin-books-list .meta {
+  margin-top: 4px;
+}
+
+/* صفحة الكتب — نمط مبسّط: صورة + عنوان + نبذة + زر تحميل */
+.book { align-items: start; }
+.book-cover {
+  position: relative;
+  width: 180px;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--shade);
+}
+.book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.book-cover .book-frame {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border: 0;
+}
+
+/* أزرار المقالة (حفظ، تصدير، مشاركة) */
+.article-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 4px;
+  padding-block: 14px;
+  border-block: 1px solid var(--line);
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.icon-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.icon-btn:disabled { opacity: .55; cursor: wait; }
+.icon-btn.on { color: var(--gold); border-color: var(--gold); }
+.icon-btn.on:hover { background: var(--gold); color: var(--paper); border-color: var(--gold); }
+.icon-btn.small { padding: 6px 10px; font-size: 12px; }
+
+/* قائمة القراءة المحفوظة */
+.saved-list { list-style: none; padding: 0; margin: 0; }
+.saved-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: start;
+  padding-block: 2.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.saved-list li:first-child { border-top: 1px solid var(--line); }
+.saved-list .saved-link { display: block; }
+.saved-list h3 {
+  font-family: "Amiri", serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+  transition: color .18s;
+}
+.saved-list .saved-link:hover h3 { color: var(--lapis); }
+.saved-list p {
+  font-family: "Amiri", serif;
+  color: var(--muted);
+  margin: 6px 0 8px;
+  line-height: 1.8;
+}
+
+/* نموذج النشرة */
+.news-form { max-width: 520px; margin-inline: auto; }
+.news-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--ink);
+  padding-block: 10px;
+}
+.news-row svg { color: var(--muted); flex-shrink: 0; }
+.news-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 15px;
+  padding: 8px 4px;
+  outline: 0;
+}
+.news-row button {
+  padding: 10px 22px;
+  border: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  transition: background .18s;
+}
+.news-row button:hover:not(:disabled) { background: var(--lapis); }
+.news-row button:disabled { opacity: .5; }
+.news-msg {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  border-inline-start: 3px solid var(--gold);
+  background: var(--shade);
+}
+.news-msg.err { border-color: #a44; color: #a44; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* تذييل PDF (لا يظهر في الشاشة) */
+.pdf-colophon {
+  display: none;
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-family: "Readex Pro", "Noto Naskh Arabic", sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+/* عند التصدير نُظهره ونخفي الأزرار */
+.essay .no-print { }
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 26px; }
+  .bundles { grid-template-columns: 1fr; }
+  .book { grid-template-columns: 130px 1fr; gap: 20px; }
+  .book-cover { width: 130px; }
+}
+@media (max-width: 600px) {
+  body { font-size: 17px; }
+  .site-header .topbar { gap: 14px; font-size: 12px; }
+  .site-header .brand h1 { font-size: clamp(2rem, 8vw, 2.6rem); }
+  .site-header .cats { gap: 14px; font-size: 13px; }
+  .site-header .cats .sep { display: none; }
+  .grid { grid-template-columns: 1fr; }
+  .bundle { grid-template-columns: 100px 1fr; gap: 16px; }
+  .bundle-frame { width: 100px; }
+  .book { grid-template-columns: 1fr; }
+  .book-cover { width: 60%; max-width: 200px; margin-inline: auto; }
+  .essay .body { font-size: 1.05rem; }
+  .lead h2 { font-size: 1.7rem; }
+  .related a { flex-direction: column; gap: 4px; }
+}
+/* ===== تعديلات مخصّصة ===== */
+.lead {
+  border: 1px solid var(--line);
+    border-radius: 14px;
+      padding: 22px;
+      }
+      .frame {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, .14);
+        }
+        .eyebrow, .meta, .back, .related a, .empty, .chip, .serieschip, .site-header .cats, .site-header .topbar, .stat-label, .stat-value, .stats-row-meta, .series-card, .series-card .count, .count {
+            font-family: "Amiri", serif;
+            }
+            .bundle .frame {
+                display: none;
+                }
+            .bundle {
+                grid-template-columns: 1fr;
+                }
+            .bundle > div {
+                display: flex;
+                  flex-wrap: wrap;
+                    align-items: baseline;
+                      gap: 14px;
+                      }
+            .section > .eyebrow {
+                display: flex;
+                  align-items: center;
+                    gap: 16px;
+                      font-size: 20px;
+                      }
+                      .section > .eyebrow::before,
+                      .section > .eyebrow::after {
+                        content: "";
+                          flex: 1;
+                            height: 1px;
+                              background: var(--line);
+                              }
+                              .bundle {
+                                background: rgba(176, 141, 87, .07);
+                                  border-radius: 10px;
+                                    padding: 6px 20px;
+                                      margin-bottom: 10px;
+                                      font-size: 17px;
+                                      }
+                                      .bundle > a {
+                                          display: none;
+                                          }
+                                      .parts li {
+                                          display: flex;
+                                            align-items: center;
+                                              gap: 14px;
+                                              }
+                                              .parts .part-cover {
+                                                width: 120px;
+                                                  flex: 0 0 120px;
+                                                  }
+                                      .parts li > div {
+                                          display: flex;
+                                            flex-wrap: wrap;
+                                              align-items: center;
+                                                gap: 18px;
+  font-size: 19px; 
+                                                }
+                                      .parts .part-number {
+  font-family: "Amiri", serif;
+  font-size: 2rem;
+  line-height: 1;
+} 
+  .essay .body p {
+      white-space: pre-line;
+      }
+                                        
+                                      
+            
+                
+         
+            
+        
+           
+                
+               
+
+            
+
+/* ================ Article extras (audio, YouTube, refs) ================ */
+.article-extras-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: stretch;
+  margin: 18px 0 26px;
+}
+
+/* ---- Custom audio player ---- */
+.ap-card {
+  flex: 1 1 340px;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff, rgba(255, 255, 255, .55));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .03), 0 8px 22px -14px rgba(0, 0, 0, .25);
+}
+.ap-play {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ink, #2c2016);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .35);
+  transition: transform .18s ease, background .18s ease;
+}
+.ap-play:hover { transform: scale(1.06); }
+.ap-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ap-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #6b6459);
+}
+.ap-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to left,
+                var(--ink, #2c2016) 0,
+                var(--ink, #2c2016) var(--pct, 0%),
+                rgba(0, 0, 0, .12) var(--pct, 0%),
+                rgba(0, 0, 0, .12) 100%);
+  outline: none;
+  cursor: pointer;
+}
+.ap-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 999px;
+  background: var(--ink, #2c2016);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+.ap-seek::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 999px;
+  background: var(--ink, #2c2016);
+  border: 2px solid #fff;
+}
+.ap-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted, #6b6459);
+}
+.ap-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 82px;
+}
+.ap-rate {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  background: #fff;
+  color: var(--ink, #2c2016);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .16s ease;
+}
+.ap-rate:hover { background: rgba(0, 0, 0, .04); }
+.ap-dl {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  color: var(--ink, #2c2016);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .16s ease;
+}
+.ap-dl:hover { background: rgba(0, 0, 0, .04); }
+.extra-youtube {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.yt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 999px;
+  background: #fff;
+  color: #c4302b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+}
+.yt-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -4px rgba(196, 48, 43, .3);
+  background: #fff5f5;
+}
+.yt-embed {
+  position: relative;
+  width: min(560px, 100%);
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, .08);
+  background: #000;
+}
+.yt-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.yt-close {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+.yt-close:hover { background: rgba(0, 0, 0, .75); }
+
+/* References list */
+.article-refs {
+  margin: 34px 0 10px;
+  padding: 18px 20px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .02);
+}
+.refs-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #2c2016);
+}
+.refs-list {
+  list-style: decimal;
+  padding-inline-start: 22px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.refs-list li {
+  padding: 2px 0;
+}
+.ref-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  transition: background .16s ease, color .16s ease;
+}
+.ref-link:hover {
+  background: rgba(0, 0, 0, .05);
+  color: var(--accent, #2C5C8F);
+}
+.ref-link .ref-ico {
+  display: inline-flex;
+  color: var(--muted, #6b6459);
+}
+.ref-link.kind-youtube .ref-ico { color: #c4302b; }
+.ref-link.kind-book .ref-ico { color: #a88e35; }
+.ref-link.kind-pdf .ref-ico { color: #a44444; }
+.ref-title { font-weight: 500; }
+.ref-kind {
+  margin-inline-start: auto;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .06);
+  color: var(--muted, #6b6459);
+}
+@media (max-width: 700px) {
+  .article-extras-top { flex-direction: column; }
+  .yt-embed { width: 100%; }
+}
+
+        

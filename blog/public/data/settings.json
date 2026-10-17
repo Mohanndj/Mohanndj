@@ -1,0 +1,21 @@
+{
+ "site_name": "مدونة مهند بن جازي",
+ "tagline": "",
+ "author": "مهند بن جازي",
+ "socials": [
+  {
+   "kind": "twitter",
+   "url": "https://x.com/Moh_jazi1"
+  },
+  {
+   "kind": "telegram",
+   "url": "https://t.me/mohanndjazich"
+  },
+  {
+   "kind": "email",
+   "url": "mohanndjazi@gmail.com"
+  }
+ ],
+ "show_excerpt_default": true,
+ "footer_line": "جميع الحقوق محفوظي لـ(مهند بن جازي) |  ١٤٤٨ هـ"
+}
