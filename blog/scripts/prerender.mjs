@@ -50,9 +50,10 @@ function page(route, { title, description, image, type = "website", content }) {
   }
   // React يستبدل هذا المحتوى فور تحميله؛ وجوده لمحركات البحث فقط.
   html = html.replace('<div id="root"></div>', `<div id="root">${content}</div>`);
-  const dir = path.join(DIST, decodeURIComponent(route));
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "index.html"), html);
+  // /articles/x تُكتب articles/x.html لا articles/x/index.html، كي لا يحوّلها Cloudflare إلى /articles/x/
+  const file = route === "/" ? path.join(DIST, "index.html") : path.join(DIST, decodeURIComponent(route) + ".html");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, html);
 }
 
 const listHtml = (items) => `<ul>${items.map((a) => `<li><a href="${articleUrl(a)}">${esc(a.title)}</a></li>`).join("")}</ul>`;
