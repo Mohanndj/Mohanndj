@@ -1794,3 +1794,14 @@ li.sel .sel-box { background: var(--high); }
 #qzAiMsg:empty { display: none; }
 #qzAiMsg { font-size: .9rem; }
 #qzAiMsg .ok { color: var(--low); }
+
+/* ---------- كناشة القراءة (kunnasha.js) ---------- */
+.kun-tabs { margin-bottom: 2px; }
+.kun-list { display: grid; gap: 8px; }
+.kun-card { display: grid; gap: 6px; width: 100%; text-align: start; background: var(--card); border: 1px solid var(--line); border-inline-start: 4px solid var(--accent); border-radius: 14px; padding: 12px 14px; color: inherit; font: inherit; cursor: pointer; }
+.kun-card strong { font-size: 1.02rem; line-height: 1.6; overflow-wrap: anywhere; }
+.kun-card p { margin: 0; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.kun-card small { color: var(--muted); font-size: .8rem; }
+.kun-copy { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+.kun-copy .btn-row { display: flex; gap: 8px; align-items: center; }
+.kun-copy select { flex: 1; min-width: 0; }

@@ -287,6 +287,7 @@ function awareStats(P) {
   }
   const finished = S.books.filter((b) => b.status === 'read' && inP(b.end));
   const bens = S.benefits.filter((f) => inP(dayOfTs(f.created)));
+  const kuns = S.kunnasha.filter((k) => inP(dayOfTs(k.created)));
   const recallsBy = S.books.map((b) => ({ b, es: b.rvLog.filter((e) => inP(e.d)) })).filter((x) => x.es.length);
   const recalls = sum(recallsBy, (x) => x.es.length);
   const pendingRecall = S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= end).length;
@@ -295,9 +296,10 @@ function awareStats(P) {
     rS && `جلسات القراءة: ${rH} من ${rS}`,
     finished.length && `أنهيت ${plural(finished.length, 'كتاباً واحداً', 'كتابين', 'كتب', 'كتاباً')}`,
     bens.length && `سجّلت ${plural(bens.length, 'فائدة واحدة', 'فائدتين', 'فوائد', 'فائدة')}`,
+    kuns.length && `كتبت في كناشة القراءة: ${kuns.length}`,
     recalls && `استذكرت ${plural(recalls, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
     pendingRecall && `${pendingRecall} ينتظر الاستذكار`,
-  ], [...bookLines, ...bens.map((f) => `فائدة: ${f.title || excerpt(f.text || f.lesson, 50)}${f.book ? ` («${f.book}»)` : ''}`), ...recallsBy.map((x) => `استذكرت «${x.b.title}» (${x.es.map((e) => dS(e.d)).join('، ')})`)]);
+  ], [...bookLines, ...bens.map((f) => `فائدة: ${f.title || excerpt(f.text || f.lesson, 50)}${f.book ? ` («${f.book}»)` : ''}`), ...kuns.map((k) => `كناشة: ${k.title || excerpt(k.text, 50)}`), ...recallsBy.map((x) => `استذكرت «${x.b.title}» (${x.es.map((e) => dS(e.d)).join('، ')})`)]);
 
   // 📔 يومياتي: days written since the first entry (today only once written)
   const written = new Set(S.journal.filter((j) => !jEmpty(j)).map((j) => j.date));

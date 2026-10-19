@@ -327,6 +327,8 @@ function benefitCard(f) {
 }
 
 function viewBenefits() {
+  // kunnasha.js: the page's second tab, «كناشة القراءة»
+  if (kunUi.tab === 'kun') return viewKunnasha();
   const q = libUi.benefitQ.trim().toLowerCase();
   const fb = libUi.benefitBook;
   const titles = [...new Set(S.benefits.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'));
@@ -334,6 +336,7 @@ function viewBenefits() {
     (!q || f.title.toLowerCase().includes(q) || f.text.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q)))
     .sort((a, b) => (fb ? (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page) : b.created - a.created));
   return `${moreCrumb()}
+  ${kunTabsHTML()}
   <section class="section">
     <div class="section-head"><h2>الفوائد</h2><div class="btn-row">${S.benefits.length ? xlsBtn('benefits') : ''}${addBtn('lib-new-benefit', 'فائدة')}</div></div>
     ${S.benefits.length ? `<div class="toolbar">
@@ -640,6 +643,10 @@ function excelSheets(kind) {
     ], S.benefits.slice().sort((a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page))
       .map((f) => [benefitBookTitle(f), f.page, f.title, [f.text, ...bvTexts(f)].filter(Boolean).join('\n'), f.lesson, stampDate(f.created)]));
   }
+  if ((kind === 'all' && S.kunnasha.length) || kind === 'kunnasha') {
+    add('كناشة القراءة', [{ title: 'العنوان', width: 36, wrap: true }, { title: 'النص', width: 90, wrap: true }, { title: 'تاريخ الكتابة', width: 13 }],
+      S.kunnasha.slice().sort((a, b) => a.created - b.created).map((k) => [k.title, k.text, stampDate(k.created)]));
+  }
   if (kind === 'all' || kind === 'archive') {
     add(pageName('archive'), [
       { title: 'العنوان', width: 36, wrap: true }, { title: 'الرابط', width: 40 }, { title: 'النص', width: 50, wrap: true },
@@ -709,7 +716,7 @@ function excelSheets(kind) {
   return sheets;
 }
 
-const XLS_NAMES = { finance: 'mahami-finance', hifz: 'mahami-hifz', people: 'mahami-people', decisions: 'mahami-decisions', ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits' };
+const XLS_NAMES = { finance: 'mahami-finance', hifz: 'mahami-hifz', people: 'mahami-people', decisions: 'mahami-decisions', ideas: 'mahami-ideas', journal: 'mahami-journal', archive: 'mahami-archive', inspire: 'mahami-quotes', all: 'mahami', tasks: 'mahami-tasks', goals: 'mahami-goals', memos: 'mahami-notes', books: 'mahami-books', benefits: 'mahami-benefits', kunnasha: 'mahami-kunnasha' };
 function exportExcel(kind) {
   const blob = Xlsx.build(excelSheets(kind));
   const url = URL.createObjectURL(blob);
@@ -862,7 +869,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste'].includes(kind);
   if (!saver()) return;
   closeLib();

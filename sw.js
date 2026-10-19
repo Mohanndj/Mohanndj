@@ -3,7 +3,7 @@
 // same version; the cache is only used when there is no connection.
 importScripts('timer-shared.js');
 
-const VERSION = 91;
+const VERSION = 92;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -27,6 +27,7 @@ const ASSETS = [
   './reminders.js',
   './study.js',
   './quiz.js',
+  './kunnasha.js',
   './benvoice.js',
   './remind.js',
   './xlsx-read.js',
