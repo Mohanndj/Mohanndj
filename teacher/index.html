@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مساعد المعلم</title>
+<meta name="description" content="طلابك وسلوكهم ودرجاتهم واختباراتهم ورسائل أولياء أمورهم في تطبيق واحد.">
+<meta name="theme-color" content="#166534">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مساعد المعلم">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<header class="top"><div class="top-inner">
+  <h1>مساعد المعلم</h1>
+  <button type="button" class="icon-btn" data-act="go" data-tab="settings" aria-label="الإعدادات">⚙</button>
+</div></header>
+<main id="main" class="wrap"></main>
+<nav id="nav" class="nav"></nav>
+<div id="sheet" class="sheet" hidden><div class="sheet-card"><button type="button" class="sheet-x" data-act="close-sheet" aria-label="إغلاق">✕</button><div id="sheetBody"></div></div></div>
+<div id="toast" class="toast" hidden></div>
+<script src="../xlsx-read.js?v=1"></script>
+<script src="../xlsx.js?v=1"></script>
+<script src="qcodec.js?v=1"></script>
+<script src="core.js?v=1"></script>
+<script src="students.js?v=1"></script>
+<script src="behavior.js?v=1"></script>
+<script src="messages.js?v=1"></script>
+<script src="grades.js?v=1"></script>
+<script src="quizzes.js?v=1"></script>
+<script>start();</script>
+</body>
+</html>

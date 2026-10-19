@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اختبار</title>
+<meta name="theme-color" content="#166534">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body class="student">
+<header class="top"><div class="top-inner"><h1 id="qTitle">اختبار</h1></div></header>
+<main id="main" class="wrap"><p class="muted">يُحمَّل الاختبار…</p></main>
+<div id="toast" class="toast" hidden></div>
+<script src="qcodec.js?v=1"></script>
+<script>
+'use strict';
+// The students' page: the test comes inside the link itself (nothing is stored on any server).
+// The student writes his name, answers, sees his mark, and sends the result to the teacher on
+// WhatsApp with a code the teacher's app reads (and marks again by itself).
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ar = (s) => String(s ?? '').replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+const L = 'أبجدهو';
+let Z = null, answers = [], done = null;
+const store = () => `muallim-q-${Z.i}`;
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 3000); }
+
+async function start() {
+  try { Z = await QCodec.unpack(location.hash.slice(1)); } catch { Z = null; }
+  if (!Z || !Array.isArray(Z.q)) { $('main').innerHTML = '<div class="card"><p class="warn">الرابط ناقص أو تالف. اطلب من معلمك إرساله مرة أخرى.</p></div>'; return; }
+  document.title = Z.t; $('qTitle').textContent = Z.t;
+  try { done = JSON.parse(localStorage.getItem(store())); } catch { done = null; }
+  answers = done ? done.a : Z.q.map(() => null);
+  draw();
+}
+function draw() {
+  const name = done ? done.n : (localStorage.getItem('muallim-q-name') || '');
+  const cls = done ? done.c : (localStorage.getItem('muallim-q-cls') || '');
+  const score = done ? QCodec.score(Z.q, done.a) : 0;
+  const show = !!Z.a;
+  $('main').innerHTML = `
+    ${done ? `<div class="card score"><p>نتيجتك</p><b>${ar(score)} من ${ar(Z.q.length)}</b>
+      <button type="button" class="primary big wa" id="send">📤 أرسل نتيجتك للمعلم</button>
+      <p class="hint">${Z.p ? 'يفتح واتساب برسالة إلى معلمك؛ اضغط إرسال ولا تعدّل شيئاً فيها.' : 'اختر معلمك في واتساب وأرسل الرسالة كما هي.'}</p></div>` : ''}
+    <div class="card"><label>اسمك الثلاثي<input id="nm" value="${esc(name)}" ${done ? 'disabled' : ''} placeholder="الاسم الأول واسم الأب واسم العائلة"></label>
+    <label>فصلك<input id="cl" value="${esc(cls)}" ${done ? 'disabled' : ''} placeholder="مثل: أول متوسط ١"></label></div>
+    <ol class="solve">${Z.q.map((q, i) => {
+      const a = answers[i];
+      const right = done ? a === q[3] : null;
+      const choices = q[0] === 't' ? [[1, 'صح'], [0, 'خطأ']] : q[2].map((o, k) => [k, `${L[k]}) ${o}`]);
+      return `<li class="${done ? (right ? 'q-ok' : 'q-no') : ''}"><p class="qq">${esc(ar(q[1]))}</p>
+        <div class="opts">${choices.map(([v, t]) => `<button type="button" class="opt${a === v ? ' on' : ''}${done && show && v === q[3] ? ' right' : ''}" data-i="${i}" data-v="${v}" ${done ? 'disabled' : ''}>${esc(ar(t))}</button>`).join('')}</div>
+        ${done ? `<p class="${right ? 'good' : 'warn'}">${right ? '✓ إجابتك صحيحة' : a === null || a === undefined ? '✗ لم تُجب' : '✗ إجابتك خاطئة'}</p>${show && q[4] ? `<p class="explain-on">${esc(ar(q[4]))}</p>` : ''}` : ''}</li>`;
+    }).join('')}</ol>
+    ${done ? '<button type="button" class="ghost" id="again">حلّه مرة أخرى (تُحسب لمعلمك محاولتك الأولى)</button>' : '<button type="button" class="primary big" id="finish">أنهيت الاختبار</button>'}`;
+}
+document.addEventListener('click', (e) => {
+  const o = e.target.closest('.opt');
+  if (o && !done) {
+    answers[Number(o.dataset.i)] = Number(o.dataset.v);
+    for (const b of document.querySelectorAll(`.opt[data-i="${o.dataset.i}"]`)) b.classList.toggle('on', b === o);
+    return;
+  }
+  if (e.target.id === 'finish') finish(e.target);
+  if (e.target.id === 'send') send();
+  if (e.target.id === 'again') { localStorage.removeItem(store()); done = null; answers = Z.q.map(() => null); draw(); window.scrollTo(0, 0); }
+});
+function finish(btn) {
+  const n = $('nm').value.trim().replace(/\s+/g, ' ');
+  const c = $('cl').value.trim();
+  if (n.split(' ').length < 2) { toast('اكتب اسمك الثلاثي'); $('nm').focus(); return; }
+  const left = answers.filter((a) => a === null).length;
+  if (left && !btn.dataset.sure) { btn.dataset.sure = '1'; btn.textContent = `بقي ${ar(left)} بلا إجابة. اضغط مرة أخرى للإنهاء`; return; }
+  localStorage.setItem('muallim-q-name', n);
+  localStorage.setItem('muallim-q-cls', c);
+  done = { n, c, a: answers.slice(), at: Date.now() };
+  localStorage.setItem(store(), JSON.stringify(done));
+  draw();
+  window.scrollTo(0, 0);
+}
+async function send() {
+  const code = await QCodec.pack({ i: Z.i, n: done.n, c: done.c, a: done.a });
+  const text = `نتيجة اختبار «${Z.t}»\nالطالب: ${done.n}\nالفصل: ${done.c || '—'}\nالدرجة: ${ar(QCodec.score(Z.q, done.a))} من ${ar(Z.q.length)}\n\nرمز التصحيح (لا تعدّله):\n⟦R:${code}⟧`;
+  location.href = `https://wa.me/${Z.p || ''}?text=${encodeURIComponent(text)}`;
+}
+start();
+</script>
+</body>
+</html>
