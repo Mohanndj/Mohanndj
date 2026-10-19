@@ -3,7 +3,7 @@
 // same version; the cache is only used when there is no connection.
 importScripts('timer-shared.js');
 
-const VERSION = 90;
+const VERSION = 91;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -71,7 +71,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'mahami-actions').map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== 'mahami-actions' && !k.startsWith('muallim-')).map((k) => caches.delete(k)))) // «مساعد المعلم» shares this site: its caches are its own
       .then(() => self.clients.claim())
   );
 });
