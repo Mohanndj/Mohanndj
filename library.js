@@ -94,6 +94,8 @@ function normalizeBenefit(f) {
     // text: the benefit itself as read (a quote or its idea); lesson: what can be learnt from it
     title: String(f.title || ''), text: String(f.text || ''), lesson: String(f.lesson || ''), created: f.created || Date.now(),
     actionId: f.actionId || '', lastReview: f.lastReview || '', reviews: Number(f.reviews) || 0,
+    // the categories the user names (benplus.js, v93): ids from S.settings.benCats
+    cats: (Array.isArray(f.cats) ? f.cats : []).filter((x) => typeof x === 'string' && x),
     // voice notes on it (benvoice.js): the recording stays on the phone, its written-out text with the benefit
     voices: (Array.isArray(f.voices) ? f.voices : []).filter((v) => v && v.id).map((v) => ({ id: v.id, mediaId: String(v.mediaId || ''), dur: Number(v.dur) || 0, text: '', created: v.created || Date.now() })),
   };
@@ -321,6 +323,7 @@ function benefitCard(f) {
     <strong>${esc(f.title || 'فائدة')}</strong>
     <span class="book-line">${icon('book')}${esc(benefitBookTitle(f))}${f.page !== '' ? ` | صفحة ${f.page}` : ''}</span>
     ${benBody(f, 400)}
+    ${benCatsLine(f)}
     ${f.voices && f.voices.length ? `<span class="book-line">🎙 تسجيلات صوتية: ${f.voices.length}</span>` : ''}
     ${f.actionId && getTask(f.actionId) ? `<span class="book-line ok">${icon('check')}تحوّلت إلى عمل: ${esc(getTask(f.actionId).title)}</span>` : ''}
   </button>`;
@@ -332,20 +335,21 @@ function viewBenefits() {
   const q = libUi.benefitQ.trim().toLowerCase();
   const fb = libUi.benefitBook;
   const titles = [...new Set(S.benefits.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'));
-  const list = S.benefits.filter((f) => (!fb || benefitBookTitle(f) === fb) &&
-    (!q || f.title.toLowerCase().includes(q) || f.text.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q)))
+  const list = S.benefits.filter((f) => (!fb || benefitBookTitle(f) === fb) && benCatOk(f) &&
+    (!q || f.title.toLowerCase().includes(q) || f.text.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q) || benCatNames(f).toLowerCase().includes(q)))
     .sort((a, b) => (fb ? (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page) : b.created - a.created));
   return `${moreCrumb()}
   ${kunTabsHTML()}
   <section class="section">
-    <div class="section-head"><h2>الفوائد</h2><div class="btn-row">${S.benefits.length ? xlsBtn('benefits') : ''}${addBtn('lib-new-benefit', 'فائدة')}</div></div>
+    <div class="section-head"><h2>الفوائد</h2><div class="btn-row">${S.benefits.length ? `<button type="button" class="xls-btn word-btn" data-action="ben-word">${icon('note')}وورد</button>${xlsBtn('benefits')}` : ''}${addBtn('lib-new-benefit', 'فائدة')}</div></div>
     ${S.benefits.length ? `<div class="toolbar">
       <input type="search" id="benefitSearch" placeholder="ابحث في الفوائد" aria-label="بحث" value="${esc(libUi.benefitQ)}">
       <select id="benefitBook" aria-label="الكتاب"><option value="">كل الكتب</option>${titles.map((t) => `<option value="${esc(t)}"${t === fb ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      ${benCatSelectHTML()}
     </div>` : ''}
-    ${S.benefits.length ? `<div class="btn-row"><button type="button" class="chip" data-action="lib-ben-read" aria-pressed="${libUi.benRead}">📖 العنوان والفائدة فقط</button></div>` : ''}
+    <div class="btn-row">${S.benefits.length ? `<button type="button" class="chip" data-action="lib-ben-read" aria-pressed="${libUi.benRead}">📖 العنوان والفائدة فقط</button>` : ''}${benToolsHTML()}</div>
     ${list.length ? (libUi.benRead ? `<div class="ben-reads">${list.map((f) => benReadHTML(f, !fb)).join('')}</div>` : `<div class="book-list">${list.map(benefitCard).join('')}</div>`)
-      : S.benefits.length ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى أو كتاباً آخر.')
+      : S.benefits.length ? emptyHTML('لا نتائج', 'جرّب كلمة أخرى أو كتاباً آخر أو تصنيفاً آخر.')
         : emptyHTML('لا فوائد بعد', 'سجّل الفائدة: اسم الكتاب ورقم الصفحة وعنوانها، وما يمكن أن تستفيده منها.', addBtn('lib-new-benefit', 'أول فائدة'))}
   </section>`;
 }
@@ -419,8 +423,9 @@ function openLib(kind, id, preset = {}) {
       ${id ? `<div id="bkBens"${ldraft.tab === 'bens' ? '' : ' hidden'}><div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
       ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}</div>` : ''}`;
   } else {
-    const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '' });
+    const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '', cats: benNewCats() });
     ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
+    ldraft.cats = [...fx.cats];
     const bookTitle = id ? benefitBookTitle(fx) : (preset.bookId ? getBook(preset.bookId).title : preset.book || '');
     body = `
       <label class="field"><span>اسم الكتاب</span><input type="text" id="lBook" value="${esc(bookTitle === 'بلا كتاب' ? '' : bookTitle)}" list="bookTitles" autocomplete="off" placeholder="اختر من كتبك أو اكتب اسماً"></label>
@@ -430,6 +435,8 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>نص الفائدة</span><textarea id="lText" rows="5" placeholder="الفائدة كما قرأتها">${esc(fx.text)}</textarea></label>
       <details class="bv-fold"${(fx.voices || []).length ? ' open' : ''}><summary>🎙 تسجيل صوتي (اختياري)</summary><div id="bvBox"></div></details>
       <label class="field"><span>ما يمكن أن يُستفاد منها</span><textarea id="lLesson" rows="4" placeholder="كيف تطبّقها">${esc(fx.lesson)}</textarea></label>
+      ${benCatPickHTML(ldraft.cats)}
+      ${benAppsRowHTML()}
       ${id ? (fx.actionId && getTask(fx.actionId)
         ? `<div class="row-between"><span class="note-text">${icon('check')} تحوّلت إلى عمل: ${esc(getTask(fx.actionId).title)}</span><button type="button" class="ghost" data-action="open" data-id="${fx.actionId}">عرضه</button></div>`
         : `<div class="btn-row"><button type="button" class="ghost" data-action="lib-to-action" data-v="${id}">اجعلها مهمة</button>${aiBtn('ai-benefit', 'اقترح عملاً منها', ` data-v="${id}"`)}</div>`) : ''}`;
@@ -538,7 +545,7 @@ function saveLib() {
     const old = getBenefit(id);
     // a recording removed in the sheet leaves the phone too
     if (old) for (const x of old.voices || []) if (!voices.some((y) => y.id === x.id)) Media.del(x.mediaId).catch(() => {});
-    const f = normalizeBenefit({ ...(old || {}), id, title: title || (voices.length && !text ? 'فائدة مسجّلة بالصوت' : ''), text, lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName, voices });
+    const f = normalizeBenefit({ ...(old || {}), id, title: title || (voices.length && !text ? 'فائدة مسجّلة بالصوت' : ''), text, lesson, page: v('lPage'), bookId: book ? book.id : '', book: bookName, voices, cats: ldraft.cats || (old ? old.cats : []) });
     if (old) Object.assign(old, f); else S.benefits.push(f);
   }
   save();
@@ -640,8 +647,9 @@ function excelSheets(kind) {
     add(pageName('benefits'), [
       { title: 'الكتاب', width: 28 }, { title: 'رقم الصفحة', width: 10 }, { title: 'عنوان الفائدة', width: 32, wrap: true },
       { title: 'نص الفائدة', width: 60, wrap: true }, { title: 'ما يمكن أن يُستفاد منها', width: 70, wrap: true }, { title: 'تاريخ الإضافة', width: 13 },
+      ...(benCats().length ? [{ title: 'التصنيف', width: 24, wrap: true }] : []),
     ], S.benefits.slice().sort((a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page))
-      .map((f) => [benefitBookTitle(f), f.page, f.title, [f.text, ...bvTexts(f)].filter(Boolean).join('\n'), f.lesson, stampDate(f.created)]));
+      .map((f) => [benefitBookTitle(f), f.page, f.title, [f.text, ...bvTexts(f)].filter(Boolean).join('\n'), f.lesson, stampDate(f.created), ...(benCats().length ? [benCatNames(f)] : [])]));
   }
   if ((kind === 'all' && S.kunnasha.length) || kind === 'kunnasha') {
     add('كناشة القراءة', [{ title: 'العنوان', width: 36, wrap: true }, { title: 'النص', width: 90, wrap: true }, { title: 'تاريخ الكتابة', width: 13 }],
@@ -869,13 +877,16 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, benapps: saveBenApps, benword: runBenWord }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste', 'tbulk', 'benimp', 'bencats', 'benapps', 'benword'].includes(kind);
+  // a new benefit can take the user straight to an app of theirs (benplus.js)
+  const goBen = kind === 'benefit' && wasNew ? ldraft.id : '';
   if (!saver()) return;
   closeLib();
   render();
   libBack(back);
   if (!silent) toast(kind === 'idea' && wasNew ? (quick ? `حُفظت الفكرة في «${pageName('ideas')}»` : 'حُفظت الفكرة') : wasNew ? 'أُضيفت' : 'حُفظت التعديلات');
+  if (goBen) benGoAfterSave(goBen);
 });
 
 document.addEventListener('input', (e) => {
@@ -888,6 +899,7 @@ document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'lRv') $('lRvPointsW').hidden = !e.target.checked;
   if (id === 'benefitBook') { libUi.benefitBook = e.target.value; render(); }
+  if (id === 'benefitCat') { benUi.cat = e.target.value; render(); }
   if (id === 'lStart' && ldraft) ldraft.startTyped = true;
   if (id === 'lStart' && $('lStartH')) $('lStartH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
   if (id === 'lEnd' && $('lEndH')) $('lEndH').textContent = e.target.value ? fmtHijri(e.target.value) : '';

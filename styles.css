@@ -454,13 +454,14 @@ body.has-timer .alarm, body.has-timer .toast { bottom: calc(var(--tabbar-h) + 64
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* project cards */
-.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+/* one project per row, its whole name shown (v93) */
+.pgrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .pcard {
   display: grid; gap: 8px; text-align: start; background: var(--card); border: 1px solid var(--line);
   border-radius: 14px; padding: 12px 14px; min-width: 0;
 }
 .pcard-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.pcard .pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard .pname { font-weight: 700; overflow-wrap: anywhere; line-height: 1.5; }
 .pdot { width: 12px; height: 12px; border-radius: 50%; background: var(--pc); flex: none; display: inline-block; }
 .pbar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; display: block; }
 .pbar i { display: block; height: 100%; background: var(--pc, var(--accent)); border-radius: 99px; }
@@ -1625,7 +1626,7 @@ html:not(.show-explain) .explain { display: none !important; }
 .ben-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 
 /* the benefit's text and what it teaches look different at a glance (v76) */
-.ben-text, .ben-lesson { display: grid; gap: 2px; margin: 0; padding: 10px 12px; border-radius: 10px; line-height: 1.9; white-space: pre-line; color: var(--fg); }
+.ben-text, .ben-lesson { display: grid; gap: 2px; margin: 0; padding: 10px 12px; border-radius: 10px; line-height: 1.9; white-space: pre-line; color: var(--fg); overflow-wrap: anywhere; min-width: 0; }
 .ben-text { background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
 .ben-lesson { background: color-mix(in srgb, var(--goal) 10%, var(--card)); border-inline-start: 3px solid var(--goal); }
 .ben-lbl { font-size: .78rem; font-weight: 700; white-space: normal; }
@@ -1805,3 +1806,19 @@ li.sel .sel-box { background: var(--high); }
 .kun-copy { display: grid; gap: 6px; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
 .kun-copy .btn-row { display: flex; gap: 8px; align-items: center; }
 .kun-copy select { flex: 1; min-width: 0; }
+
+/* benefits extras (benplus.js, v93) */
+.bc-list { display: grid; gap: 8px; }
+.bc-row, .ba-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.bc-row input { flex: 1 1 140px; min-width: 0; }
+.ba-row { border: 1px solid var(--line); border-radius: 12px; padding: 8px; min-width: 0; }
+.ba-row input { flex: 1 1 100%; min-width: 0; }
+.ba-row button { margin-inline-start: auto; }
+.ben-cat-new { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.ben-cat-new input { flex: 1; min-width: 0; }
+.ben-apps { display: grid; gap: 6px; }
+.ben-apps small { color: var(--muted); }
+.bi-help pre { white-space: pre-wrap; font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 6px 0; }
+.bi-sum { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.bi-sum .dbox.warn { color: var(--high); }
+#biPrev .ben-reads { margin-top: 6px; }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 92;
+const APP_VERSION = 93;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -686,7 +686,7 @@ function viewTasks() {
       : emptyHTML('لا مشاريع بعد', 'المشروع يجمع مهام لهدف واحد، مثل «تجهيز السفر» أو «مشروع التخرج». ولكل مهمة خطوات.', addBtn('new-project', 'أنشئ أول مشروع'))}
   </section>
   <section class="section">
-    <div class="section-head"><h2>مهام عامة</h2>${addBtn('new', 'مهمة')}</div>
+    <div class="section-head"><h2>مهام عامة</h2><div class="btn-row">${taskBulkBtn('')}${addBtn('new', 'مهمة')}</div></div>
     ${anyGeneral ? taskToolbar('filter', true) : ''}
     ${general.length
       ? `<ul class="list">${general.map((t) => itemHTML(t, t.due || today())).join('')}</ul>`
@@ -715,7 +715,7 @@ function viewProject(p) {
     </div>
   </section>
   <section class="section">
-    <div class="section-head"><h2>مهام المشروع</h2><div class="btn-row">${aiBtn('ai-plan', 'خطّط المشروع', ` data-v="${p.id}"`)}${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div></div>
+    <div class="section-head"><h2>مهام المشروع</h2><div class="btn-row">${aiBtn('ai-plan', 'خطّط المشروع', ` data-v="${p.id}"`)}${taskBulkBtn(p.id)}${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div></div>
     ${st.total ? taskToolbar('projFilter', false) : ''}
     ${list.length
       ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || today(), { noProject: true })).join('')}</ul>`
@@ -1551,6 +1551,33 @@ function commitDraft() {
   return t;
 }
 
+// several tasks at once (v93): each line a task, all with one date and one project
+const taskBulkBtn = (pid) => `<button type="button" class="add-btn" data-action="task-bulk" data-v="${pid}">${icon('plus')}عدة مهام</button>`;
+function openTaskBulk(pid) {
+  ldraft = { kind: 'tbulk', id: '', isNew: true };
+  $('libForm').innerHTML = `${sheetHead('عدة مهام مرة واحدة')}
+    <label class="field"><span>المهام: كل مهمة في سطر</span><textarea id="tbText" rows="8" placeholder="حجز تذاكر السفر&#10;تجديد الجواز&#10;شراء هدية"></textarea></label>
+    <p class="note-text" id="tbCount"></p>
+    <label class="field"><span>المشروع</span><select id="tbProject"><option value="">بلا مشروع (مهام عامة)</option>${S.projects.map((p) => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    <label class="field"><span>التاريخ (اختياري)</span><input type="date" id="tbDue"></label>
+    <div class="sheet-actions"><button type="submit" class="primary">أضفها</button></div>`;
+  showLib();
+  setTimeout(() => $('tbText') && $('tbText').focus(), 50);
+}
+const tbCountLine = (n) => (n ? `ستُضاف ${plural(n, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')}` : '');
+function saveTaskBulk() {
+  const lines = stPasteLines($('tbText').value);
+  if (!lines.length) { toast('اكتب المهام، كل مهمة في سطر.'); $('tbText').focus(); return false; }
+  const projectId = $('tbProject').value, due = $('tbDue').value, now = Date.now();
+  // the first line stays first in «الأحدث»
+  S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, created: now + lines.length - i })));
+  save();
+  const p = getProject(projectId);
+  setTimeout(() => toast(`أُضيفت ${plural(lines.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')}${p ? ` إلى «${p.name}»` : ''}`), 300);
+  return true;
+}
+document.addEventListener('input', (e) => { if (e.target.id === 'tbText' && $('tbCount')) $('tbCount').textContent = digitsOut(tbCountLine(stPasteLines(e.target.value).length)); });
+
 // notes and steps on an existing task are kept right away
 function persistDraftList(field) {
   const t = getTask(draft.id);
@@ -2237,6 +2264,7 @@ document.addEventListener('click', (e) => {
   switch (action) {
     case 'new': openSheet(null, { kind: 'task', due: ui.tab === 'calendar' ? ui.calSel : undefined, projectId: ui.tab === 'tasks' ? ui.project : '' }); break;
     case 'new-in-project': openSheet(null, { kind: 'task', projectId: v }); break;
+    case 'task-bulk': openTaskBulk(v || ''); break;
     case 'new-goal': openSheet(null, { kind: 'goal', repeat: true }); break;
     case 'new-habit':
       if (activeHabits().length >= HABIT_MAX) { toast(`لديك ${HABIT_MAX} عادات قيد البناء. أكمل إحداها لتضيف غيرها.`); break; }
@@ -2429,7 +2457,7 @@ document.addEventListener('click', (e) => {
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.fired = {}; S.snoozed = {}; S.timer = null;
-        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl']) delete S.settings[k];
+        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
