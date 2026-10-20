@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 95;
+const APP_VERSION = 96;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1167,6 +1167,8 @@ function render() {
   tickTimer();
   renderGreeting();
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
+  // the page is remembered as soon as it is shown, not only on leaving (v96)
+  saveWhere();
 }
 
 // a descriptive line whose pieces are joined by « | » shows each piece in its own small box,
@@ -2608,7 +2610,11 @@ for (const ev of ['pointerup', 'click', 'keydown']) document.addEventListener(ev
 // ---------- where the user was (v95) ----------
 // leaving the app and coming back opens the same page at the same place, not «اليوم» from the top (this phone only)
 const WHERE_KEY = 'mahami-where';
+// a phone may shut the app down (swiped away) before a save made on leaving reaches the storage, so the place
+// is saved whenever the page changes or stops scrolling; not before boot has put the user back in place
+let whereReady = false, whereTimer = null;
 function saveWhere() {
+  if (!whereReady) return;
   try {
     localStorage.setItem(WHERE_KEY, JSON.stringify({
       tab: ui.tab, project: ui.project, y: Math.round(window.scrollY),
@@ -2628,6 +2634,7 @@ function restoreWhere() {
   return w;
 }
 window.addEventListener('pagehide', saveWhere);
+window.addEventListener('scroll', () => { clearTimeout(whereTimer); whereTimer = setTimeout(saveWhere, 400); }, { passive: true });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveWhere(); });
 
 // dialogs closed by the system back gesture still save their work
@@ -2647,8 +2654,8 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   render();
   if (where) {
     history.replaceState(history.state, '', '#' + ui.tab);
-    requestAnimationFrame(() => window.scrollTo(0, where.y || 0));
-  }
+    requestAnimationFrame(() => { window.scrollTo(0, where.y || 0); whereReady = true; saveWhere(); });
+  } else { whereReady = true; saveWhere(); }
   localizeDigits(document.body);
   document.documentElement.lang = 'ar';
   handleShareLaunch(params);
