@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 94;
+const APP_VERSION = 95;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2601,8 +2601,34 @@ document.addEventListener('click', (e) => {
   // a web app can't always close itself; the guard is already gone, so one more back leaves
   setTimeout(() => { leaving = false; if (!document.hidden) toast('اضغط زر الرجوع مرة أخرى للخروج'); }, 300);
 });
-// a history entry only counts once the user has interacted with the page
-for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { if ($('exitBar').hidden && !leaving) armBack(); }, { passive: true });
+// a history entry only counts once the user has interacted with the page: on a phone a touch counts when the
+// finger lifts (pointerup/click), so an entry added at pointerdown was skipped by the back button and it left at once
+for (const ev of ['pointerup', 'click', 'keydown']) document.addEventListener(ev, () => { if ($('exitBar').hidden && !leaving) armBack(); }, { passive: true, capture: true });
+
+// ---------- where the user was (v95) ----------
+// leaving the app and coming back opens the same page at the same place, not «اليوم» from the top (this phone only)
+const WHERE_KEY = 'mahami-where';
+function saveWhere() {
+  try {
+    localStorage.setItem(WHERE_KEY, JSON.stringify({
+      tab: ui.tab, project: ui.project, y: Math.round(window.scrollY),
+      sci: studyUi.sci, kun: kunUi.tab, fin: { tab: finUi.tab, plan: finUi.plan, proj: finUi.proj },
+    }));
+  } catch {}
+}
+function restoreWhere() {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null'); } catch {}
+  if (!w || !VIEWS[w.tab]) return null;
+  ui.tab = w.tab;
+  ui.project = w.project || '';
+  if (w.sci) studyUi.sci = w.sci;
+  if (w.kun === 'kun') kunUi.tab = 'kun';
+  if (w.fin && w.fin.tab) Object.assign(finUi, { tab: w.fin.tab, plan: w.fin.plan || '', proj: w.fin.proj || '' });
+  return w;
+}
+window.addEventListener('pagehide', saveWhere);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveWhere(); });
 
 // dialogs closed by the system back gesture still save their work
 $('memoEditor').addEventListener('close', () => { if (mstate) { if (recState) stopRecording(); saveMemoNow(); mstate = null; render(); } });
@@ -2614,9 +2640,15 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
 (function boot() {
   const params = new URLSearchParams(location.search);
   const hash = location.hash.slice(1);
-  if (VIEWS[hash]) ui.tab = hash;
+  // opened from a shortcut or a notification: that page; otherwise where the user left off
+  const where = params.toString() ? null : restoreWhere();
+  if (!where && VIEWS[hash]) ui.tab = hash;
   applyTheme();
   render();
+  if (where) {
+    history.replaceState(history.state, '', '#' + ui.tab);
+    requestAnimationFrame(() => window.scrollTo(0, where.y || 0));
+  }
   localizeDigits(document.body);
   document.documentElement.lang = 'ar';
   handleShareLaunch(params);
