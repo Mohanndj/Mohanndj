@@ -82,8 +82,9 @@ function benAppUrl(u) {
   return /^(javascript|data|vbscript|file):/i.test(u) ? '' : u;
 }
 function openBenApps() {
-  ldraft = { kind: 'benapps', id: '', isNew: false };
   const apps = benApps(), go = S.settings.benGo || '';
+  // with no app listed yet the choice below is not a choice: the first app added becomes it
+  ldraft = { kind: 'benapps', id: '', isNew: false, hadApps: apps.length > 0 };
   $('libForm').innerHTML = `${sheetHead('🔗 تطبيقاتي للفوائد')}
     <p class="note-text explain">من محرر الفائدة تنتقل إلى التطبيق مباشرة، ويُنسخ نص الفائدة لتلصقه هناك. ويمكن أن ينقلك التطبيق إليه وحده بعد حفظ كل فائدة جديدة.</p>
     ${apps.length ? `<div class="bc-list">${apps.map((a) => `<div class="ba-row"><input type="text" data-bapp="${a.id}" data-k="name" value="${esc(a.name)}" aria-label="اسم التطبيق" autocomplete="off" data-novoice><input type="url" dir="ltr" data-bapp="${a.id}" data-k="url" value="${esc(a.url)}" aria-label="رابطه" autocomplete="off" data-novoice><button type="button" class="ghost sm" data-action="ben-app-del" data-v="${a.id}">حذف</button></div>`).join('')}</div>` : ''}
@@ -92,6 +93,8 @@ function openBenApps() {
       ${apps.some((a) => /notebooklm/i.test(a.url)) ? '' : '<div class="btn-row"><button type="button" class="chip" data-action="ben-app-nlm">＋ NotebookLM</button></div>'}
     </div>
     <label class="field"><span>بعد حفظ فائدة جديدة</span><select id="baGo"><option value="">ابقَ في التطبيق</option>${apps.map((a) => `<option value="${a.id}"${go === a.id ? ' selected' : ''}>انسخها وانقلني إلى ${esc(a.name)}</option>`).join('')}</select></label>
+    <label class="switch"><input type="checkbox" id="baRecShare"${S.settings.benRecShare !== false ? ' checked' : ''}><span>بعد انتهاء التسجيل الصوتي افتح قائمة الإرسال فوراً</span></label>
+    <p class="note-text explain">الجوال لا يسمح بإرسال ملف إلى تطبيق بعينه دون قائمته، فتُفتح القائمة وحدها بعد التسجيل. وإن ضغطت مطولاً على التطبيق فيها واخترت «تثبيت» صار أولها دائماً.</p>
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button></div>`;
   showLib();
 }
@@ -104,14 +107,17 @@ function benAppsEdits() {
     if (el.dataset.k === 'url' && benAppUrl(el.value)) a.url = benAppUrl(el.value);
   }
   S.settings.benApps = apps;
-  if ($('baGo')) S.settings.benGo = $('baGo').value;
+  if ($('baGo') && ldraft && ldraft.hadApps) S.settings.benGo = $('baGo').value;
+  if ($('baRecShare')) S.settings.benRecShare = $('baRecShare').checked;
 }
 function benAppAdd() {
   const url = benAppUrl($('baUrl').value);
   if (!url) { toast('اكتب رابط التطبيق.'); $('baUrl').focus(); return false; }
   let name = $('baName').value.trim();
   if (!name) { try { name = new URL(url).hostname.replace(/^www\./, ''); } catch { name = 'تطبيق'; } }
-  S.settings.benApps = [...benApps(), { id: uid(), name, url }];
+  const id = uid(), first = !benApps().length;
+  S.settings.benApps = [...benApps(), { id, name, url }];
+  if (first && !S.settings.benGo) S.settings.benGo = id;
   return true;
 }
 function saveBenApps() {
@@ -217,7 +223,8 @@ function benParse(text, defBook) {
   return { list, dropped };
 }
 function openBenImport() {
-  ldraft = { kind: 'benimp', id: '', isNew: true, cats: benNewCats(), seen: null };
+  ldraft = { kind: 'benimp', id: '', isNew: true, cats: benNewCats(), seen: null, voices: [] };
+  benImpDraft = ldraft;
   $('libForm').innerHTML = `${sheetHead('📥 عدة فوائد مرة واحدة')}
     <p class="note-text">الصق النص كما هو: كلما جاء اسم كتاب أو رقم صفحة بدأت فائدة جديدة، وتُعرض عليك قبل الحفظ.</p>
     <details class="bv-fold"><summary>أشكال يفهمها</summary><div class="bi-help">
@@ -234,14 +241,23 @@ function openBenImport() {
 يُستفاد منها: … (اختياري)</pre>
       <p class="note-text">إن لم يُذكر الكتاب فالفائدة من الكتاب الذي قبلها. وسطر من الشرطات «---» يفصل بين فائدتين.</p></div></details>
     <label class="field"><span>النص</span><textarea id="biText" rows="10" placeholder="الصق الفوائد هنا"></textarea></label>
+    <details class="bv-fold"><summary>🎙 تسجيل صوتي (اختياري)</summary><p class="note-text">للتفريغ فقط: أرسله إلى تطبيق التفريغ، ثم الصق نصه في «النص». لا يُحفظ التسجيل بعد الحفظ أو الإغلاق.</p><div id="bvBox"></div></details>
     <label class="field"><span>الكتاب إن لم يُذكر في أول النص (اختياري)</span><input type="text" id="biBook" list="biBooks" autocomplete="off" placeholder="اختر من كتبك أو اكتب اسماً"></label>
     <datalist id="biBooks">${S.books.map((b) => `<option value="${esc(b.title)}">`).join('')}</datalist>
     ${benCats().length ? benCatPickHTML(ldraft.cats) : ''}
     <div id="biPrev"></div>
     <div class="sheet-actions"><button type="button" class="ghost" data-action="ben-imp-prev">اعرض المعاينة</button><button type="submit" class="primary">احفظها</button></div>`;
   showLib();
+  bvRender();
   setTimeout(() => $('biText') && $('biText').focus(), 50);
 }
+// a recording made here is only for writing it out: it leaves the phone when the sheet closes
+let benImpDraft = null;
+document.addEventListener('close', (e) => {
+  if (!e.target || e.target.id !== 'libSheet' || !benImpDraft || ldraft === benImpDraft) return;
+  for (const v of benImpDraft.voices || []) Media.del(v.mediaId).catch(() => {});
+  benImpDraft = null;
+}, true);
 const benImpKey = () => `${$('biText').value}\u0001${$('biBook').value}`;
 function benImpPreview() {
   const r = benParse($('biText').value, $('biBook').value);

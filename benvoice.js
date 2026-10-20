@@ -10,7 +10,7 @@ const bvTexts = (f) => (f.voices || []).map((v) => v.text.trim()).filter(Boolean
 
 function bvRender() {
   const box = $('bvBox');
-  if (!box || !ldraft || ldraft.kind !== 'benefit') return;
+  if (!box || !ldraft || !['benefit', 'benimp'].includes(ldraft.kind)) return;
   const vs = ldraft.voices || [];
   box.innerHTML = `<div class="field bv"><span>تسجيلات صوتية</span>
     ${vs.map((v, i) => `<div class="bv-item">
@@ -50,32 +50,42 @@ async function bvFinish(st) {
   st.stream.getTracks().forEach((t) => t.stop());
   const dur = Math.round((Date.now() - st.started) / 1000);
   if (!st.chunks.length || dur < 1) { toast('التسجيل قصير جداً.'); bvRender(); return; }
-  const mediaId = 'aud-' + uid();
-  try { await Media.put(mediaId, new Blob(st.chunks, { type: st.type })); } catch { toast('تعذّر حفظ التسجيل على الجهاز.'); return; }
+  const mediaId = 'aud-' + uid(), blob = new Blob(st.chunks, { type: st.type });
+  const imp = st.draft && st.draft.kind === 'benimp', open = ldraft === st.draft;
+  // «عدة فوائد مرة واحدة» closed meanwhile: its recording was only for writing out, nothing keeps it
+  if (imp && !open) return;
+  // the phone's share list opens right away (the tap that stopped the recording still counts), unless turned off
+  if (open && S.settings.benRecShare !== false) bvShareBlob(blob, (ldraft.voices || []).length + 1, true).catch(() => {});
+  try { await Media.put(mediaId, blob); } catch { toast('تعذّر حفظ التسجيل على الجهاز.'); return; }
   // the sheet may have been closed meanwhile: the recording still goes to its benefit
   const v = { id: uid(), mediaId, dur, text: '', created: Date.now() };
   if (ldraft === st.draft) { ldraft.voices = [...(ldraft.voices || []), v]; bvRender(); }
+  else if (imp) { Media.del(mediaId).catch(() => {}); return; }
   else { const f = getBenefit(st.draft.id); if (f) { f.voices = [...(f.voices || []), v]; save(); } }
-  toast(`سُجّل ${fmtClock(dur)}. أرسله إلى تطبيق للتفريغ، ثم الصق نصه في «نص الفائدة».`);
+  toast(`سُجّل ${fmtClock(dur)}. أرسله إلى تطبيق للتفريغ، ثم الصق نصه في «${imp ? 'النص' : 'نص الفائدة'}».`);
 }
 
 // share the recording with another app (the phone's share sheet), or save it if sharing files is not possible
+async function bvShareBlob(blob, n, auto) {
+  const ext = /mp4|m4a/.test(blob.type) ? 'm4a' : /ogg/.test(blob.type) ? 'ogg' : 'webm';
+  const file = new File([blob], `mahami-faida-${n}.${ext}`, { type: blob.type || 'audio/webm' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'تفريغ صوتي' }); return; }
+  // opened by itself after recording: nothing is downloaded unasked
+  if (auto) return;
+  downloadBlob(blob, file.name);
+  toast('حُفظ التسجيل في التنزيلات. افتحه في تطبيق التفريغ.');
+}
 async function bvShare(v, n) {
   try {
     const u = await Media.url(v.mediaId);
     if (!u) { toast('هذا التسجيل محفوظ على جهاز آخر.'); return; }
-    const blob = await (await fetch(u)).blob();
-    const ext = /mp4|m4a/.test(blob.type) ? 'm4a' : /ogg/.test(blob.type) ? 'ogg' : 'webm';
-    const file = new File([blob], `mahami-faida-${n}.${ext}`, { type: blob.type || 'audio/webm' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'تفريغ صوتي' }); return; }
-    downloadBlob(blob, file.name);
-    toast('حُفظ التسجيل في التنزيلات. افتحه في تطبيق التفريغ.');
+    await bvShareBlob(await (await fetch(u)).blob(), n);
   } catch (e) { if (!(e && e.name === 'AbortError')) toast('تعذّر إرسال التسجيل.'); }
 }
 
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="bv-"]');
-  if (!el || !ldraft || ldraft.kind !== 'benefit') return;
+  if (!el || !ldraft || !['benefit', 'benimp'].includes(ldraft.kind)) return;
   const { action, v } = el.dataset;
   if (action === 'bv-rec') { if (bvRec.st) bvStop(); else bvStart(); return; }
   const vs = ldraft.voices || [];
@@ -84,6 +94,8 @@ document.addEventListener('click', (e) => {
   if (action === 'bv-share') bvShare(vs[i], i + 1);
   if (action === 'bv-del') {
     if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = 'حذف'; } }, 4000); return; }
+    // a recording in «عدة فوائد مرة واحدة» belongs to nothing: it leaves the phone at once
+    if (ldraft.kind === 'benimp') Media.del(vs[i].mediaId).catch(() => {});
     ldraft.voices = vs.filter((x) => x.id !== v);
     bvRender();
   }
