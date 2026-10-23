@@ -401,7 +401,8 @@ function openLib(kind, id, preset = {}) {
       <label class="field"><span>فكرة موجزة عن الكتاب</span><textarea id="lSummary" rows="5" placeholder="عمّ يتحدث الكتاب؟ وما أهم ما خرجت به؟">${esc(b.summary)}</textarea></label>
       <div class="brv-box" id="lRvWrap">
         <label class="switch"><input type="checkbox" id="lRv"${b.rv ? ' checked' : ''}><span>🔁 ذكّرني باستذكاره على فترات</span></label>
-        <p class="note-text explain">يذكّرك التطبيق بالعودة إليه بعد أسبوع، ثم شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
+        <p class="note-text explain">يذكّرك التطبيق بالعودة إليه في الموعد الذي تختاره (بعد أسبوع إن لم تغيّره)، ثم بعد شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
+        ${(() => { const at = b.rv && b.rvDue ? b.rvDue : addDays(today(), BOOK_RV[0]); return `<label class="field" id="lRvDueW"${b.rv ? '' : ' hidden'}><span>${b.rv && b.rvDue ? 'موعد الاستذكار القادم' : 'موعد أول استذكار'}</span><input type="date" id="lRvDue" min="${today()}" value="${at}"><small class="hint" id="lRvDueH">${esc(fmtHijri(at))}</small></label>`; })()}
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
         ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
       </div>
@@ -515,7 +516,10 @@ function saveLib() {
     if (pages && page >= pages && status === 'reading') { status = 'read'; end = end || today(); setTimeout(() => toast(`أحسنت! أنهيت «${title}»`), 300); }
     const rv = status === 'read' && $('lRv').checked;
     const rvFields = { rv, rvPoints: $('lRvPoints').value.trim() };
-    if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: addDays(today(), BOOK_RV[0]) });
+    // the recall's date is the user's choice (a week from now unless changed); a day passed is today
+    const rvPick = $('lRvDue') ? $('lRvDue').value : '', rvAt = rvPick && rvPick < today() ? today() : rvPick;
+    if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: rvAt || addDays(today(), BOOK_RV[0]) });
+    else if (rv && rvPick && rvPick !== old.rvDue) rvFields.rvDue = rvAt;
     const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, studyId: $('lStudy') ? $('lStudy').value : old ? old.studyId : '', topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
     if (old) {
       // keep the benefits' book name in sync
@@ -899,7 +903,8 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const id = e.target.id;
-  if (id === 'lRv') $('lRvPointsW').hidden = !e.target.checked;
+  if (id === 'lRv') { $('lRvPointsW').hidden = !e.target.checked; if ($('lRvDueW')) $('lRvDueW').hidden = !e.target.checked; }
+  if (id === 'lRvDue' && $('lRvDueH')) $('lRvDueH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
   if (id === 'benefitBook') { libUi.benefitBook = e.target.value; render(); }
   if (id === 'benefitCat') { benUi.cat = e.target.value; render(); }
   if (id === 'lStart' && ldraft) ldraft.startTyped = true;
