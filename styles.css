@@ -1844,10 +1844,6 @@ li.sel .sel-box { background: var(--high); }
 .kh-sub > small, .kh-sub summary small { color: var(--muted); }
 .kh-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .kh-chips > small { color: var(--muted); }
-/* a project in its role's card, with «⇄ نقل» to another role beside it */
-.kh-pm { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
-.kh-pm .chip { white-space: normal; overflow-wrap: anywhere; text-align: start; min-width: 0; }
-.kh-mv { flex: 0 0 auto; width: 84px; min-width: 0; padding: 4px 8px; border: 1px dashed var(--line); border-radius: 99px; background: transparent; color: var(--muted); font-size: .8rem; }
 .kh-links { display: grid; gap: 2px; }
 .kh-link { text-align: start; padding: 4px 0; color: var(--fg); display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
 .kh-link small { color: var(--muted); font-size: .78rem; }
