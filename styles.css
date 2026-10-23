@@ -1154,6 +1154,7 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 
 /* ================= v20: CV ================= */
 .cv-page .chips { flex-wrap: wrap; overflow: visible; }
+.cv-page .chips .chip { white-space: normal; overflow-wrap: anywhere; max-width: 100%; text-align: start; }
 .cv-style summary { display: grid; cursor: pointer; }
 .cv-style summary small { color: var(--muted); }
 .cv-style[open] { display: grid; gap: 10px; }

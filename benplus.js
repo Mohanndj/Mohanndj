@@ -7,7 +7,7 @@
 const benUi = { cat: '' }; // '' every category | '-' none | a category id
 
 const benCats = () => (Array.isArray(S.settings.benCats) ? S.settings.benCats.filter((c) => c && c.id && c.name) : []);
-const benApps = () => (Array.isArray(S.settings.benApps) ? S.settings.benApps.filter((a) => a && a.id && a.url) : []);
+const benApps = () => (Array.isArray(S.settings.benApps) ? S.settings.benApps.filter((a) => a && a.id && a.url && benAppUrl(String(a.url))) : []);
 const benCatName = (id) => (benCats().find((c) => c.id === id) || {}).name || '';
 const benCatList = (f) => (f.cats || []).map(benCatName).filter(Boolean);
 const benCatNames = (f) => benCatList(f).join(' | ');
@@ -147,7 +147,7 @@ const benKey = (s) => String(s || '').replace(/[ً-ْـ«»"'“”()[\]]/g, '')
 const benBookOf = (name) => { const k = benKey(name); return k ? S.books.find((b) => benKey(b.title) === k) : null; };
 // «الموافقات» or «كتاب: الموافقات» (a label, quotes and brackets are not part of the name)
 const benBookName = (s) => String(s || '').replace(/^\s*(?:[-•*–]|[0-9٠-٩]+\s*[-.):])\s*/, '').replace(/^(?:اسم\s+)?(?:ال)?كتاب\s*[:：]\s*/, '').replace(/[«»"“”()[\]]/g, '').replace(/[\s،,:：\-–|]+$/, '').trim();
-const BEN_PAGE = /(^|[\s(\[،,:：\-–|])(?:ال)?(?:صفحة|ص)\s*[:：.\-]?\s*([0-9٠-٩۰-۹]+)\s*[)\]]?/;
+const BEN_PAGE = /(^|[\s(\[،,:：\-–|])(?:ال)?(?:صفحة|ص)\s*[:：.\-]?\s*([0-9٠-٩۰-۹]+)(?:\s*(?:[-–—]|إلى)\s*[0-9٠-٩۰-۹]+)?\s*[)\]]?/;
 const benShort = (s) => s.length <= 60 && !/[.!؟?]\s*$/.test(s) && !/[.!؟?]\s/.test(s);
 
 function benParse(text, defBook) {
@@ -168,7 +168,7 @@ function benParse(text, defBook) {
     if (!L) { if (cur && cur[field].length) cur[field].push(''); prevBlank = true; continue; }
     let m;
     // a line of dashes or stars ends a benefit
-    if (/^[-–—_*=~•.\s]{3,}$/.test(L)) { close(); prevBlank = true; continue; }
+    if (/^(?![.\s]+$)[-–—_*=~•.\s]{3,}$/.test(L)) { close(); prevBlank = true; continue; }
     if ((m = L.match(/^(?:اسم\s+)?(?:ال)?كتاب\s*[:：]\s*(.+)$/))) {
       const pm = m[1].match(BEN_PAGE);
       const book = benBookName(pm ? m[1].slice(0, pm.index + pm[1].length) : m[1]);

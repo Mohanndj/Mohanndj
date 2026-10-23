@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 99;
+const APP_VERSION = 100;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -368,7 +368,7 @@ function toggle(id, date) {
   if (!t) return;
   const d = date || today();
   // (a reading session done today can still be taken back, though the book's task moved to its next day)
-  if (notYet(t) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(t.due)}`); return; }
+  if (notYetOn(t, d) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(isRepeat(t) ? d : t.due)}`); return; }
   if (t.bookId && readingSession(t, d)) { save(); render(); return; }
   const wasDone = doneOn(t, d);
   if (isCounted(t)) {
@@ -396,6 +396,7 @@ function toggle(id, date) {
 function step(id, date, delta) {
   const t = getTask(id);
   if (!t) return;
+  if (delta > 0 && notYetOn(t, date)) { toast(`موعدها ${dueLabel(isRepeat(t) ? date : t.due)}`); return; }
   const wasDone = doneOn(t, date);
   setCount(t, date, countOn(t, date) + delta);
   save();
@@ -416,7 +417,10 @@ function removeTask(id) {
 // ---------- rendering: items ----------
 // a task whose day has not come yet cannot be marked done before it (a goal's date is a deadline, so it can)
 const notYet = (t) => !isGoal(t) && !t.done && !!t.due && t.due > today();
+// …and a recurring goal's day that has not come yet
+const notYetOn = (t, d) => notYet(t) || (isRepeat(t) && !!d && d > today());
 function checkButton(t, d, done) {
+  if (isRepeat(t) && d > today() && !done) return `<button type="button" class="check later" disabled aria-label="${esc(`يُتاح ${dueLabel(d)}`)}">${icon('check')}</button>`;
   if (notYet(t) && !done) return `<button type="button" class="check later" disabled aria-label="${esc(`يُتاح ${dueLabel(t.due)}`)}">${icon('check')}</button>`;
   const counted = isCounted(t);
   const label = counted ? `${countOn(t, d)} من ${t.target}${t.unit ? ' ' + t.unit : ''}، اضغط للزيادة` : done ? 'إلغاء الإنجاز' : 'تمت';
@@ -845,6 +849,7 @@ const viewHabits = () => `${moreCrumb()}${habitsSectionHTML()}${quitsSectionHTML
 function completionEvents() {
   const ev = [];
   for (const t of S.tasks) {
+    if (t.bookId && !getBook(t.bookId)) continue; // a deleted book's sessions went with it (as in «الكتب» in the report)
     const cat = t.category || 'بلا تصنيف';
     // kind: what the report counts it as (a habit day, a reading session, a goal day, a task)
     if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : 'goal' });
@@ -1366,7 +1371,7 @@ function readDraft() {
     }
     // a changed daily amount re-judges the days already counted (7 of a new 6 is done; 6 of a new 8 is not)
     if (t.repeat && t.counts) for (const [d, n] of Object.entries(t.counts)) {
-      if (t.target <= 1) { delete t.counts[d]; continue; }
+      if (t.target <= 1) { if (n >= 1) t.completions[d] = t.completions[d] || Date.now(); delete t.counts[d]; continue; }
       if (n >= t.target) { t.counts[d] = t.target; t.completions[d] = t.completions[d] || Date.now(); } else delete t.completions[d];
     }
   } else {
@@ -2316,8 +2321,9 @@ document.addEventListener('click', (e) => {
     case 'hard-refresh':
       (async () => {
         try {
-          if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
-          if (window.caches) for (const k of await caches.keys()) if (k !== 'mahami-actions') await caches.delete(k);
+          const scope = new URL('./', location.href).href;
+          if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) if (r.scope === scope) await r.unregister();
+          if (window.caches) for (const k of await caches.keys()) if (k !== 'mahami-actions' && !k.startsWith('muallim-')) await caches.delete(k);
         } catch {}
         location.reload();
       })();
@@ -2437,7 +2443,7 @@ function closeTopLayer() {
   if (typeof hzs !== 'undefined' && hzs) { closeStudy(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
   if ($('aiSheet').open) { closeAIPreview(); return true; }
-  if ($('libSheet').open) { closeLib(); return true; }
+  if ($('libSheet').open) { const back = ldraft && ldraft.back; closeLib(); libBack(back); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }
   return false;
@@ -2511,7 +2517,11 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   const params = new URLSearchParams(location.search);
   const hash = location.hash.slice(1);
   // opened from a shortcut or a notification: that page; otherwise where the user left off
-  const where = params.toString() ? null : restoreWhere();
+  // (a page in the link that is not the start page «#today» nor the place saved is a link to it: «#archive», «#timer»)
+  let savedTab = '';
+  try { savedTab = (JSON.parse(localStorage.getItem(WHERE_KEY) || 'null') || {}).tab || ''; } catch {}
+  const linked = hash !== 'today' && !!VIEWS[hash] && hash !== savedTab;
+  const where = params.toString() || linked ? null : restoreWhere();
   if (!where && VIEWS[hash]) ui.tab = hash;
   applyTheme();
   render();

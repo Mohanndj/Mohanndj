@@ -13,7 +13,7 @@ function normalizeList(x) {
 function normalizeShop(x) {
   return {
     id: x.id || uid(), name: String(x.name || ''), cat: String(x.cat || 'home'), need: x.need !== false,
-    qty: String(x.qty || ''), boughtAt: x.boughtAt || '', times: Number(x.times) || 0, created: x.created || Date.now(), updated: x.updated || Date.now(),
+    qty: String(x.qty || ''), boughtAt: x.boughtAt || '', prevAt: x.prevAt || '', times: Number(x.times) || 0, created: x.created || Date.now(), updated: x.updated || Date.now(),
   };
 }
 const getList = (id) => S.lists.find((l) => l.id === id);
@@ -164,7 +164,7 @@ document.addEventListener('click', (e) => {
     // ticking keeps today's list open (the ticked item stays visible, crossed out, until the day ends);
     // unticking an item ticked today by mistake takes its count back
     shopUi.picked = true;
-    if (x.need) { x.need = false; x.boughtAt = today(); x.times++; } else { if (x.boughtAt === today() && x.times > 0) x.times--; x.need = true; }
+    if (x.need) { x.need = false; x.prevAt = x.boughtAt; x.boughtAt = today(); x.times++; } else { if (x.boughtAt === today()) { if (x.times > 0) x.times--; x.boughtAt = x.prevAt || ''; } x.need = true; } // unticked the same day: not bought today (nor counted in the report)
     x.updated = Date.now();
     save(); render();
   }

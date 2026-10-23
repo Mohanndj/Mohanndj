@@ -5,6 +5,8 @@
 // its recall. The recordings stay on this phone; their text goes with backups and sync.
 
 const bvRec = { st: null };
+// recordings added to an open benefit and not saved yet (its recording → the benefit's id)
+const bvUnsaved = new Map();
 
 const bvTexts = (f) => (f.voices || []).map((v) => v.text.trim()).filter(Boolean);
 
@@ -59,9 +61,14 @@ async function bvFinish(st) {
   try { await Media.put(mediaId, blob); } catch { toast('تعذّر حفظ التسجيل على الجهاز.'); return; }
   // the sheet may have been closed meanwhile: the recording still goes to its benefit
   const v = { id: uid(), mediaId, dur, text: '', created: Date.now() };
-  if (ldraft === st.draft) { ldraft.voices = [...(ldraft.voices || []), v]; bvRender(); }
+  if (ldraft === st.draft) { ldraft.voices = [...(ldraft.voices || []), v]; bvRender(); if (!imp) bvUnsaved.set(mediaId, st.draft.id); }
   else if (imp) { Media.del(mediaId).catch(() => {}); return; }
-  else { const f = getBenefit(st.draft.id); if (f) { f.voices = [...(f.voices || []), v]; save(); } }
+  else {
+    const f = getBenefit(st.draft.id);
+    // a new benefit closed before it was saved: nothing keeps its recording
+    if (!f) { Media.del(mediaId).catch(() => {}); toast('أُغلقت الفائدة قبل حفظها، فلم يُحفظ التسجيل.'); return; }
+    f.voices = [...(f.voices || []), v]; save();
+  }
   toast(`سُجّل ${fmtClock(dur)}. أرسله إلى تطبيق للتفريغ، ثم الصق نصه في «${imp ? 'النص' : 'نص الفائدة'}».`);
 }
 
@@ -108,3 +115,13 @@ document.addEventListener('input', (e) => {
 });
 // the sheet closed while recording: the recording is kept for its benefit
 document.addEventListener('close', (e) => { if (e.target && e.target.id === 'libSheet' && bvRec.st) bvStop(); }, true);
+// the benefit's window closed: a recording it did not keep (closed without saving, or deleted before saving) leaves the phone
+document.addEventListener('close', (e) => {
+  if (!e.target || e.target.id !== 'libSheet') return;
+  for (const [mediaId, id] of [...bvUnsaved]) {
+    if (ldraft && (ldraft.voices || []).some((x) => x.mediaId === mediaId)) continue; // still in a window being edited
+    const f = getBenefit(id);
+    if (!f || !(f.voices || []).some((x) => x.mediaId === mediaId)) Media.del(mediaId).catch(() => {});
+    bvUnsaved.delete(mediaId);
+  }
+}, true);

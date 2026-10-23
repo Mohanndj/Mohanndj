@@ -315,7 +315,8 @@ function openStudyPaste(sciId, bookId) {
   setTimeout(() => $('spText') && $('spText').focus(), 50);
 }
 // numbering and bullets at the start of a line are not part of the topic
-const stPasteLines = (t) => t.split('\n').map((x) => x.replace(/^\s*(?:[-•*–]|[0-9٠-٩]+\s*[-.):]|\(\s*[0-9٠-٩]+\s*\))\s*/, '').trim()).filter(Boolean);
+// (a numbering «١.» «2)» «3-» goes; a time, a date or a decimal at the start «10:30» «2026-10-25» «3.5» stays)
+const stPasteLines = (t) => t.split('\n').map((x) => x.replace(/^\s*(?:[-•*–]|[0-9٠-٩]+\s*[-.):](?![0-9٠-٩])|\(\s*[0-9٠-٩]+\s*\))\s*/, '').trim()).filter(Boolean);
 function saveStudyPaste() {
   const b = getSci(ldraft.sci).books.find((x) => x.id === ldraft.id);
   const lines = stPasteLines($('spText').value);

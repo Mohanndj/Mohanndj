@@ -29,7 +29,7 @@ function normalizeFinPlan(p) {
     created: p.created || Date.now(), updated: p.updated || Date.now(),
   };
 }
-const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}) }));
+const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}), ...(x.pre ? { pre: true } : {}) }));
 function normalizeDebt(d) {
   return { id: d.id || uid(), name: String(d.name || ''), total: num(d.total), monthly: num(d.monthly), end: d.end || '', note: String(d.note || ''), payments: payments(d.payments), created: d.created || Date.now() };
 }
@@ -125,7 +125,7 @@ function assignTx(t, ref, p) {
   if (r && t.item !== r.x.name) { if (t.item && !t.note) t.note = t.item; t.item = r.x.name; }
   if (ref === 'out' && !t.item) t.item = 'خارج المخطط';
   t.ref = ref;
-  if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t); return; }
+  if (r && r.x.link) { if (!t.src) payLink(r.x.link, t.amount, t.d, t, p); return; }
   if (r && !r.x.done && !isSpendRow(r)) { const got = sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === ref && inPlan(p, y.d))); if (r.plan && got >= r.plan - 0.5) { r.x.done = true; r.x.auto = true; } }
 }
 // what is left of a plan item this month, said plainly: «بقي ٢٥٠ من ٦٠٠ هذا الشهر» or an overrun
@@ -633,7 +633,7 @@ function parseDebtsSheet(sh) {
     const total = sh.get(r, c0 + 1), paidV = sh.get(r, c0 + 2), endV = sh.get(r, c0 + 4);
     let end = '', note = '';
     if (isNum(endV) && endV > 20000) { const d = new Date(Date.UTC(1899, 11, 30) + endV * 86400000); end = d.toISOString().slice(0, 10); } else if (isStr(endV)) note = endV;
-    out.push({ name: n, total: isNum(total) ? total : 0, end, note, payments: isNum(paidV) && paidV ? [{ amount: paidV, d: today(), note: 'مسدد قبل الاستيراد' }] : [] });
+    out.push({ name: n, total: isNum(total) ? total : 0, end, note, payments: isNum(paidV) && paidV ? [{ amount: paidV, d: today(), note: 'مسدد قبل الاستيراد', pre: true }] : [] });
   }
   return out;
 }
@@ -1013,6 +1013,7 @@ function runFinExport() {
 
 // ---------- events ----------
 function finScope(scope, sid) { return scope === 'plan' ? getFinPlan(sid) : S.finProjects.find((x) => x.id === sid); }
+document.addEventListener('focusin', (e) => { const el = e.target; if (el.classList && el.classList.contains('pl-amt') && !el.readOnly) el.value = el.value.replace(/[,٬]/g, ''); });
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.id === 'fmMonth') { updateMoveHint(); return; }
@@ -1025,7 +1026,7 @@ document.addEventListener('change', (e) => {
   const lrow = el.dataset.list && k === 'done' ? obj[el.dataset.list].find((x) => x.id === el.dataset.row) : null;
   if (lrow && lrow.link) {
     const r = finRange(obj);
-    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), rest = lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0); if (rest > 0.5) payLink(lrow.link, rest, d); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
+    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), rest = lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0); if (rest > 0.5) payLink(lrow.link, rest, d, null, obj); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
     else { unpayLinkPlan(lrow.link, obj); toast('أُلغي دفعه في هذه الخطة'); }
     save(); render(); return;
   }
@@ -1055,7 +1056,7 @@ document.addEventListener('change', (e) => {
         const rest = Math.round(((pr ? pr.plan : x.amount) - got) * 100) / 100;
         const rg = finRange(obj), d = inPlan(obj, today()) ? today() : today() > rg.to ? rg.to : rg.from;
         if (rest > 0.5) S.finTx.push(normalizeTx({ amount: rest, kind: 'out', item: x.name, d, ref: x.id, src: key }));
-      } else S.finTx = S.finTx.filter((t) => !(t.src === key && inPlan(obj, t.d)));
+      } else S.finTx = S.finTx.filter((t) => t.src !== key); // row ids are unique: its payment, wherever the plan's dates moved
       x.done = el.checked; delete x.auto;
       obj.updated = Date.now(); save(); render(); return;
     }
@@ -1179,7 +1180,7 @@ document.addEventListener('click', (e) => {
       // an item ticked «دُفع» by its payments (not by hand) is unticked when they no longer cover it
       { const pp = t && t.ref && t.ref !== 'out' && planForDate(t.d); const r = pp && planRows(pp).find((y) => y.x.id === t.ref);
         if (r && r.x.auto && !r.x.link && sum(S.finTx.filter((y) => y.kind === 'out' && y.ref === t.ref && inPlan(pp, y.d))) < r.plan - 0.5) { r.x.done = false; delete r.x.auto; } }       // a payment made by ticking «دُفع»: deleting it unticks its item
-      if (t && t.src && t.src.startsWith('tick:')) { const pp = planForDate(t.d); const r = pp && planRows(pp).find((y) => y.x.id === t.src.slice(5)); if (r) { r.x.done = false; delete r.x.auto; } }
+      if (t && t.src && t.src.startsWith('tick:')) { const r = S.finPlans.flatMap((pp) => [...pp.fixed, ...pp.periodic]).find((x) => x.id === t.src.slice(5)); if (r) { r.done = false; delete r.auto; } }
       syncAllPlans(); save(); render(); if (t && t.src && !t.src.startsWith('tick:')) toast(`حُذف، وأُلغي من ${linkLabel(t.src.split(':').slice(0, 2).join(':'))}`); break; }
     case 'debt-new': openLedger('debt', null); break;
     case 'debt-open': openLedger('debt', v); break;

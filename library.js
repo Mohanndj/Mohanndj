@@ -313,7 +313,7 @@ function openBookBenefits(id) {
   if (!b) return;
   const fx = benefitsOf(id).sort((a, c) => (a.page === '' ? 1e9 : a.page) - (c.page === '' ? 1e9 : c.page));
   ldraft = { kind: 'bookbens', id, isNew: false };
-  $('libForm').innerHTML = `${sheetHead(`💡 فوائد «${b.title}»`)}
+  $('libForm').innerHTML = `${sheetHead(`💡 فوائد «${esc(b.title)}»`)}
     ${fx.length ? `<div class="ben-reads">${fx.map((f) => benReadHTML(f, false)).join('')}</div>` : '<p class="note-text">لا فوائد مسجلة من هذا الكتاب.</p>'}
     <div class="sheet-actions"><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button><button type="button" class="primary" data-action="lib-close">إغلاق</button></div>`;
   showLib();
@@ -333,8 +333,10 @@ function viewBenefits() {
   // kunnasha.js: the page's second tab, «كناشة القراءة»
   if (kunUi.tab === 'kun') return viewKunnasha();
   const q = libUi.benefitQ.trim().toLowerCase();
-  const fb = libUi.benefitBook;
   const titles = [...new Set(S.benefits.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'));
+  if (libUi.benefitBook && !titles.includes(libUi.benefitBook)) libUi.benefitBook = '';
+  if (benUi.cat && benUi.cat !== '-' && !benCatName(benUi.cat)) benUi.cat = ''; // (and on a category gone)
+  const fb = libUi.benefitBook;
   const list = S.benefits.filter((f) => (!fb || benefitBookTitle(f) === fb) && benCatOk(f) &&
     (!q || f.title.toLowerCase().includes(q) || f.text.toLowerCase().includes(q) || f.lesson.toLowerCase().includes(q) || benefitBookTitle(f).toLowerCase().includes(q) || benCatNames(f).toLowerCase().includes(q)))
     .sort((a, b) => (fb ? (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page) : b.created - a.created));
@@ -544,7 +546,7 @@ function deleteLib() {
     for (const f of benefitsOf(id)) { f.book = getBook(id).title; f.bookId = ''; }
     S.books = S.books.filter((b) => b.id !== id);
   }
-  if (kind === 'benefit') S.benefits = S.benefits.filter((f) => f.id !== id);
+  if (kind === 'benefit') { for (const x of (getBenefit(id) || {}).voices || []) Media.del(x.mediaId).catch(() => {}); S.benefits = S.benefits.filter((f) => f.id !== id); }
   if (kind === 'quote') S.inspire = S.inspire.filter((x) => x.id !== id);
   if (kind === 'arch') S.archive = S.archive.filter((x) => x.id !== id);
   if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);

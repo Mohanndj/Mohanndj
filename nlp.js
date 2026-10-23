@@ -58,7 +58,7 @@ const SmartParse = (() => {
     const plus = (n) => { const d = new Date(now); d.setDate(d.getDate() + n); return iso(d); };
 
     // opening words: "ذكرني أن", "أبي", "لا تنساني"…
-    s = s.replace(/^\s*(?:(?:لا\s+)?(?:تنساني|تنسني|تنسى)|ذ[ّ]?كر[ّ]?ني|ذكرنى|نب[ّ]?هني|تذكير|أبي|ابي|أبغى|ابغى|أبغا|ابغا|ودي|أريد|اريد|أضف|اضف|سج[ّ]?ل|حط|ضيف)\s+(?:(?:إني|اني|أني|إن|ان|أن|ب)\s+)?/, ' ');
+    s = s.replace(/^\s*(?:(?:لا\s+)?(?:تنساني|تنسني|تنسى)|ذ[ّ]?ك[ّ]?ر[ّ]?ني|ذكرنى|نب[ّ]?هني|تذكير|أبي|ابي|أبغى|ابغى|أبغا|ابغا|ودي|أريد|اريد|أضف|اضف|سج[ّ]?ل|حط|ضيف)\s+(?:(?:إني|اني|أني|إن|ان|أن|ب)\s+)?/, ' ');
 
     // category: #عمل
     take(/\s#(\S+)/g, (_, c) => { r.category = c; });
@@ -68,7 +68,7 @@ const SmartParse = (() => {
     take(new RegExp(`\\s(?:مهم\\s+جد[اً]+|ضروري\\s+جد[اً]+|عاجل|ضروري|مستعجل|مهم|هام)${E}`, 'g'), () => { r.priority = 'high'; });
 
     // extra alarm: "وقبلها بربع ساعة", "ونبهني قبل الموعد بـ 10 دقائق"
-    take(new RegExp(`\\s(?:و\\s*)?(?:(?:ذ[ّ]?كر[ّ]?ني|نب[ّ]?هني)\\s+)?قبل(?:ها|ه|\\s+الموعد|\\s+بيوم)(?:\\s+ب\\s*(?:ـ\\s*)?(\\d+|${NUMW_RE}|ربع|نص|نصف|ساعة|ساعه|ساعتين|يوم|يومين)(?:\\s+(دقيقة|دقائق|دقايق|د|ساعة|ساعه|ساعات|يوم|أيام|ايام))?)?${E}`, 'g'),
+    take(new RegExp(`\\s(?:و\\s*)?(?:(?:ذ[ّ]?ك[ّ]?ر[ّ]?ني|نب[ّ]?هني)\\s+)?قبل(?:ها|ه|\\s+الموعد|\\s+بيوم)(?:\\s+ب\\s*(?:ـ\\s*)?(\\d+|${NUMW_RE}|ربع|نص|نصف|ساعة|ساعه|ساعتين|يوم|يومين)(?:\\s+(دقيقة|دقائق|دقايق|د|ساعة|ساعه|ساعات|يوم|أيام|ايام))?)?${E}`, 'g'),
       (m, n, w) => {
         const v = /بيوم/.test(m) ? 1440 : amount(n || 'ربع', w);
         if (v) r.before.push(v);
@@ -83,13 +83,14 @@ const SmartParse = (() => {
       });
 
     // relative time from now: "بعد ساعة", "بعد 20 دقيقة"
-    take(new RegExp(`\\sبعد\\s+(\\d+|${NUMW_RE}|ساعة|ساعه|ساعتين|نص\\s+ساعة|ربع\\s+ساعة)(?:\\s+(دقيقة|دقائق|دقايق|ساعة|ساعه|ساعات))?${E}`, 'g'),
-      (m, n, w) => {
+    take(new RegExp(`\\sبعد\\s+(\\d+|${NUMW_RE}|ساعة|ساعه|ساعتين|نص\\s+ساعة|ربع\\s+ساعة)(?:\\s+(دقيقة|دقائق|دقايق|ساعة|ساعه|ساعات))?(?:\\s*و\\s*(نص|نصف|ربع))?${E}`, 'g'),
+      (m, n, w, frac) => {
         let mins;
         if (/نص/.test(n)) mins = 30; else if (/ربع/.test(n)) mins = 15;
         else if (!w && !/ساع/.test(n)) return false; // "بعد 3 أيام" is a date, handled below
         else mins = amount(n, w);
         if (!mins) return false;
+        if (frac) mins += /ربع/.test(frac) ? 15 : 30; // «بعد ساعة ونص»
         const d = new Date(now.getTime() + mins * 60000);
         r.due = iso(d);
         r.time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -108,9 +109,9 @@ const SmartParse = (() => {
       r.time = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
     };
     take(new RegExp(`\\s(?:الساعة|الساعه|ساعة|الساعة\\s+ال)\\s*(\\d{1,2}|${NUMW_RE})(?:[:.](\\d{2}))?(?:\\s*(?:و\\s*)?(نص|النص|نصف|ربع|الربع|ثلث|الثلث))?(?:\\s*(?:إلا|الا)\\s*(ربع|الربع|ثلث|الثلث|\\d+\\s*(?:دقيقة|دقائق|دقايق|د)?))?(?:\\s+${MARK})?${E}`, 'g'),
-      (_, hh, mm, frac, minus, mark) => {
+      (m0, hh, mm, frac, minus, mark) => {
         let h = num(hh), mi = mm ? Number(mm) : 0;
-        if (h == null) return false;
+        if (h == null || (!/الساع/.test(m0) && !/^\d/.test(hh))) return false; // «ساعة واحدة» is a length, not a time
         if (frac) mi += /نص/.test(frac) ? 30 : /ربع/.test(frac) ? 15 : 20;
         if (minus) {
           const sub = /ربع/.test(minus) ? 15 : /ثلث/.test(minus) ? 20 : parseInt(minus, 10);
@@ -123,10 +124,10 @@ const SmartParse = (() => {
 
     // repetition
     const setDays = (days) => { r.kind = 'repeat'; r.days = days; };
-    take(new RegExp(`\\s(?:كل\\s+يوم|يوميا|يومياً|يوميًا|يومي)${E}`, 'g'), () => setDays([0, 1, 2, 3, 4, 5, 6]));
+    take(new RegExp(`\\s(?:كل\\s+يوم(?!\\s+(?:${WD_RE})(?=\\s))|يوميا|يومياً|يوميًا|يومي)${E}`, 'g'), () => setDays([0, 1, 2, 3, 4, 5, 6]));
     take(new RegExp(`\\s(?:كل\\s+)?(?:أيام|ايام)\\s+(?:الدوام|العمل|الدراسة|الدراسه)${E}`, 'g'), () => setDays([0, 1, 2, 3, 4]));
     take(new RegExp(`\\sكل\\s+(?:ويكند|ويك\\s+اند|نهاية\\s+(?:ال)?أسبوع|نهاية\\s+(?:ال)?اسبوع)${E}`, 'g'), () => setDays([5, 6]));
-    take(new RegExp(`\\sكل\\s+((?:${WD_RE})(?:\\s*(?:و|،|\\s)\\s*(?:يوم\\s+)?(?:${WD_RE}))*)${E}`, 'g'), (_, list) => {
+    take(new RegExp(`\\sكل\\s+(?:يوم\\s+)?((?:${WD_RE})(?:\\s*(?:و|،|\\s)\\s*(?:يوم\\s+)?(?:${WD_RE}))*)${E}`, 'g'), (_, list) => {
       const days = [...new Set((list.match(new RegExp(WD_RE, 'g')) || []).map((w) => WD[w]))];
       setDays(days);
     });
@@ -178,7 +179,8 @@ const SmartParse = (() => {
         r.due = plus(d);
       });
     take(new RegExp(`\\s(?:ال)?(?:أسبوع|اسبوع)\\s+(?:القادم|الجاي|المقبل|الياي)${E}`, 'g'), () => { r.due = plus(7); });
-    take(new RegExp(`\\s(?:(?:يوم|في|ب)\\s+)?(${WD_RE})(?:\\s+(القادم|الجاي|المقبل|الياي|الجاية|الجايه))?${E}`, 'g'), (_, w, next) => {
+    take(new RegExp(`\\s((?:يوم|في|ب)\\s+)?(${WD_RE})(?:\\s+(القادم|الجاي|المقبل|الياي|الجاية|الجايه))?${E}`, 'g'), (_, pre, w, next) => {
+      if (!pre && !next && /^(?:أحد|احد|اثنين|إثنين)$/.test(w)) return false; // «كلم أحد الزملاء»، «اشتر اثنين حليب»
       let delta = (WD[w] - now.getDay() + 7) % 7;
       if (delta === 0 && next) delta = 7;
       r.due = plus(delta);
@@ -204,7 +206,8 @@ const SmartParse = (() => {
         const d = new Date(start + 'T00:00'); d.setDate(d.getDate() + r.untilLen - 1);
         r.until = iso(d);
       }
-    } else if ((r.time || r.prayer) && !r.due) {
+    } else if (r.until && !r.due) r.due = r.until; // «سلّم البحث حتى ١٥ نوفمبر»: a one-time task is due by then
+    if (r.kind !== 'repeat' && (r.time || r.prayer) && !r.due) {
       r.due = iso(now); // the app moves it to tomorrow if the time already passed
       r.autoDue = true;
     }

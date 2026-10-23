@@ -707,7 +707,8 @@ document.addEventListener('click', (e) => {
     }
     case 'dec-status':
       // «حُسم» is reached by adopting the decision, after writing what is expected of it
-      if (v === 'decided' && ldraft.status !== 'decided') {
+      // (a decision already decided in its saved copy just goes back to «حُسم»: its «الحسم» tab was drawn decided)
+      if (v === 'decided' && ldraft.status !== 'decided' && (getDec(ldraft.id) || {}).status !== 'decided') {
         for (const p of document.querySelectorAll('#libForm [data-dtab]')) p.hidden = p.dataset.dtab !== 'decide';
         for (const b of $('dTabs').children) b.setAttribute('aria-pressed', String(b.dataset.v === 'decide'));
         ldraft.tab = 'decide'; $('libForm').scrollTop = 0;

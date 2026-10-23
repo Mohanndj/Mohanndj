@@ -44,7 +44,7 @@ const Sync = (() => {
 
   // ---------- snapshot and merge ----------
   function snapshot() {
-    const out = { v: 1, at: Date.now() };
+    const out = { v: 1, app: APP_VERSION, at: Date.now() };
     for (const c of COLLECTIONS) out[c] = (S[c] || []).filter((x) => !(c === 'inspire' && x.type === 'image'));
     out.settings = {};
     for (const k of SETTINGS_KEYS) if (k in S.settings) out.settings[k] = S.settings[k];
@@ -97,22 +97,28 @@ const Sync = (() => {
     return out.sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
   }
 
-  function mergeSettings(base = {}, local = {}, remote = {}, noBase = false) {
+  // knows: the cloud was written by this version or a newer one (a setting missing there was removed, not unknown)
+  function mergeSettings(base = {}, local = {}, remote = {}, noBase = false, knows = true) {
     const out = {};
+    for (const k of Object.keys(remote)) if (!SETTINGS_KEYS.includes(k)) out[k] = remote[k]; // a newer version's: kept as it came
     for (const k of SETTINGS_KEYS) {
       const l = local[k], r = remote[k], b = base[k];
-      // unchanged here: the cloud's value, or its removal; with no earlier sync, the cloud's when it has one
-      const v = noBase ? (k in remote ? r : l) : same(l, b) ? r : l;
+      // unchanged here: the cloud's value, or its removal; with no earlier sync, the cloud's when it has one;
+      // a setting an older version does not know stays; a list of items with ids (categories, apps, templates) is merged item by item
+      const v = noBase ? (k in remote ? r : l) : !(k in remote) && !knows ? l : idList(l) || idList(r) ? merge3(b, l, r) : same(l, b) ? r : l;
       if (v !== undefined) out[k] = v;
     }
     return out;
   }
 
   function merge(base, local, remote) {
-    const out = { v: 1, at: Date.now() };
+    // what a newer version wrote and this one does not know goes on as it came
+    const out = { ...remote, v: 1, app: APP_VERSION, at: Date.now() };
     const noBase = !base;
-    for (const c of COLLECTIONS) out[c] = mergeList(base && base[c], local[c], remote[c], noBase);
-    out.settings = mergeSettings(base && base.settings, local.settings, remote.settings || {}, noBase);
+    // a collection missing from the cloud altogether was written by an older version that does not know it
+    // (on another device not updated yet): not a deletion, this device's stays
+    for (const c of COLLECTIONS) out[c] = c in remote ? mergeList(base && base[c], local[c], remote[c], noBase) : local[c];
+    out.settings = mergeSettings(base && base.settings, local.settings, remote.settings || {}, noBase, Number(remote.app) >= APP_VERSION);
     return out;
   }
 

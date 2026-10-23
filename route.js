@@ -11,7 +11,7 @@ const smartAll = () => S.settings.smartMode === 'all';
 
 // «ذكّرني أن أعيد الكتاب» → «التذكيرات» (in either mode); with a time or a day («ذكّرني بكرة الساعة ٥ …») it stays a task with its alarm
 function routeRemind(text) {
-  const m = /^(?:ذكّرني|ذكرني|ذكّرنى|ذكرنى|تذكير)\s*(?:[:：\-–]\s*)?(?:أن\s+|ان\s+|بأن\s+|بان\s+|بـ\s*|ب(?=ال))?(.+)$/.exec(String(text).trim());
+  const m = /^(?:ذكّرني|ذكرني|ذكّرنى|ذكرنى|تذكير)(?:\s*[:：\-–]\s*|\s+)(?:أن\s+|ان\s+|بأن\s+|بان\s+|بـ\s*|ب(?=ال))?(.+)$/.exec(String(text).trim());
   if (!m) return null;
   const r = SmartParse.parse(text);
   if (r.time || r.prayer || (r.due && !r.autoDue) || r.kind === 'repeat') return null;
@@ -20,7 +20,7 @@ function routeRemind(text) {
 const smartRoute = (text) => routeRemind(text) || (smartAll() ? routeSmart(text) : null);
 
 function routeSmart(text) {
-  const t = enDigits(text).trim();
+  const t = enDigits(text).replace(/(\d)[٬،](?=\d{3}(?!\d))/g, '$1,').trim(); // «١٬٥٠٠» and «١،٥٠٠» are thousands
   let m;
   // payments: «دفعت ١٥٠ بنزين» or «دفعت للبنزين ١٥٠»
   if ((m = /^(?:دفعت|صرفت|سددت|سدّدت)\s+([\d.,]+)\s*(?:ريال|ر\.?س\.?)?\s*(?:(?:على|في|ثمن|حق|لـ)\s+)?(.*)$/.exec(t)) || (m = /^(?:دفعت|صرفت|سددت|سدّدت)\s+(?:(?:على|في|ثمن|حق|لـ)\s+)?(.+?)\s+([\d.,]+)\s*(?:ريال|ر\.?س\.?)?$/.exec(t))) {
@@ -95,6 +95,7 @@ function smartSettingsHTML() {
 // habits being left, memorisation if today has any, and the journal. A finished section is one line.
 const closedDays = () => (Array.isArray(S.settings.closed) ? S.settings.closed : []);
 const closeSkips = () => (S.settings.closeSkip && S.settings.closeSkip.d === today() ? S.settings.closeSkip.ids : []);
+const closeMoved = () => (S.settings.closeSkip && S.settings.closeSkip.d === today() ? S.settings.closeSkip.moved || [] : []);
 function closeTodayHTML() {
   const at = S.settings.closeAt ?? 20;
   const t0 = today();
@@ -127,6 +128,7 @@ function closeTodayHTML() {
   const habNot = habits.filter((t) => !t.completions[t0] && skip.includes(t.id));
   const repNot = repGoals.filter((t) => !t.completions[t0] && skip.includes(t.id));
   const setAside = S.tasks.filter((t) => !isRepeat(t) && !t.done && skip.includes(t.id));
+  const moved = S.tasks.filter((t) => !t.done && closeMoved().includes(t.id));
   // habits being left: one line each; only a slip asks for anything
   const quits = S.quits.filter((q) => !q.doneAt);
   const slippedToday = (q) => q.slips.some((x) => iso(new Date(x.at)) === t0);
@@ -136,7 +138,7 @@ function closeTodayHTML() {
   const reviews = hzDue().length;
   const wrote = S.journal.some((j) => j.date === t0 && !jEmpty(j));
   return todayBlock('إغلاق اليوم', '', `<div class="close-card">
-    ${section('المهام والأهداف', [doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', repNot.length ? `لم تفعل: ${repNot.map((t) => esc(t.title)).join('، ')}` : '', setAside.length ? `استبعدت: ${setAside.map((t) => esc(t.title)).join('، ')}` : ''].filter(Boolean).join(' | '), tg, tg.length + doneToday || 1, !repNot.length && !setAside.length)}
+    ${section('المهام والأهداف', [doneToday ? `أنجزت اليوم ${plural(doneToday, 'شيئاً واحداً', 'شيئين', 'أشياء', 'شيئاً')}` : 'لا شيء باقٍ', repNot.length ? `لم تفعل: ${repNot.map((t) => esc(t.title)).join('، ')}` : '', setAside.length ? `استبعدت: ${setAside.map((t) => esc(t.title)).join('، ')}` : '', moved.length ? `أجّلت للغد: ${moved.map((t) => esc(t.title)).join('، ')}` : ''].filter(Boolean).join(' | '), tg, tg.length + doneToday || 1, !repNot.length && !setAside.length && !moved.length)}
     ${section('بناء العادات', `فعلت ${habDone.length} من ${habits.length}${habNot.length ? ` | لم تفعل: ${habNot.map((t) => esc(t.title)).join('، ')}` : ''}`, habOpen.map((t) => row(t.title, '', btn('close-done', t.id, 'فعلتها') + btn('close-skip', t.id, 'لم أفعلها'))), habits.length, !habNot.length)}
     ${quits.length ? `<div class="close-sec${quits.some(slippedToday) ? '' : ' ok'}"><b>${quits.some(slippedToday) ? '' : '✓ '}عادات أتركها</b><ul class="close-quits">${quits.map((q) => `<li><span>${esc(q.title)}: ${slippedToday(q) ? 'زللت اليوم' : `${daysWord(quitStats(q).days)} بلا زلّة`}</span>${slippedToday(q) ? '' : btn('quit-slip', q.id, 'زللت')}</li>`).join('')}</ul></div>` : ''}
     ${section(pageName('hifz'), 'أتممت مقدار اليوم', [...hzOpen.map((p) => row(p.title, 'مقدار اليوم', btn('hz-plan-go', p.id, 'احفظ الآن', 'ghost sm'))), ...(reviews ? [row(`مراجعة ${plural(reviews, 'نص واحد', 'نصين', 'نصوص', 'نصاً')}`, '', btn('hz-review', '', 'راجع', 'ghost sm'))] : [])], plans.length + reviews)}
@@ -160,11 +162,13 @@ document.addEventListener('click', (e) => {
   if (action === 'close-tomorrow' && t) {
     // a reading project's session has its date worked out from the reading days: the move is kept apart
     if (t.bookId) t.readOn = addDays(t0, 1);
-    t.due = addDays(t0, 1); save(); render(); toast(`«${t.title}» للغد`); return; }
+    t.due = addDays(t0, 1);
+    S.settings.closeSkip = { d: t0, ids: closeSkips(), moved: [...closeMoved(), t.id] };
+    save(); render(); toast(`«${t.title}» للغد`); return; }
   if (action === 'close-skip' && t) {
     // a task set aside loses its date (it waits in «بلا موعد»); a goal is just left for today
-    if (!isRepeat(t) && !isGoal(t)) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
-    S.settings.closeSkip = { d: t0, ids: [...closeSkips(), t.id] };
+    if (!isRepeat(t) && !isGoal(t) && !t.bookId) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
+    S.settings.closeSkip = { d: t0, ids: [...closeSkips(), t.id], moved: closeMoved() };
     save(); render();
     return;
   }

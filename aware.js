@@ -114,12 +114,12 @@ function awareStats(P) {
     steps && `أتممت ${plural(steps, 'خطوة واحدة', 'خطوتين', 'خطوات', 'خطوة')} من خطوات المهام`,
     lateNow && `${plural(lateNow, 'مهمة متأخرة', 'مهمتان متأخرتان', 'مهام متأخرة', 'مهمة متأخرة')} الآن`,
     closed && `أغلقت يومك ${plural(closed, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} من ${days.filter((d) => d < t0 || closedDays().includes(d)).length}`,
-    wkReviews.length && `راجعت أسبوعك ${plural(wkReviews.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} (إنجاز الأسبوع: ${wkReviews.map((w) => `${w.review.pct}٪`).join('، ')})`,
+    wkReviews.length && `راجعت أسبوعك ${plural(wkReviews.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} (إنجاز الأسبوع: ${wkReviews.map((w) => (w.review.pct === null ? 'بلا بنود' : `${w.review.pct}٪`)).join('، ')})`,
   ], [
     ...due.map((t) => `${t.title} (موعدها ${dS(t.due)}): ${tState(t)}`),
     ...extraT.map((t) => `${t.title} (${t.due ? `موعدها كان ${dS(t.due)}` : 'بلا موعد'}): ✓ أنجزتها ${dS(dayOfTs(t.doneAt))}`),
     ...stepsBy.map((x) => `خطوات «${x.t.title}»: أتممت ${x.n}`),
-    ...wkReviews.map((w) => `مراجعة أسبوع ${dS(w.id)}: الإنجاز ${w.review.pct}٪${w.review.moved ? ` | نقلت ${w.review.moved} إلى الأسبوع التالي` : ''}${w.review.dropped.length ? ` | ألغيت: ${w.review.dropped.join('، ')}` : ''}${w.review.worked ? ` | ما نجح: ${w.review.worked}` : ''}${w.review.missed ? ` | ما لم ينجح: ${w.review.missed}` : ''}${w.review.change ? ` | ما أغيّره: ${w.review.change}` : ''}`),
+    ...wkReviews.map((w) => `مراجعة أسبوع ${dS(w.id)}: الإنجاز ${w.review.pct === null ? 'بلا بنود' : `${w.review.pct}٪`}${w.review.moved ? ` | نقلت ${w.review.moved} إلى الأسبوع التالي` : ''}${w.review.dropped.length ? ` | ألغيت: ${w.review.dropped.join('، ')}` : ''}${w.review.worked ? ` | ما نجح: ${w.review.worked}` : ''}${w.review.missed ? ` | ما لم ينجح: ${w.review.missed}` : ''}${w.review.change ? ` | ما أغيّره: ${w.review.change}` : ''}`),
   ]);
 
   // 🎯 الأهداف المتكررة (غير العادات وأهداف القراءة) والأهداف لمرة واحدة
@@ -165,7 +165,7 @@ function awareStats(P) {
     const span = all.filter((d) => d >= from && d <= to).length;
     const past = days.filter((d) => d >= from && d <= to).length;
     if (!span || !past) continue;
-    const sl = q.slips.filter((s) => inP(dayOfTs(s.at)));
+    const sl = q.slips.filter((s) => { const d = dayOfTs(s.at); return inP(d) && d >= from && d <= to; });
     const bad = new Set(sl.map((s) => dayOfTs(s.at))).size;
     qScores.push(pctOf(past - bad, span));
     qClean += past - bad; qPast += past; qSlips += sl.length;
@@ -290,7 +290,9 @@ function awareStats(P) {
     const pg = pagesIn(b, start, last);
     const fin = b.status === 'read' && inP(b.end);
     // what was left of the book when the period began caps what could be asked of it
-    const leftAtStart = b.pages ? Math.max(0, b.pages - Math.max(0, (b.page || 0) - pg)) : x.plan;
+    const leftAtStart = b.pages ? Math.max(0, b.pages - Math.max(0, (b.page || 0) - pagesIn(b, start, '9999-12-31'))) : x.plan;
+    // and the page it reached is the page it was on when the period ended
+    const pageThen = P.current ? b.page : ((b.log || []).filter((e) => e.d <= last).sort((a, c) => a.d.localeCompare(c.d)).pop() || {}).p || 0;
     const req = Math.min(x.plan, leftAtStart);
     const lp = Math.max(0, Math.min(x.planLeft, req - pg));
     rS += x.s; rH += x.h; pages += pg; rReq += req; rDone += Math.min(pg, req); rLeftP += lp;
@@ -298,7 +300,7 @@ function awareStats(P) {
     bookLines.push(`«${b.title}»: ${[
       req ? `قرأت ${pw(pg)} من ${pw(req)} مقررة${pc(Math.min(pg, req), req)}${leftTxt(lp ? pw(lp) : 0)}` : pg ? `قرأت ${pw(pg)}` : 'لم تسجّل صفحات',
       x.s && `الجلسات: ${x.h} من ${x.s}`,
-      b.page && !fin ? `وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}` : '',
+      pageThen && !fin ? `وصلت صفحة ${pageThen}${b.pages ? ` من ${b.pages}` : ''}` : '',
       fin && `✓ أنهيته ${dS(b.end)}`,
     ].filter(Boolean).join(' | ')}`);
   }
@@ -374,17 +376,17 @@ function awareStats(P) {
     adopted.length && `حسمت ${plural(adopted.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')} بعد المفاضلة`,
     deferred.length && `أجّلت ${plural(deferred.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
     dropped.length && `ألغيت ${plural(dropped.length, 'قراراً واحداً', 'قرارين', 'قرارات', 'قراراً')}`,
-    dueRev.length && `راجعت ${revd} من ${dueRev.length} حان وقت مراجعته`,
+    dueRev.length && `قرارات موعد مراجعتها في هذا ${P.word}: راجعت ${revd} من ${dueRev.length}${leftTxt(dueRev.filter((x) => !x.reviewedAt && x.reviewAt >= t0).length)}`,
   ], [...made.map((x) => `قرار: «${x.title}» (${dS(x.date)})`), ...adopted.map(({ x, h }) => `حسمت «${x.title}»${h.snap && h.snap.chosenName ? ` بخيار «${h.snap.chosenName}»` : ''} (${dS(h.at)})`),
     ...dueRev.map((x) => `مراجعة «${x.title}» (${dS(x.reviewAt)}): ${x.reviewedAt ? '✓ راجعته' : x.reviewAt < t0 ? '✗ لم تراجعه' : 'لم يحن بعد'}`)]);
 
   // 🥗 الصحة: only days on which you recorded what you ate
   let planned = 0, ate = 0, tracked = 0, kcal = 0;
   const gcount = {}, hLines = [];
-  const planFrom = S.meals.length ? dayOfTs(Math.min(...S.meals.map((x) => x.created))) : '9999';
-  const planDays = all.filter((d) => d >= planFrom && mealsOf(parse(d).getDay()).length);
+  const mealsOn = (d) => mealsOf(parse(d).getDay()).filter((x) => !x.created || dayOfTs(x.created) <= d);
+  const planDays = all.filter((d) => mealsOn(d).length);
   for (const d of planDays) {
-    const items = mealsOf(parse(d).getDay()).flatMap((x) => x.items);
+    const items = mealsOn(d).flatMap((x) => x.items);
     planned += items.length;
     const eaten = eatenOn(d);
     if (!eaten.length) continue;
@@ -408,7 +410,7 @@ function awareStats(P) {
   const spent = sum(outs);
   const ins = S.finTx.filter((t) => t.kind === 'in' && inP(t.d));
   const income = sum(ins);
-  const paidIn = (xs) => sum(xs.flatMap((x) => x.payments).filter((p) => inP(p.d)));
+  const paidIn = (xs) => sum(xs.flatMap((x) => x.payments).filter((p) => !p.pre && inP(p.d)));
   const debtPaid = paidIn(S.finDebts), owePaid = paidIn(LEDGERS.owe.list()), rightGot = paidIn(LEDGERS.right.list()), finesPaid = paidIn(S.fines);
   const savedLater = sum(S.later.filter((x) => x.decision === 'dropped' && inP(x.decidedAt)), (x) => x.price);
   const bySpend = new Map(), byDuty = new Map(), outside = {};
