@@ -128,18 +128,31 @@ function awareStats(P) {
   const onceAll = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && ((t.done && inP(dayOfTs(t.doneAt))) || inAll(t.due)));
   const onceDone = onceAll.filter((t) => t.done);
   const onceState = (t) => (t.done ? `✓ تحقق${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.target > 1 ? `${countOn(t, t0)} من ${t.target}${t.unit ? ` ${t.unit}` : ''}` : t.due && t.due < t0 ? '✗ لم يتحقق' : 'لم يتحقق بعد');
-  add('goals', { title: 'الأهداف', icon: '🎯' }, 'goals', pctOf(gH, gT), [
+  // «خطِّط» (plan.js, v98): its week goals in the weeks that start in the period, its month goals in the months that
+  // start in it (each asked for while its number is not reached), and what was kept in «سجل حياتي». Facts only
+  const kWeeks = khWeekStarts(start, addDays(end, 1)), kMonths = [];
+  for (let m = khMoStart(start); m <= end; m = khMoNext(m)) if (m >= start) kMonths.push(m);
+  const kgRun = (g, list, done, need) => { const xs = list.filter((x) => done(g, x) || need(g, x)); return { g, n: xs.length, d: xs.filter((x) => done(g, x)).length }; };
+  const wgRun = S.kgoals.filter((g) => g.level === 'week').map((g) => kgRun(g, kWeeks, wgDone, wgActive)).filter((x) => x.n);
+  const mgRun = S.kgoals.filter((g) => g.level === 'month').map((g) => kgRun(g, kMonths, mgDone, mgActive)).filter((x) => x.n);
+  const lifeN = khLifeRec(start, addDays(end, 1)).length;
+  add('goals', { title: 'الأهداف', icon: '🎯' }, 'plan', pctOf(gH, gT), [
     gT && `أنجزت ${gH} من ${plural(gT, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} لأهدافك المتكررة${pc(gH, gT)}${leftTxt(sum(goals, (g) => g.left))}`,
     onceAll.length && `الأهداف لمرة واحدة: تحقق ${onceDone.length} من ${onceAll.length}`,
+    wgRun.length && `أهداف أسابيعك: تحقّق ${sum(wgRun, (x) => x.d)} من ${sum(wgRun, (x) => x.n)}`,
+    mgRun.length && `أهداف أشهرك: تحقّق ${sum(mgRun, (x) => x.d)} من ${sum(mgRun, (x) => x.n)}`,
+    lifeN && `أضفت إلى سجل حياتي: ${lifeN}`,
   ], [
     ...goals.map((g) => `«${g.t.title}»: ${g.hit} من ${g.total} مرات${pc(g.hit, g.total)}${leftTxt(g.left)}`),
     ...onceAll.map((t) => `«${t.title}»${t.due ? ` (موعده ${dS(t.due)})` : ''}: ${onceState(t)}`),
+    ...wgRun.map((x) => `هدف الأسبوع «${x.g.text}»: تحقّق في ${x.d} من ${plural(x.n, 'أسبوع واحد', 'أسبوعين', 'أسابيع', 'أسبوعاً')}`),
+    ...mgRun.map((x) => `هدف الشهر «${x.g.text}»: تحقّق في ${x.d} من ${plural(x.n, 'شهر واحد', 'شهرين', 'أشهر', 'شهراً')}`),
   ]);
 
   // 🌱 بناء العادات
   const habits = S.tasks.filter((t) => isHabit(t)).map((t) => ({ t, ...goalRun(t, P) })).filter((h) => h.total);
   const hT = sum(habits, (h) => h.total), hH = oneDec(sum(habits, (h) => h.hit));
-  add('habits', { title: 'بناء العادات', icon: '🌱' }, 'goals', pctOf(hH, hT), [
+  add('habits', { title: 'بناء العادات', icon: '🌱' }, 'habits', pctOf(hH, hT), [
     hT && `أدّيت ${hH} من ${plural(hT, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} لعاداتك${pc(hH, hT)}${leftTxt(sum(habits, (h) => h.left))}`,
   ], habits.map((h) => `«${h.t.title}»: ${h.hit} من ${h.total} مرات${pc(h.hit, h.total)} | قوتها ${habitStats(h.t, last).strength}٪`));
 
@@ -158,7 +171,7 @@ function awareStats(P) {
     qClean += past - bad; qPast += past; qSlips += sl.length;
     qDetail.push(`«${q.title}»: ${past - bad} يوماً بلا زلّة من ${past}${sl.length ? ` | ${plural(sl.length, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')} (دوافعها: ${list(sl.map((s) => s.trigger || 'غير محدد'))})` : ''}`);
   }
-  add('quits', { title: 'عادات أتركها', icon: '🚭' }, 'goals', qScores.length ? Math.round(sum(qScores, (x) => x) / qScores.length) : null, [
+  add('quits', { title: 'عادات أتركها', icon: '🚭' }, 'habits', qScores.length ? Math.round(sum(qScores, (x) => x) / qScores.length) : null, [
     qPast && `أيام بلا زلّة: ${qClean} من ${qPast}${qSlips ? ` | ${plural(qSlips, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')}` : ''}`,
   ], qDetail);
 

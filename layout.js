@@ -37,7 +37,7 @@ const lookOf = (k) => moreLook()[k] || {};
 // a page's name as the user set it, used wherever the page is named: its own heading, its section on
 // «اليوم» and the button to it, the evening close, the report, files exported from it and messages
 const PAGE_NAMES = {
-  reminders: 'التذكيرات', ideas: 'الأفكار', journal: 'يومياتي وتأملاتي', calendar: 'التقويم', health: 'الصحة', shop: 'القوائم',
+  reminders: 'التذكيرات', ideas: 'الأفكار', journal: 'يومياتي وتأملاتي', calendar: 'التقويم', habits: 'العادات', health: 'الصحة', shop: 'القوائم',
   finance: 'المالية', cv: 'سيرتي الذاتية', hifz: 'الحفظ', study: 'الدراسة', people: 'الأحبّة', decisions: 'سجل القرارات', notes: 'الملاحظات',
   books: 'الكتب', benefits: 'الفوائد', archive: 'الأرشيف', inspire: 'الإلهام', report: 'التقارير', stats: 'الإحصائيات',
 };

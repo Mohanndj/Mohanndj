@@ -177,9 +177,9 @@ function todayHabitsHTML() {
   if (!habits.length) return ''; // nothing scheduled today
   const done = habits.filter((t) => t.completions[t0]).length;
   return `<section class="habits-today" aria-label="عاداتي اليوم">
-    <div class="tblock-h"><h2>بناء العادات <small class="num">${done} من ${habits.length}</small></h2><button type="button" class="tblock-go" data-tab="goals">الأهداف ${icon('next')}</button></div>
+    <div class="tblock-h"><h2>بناء العادات <small class="num">${done} من ${habits.length}</small></h2><button type="button" class="tblock-go" data-tab="habits">${esc(pageName('habits'))} ${icon('next')}</button></div>
     <ul>${habits.map((t) => {
-      // today only: how much of today's habit is done (its strength and journey live in «الأهداف»)
+      // today only: how much of today's habit is done (its strength and journey live in «العادات»)
       const isDone = !!t.completions[t0];
       const dayPct = isDone ? 100 : isCounted(t) ? Math.round((countOn(t, t0) / t.target) * 100) : 0;
       return `<li class="ht-row${isDone ? ' done' : ''}">

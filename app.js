@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 97;
+const APP_VERSION = 98;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -160,6 +160,9 @@ function normalize(t) {
     area: t.area || '',
     prio: /^\d{4}-\d{2}-\d{2}$/.test(t.prio || '') ? t.prio : '',
     movedFrom: t.movedFrom || '',
+    // v98: the week goal of «خطِّط» a task of its days serves, and «✦ ينعكس في حياتي» (سجل حياتي)
+    kgoal: t.kgoal || '',
+    life: !!t.life,
   };
 }
 
@@ -223,6 +226,7 @@ function load() {
   s.study = (Array.isArray(s.study) ? s.study : []).filter((x) => x && typeof x === 'object').map(normalizeScience);
   s.kunnasha = (Array.isArray(s.kunnasha) ? s.kunnasha : []).filter((x) => x && typeof x === 'object').map(normalizeKun);
   s.roles = khWithSaw((Array.isArray(s.roles) ? s.roles : []).filter((x) => x && typeof x === 'object').map(normalizeRole));
+  s.kgoals = (Array.isArray(s.kgoals) ? s.kgoals : []).filter((x) => x && typeof x === 'object').map(normalizeKGoal);
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -238,6 +242,7 @@ const ui = {
 };
 
 function save() {
+  khMemo.clear(); // the plan's sums are on the data (plan.js)
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
   if (typeof Sync !== 'undefined') Sync.schedule();
@@ -288,7 +293,8 @@ function timeLabel(t, d) {
 function occursOn(t, d) {
   const r = t.repeat;
   if (!r || d < r.start || (r.until && d > r.until)) return false;
-  return r.days.includes(parse(d).getDay());
+  // a task of the days of a goal in «خطِّط» shows in its goal's months and weeks only (plan.js, v98)
+  return r.days.includes(parse(d).getDay()) && (!t.kgoal || khChainOn(t, d));
 }
 // a reading project's book task is done on a day it holds that day's session
 const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done || !!(t.bookId && t.completions && t.completions[d]));
@@ -830,78 +836,9 @@ function stepperHTML(t, d) {
   </div>`;
 }
 
-function recurringGoalHTML(t) {
-  const t0 = today();
-  const occursToday = occursOn(t, t0);
-  const done = occursToday && !!t.completions[t0];
-  const st = goalStats(t);
-  const dots = [];
-  // this week, from Sunday to Saturday (the days still to come are empty)
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(weekStartOf(t0), i);
-    const occ = occursOn(t, d);
-    const cls = d > t0 ? 'later' : !occ ? 'off' : t.completions[d] ? 'hit' : d < t0 ? 'miss' : '';
-    dots.push(`<span class="dot ${cls}${d === t0 ? ' today' : ''}" title="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'short' }))}"><i></i>${DAY_SHORT[parse(d).getDay()].slice(0, 2)}</span>`);
-  }
-  const notStarted = t.repeat.start > t0;
-  return `<li class="goal${done ? ' done' : ''}">
-    <div class="goal-top">
-      ${occursToday ? checkButton(t, t0, done) : `<button type="button" class="check" disabled aria-label="ليس مجدولاً اليوم">${icon('check')}</button>`}
-      <button type="button" class="t-main" data-action="open" data-id="${t.id}">
-        <span class="t-title">${esc(t.title)}</span>
-        <span class="meta">${metaHTML(t, t0, { noPriority: true, noKind: true })}</span>
-      </button>
-    </div>
-    ${isCounted(t) && occursToday ? stepperHTML(t, t0) : ''}
-    ${notStarted ? `<p class="note-text">يبدأ ${esc(relDate(t.repeat.start))}</p>` : `
-    <div class="goal-stats">
-      <span>أيام متتالية: <b>${daysWord(st.streak)}</b></span>
-      <span>التزمت <b>${st.hit} من ${st.total}</b> (${st.rate}%)</span>
-    </div>
-    <div class="dots" aria-label="هذا الأسبوع من الأحد">${dots.join('')}</div>`}
-  </li>`;
-}
-
-function onceGoalHTML(t) {
-  const t0 = today();
-  const left = t.due && !t.done ? Math.round((parse(t.due) - parse(t0)) / 86400000) : null;
-  const deadline = t.due ? (t.done ? `أُنجز ${t.doneAt ? esc(relDate(iso(new Date(t.doneAt)))) : ''}`
-    : left < 0 ? `<span class="late">تأخر ${daysWord(-left)}</span>` : left === 0 ? 'الموعد اليوم' : `باقٍ ${daysWord(left)} (${esc(relDateH(t.due))})`) : (t.done ? 'أُنجز' : 'بلا موعد نهائي');
-  return `<li class="goal${t.done ? ' done' : ''}">
-    <div class="goal-top">
-      ${checkButton(t, t0, t.done)}
-      <button type="button" class="t-main" data-action="open" data-id="${t.id}">
-        <span class="t-title">${esc(t.title)}</span>
-        <span class="meta">${metaHTML(t, t0, { noPriority: true, noKind: true, noDue: true })}</span>
-      </button>
-    </div>
-    ${isCounted(t) && !t.done ? stepperHTML(t, t0) : ''}
-    <div class="goal-stats"><span>${icon('flag')} ${deadline}</span></div>
-  </li>`;
-}
-
-function viewGoals() {
-  const goals = S.tasks.filter(isGoal);
-  const t0 = today();
-  const recurring = goals.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t)).sort((a, b) => (timeOn(a, t0) ?? 9999) - (timeOn(b, t0) ?? 9999));
-  const once = goals.filter((t) => !isRepeat(t) && !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
-  const finished = goals.filter((t) => goalEnded(t) && !(isHabit(t) && habitStats(t).graduated));
-  return `
-  ${habitsSectionHTML()}
-  ${quitsSectionHTML()}
-  <section class="section">
-    <div class="section-head"><h2>أهداف متكررة</h2>${addBtn('new-goal', 'هدف متكرر')}</div>
-    ${recurring.length ? `<ul class="list">${recurring.map(recurringGoalHTML).join('')}</ul>`
-      : emptyHTML('لا أهداف متكررة', 'عادة تتكرر يومياً أو في أيام تختارها، إلى تاريخ محدد أو بلا نهاية. مثل «8 أكواب ماء يومياً».')}
-  </section>
-  <section class="section">
-    <div class="section-head"><h2>أهداف لمرة واحدة</h2>${addBtn('new-goal-once', 'هدف')}</div>
-    ${once.length ? `<ul class="list">${once.map(onceGoalHTML).join('')}</ul>`
-      : emptyHTML('لا أهداف لمرة واحدة', 'هدف تحققه مرة حتى موعد تحدده، مثل «قراءة 12 كتاباً قبل نهاية السنة».')}
-  </section>
-  ${finished.length ? `<section class="section"><div class="section-head"><h2>أهداف مكتملة أو منتهية</h2><small>${finished.length}</small></div>
-    <ul class="list">${finished.map((t) => (isRepeat(t) ? recurringGoalHTML(t) : onceGoalHTML(t))).join('')}</ul></section>` : ''}`;
-}
+// «الأهداف» was a page of its own until v97; its goals are in «خطِّط» now (أدواري، أسبوعي), and its habits
+// («بناء العادات»، «عادات أتركها») on the page «العادات» in «المزيد», as they were
+const viewHabits = () => `${moreCrumb()}${habitsSectionHTML()}${quitsSectionHTML()}`;
 
 // ---------- view: stats ----------
 // every completed thing with its day: tasks, goals (each day of a recurring goal) and steps
@@ -1162,13 +1099,14 @@ function viewSettings() {
 }
 
 const VIEWS = {
-  today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), goals: viewGoals, plan: viewPlan,
+  today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), habits: viewHabits, plan: viewPlan,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'reminders', 'calendar', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
+  khMemo.clear();
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
   // the page stays where it is: redrawing never scrolls to the field that had the cursor
@@ -1914,7 +1852,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1934,7 +1872,7 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun], ['roles', normalizeRole]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun], ['roles', normalizeRole], ['kgoals', normalizeKGoal]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
       S.roles = khWithSaw(S.roles);
       if (!Array.isArray(data.lists)) S.lists = DEFAULT_LISTS.map(normalizeList);
       // photos stay on this device; imported phrases are added to them
@@ -2512,7 +2450,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
@@ -2680,6 +2618,7 @@ function saveWhere() {
 function restoreWhere() {
   let w = null;
   try { w = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null'); } catch {}
+  if (w && w.tab === 'goals') w.tab = 'plan'; // «الأهداف» became part of «خطِّط» (v98)
   if (!w || !VIEWS[w.tab]) return null;
   ui.tab = w.tab;
   ui.project = w.project || '';

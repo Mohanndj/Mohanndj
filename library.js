@@ -162,6 +162,7 @@ function moreTiles() {
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `لم تُنفّذ: ${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length}` : ''],
     ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')}${jStreak() ? ` | ${daysWord(jStreak())} متتالية` : ' | لم تكتب اليوم'}` : ''],
     ['calendar', 'cal', 'التقويم', ''],
+    ['habits', 'leaf', 'العادات', S.tasks.some(isHabit) || S.quits.length ? `${S.tasks.some(isHabit) ? `أبنيها: ${S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && !habitStats(t).graduated).length}` : ''}${S.tasks.some(isHabit) && S.quits.length ? ' | ' : ''}${S.quits.length ? `أتركها: ${S.quits.filter((q) => !q.doneAt).length}` : ''}` : ''],
     ['health', 'leaf', 'الصحة', S.meals.length ? `سعرات اليوم: ${dayTotals(mealsOf(parse(today()).getDay())).kcal}` : ''],
     ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `لم يُشطب: ${S.shop.filter((x) => x.need).length}` : ''],
     ['finance', 'wallet', 'المالية', ''],
@@ -629,6 +630,18 @@ function excelSheets(kind) {
       return [t.title, 'لمرة واحدة', '', stampDate(t.created), t.due, hijriOf(t.due), t.target, t.unit,
         t.done ? 'تحقق' : `${countOn(t, today())} من ${t.target}`, pct(countOn(t, today()), t.target), '', 'لا', '', '', t.notes.map((n) => n.text).join('\n—\n'), ...roleCell(t)];
     }));
+    // «خطِّط» (v98): from each vision down to the weeks, in the order of the chain
+    if (S.kgoals.length) {
+      const order = [], seen = new Set(), walk = (g) => { if (seen.has(g.id)) return; seen.add(g.id); order.push(g); S.kgoals.filter((x) => x.parent === g.id).forEach(walk); };
+      S.kgoals.filter((g) => !kgOf(g.parent)).forEach(walk);
+      S.kgoals.forEach(walk);
+      add('خطتي', [
+        { title: 'المرتبة', width: 13 }, { title: 'الدور', width: 22 }, { title: 'الهدف', width: 40, wrap: true }, { title: 'يخدم', width: 32, wrap: true },
+        { title: 'مدته', width: 30, wrap: true }, { title: 'لماذا', width: 32, wrap: true }, { title: 'قوانين الهدف', width: 11 }, { title: 'المهام', width: 9 }, { title: 'حاله', width: 9 },
+      ], order.map((g) => [KH_LEVEL[g.level], khRoleName(kgRoleId(g)), g.text, kgOf(g.parent) ? kgOf(g.parent).text : '',
+        g.level === 'year' ? khKeyLabel(g.period) : g.level === 'month' ? khMonthsText(g) : g.level === 'week' ? khWeeksText(g) : '', g.why,
+        g.level === 'year' ? `${KH_LAWS.filter(([k]) => g.laws[k]).length} من ${KH_LAWS.length}` : '', g.level === 'week' ? kgTasks(g).length : '', KH_GSTAT[g.status]]));
+    }
   }
   if (kind === 'all' || kind === 'memos') {
     add(pageName('notes'), [
@@ -881,8 +894,8 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, khrole: khSaveRole, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, benapps: saveBenApps, benword: runBenWord }[kind] || saveLib;
-  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste', 'tbulk', 'benimp', 'bencats', 'benapps', 'benword'].includes(kind);
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, khrole: khSaveRole, khwiz: khWizNext, khgoal: khSaveGoal, khpick: () => false, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, benapps: saveBenApps, benword: runBenWord }[kind] || saveLib;
+  const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste', 'tbulk', 'benimp', 'bencats', 'benapps', 'benword', 'khwiz'].includes(kind);
   // a new benefit can take the user straight to an app of theirs (benplus.js)
   const goBen = kind === 'benefit' && wasNew ? ldraft.id : '';
   if (!saver()) return;
