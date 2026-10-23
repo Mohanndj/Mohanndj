@@ -358,6 +358,10 @@ function viewPlan() {
 // what is still open (an ended goal, a done task or a finished project is not waiting for anything)
 const khOpenGoal = (t) => isGoal(t) && !goalEnded(t);
 const khOpenTask = (t) => !isGoal(t) && !t.done && !t.projectId;
+// moving a project to another role from its card (its tasks follow it): any other role, or a side of «شحذ المنشار»
+const khMoveOptions = (p) => `<option value="" selected disabled hidden>⇄ نقل</option>${khRoles().map((r) => (r.id === KH_SAW
+  ? Object.entries(KH_AREAS).filter(([a]) => !(p.roleId === KH_SAW && p.area === a)).map(([a, n]) => `<option value="${KH_SAW}:${a}">${esc(r.name)}: ${n}</option>`).join('')
+  : r.id === p.roleId ? '' : `<option value="${r.id}">${esc(r.name)}</option>`)).join('')}`;
 function khRoleCard(r) {
   const own = (t) => khRoleIdOf(t) === r.id;
   const projects = S.projects.filter((p) => !p.doneAt && p.roleId === r.id);
@@ -376,7 +380,7 @@ function khRoleCard(r) {
     ${years.length ? `<div class="kh-sub"><small>أهداف السنة</small><div class="kh-links">${years.map((g) => { const x = ygShare(g, khYrStart(today())); return `<button type="button" class="kh-link" data-action="kh-tab" data-v="year">${esc(g.text)}${x.target ? `<small>تحقّق في ${khN(x.done)} من ${KH_UNIT.month(x.target)}</small>` : ''}</button>`; }).join('')}</div></div>` : ''}
     ${counts.length ? `<p class="note-text">${counts.join(' | ')}</p>` : visions.length || years.length ? '' : '<p class="note-text">لا شيء لهذا الدور بعد.</p>'}
     ${saw ? '<p class="note-text explain">عنايتك بنفسك لتقوى على أدوارك كلها، بأربعة جوانب: صحي (رياضة ونوم وغذاء)، واجتماعي (صلة وصداقة ومعروف)، ومعرفي (قراءة وتعلّم)، ونفسي (ما يريح نفسك ويرتّبها).</p>' : ''}
-    ${projects.length ? `<div class="kh-sub"><small>المشاريع</small><div class="kh-chips">${projects.map((p) => `<button type="button" class="chip" data-action="open-project" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
+    ${projects.length ? `<div class="kh-sub"><small>المشاريع</small><div class="kh-chips">${projects.map((p) => `<span class="kh-pm"><button type="button" class="chip" data-action="open-project" data-v="${p.id}">${esc(p.name)}</button><select class="kh-mv" data-kh-move="${p.id}" aria-label="انقل «${esc(p.name)}» إلى دور آخر">${khMoveOptions(p)}</select></span>`).join('')}</div></div>` : ''}
     ${goals.length ? `<div class="kh-sub"><small>الأهداف</small><div class="kh-links">${goals.map(goalBtn).join('')}</div></div>` : ''}
     ${tasks.length ? `<details class="kh-sub"><summary><small>المهام (${tasks.length})</small></summary><div class="kh-links">${tasks.map(goalBtn).join('')}</div></details>` : ''}
     <div class="btn-row kh-adds">${addBtn('kh-new', 'مهمة', ` data-role="${r.id}"`)}${addBtn('kh-new-goal', 'هدف', ` data-role="${r.id}"`)}${addBtn('kh-new-project', 'مشروع', ` data-role="${r.id}"`)}${visions.length ? '' : addBtn('kh-new-vision', 'رؤية', ` data-role="${r.id}"`)}</div>
@@ -1214,6 +1218,14 @@ document.addEventListener('change', (e) => {
     const c = ldraft.cards[Number(ds.khCtm ?? ds.khCarea ?? -1)];
     if (c && ds.khCtm !== undefined) { c.tm = e.target.value; $('khwCards').innerHTML = khWizCardsHTML(); return; }
     if (c && ds.khCarea !== undefined) { c.area = e.target.value; return; }
+  }
+  if (ds.khMove) {
+    const p = getProject(ds.khMove), [role, area = ''] = e.target.value.split(':');
+    if (!p || !khRole(role)) return;
+    p.roleId = role; p.area = role === KH_SAW ? area : '';
+    save(); render();
+    toast(`نُقل «${p.name}» بمهامه إلى «${khRoleName(role, p.area)}»`);
+    return;
   }
   const a = ds.khAssign;
   if (!a || !e.target.value) return;
