@@ -8,6 +8,7 @@
 // v98: from the vision to the days (S.kgoals): a vision in each role, a goal for the year, its months, their weeks
 // and the tasks of their days (recurring goals of «اليوم» with kgoal = their week goal); the tabs شهري، سنتي، حياتي;
 // and «سجل حياتي» (a task done, marked «✦ ينعكس في حياتي»: t.life).
+// v99: «إحصائياتي» in place of the old page «الإحصائيات»: a week, a month, a year or years, counted from what is ticked.
 
 const KH_SAW = 'saw';
 const KH_AREAS = { health: 'صحي', social: 'اجتماعي', mind: 'معرفي', soul: 'نفسي' };
@@ -15,9 +16,9 @@ const KH_RATE = 70; // the golden rule: 70% of the week's plan is on the right t
 const KH_PRIO_MAX = 3;
 const KH_COLORS = ['#3d7a8a', '#a0522d', '#6b5b95', '#2e7d5b', '#b0662a', '#8a4f7d', '#4a6fa5', '#7b8b2f'];
 const KH_SUGGEST = ['عبدٌ لله', 'ابن', 'زوج', 'أب', 'موظف', 'طالب علم', 'صديق', 'صاحب مشروع', 'كاتب'];
-const KH_TABS = [['roles', 'أدواري'], ['today', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري'], ['year', 'سنتي'], ['life', 'حياتي']];
+const KH_TABS = [['roles', 'أدواري'], ['today', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري'], ['year', 'سنتي'], ['life', 'حياتي'], ['stats', 'إحصائياتي']];
 const KH_WD = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']; // first letters of the days, from Sunday
-const khUi = { tab: 'today', wk: '', mo: '', yr: '', review: '', rv: {}, rvq: null };
+const khUi = { tab: 'today', wk: '', mo: '', yr: '', review: '', rv: {}, rvq: null, st: { mode: 'week' } };
 
 function normalizeRole(r) { return { id: r.id || uid(), name: String(r.name || '').trim() || 'دور', created: r.created || Date.now() }; }
 // «شحذ المنشار» is always there, after the user's own roles
@@ -283,11 +284,13 @@ function kgDropNote(g) {
   const sub = kgSub(g), ng = sub.length - 1, nt = S.tasks.filter((t) => isRepeat(t) && sub.some((x) => x.id === t.kgoal)).length;
   return ng || nt ? `يُحذف معه ما تحته: ${[ng ? plural(ng, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً') : '', nt ? plural(nt, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة') : ''].filter(Boolean).join(' و')}.` : '';
 }
-// what was done in a period (as the report counts it: a task done, a day of a recurring goal, a reading session)
-function khDoneIn(from, to, roleId) {
+// what was done in a period (as the report counts it: a task done, a day of a recurring goal, a reading session),
+// in one role (and one area of «شحذ المنشار») if asked
+function khDoneIn(from, to, roleId, area) {
   let n = 0;
   for (const t of S.tasks) {
     if (roleId !== undefined && khRoleIdOf(t) !== roleId) continue;
+    if (area !== undefined && khAreaOf(t) !== area) continue;
     if (isRepeat(t) || t.bookId) for (const d of Object.keys(t.completions || {})) if (t.completions[d] && d >= from && d < to) n++;
     if (!isRepeat(t) && t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) { const d = iso(new Date(t.doneAt)); if (d >= from && d < to) n++; }
   }
@@ -347,7 +350,7 @@ function viewPlan() {
   if (typeof syncReading === 'function') syncReading();
   if (khUi.review) return khReviewHTML(khUi.review);
   return `<div class="seg kh-tabs" role="group" aria-label="أقسام خطِّط">${KH_TABS.map(([v, l]) => `<button type="button" data-action="kh-tab" data-v="${v}" aria-pressed="${khUi.tab === v}">${l}</button>`).join('')}</div>
-  ${({ roles: khRolesHTML, week: khWeekHTML, month: khMonthHTML, year: khYearHTML, life: khLifeHTML }[khUi.tab] || khTodayHTML)()}`;
+  ${({ roles: khRolesHTML, week: khWeekHTML, month: khMonthHTML, year: khYearHTML, life: khLifeHTML, stats: khStatsHTML }[khUi.tab] || khTodayHTML)()}`;
 }
 
 // ---------- أدواري ----------
@@ -989,6 +992,74 @@ function khMonthPick(roleId) {
   showLib();
 }
 
+// ---------- إحصائياتي (v99) ----------
+// a week, a month or a year (in the calendar chosen), or years from–to; counted from what is ticked
+const KH_STMODES = [['week', 'الأسبوع'], ['month', 'الشهر'], ['year', 'السنة'], ['range', 'سنوات']];
+function khYearsList() {
+  const ds = [...S.tasks.map((t) => (t.created ? iso(new Date(t.created)) : '')), ...S.weeks.map((w) => w.id)].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= '2000-01-01').sort();
+  const first = khYrStart(ds[0] && ds[0] < today() ? ds[0] : today()), out = [];
+  for (let y = khYrStart(today()), i = 0; i < 30 && (out.length < 5 || y >= first); i++, y = khYrPrev(y)) out.unshift(y);
+  return out;
+}
+function khStatRange(st) {
+  if (st.mode === 'month') { const m = khMoStart(st.m || today()); return { from: m, to: khMoNext(m), title: 'إحصائية الشهر', label: khMoLabel(m), prev: khMoPrev(m), next: khMoNext(m), key: 'm' }; }
+  if (st.mode === 'year') { const y = khYrStart(st.y || today()); return { from: y, to: khYrNext(y), title: 'إحصائية السنة', label: khYrLabel(y), prev: khYrPrev(y), next: khYrNext(y), key: 'y' }; }
+  if (st.mode === 'range') {
+    const ys = khYearsList(), n = (d) => (d ? khYrStart(d) : ''), y2 = ys.includes(n(st.y2)) ? n(st.y2) : ys[ys.length - 1];
+    const y1 = ys.includes(n(st.y1)) && n(st.y1) <= y2 ? n(st.y1) : ys[Math.max(0, ys.indexOf(y2) - 2)];
+    return { from: y1, to: khYrNext(y2), title: 'إحصائية السنوات', label: y1 === y2 ? khYrLabel(y1) : `من ${khYrLabel(y1)} إلى ${khYrLabel(y2)}`, y1, y2, ys };
+  }
+  const k = st.k ? weekStartOf(st.k) : khWeekOf(today());
+  return { from: k, to: addDays(k, 7), title: 'إحصائية الأسبوع', label: `${khDayLabel(k)} – ${khDayLabel(addDays(k, 6))}`, prev: addDays(k, -7), next: addDays(k, 7), key: 'k' };
+}
+function khStatsOf(from, to) {
+  // a week still to come is not counted (as in «شهري»)
+  const now = khWeekOf(today()), ws = khWeekStarts(from, to).filter((k) => k <= now && khWeekItems(k).length);
+  const pcts = ws.map(khShownPct).filter((x) => x !== null);
+  // a recurring goal (or habit): its days in the weeks begun, and those done (a day done though not its day counts too)
+  const rec = S.tasks.filter(isRepeat).map((t) => {
+    let target = 0, done = 0;
+    for (let d = from < t.repeat.start ? t.repeat.start : from; d < to && weekStartOf(d) <= now && !(t.repeat.until && d > t.repeat.until); d = addDays(d, 1)) {
+      if (occursOn(t, d)) { target++; if (t.completions[d]) done++; } else if (t.completions[d]) { target++; done++; }
+    }
+    return { t, target, done };
+  }).filter((x) => x.target);
+  return { pcts, avg: pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null, good: pcts.filter((p) => p >= KH_RATE).length,
+    done: khDoneIn(from, to), life: khLifeRec(from, to).length,
+    byRole: [...khRoles(), null].map((r) => ({ r, n: khDoneIn(from, to, r ? r.id : '') })).filter((x) => x.r || x.n),
+    saw: Object.keys(KH_AREAS).map((a) => ({ a, n: khDoneIn(from, to, KH_SAW, a) })), rec };
+}
+// the bars: the week's days, the month's weeks, the year's months, or the years
+function khStatSeries(st, R) {
+  const out = [];
+  if (st.mode === 'month') return khWeekStarts(R.from, R.to).map((k) => ({ l: `الأسبوع ${KH_ORD[khWkOrd(k) - 1] || ''}`, v: khDoneIn(k, addDays(k, 7)) }));
+  if (st.mode === 'year') { for (let m = R.from; m < R.to; m = khMoNext(m)) out.push({ l: khMoShort(m), v: khDoneIn(m, khMoNext(m)) }); return out; }
+  if (st.mode === 'range') { for (let y = R.from; y < R.to; y = khYrNext(y)) out.push({ l: khYrLabel(y), v: khDoneIn(y, khYrNext(y)) }); return out; }
+  return khDays(R.from).map((d) => ({ l: AR_DAYS[parse(d).getDay()], v: khDoneIn(d, addDays(d, 1)) }));
+}
+function khStatsHTML() {
+  const st = khUi.st, R = khStatRange(st), X = khStatsOf(R.from, R.to), ser = khStatSeries(st, R);
+  const row = (label, n, max, val, color) => `<div class="kh-mo kh-srow"><span>${label}</span><span class="kh-track sm"><i style="width:${max ? Math.round((n / max) * 100) : 0}%${color ? `;background:${color}` : ''}"></i></span><small>${val}</small></div>`;
+  const top = (xs) => Math.max(1, ...xs);
+  return `<section class="section">
+    <div class="section-head"><h2>إحصائياتي</h2></div>
+    <p class="note-text explain">تُحسب وحدها مما تشطبه في «اليوم» و«يومي» و«أسبوعي»؛ فكلما شطبت أولاً بأول صدقت أرقامك.</p>
+    <div class="seg" role="group" aria-label="المدة">${KH_STMODES.map(([v, l]) => `<button type="button" data-action="kh-stmode" data-v="${v}" aria-pressed="${st.mode === v}">${l}</button>`).join('')}</div>
+    ${st.mode === 'range' ? `<div class="kh-yrange"><label class="field"><span>من</span><select data-kh-st="y1">${R.ys.map((y) => `<option value="${y}"${y === R.y1 ? ' selected' : ''}>${esc(khYrLabel(y))}</option>`).join('')}</select></label>
+        <label class="field"><span>إلى</span><select data-kh-st="y2">${R.ys.map((y) => `<option value="${y}"${y === R.y2 ? ' selected' : ''}>${esc(khYrLabel(y))}</option>`).join('')}</select></label></div>`
+      : khPeriodNav(R.title, R.label, R.prev, R.next, 'kh-stgo', '')}
+    <div class="panel kh-stats"><div class="kh-nums kh-n4"><span><b>${khN(X.done)}</b>${X.done === 1 ? 'إنجاز' : 'إنجازات'}</span><span><b>${X.avg === null ? '—' : `${X.avg}٪`}</b>متوسط الأسابيع</span><span><b>${X.pcts.length ? `${khN(X.good)} من ${X.pcts.length}` : '—'}</b>أسابيع بلغت ٧٠٪</span><span><b>${khN(X.life)}</b>في حياتي</span></div></div>
+    <div class="panel kh-block"><h3>الإنجازات في ${st.mode === 'week' ? 'أيام الأسبوع' : st.mode === 'month' ? 'أسابيع الشهر' : st.mode === 'year' ? 'شهور السنة' : 'السنوات'}</h3>
+      <div class="kh-months">${ser.map((x) => row(esc(x.l), x.v, top(ser.map((y) => y.v)), khN(x.v), 'var(--lv-month)')).join('')}</div></div>
+    <div class="panel kh-block"><h3>الإنجاز في كل دور</h3>
+      <div class="kh-months">${X.byRole.map((x) => row(`<span class="kh-tag" style="--rc:${khColor(x.r ? x.r.id : '')}">${esc(x.r ? x.r.name : 'بلا دور')}</span>`, x.n, top(X.byRole.map((y) => y.n)), khN(x.n), khColor(x.r ? x.r.id : ''))).join('')}</div></div>
+    <div class="panel kh-block"><h3>شحذ المنشار</h3>
+      <div class="kh-months">${X.saw.map((x) => row(KH_AREAS[x.a], x.n, top(X.saw.map((y) => y.n)), khN(x.n), 'var(--lv-life)')).join('')}</div></div>
+    ${X.rec.length ? `<div class="panel kh-block"><h3>الالتزام بالأهداف المتكررة</h3>
+      <div class="kh-months">${X.rec.map((x) => row(esc(x.t.title), x.done, x.target, `${khN(x.done)} من ${x.target}`)).join('')}</div></div>` : ''}
+  </section>`;
+}
+
 // ---------- events ----------
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="kh-"]');
@@ -1003,6 +1074,8 @@ document.addEventListener('click', (e) => {
     case 'kh-goweek': khUi.wk = v === khWeekOf(today()) ? '' : v; khUi.tab = 'week'; render(); window.scrollTo({ top: 0 }); break;
     case 'kh-gomonth': khUi.mo = v === khMoStart(today()) ? '' : v; khUi.tab = 'month'; render(); window.scrollTo({ top: 0 }); break;
     case 'kh-mplan': khMonthPick(el.dataset.role); break;
+    case 'kh-stmode': khUi.st = { ...khUi.st, mode: v }; render(); break;
+    case 'kh-stgo': { const R = khStatRange(khUi.st); if (v) khUi.st = { ...khUi.st, [R.key]: v }; render(); break; }
     case 'kh-plan-pick': khPlanPick(el.dataset.k, el.dataset.day); break;
     case 'kh-wiz': { const o = el.dataset; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
     case 'kh-edit-mg': khWizard({ step: 1, edit: 'month', monthId: v }); break;
@@ -1107,6 +1180,13 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const ds = e.target.dataset || {};
+  // «إحصائياتي»: years from–to
+  if (ds.khSt) {
+    khUi.st = { ...khUi.st, [ds.khSt]: e.target.value };
+    if (khUi.st.y1 && khUi.st.y2 && khUi.st.y1 > khUi.st.y2) khUi.st[ds.khSt === 'y1' ? 'y2' : 'y1'] = e.target.value;
+    render();
+    return;
+  }
   // «تحقّق هذا الشهر/الأسبوع» by the user's own judgement
   if (ds.khTick) {
     const g = kgOf(ds.khTick);

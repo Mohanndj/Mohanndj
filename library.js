@@ -177,7 +177,6 @@ function moreTiles() {
     ['archive', 'archive', 'الأرشيف', S.archive.length ? `لم تعد إليها: ${S.archive.filter((a) => !a.revisitedAt).length}` : ''],
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `عبارات وصور: ${S.inspire.length}` : ''],
     ['report', 'sheet', 'التقارير', ''],
-    ['stats', 'chart', 'الإحصائيات', ''],
   ];
 }
 function viewMore() {
@@ -356,22 +355,6 @@ function viewBenefits() {
 }
 
 // ---------- reading panel for statistics ----------
-function readingPanelHTML() {
-  if (!S.books.length && !S.benefits.length) return '';
-  const y = today().slice(0, 4);
-  const readYear = S.books.filter((b) => b.status === 'read' && (b.end || '').slice(0, 4) === y);
-  const durations = readYear.filter((b) => b.start && b.end).map((b) => daysBetween(b.start, b.end) + 1);
-  const avg = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
-  const counts = BOOK_ORDER.map((s) => [s, S.books.filter((b) => b.status === s).length]);
-  const max = Math.max(1, ...counts.map(([, n]) => n));
-  return `<section class="panel">
-    <h2>القراءة</h2>
-    ${(() => { const g = readingGoalState(); return g ? `<p class="note-text">هدف العام: <b>${g.done} من ${g.goal}</b> (${g.pct}%)</p>` : ''; })()}
-    <p class="note-text">قرأت <b>${readYear.length}</b> ${readYear.length === 1 ? 'كتاباً' : 'كتب'} هذا العام${avg ? ` | متوسط الكتاب ${daysWord(avg)}` : ''} | سجّلت <b>${S.benefits.length}</b> فائدة</p>
-    <ul class="hbars">${counts.map(([s, n]) => hbar(BOOK_STATUS_PLURAL[s], n, (n / max) * 100)).join('')}</ul>
-  </section>`;
-}
-
 // ---------- shared editor sheet for notes, books and benefits ----------
 const lsheet = () => $('libSheet');
 let ldraft = null; // { kind, id, isNew, status }

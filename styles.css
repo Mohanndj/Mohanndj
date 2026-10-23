@@ -1828,7 +1828,7 @@ li.sel .sel-box { background: var(--high); }
 #biPrev .ben-reads { margin-top: 6px; }
 
 /* «خطِّط» (plan.js, v97): roles, today by role, the week and its review */
-.kh-tabs { margin-bottom: 4px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kh-tabs { margin-bottom: 4px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .kh-tabs button { padding-inline: 4px; }
 .kh-tag { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--fg); font-weight: 500; white-space: nowrap; }
 .kh-tag::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rc); flex: none; }
@@ -1975,4 +1975,11 @@ li.sel .sel-box { background: var(--high); }
 .kh-shares span { display: grid; font-size: .78rem; color: var(--lv); border: 1px solid color-mix(in srgb, var(--lv) 40%, var(--line)); border-radius: 10px; padding: 4px; }
 .kh-shares b { font-size: 1.1rem; }
 .kh-dot[data-op].on { background: var(--lv-day); border-color: var(--lv-day); }
+/* «إحصائياتي» (v99) */
+.kh-n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kh-n4 b { font-size: 1.1rem; }
+.kh-srow { grid-template-columns: minmax(0, 1.3fr) minmax(50px, 1fr) auto; }
+.kh-srow > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.kh-srow small { white-space: nowrap; }
+.kh-yrange { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 

@@ -39,7 +39,7 @@ const lookOf = (k) => moreLook()[k] || {};
 const PAGE_NAMES = {
   reminders: 'التذكيرات', ideas: 'الأفكار', journal: 'يومياتي وتأملاتي', calendar: 'التقويم', habits: 'العادات', health: 'الصحة', shop: 'القوائم',
   finance: 'المالية', cv: 'سيرتي الذاتية', hifz: 'الحفظ', study: 'الدراسة', people: 'الأحبّة', decisions: 'سجل القرارات', notes: 'الملاحظات',
-  books: 'الكتب', benefits: 'الفوائد', archive: 'الأرشيف', inspire: 'الإلهام', report: 'التقارير', stats: 'الإحصائيات',
+  books: 'الكتب', benefits: 'الفوائد', archive: 'الأرشيف', inspire: 'الإلهام', report: 'التقارير',
 };
 const pageName = (tab) => (lookOf(tab).name || PAGE_NAMES[tab] || '').trim();
 // a page's own heading (an h2 that says exactly its default name) takes the name the user gave it

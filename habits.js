@@ -131,17 +131,6 @@ function habitsSectionHTML() {
 }
 
 // ---------- statistics ----------
-function habitsPanelHTML() {
-  const habits = S.tasks.filter(isHabit);
-  if (!habits.length) return '';
-  return `<section class="panel">
-    <h2>العادات</h2>
-    <ul class="hbars">${habits.map((t) => { const st = habitStats(t); return hbar(esc(t.title), `${st.strength}%`, st.strength); }).join('')}</ul>
-    <p class="note-text">${habits.map((t) => { const st = habitStats(t); return `${esc(t.title)}: ${esc(st.stage[0])} | يوم ${Math.min(st.hit, t.habit.days)} من ${t.habit.days}`; }).join('<br>')}</p>
-    <p class="note-text explain">النسبة هي قوة العادة: ترتفع مع كل يوم تلتزم فيه وتنخفض تدريجياً عند التفويت.</p>
-  </section>`;
-}
-
 // ---------- monthly report ----------
 function habitsMonthStats(m) {
   const [y, mo] = m.split('-').map(Number);

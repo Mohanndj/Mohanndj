@@ -453,7 +453,7 @@ function awareStats(P) {
   const fMs = sum(sess, (x) => x.ms);
   const byTask = {};
   for (const x of sess) { const e = byTask[x.taskId] || (byTask[x.taskId] = { ms: 0, n: 0 }); e.ms += x.ms; e.n++; }
-  add('focus', { title: 'وقت التركيز', icon: '⏱️' }, 'stats', null, [fMs && `ركّزت ${fmtDur(fMs)} في ${plural(sess.length, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}`],
+  add('focus', { title: 'وقت التركيز', icon: '⏱️' }, 'timer', null, [fMs && `ركّزت ${fmtDur(fMs)} في ${plural(sess.length, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}`],
     Object.entries(byTask).sort((a, b) => b[1].ms - a[1].ms).map(([id, e]) => `${(getTask(id) || {}).title || 'مهمة محذوفة'}: ${fmtDur(e.ms)} (${plural(e.n, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')})`));
 
   // 🔔 التذكيرات (facts only): what was added and what was done in the period

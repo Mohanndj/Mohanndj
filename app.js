@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 98;
+const APP_VERSION = 99;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -840,7 +840,7 @@ function stepperHTML(t, d) {
 // («بناء العادات»، «عادات أتركها») on the page «العادات» in «المزيد», as they were
 const viewHabits = () => `${moreCrumb()}${habitsSectionHTML()}${quitsSectionHTML()}`;
 
-// ---------- view: stats ----------
+// ---------- what was done, by day (the report counts it; «إحصائياتي» is in «خطِّط», plan.js, since v99) ----------
 // every completed thing with its day: tasks, goals (each day of a recurring goal) and steps
 function completionEvents() {
   const ev = [];
@@ -857,132 +857,8 @@ function completionEvents() {
   return ev;
 }
 
-function streaks(byDay) {
-  const t0 = today();
-  let cur = 0;
-  let d = byDay[t0] ? t0 : addDays(t0, -1);
-  while (byDay[d]) { cur++; d = addDays(d, -1); }
-  let best = 0, run = 0, prev = null;
-  for (const x of Object.keys(byDay).sort()) {
-    run = prev && addDays(prev, 1) === x ? run + 1 : 1;
-    best = Math.max(best, run);
-    prev = x;
-  }
-  return { cur, best };
-}
-
-function chartSVG(byDay) {
-  const t0 = today();
-  // last week and this week, each from Sunday (the days still to come stay empty)
-  const N = 14;
-  const days = Array.from({ length: N }, (_, i) => addDays(weekStartOf(t0), i - 7));
-  const counts = days.map((d) => byDay[d] || 0);
-  let max = Math.max(4, ...counts);
-  max = Math.ceil(max / 2) * 2;
-  const W = 560, H = 190, padL = 6, padR = 30, padT = 10, padB = 26;
-  const pw = W - padL - padR, ph = H - padT - padB;
-  const bw = pw / N, gap = 6, w = bw - gap;
-  const y = (v) => padT + ph - (v / max) * ph;
-  const parts = [];
-  for (const v of [0, max / 2, max]) {
-    parts.push(`<line class="grid" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/>`);
-    parts.push(`<text class="axis" x="${W - padR + 6}" y="${y(v) + 4}" text-anchor="start">${v}</text>`);
-  }
-  days.forEach((d, i) => {
-    const x = padL + (N - 1 - i) * bw + gap / 2; // RTL: Sunday of last week on the right
-    const v = counts[i];
-    const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${v} ${v === 1 ? 'إنجاز' : 'إنجازات'}`;
-    let bar = `<rect class="zero" x="${x}" y="${y(0) - 2}" width="${w}" height="2" rx="1"/>`;
-    if (v > 0) {
-      const top = y(v), r = Math.min(4, y(0) - top, w / 2);
-      bar = `<path class="bar" d="M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + w - r} Q${x + w},${top} ${x + w},${top + r} V${y(0)} Z"/>`;
-    }
-    parts.push(`<g class="col" data-tip="${esc(label)}"><rect class="hit" x="${x - gap / 2}" y="${padT}" width="${bw}" height="${ph + padB}"><title>${esc(label)}</title></rect>${bar}</g>`);
-    // labels: each Sunday (a week starts), and today
-    if (d === t0 || i % 7 === 0) {
-      parts.push(`<text class="axis" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${d === t0 ? 'اليوم' : i % 7 === 0 ? `أحد ${parse(d).getDate()}` : parse(d).getDate()}</text>`);
-    }
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" direction="ltr" role="img" aria-label="الإنجازات في الأسبوع الماضي وهذا الأسبوع">${parts.join('')}</svg>`;
-}
-
 const hbar = (name, value, width, color) =>
   `<li class="hbar"><span class="name">${name}</span><span class="track"><span class="fill" style="width:${width}%;${color ? ` background:${color};` : ''} display:block"></span></span><span class="v">${value}</span></li>`;
-
-function focusPanelHTML() {
-  if (!S.sessions.length) return '';
-  const t0 = today();
-  const weekStart = weekStartOf(t0);
-  const week = S.sessions.filter((x) => sessionDay(x) >= weekStart && sessionDay(x) <= t0);
-  const todayMs = week.filter((x) => sessionDay(x) === t0).reduce((n, x) => n + x.ms, 0);
-  const weekMs = week.reduce((n, x) => n + x.ms, 0);
-  const by = {};
-  for (const x of week) by[x.taskId] = (by[x.taskId] || 0) + x.ms;
-  const rows = Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const max = rows.length ? rows[0][1] : 1;
-  return `<section class="panel">
-    <h2>وقت التركيز</h2>
-    <p class="note-text">اليوم <b>${fmtDur(todayMs)}</b> | هذا الأسبوع <b>${fmtDur(weekMs)}</b></p>
-    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>` : ''}
-  </section>`;
-}
-
-function viewStats() {
-  const ev = completionEvents();
-  const main = ev.filter((e) => e.type !== 'step');
-  const byDay = {};
-  for (const e of main) byDay[e.d] = (byDay[e.d] || 0) + 1;
-  const t0 = today();
-  const weekStart = weekStartOf(t0); // the week starts on Sunday, as in the reports
-  const week = main.filter((e) => e.d >= weekStart && e.d <= t0).length;
-  const stepsWeek = ev.filter((e) => e.type === 'step' && e.d >= weekStart && e.d <= t0).length;
-  const { cur, best } = streaks(byDay);
-  const byCat = {};
-  for (const e of main) byCat[e.cat] = (byCat[e.cat] || 0) + 1;
-  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-  const catMax = cats.length ? cats[0][1] : 1;
-  const recurring = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && t.repeat.start <= t0).map((t) => ({ t, st: goalStats(t) }));
-  const once = S.tasks.filter((t) => isGoal(t) && !isRepeat(t));
-  const tasks = S.tasks.filter((t) => !isGoal(t));
-  const projects = S.projects.map((p) => ({ p, st: projectStats(p.id) })).filter((x) => x.st.total);
-
-  const z = (v) => (v ? v : 'صفر'); // a lone «٠» in a big font looks like a dot
-  return `
-  <div class="tiles">
-    <div class="tile"><b>${z(byDay[t0])}</b><span>أنجزت اليوم</span></div>
-    <div class="tile"><b>${z(week)}</b><span>أنجزت هذا الأسبوع</span></div>
-    <div class="tile"><b>${z(stepsWeek)}</b><span>خطوات داخل المهام هذا الأسبوع</span></div>
-    <div class="tile"><b>${z(cur)}</b><span>أيام إنجاز متتالية | أطولها ${best ? daysWord(best) : 'صفر'}</span></div>
-  </div>
-  <section class="panel chart">
-    <h2>المنجز في الأسبوع الماضي وهذا الأسبوع</h2>
-    <div class="readout" id="readout"><span class="explain">المس عموداً لترى تفاصيل اليوم.</span></div>
-    ${chartSVG(byDay)}
-  </section>
-  <section class="panel">
-    <h2>المشاريع</h2>
-    ${projects.length ? `<ul class="hbars">${projects.map(({ p, st }) => hbar(`<span class="proj" style="--pc:${p.color}"><i></i>${esc(p.name)}</span>`, `${st.progress}%`, st.progress, p.color)).join('')}</ul>
-      <p class="note-text explain">النسبة تحسب المهام المنجزة وخطوات المهام التي لم تكتمل بعد.</p>`
-      : '<p class="note-text">أنشئ مشروعاً وأضف له مهاماً لترى تقدّمه هنا.</p>'}
-  </section>
-  <section class="panel">
-    <h2>الأهداف</h2>
-    ${recurring.length || once.length ? `<ul class="hbars">
-      ${recurring.map(({ t, st }) => hbar(esc(t.title), `${st.rate}%`, st.rate)).join('')}
-      ${once.map((t) => { const v = pct(countOn(t, t0), t.target); return hbar(esc(t.title), t.done ? 'تحقق' : `${v}%`, t.done ? 100 : v); }).join('')}
-    </ul><p class="note-text explain">المتكرر: نسبة الأيام التي التزمت فيها. لمرة واحدة: مقدار ما تحقق.</p>`
-      : '<p class="note-text">أضف هدفاً لتتابع التزامك به.</p>'}
-  </section>
-  ${habitsPanelHTML()}
-  ${focusPanelHTML()}
-  ${readingPanelHTML()}
-  <section class="panel">
-    <h2>المنجز حسب التصنيف</h2>
-    ${cats.length ? `<ul class="hbars">${cats.map(([c, n]) => hbar(esc(c), n, (n / catMax) * 100)).join('')}</ul>`
-      : '<p class="note-text">ستظهر هنا بعد أن تنجز أول مهمة.</p>'}
-  </section>
-  <p class="note-text">مهام لم تُنجز بعد: ${tasks.filter((t) => !t.done).length} من ${tasks.length} | المشاريع: ${S.projects.length}</p>`;
-}
 
 // ---------- view: settings ----------
 function notifStatus() {
@@ -1100,9 +976,9 @@ function viewSettings() {
 
 const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), habits: viewHabits, plan: viewPlan,
-  stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
+  settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report'];
 
 function render() {
   const view = $('view');
@@ -2504,15 +2380,6 @@ document.addEventListener('click', (e) => {
   if (b.dataset.rep && !b.disabled) setGoalMode(b.dataset.rep);
 });
 
-// chart readout (hover / touch)
-document.addEventListener('pointerover', (e) => {
-  const col = e.target.closest && e.target.closest('.col');
-  if (!col || !$('readout')) return;
-  document.querySelectorAll('.col.on').forEach((c) => c.classList.remove('on'));
-  col.classList.add('on');
-  $('readout').textContent = col.dataset.tip;
-});
-
 // ---------- install prompt ----------
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -2619,6 +2486,7 @@ function restoreWhere() {
   let w = null;
   try { w = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null'); } catch {}
   if (w && w.tab === 'goals') w.tab = 'plan'; // «الأهداف» became part of «خطِّط» (v98)
+  if (w && w.tab === 'stats') { w.tab = 'plan'; w.kh = 'stats'; } // and «الإحصائيات» its «إحصائياتي» (v99)
   if (!w || !VIEWS[w.tab]) return null;
   ui.tab = w.tab;
   ui.project = w.project || '';
