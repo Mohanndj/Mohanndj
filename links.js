@@ -13,10 +13,21 @@ function linkSrc(key) {
   const src = kind === 'sub' ? S.subs.find((s) => s.id === id) : kind === 'debt' ? S.finDebts.find((d) => d.id === id) : kind === 'fine' ? S.fines.find((f) => f.id === id) : null;
   return src ? { kind, src, pays: kind === 'sub' ? src.paid : src.payments } : null;
 }
+// a bill's date falls in plan p's period (its next date or one after it), or it is late and p is this period's plan
+function subDueIn(s, p) {
+  const { from, to } = finRange(p);
+  if (s.next < from && inPlan(p, today())) return true;
+  for (let k = 0, d = s.next; d <= to && k < 200; k++, d = addMonths(s.next, k * s.every)) if (d >= from) return true;
+  return false;
+}
 // what should be in plan p (its own period)
 function linkSources(p) {
   const out = [];
-  for (const s of S.subs) if (s.active && s.amount) out.push({ key: `sub:${s.id}`, name: s.name, amount: s.amount, every: s.every });
+  for (const s of S.subs) if (s.active && s.amount) {
+    // «كاملاً في خطة شهر موعده»: the whole amount, only in a plan whose period has its date (or a payment of it, or it is late)
+    if (s.whole && s.every > 1) { if (subDueIn(s, p) || sum(inPlanList(s.paid, p))) out.push({ key: `sub:${s.id}`, name: s.name, amount: s.amount, every: 1 }); }
+    else out.push({ key: `sub:${s.id}`, name: s.name, amount: s.amount, every: s.every });
+  }
   for (const d of S.finDebts) {
     const paidIn = sum(inPlanList(d.payments, p));
     if (d.monthly && (debtLeft(d) > 0 || paidIn)) out.push({ key: `debt:${d.id}`, name: `قسط ${d.name}`, match: d.name, amount: Math.min(d.monthly, debtLeft(d) + paidIn), every: 1 });
@@ -57,7 +68,7 @@ function syncPlanLinks(p) {
     if (!r && !s.own) { const want = normName(s.match || s.name); r = want.length >= 3 && all().find((x) => !x.link && x.name && !spendName(x.name) && (normName(x.name).includes(want) || (normName(x.name).length >= 3 && want.includes(normName(x.name))))); if (r) { r.link = s.key; changed = true; } }
     const list = s.every > 1 ? 'periodic' : 'fixed';
     if (!r) { r = row({ name: s.name, amount: s.amount, ...(list === 'periodic' ? { every: s.every } : {}), done: false }); r.link = s.key; p[list].push(r); changed = true; }
-    else if (!p[list].includes(r)) { p.fixed = p.fixed.filter((x) => x !== r); p.periodic = p.periodic.filter((x) => x !== r); r = row({ ...r, ...(list === 'periodic' ? { every: s.every } : {}) }); r.link = s.key; p[list].push(r); changed = true; }
+    else if (!p[list].includes(r)) { p.fixed = p.fixed.filter((x) => x !== r); p.periodic = p.periodic.filter((x) => x !== r); r = row({ ...r, ...(list === 'periodic' ? { every: s.every } : {}) }); if (list === 'fixed') delete r.every; r.link = s.key; p[list].push(r); changed = true; }
     // its payments in this period made before the row existed (or for a row since removed) belong to it, else they count twice
     for (const t of S.finTx) if (t.src && t.src.startsWith(`${s.key}:`) && t.ref !== r.id && inPlan(p, t.d) && !finRowKnown(t.ref)) { t.ref = r.id; changed = true; }
     const ls = linkSrc(s.key);

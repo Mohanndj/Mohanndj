@@ -11,6 +11,8 @@ function normalizeSub(x) {
   return {
     id: x.id || uid(), name: String(x.name || ''), kind: BILL_KIND[x.kind] ? x.kind : 'sub', amount: num(x.amount), every: CYCLE.some(([m]) => m === Number(x.every)) ? Number(x.every) : 1,
     next: x.next || today(), remind: Math.max(0, Number(x.remind ?? 3)), auto: !!x.auto, active: x.active !== false, note: String(x.note || ''),
+    // in the monthly plans, a bill paid every few months: its share in every month (default), or the whole of it in the month it is due
+    whole: !!x.whole,
     paid: payments(x.paid), created: x.created || Date.now(),
   };
 }
@@ -35,7 +37,7 @@ function finBillsHTML() {
     ${list.length ? `<div class="book-list">${list.map((s) => { const n = daysBetween(today(), s.next); return `<article class="fin-card${s.active ? '' : ' cleared'}">
       <button type="button" class="hz-main" data-action="sub-open" data-v="${s.id}">
         <span class="row-between"><b>${esc(s.name)}</b><b>${money(s.amount)}</b></span>
-        <small>${BILL_KIND[s.kind]} | ${CYCLE.find(([m]) => m === s.every)[1]}${s.auto ? ' | يُخصم تلقائياً' : ''}${s.active ? '' : ' | موقوف'}</small>
+        <small>${BILL_KIND[s.kind]} | ${CYCLE.find(([m]) => m === s.every)[1]}${s.whole && s.every > 1 ? ' | كاملاً في خطة شهره' : ''}${s.auto ? ' | يُخصم تلقائياً' : ''}${s.active ? '' : ' | موقوف'}</small>
         ${s.active ? `<small class="${n <= s.remind ? 'late' : ''}">${n < 0 ? `متأخر ${daysWord(-n)}` : n === 0 ? 'موعده اليوم' : `الموعد ${afterDays(n)} | ${esc(fmtDate(s.next, { day: 'numeric', month: 'long' }))}`}</small>` : ''}
       </button>
       ${s.active ? `<div class="btn-row"><button type="button" class="ghost" data-action="sub-paid" data-v="${s.id}">${s.auto ? 'خُصم ✓' : 'دفعت ✓'}</button></div>` : ''}
@@ -54,6 +56,7 @@ function openSub(id) {
       <label class="field"><span>المبلغ</span><input type="text" inputmode="decimal" class="num-in" id="sbAmount" value="${s.amount || ''}" data-novoice></label>
       <label class="field"><span>يتكرر</span><select id="sbEvery">${CYCLE.map(([m, l]) => `<option value="${m}"${s.every === m ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
+    <label class="field" id="sbWholeF"${s.every > 1 ? '' : ' hidden'}><span>في الخطة الشهرية</span><select id="sbWhole"><option value="0"${s.whole ? '' : ' selected'}>حصته في خطة كل شهر</option><option value="1"${s.whole ? ' selected' : ''}>كاملاً في خطة شهر موعده فقط</option></select></label>
     <div class="grid2">
       <label class="field"><span>الموعد القادم</span><input type="date" id="sbNext" value="${s.next}"></label>
       <label class="field"><span>ذكّرني قبله</span><select id="sbRemind">${[0, 1, 3, 7, 14].map((d) => `<option value="${d}"${s.remind === d ? ' selected' : ''}>${d ? `${d} ${d === 1 ? 'يوم' : d <= 10 ? 'أيام' : 'يوماً'}` : 'في يومه'}</option>`).join('')}</select></label>
@@ -70,7 +73,7 @@ function saveSub() {
   const name = $('sbName').value.trim();
   if (!name) { toast('اكتب الاسم.'); return false; }
   const old = S.subs.find((x) => x.id === ldraft.id);
-  const s = normalizeSub({ ...(old || {}), id: ldraft.id, kind: ldraft.sk, name, amount: num($('sbAmount').value), every: +$('sbEvery').value, next: $('sbNext').value || today(), remind: +$('sbRemind').value, auto: $('sbAuto').checked, active: $('sbActive') ? $('sbActive').checked : true, note: $('sbNote').value.trim() });
+  const s = normalizeSub({ ...(old || {}), id: ldraft.id, kind: ldraft.sk, name, amount: num($('sbAmount').value), every: +$('sbEvery').value, next: $('sbNext').value || today(), remind: +$('sbRemind').value, auto: $('sbAuto').checked, active: $('sbActive') ? $('sbActive').checked : true, note: $('sbNote').value.trim(), whole: $('sbWhole').value === '1' });
   if (old) Object.assign(old, s); else S.subs.push(s);
   save();
   return true;
@@ -180,6 +183,9 @@ document.addEventListener('click', (e) => {
     case 'later-wait': lat.added = today(); save(); render(); toast(`سأسألك بعد ${daysWord(lat.wait)}`); break;
   }
 });
+
+// the plan choice is only for a bill paid every few months
+document.addEventListener('change', (e) => { if (e.target.id === 'sbEvery' && $('sbWholeF')) $('sbWholeF').hidden = e.target.value === '1'; });
 
 // ---------- Excel ----------
 function subsSheet() {
