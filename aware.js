@@ -103,6 +103,8 @@ function awareStats(P) {
   const steps = sum(stepsBy, (x) => x.n);
   const lateNow = P.current ? S.tasks.filter((t) => !isGoal(t) && !t.bookId && !t.done && t.due && t.due < t0).length : 0;
   const closed = closedDays().filter(inP).length;
+  // the week's reviews in «خطِّط» (plan.js, v97): a week counts in the period it ends in or overlaps
+  const wkReviews = S.weeks.filter((w) => w.review && w.id >= addDays(start, -6) && w.id <= last).sort((a, b) => a.id.localeCompare(b.id));
   const tState = (t) => (t.done ? `✓ أنجزتها${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.due < t0 ? '✗ لم تُنجز' : t.due === t0 ? 'موعدها اليوم' : 'لم يحن موعدها');
   add('tasks', { title: 'المهام', icon: '✅' }, 'tasks', pctOf(doneDue.length, due.length), [
     due.length && `أنجزت ${doneDue.length} من ${plural(due.length, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')} موعدها في هذا ${P.word}${pc(doneDue.length, due.length)}${leftTxt(due.filter((t) => !t.done && t.due >= t0).length)}`,
@@ -112,10 +114,12 @@ function awareStats(P) {
     steps && `أتممت ${plural(steps, 'خطوة واحدة', 'خطوتين', 'خطوات', 'خطوة')} من خطوات المهام`,
     lateNow && `${plural(lateNow, 'مهمة متأخرة', 'مهمتان متأخرتان', 'مهام متأخرة', 'مهمة متأخرة')} الآن`,
     closed && `أغلقت يومك ${plural(closed, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} من ${days.filter((d) => d < t0 || closedDays().includes(d)).length}`,
+    wkReviews.length && `راجعت أسبوعك ${plural(wkReviews.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} (إنجاز الأسبوع: ${wkReviews.map((w) => `${w.review.pct}٪`).join('، ')})`,
   ], [
     ...due.map((t) => `${t.title} (موعدها ${dS(t.due)}): ${tState(t)}`),
     ...extraT.map((t) => `${t.title} (${t.due ? `موعدها كان ${dS(t.due)}` : 'بلا موعد'}): ✓ أنجزتها ${dS(dayOfTs(t.doneAt))}`),
     ...stepsBy.map((x) => `خطوات «${x.t.title}»: أتممت ${x.n}`),
+    ...wkReviews.map((w) => `مراجعة أسبوع ${dS(w.id)}: الإنجاز ${w.review.pct}٪${w.review.moved ? ` | نقلت ${w.review.moved} إلى الأسبوع التالي` : ''}${w.review.dropped.length ? ` | ألغيت: ${w.review.dropped.join('، ')}` : ''}${w.review.worked ? ` | ما نجح: ${w.review.worked}` : ''}${w.review.missed ? ` | ما لم ينجح: ${w.review.missed}` : ''}${w.review.change ? ` | ما أغيّره: ${w.review.change}` : ''}`),
   ]);
 
   // 🎯 الأهداف المتكررة (غير العادات وأهداف القراءة) والأهداف لمرة واحدة

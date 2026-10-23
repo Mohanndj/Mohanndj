@@ -1822,3 +1822,74 @@ li.sel .sel-box { background: var(--high); }
 .bi-sum { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
 .bi-sum .dbox.warn { color: var(--high); }
 #biPrev .ben-reads { margin-top: 6px; }
+
+/* «خطِّط» (plan.js, v97): roles, today by role, the week and its review */
+.kh-tabs { margin-bottom: 4px; }
+.kh-tag { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--fg); font-weight: 500; white-space: nowrap; }
+.kh-tag::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rc); flex: none; }
+.kh-roles { display: grid; gap: 10px; }
+.kh-role { background: var(--card); border: 1px solid var(--line); border-inline-start: 5px solid var(--rc); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.kh-role-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.kh-role-head b { font-size: 1.05rem; }
+.kh-role-acts { display: flex; gap: 4px; align-items: center; }
+.kh-role-acts .icon-btn { width: 32px; height: 32px; padding: 0; color: var(--muted); }
+.kh-fixed { font-size: .75rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+.kh-sub { display: grid; gap: 4px; min-width: 0; }
+.kh-sub > small, .kh-sub summary small { color: var(--muted); }
+.kh-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kh-chips > small { color: var(--muted); }
+.kh-links { display: grid; gap: 2px; }
+.kh-link { text-align: start; padding: 4px 0; color: var(--fg); display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.kh-link small { color: var(--muted); font-size: .78rem; }
+.kh-adds .add-btn { font-size: .85rem; }
+.kh-un { border-color: color-mix(in srgb, var(--mid) 45%, var(--line)); }
+.kh-un h3, .kh-add h3, .kh-block h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+.kh-un-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.kh-un-row > span { display: grid; min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.kh-un-row small { color: var(--muted); font-size: .78rem; }
+.kh-un-row select { flex: 0 0 132px; width: 132px; min-width: 0; padding-block: 6px; }
+.kh-add-row { display: flex; gap: 8px; }
+.kh-add-row input { flex: 1; min-width: 0; }
+.kh-block { gap: 8px; }
+.kh-block h3 svg { width: 18px; height: 18px; }
+.kh-left { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; }
+.kh-left.ok, .kh-cnt.ok { color: var(--low); border-color: var(--low); }
+.kh-tl { display: grid; gap: 6px; }
+.kh-tl-h { font-size: .82rem; color: var(--muted); font-weight: 700; margin-top: 4px; }
+.kh-tl-i > .list > .task { border-inline-start: 4px solid var(--rc); }
+.kh-day-role { display: grid; gap: 6px; }
+.kh-day-role + .kh-day-role { border-top: 1px dashed var(--line); padding-top: 8px; }
+.kh-rt { margin: 0; font-size: .95rem; display: flex; align-items: center; gap: 6px; font-family: var(--font-body); }
+.kh-rt::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--rc); }
+.kh-side { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; padding: 6px 8px; flex: none; }
+.kh-pri { display: inline-flex; align-items: center; gap: 3px; font-size: .72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 7px; background: var(--card); white-space: nowrap; }
+.kh-pri[aria-pressed="true"] { color: var(--high); border-color: var(--high); font-weight: 700; }
+.kh-prio-on > .task { border-color: var(--high); box-shadow: inset 0 0 0 1px var(--high); background: color-mix(in srgb, var(--high) 6%, var(--card)); }
+.kh-prio-sum { margin: 0; color: var(--high); font-weight: 700; font-size: .92rem; }
+.kh-pend { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 6px 0; border-top: 1px dashed var(--line); border-inline-start: 4px solid var(--rc); padding-inline-start: 8px; }
+.kh-pend .kh-link { flex: 1; }
+.kh-prog { gap: 8px; }
+.kh-pct { font-size: 1.4rem; font-weight: 700; color: var(--mid); font-variant-numeric: tabular-nums; }
+.kh-pct.ok { color: var(--low); }
+.kh-track { position: relative; display: block; height: 10px; background: var(--line); border-radius: 99px; overflow: visible; }
+.kh-track > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; max-width: 100%; }
+.kh-track.sm { height: 7px; flex: 1; min-width: 60px; }
+.kh-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--fg); opacity: .55; }
+.kh-rv-btn { justify-self: start; }
+.kh-wk .kh-rows { display: grid; gap: 6px; }
+.kh-wk .kh-rows .list { gap: 0; }
+.kh-cnt { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; white-space: nowrap; }
+.kh-rep { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.kh-dots { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kh-dot { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: .82rem; color: var(--muted); padding: 0; }
+.kh-dot.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.kh-dot.now { border-color: var(--accent); }
+.kh-dot:disabled { opacity: .45; }
+.kh-bal { display: flex; align-items: center; gap: 8px; }
+.kh-bal > span:first-child { flex: 0 1 40%; min-width: 0; overflow-wrap: anywhere; border-inline-start: 4px solid var(--rc); padding-inline-start: 6px; }
+.kh-bal .kh-track > i { background: var(--rc); }
+.kh-bal small { color: var(--muted); white-space: nowrap; }
+.kh-rv { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-inline-start: 4px solid var(--rc); border-radius: 12px; }
+.kh-rv small { color: var(--muted); }
+.kh-ok { color: var(--low); }
+.cal-type { max-width: 260px; margin: 0 auto 6px; }

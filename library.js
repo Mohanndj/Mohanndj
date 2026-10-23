@@ -161,7 +161,7 @@ function moreTiles() {
     ['reminders', 'bell', 'التذكيرات', remActive().length ? `باقٍ: ${remActive().length}` : ''],
     ['ideas', 'bulb', 'الأفكار', S.ideas.length ? `لم تُنفّذ: ${S.ideas.filter((x) => IDEA_OPEN.includes(x.status)).length}` : ''],
     ['journal', 'journal', 'يومياتي وتأملاتي', S.journal.length ? `${plural(S.journal.length, 'يومية واحدة', 'يوميتان', 'يوميات', 'يومية')}${jStreak() ? ` | ${daysWord(jStreak())} متتالية` : ' | لم تكتب اليوم'}` : ''],
-    ['week', 'cal', 'التخطيط الأسبوعي', ''],
+    ['calendar', 'cal', 'التقويم', ''],
     ['health', 'leaf', 'الصحة', S.meals.length ? `سعرات اليوم: ${dayTotals(mealsOf(parse(today()).getDay())).kcal}` : ''],
     ['shop', 'cart', 'القوائم', S.shop.filter((x) => x.need).length ? `لم يُشطب: ${S.shop.filter((x) => x.need).length}` : ''],
     ['finance', 'wallet', 'المالية', ''],
@@ -588,6 +588,10 @@ const stampDate = (ts) => (ts ? iso(new Date(ts)) : '');
 function excelSheets(kind) {
   const sheets = [];
   const add = (name, columns, rows) => sheets.push({ name, columns, rows });
+  // «خطِّط»: a role column at the end, once anything has a role (the export stays as it was before that)
+  const hasRoles = S.tasks.some((t) => khRoleIdOf(t)) || S.projects.some((p) => khRole(p.roleId));
+  const roleCol = hasRoles ? [{ title: 'الدور', width: 22 }] : [];
+  const roleCell = (t) => (hasRoles ? [khRoleIdOf(t) ? khRoleName(khRoleIdOf(t), khAreaOf(t)) : ''] : []);
   if (kind === 'all' || kind === 'tasks') {
     const tasks = S.tasks.filter((t) => !isGoal(t));
     add('المهام', [
@@ -595,35 +599,35 @@ function excelSheets(kind) {
       { title: 'التاريخ', width: 13 }, { title: 'التاريخ الهجري', width: 22 }, { title: 'الوقت', width: 18 },
       { title: 'الأولوية', width: 10 }, { title: 'التصنيف', width: 14 }, { title: 'الخطوات المنجزة', width: 10 },
       { title: 'عدد الخطوات', width: 10 }, { title: 'الخطوات', width: 40, wrap: true }, { title: 'الملاحظات', width: 40, wrap: true },
-      { title: 'الوقت المسجل (دقيقة)', width: 12 }, { title: 'تاريخ الإنجاز', width: 13 },
+      { title: 'الوقت المسجل (دقيقة)', width: 12 }, { title: 'تاريخ الإنجاز', width: 13 }, ...roleCol,
     ], tasks.map((t) => [
       t.title, (projectOf(t) || {}).name || '', t.done ? 'منجزة' : 'حالية', t.due, hijriOf(t.due),
       hasTime(t) ? timeLabel(t, t.due || today()) : '', PRI_LABEL[t.priority], t.category,
       t.subtasks.filter((s) => s.done).length, t.subtasks.length,
       t.subtasks.map((s) => `${s.done ? '✓' : '○'} ${s.text}`).join('\n'), t.notes.map((n) => n.text).join('\n—\n'),
-      Math.round(trackedMs(t.id) / 60000), stampDate(t.doneAt),
+      Math.round(trackedMs(t.id) / 60000), stampDate(t.doneAt), ...roleCell(t),
     ]));
     add('المشاريع', [
       { title: 'المشروع', width: 28 }, { title: 'الوصف', width: 40, wrap: true }, { title: 'موعد الانتهاء', width: 13 },
       { title: 'الموعد الهجري', width: 22 }, { title: 'المهام', width: 9 }, { title: 'المنجزة', width: 9 },
-      { title: 'الخطوات', width: 9 }, { title: 'الخطوات المنجزة', width: 10 }, { title: 'نسبة الإنجاز %', width: 12 },
-    ], S.projects.map((p) => { const st = projectStats(p.id); return [p.name, p.desc, p.due, hijriOf(p.due), st.total, st.done, st.steps, st.stepsDone, st.progress]; }));
+      { title: 'الخطوات', width: 9 }, { title: 'الخطوات المنجزة', width: 10 }, { title: 'نسبة الإنجاز %', width: 12 }, ...roleCol,
+    ], S.projects.map((p) => { const st = projectStats(p.id); return [p.name, p.desc, p.due, hijriOf(p.due), st.total, st.done, st.steps, st.stepsDone, st.progress, ...(hasRoles ? [khRole(p.roleId) ? khRoleName(p.roleId, p.roleId === KH_SAW ? p.area : '') : ''] : [])]; }));
   }
   if (kind === 'all' || kind === 'goals') {
     add('الأهداف', [
       { title: 'الهدف', width: 32, wrap: true }, { title: 'النوع', width: 12 }, { title: 'الأيام', width: 22 },
       { title: 'البداية', width: 13 }, { title: 'النهاية / الموعد', width: 13 }, { title: 'الموعد الهجري', width: 22 },
       { title: 'العدد المطلوب', width: 10 }, { title: 'الوحدة', width: 10 }, { title: 'الإنجاز', width: 12 },
-      { title: 'نسبة الالتزام %', width: 12 }, { title: 'السلسلة الحالية (يوم)', width: 12 }, { title: 'عادة', width: 8 }, { title: 'قوة العادة %', width: 11 }, { title: 'مرحلة العادة', width: 18 }, { title: 'الملاحظات', width: 36, wrap: true },
+      { title: 'نسبة الالتزام %', width: 12 }, { title: 'السلسلة الحالية (يوم)', width: 12 }, { title: 'عادة', width: 8 }, { title: 'قوة العادة %', width: 11 }, { title: 'مرحلة العادة', width: 18 }, { title: 'الملاحظات', width: 36, wrap: true }, ...roleCol,
     ], S.tasks.filter(isGoal).map((t) => {
       if (isRepeat(t)) {
         const st = goalStats(t);
         const days = t.repeat.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => t.repeat.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
         return [t.title, 'متكرر', days, t.repeat.start, t.repeat.until || 'بلا نهاية', hijriOf(t.repeat.until), t.target, t.unit,
-          `${st.hit} من ${st.total} يوم`, st.rate, st.streak, yesNo(isHabit(t)), isHabit(t) ? habitStats(t).strength : '', isHabit(t) ? habitStats(t).stage[0] : '', t.notes.map((n) => n.text).join('\n—\n')];
+          `${st.hit} من ${st.total} يوم`, st.rate, st.streak, yesNo(isHabit(t)), isHabit(t) ? habitStats(t).strength : '', isHabit(t) ? habitStats(t).stage[0] : '', t.notes.map((n) => n.text).join('\n—\n'), ...roleCell(t)];
       }
       return [t.title, 'لمرة واحدة', '', stampDate(t.created), t.due, hijriOf(t.due), t.target, t.unit,
-        t.done ? 'تحقق' : `${countOn(t, today())} من ${t.target}`, pct(countOn(t, today()), t.target), '', 'لا', '', '', t.notes.map((n) => n.text).join('\n—\n')];
+        t.done ? 'تحقق' : `${countOn(t, today())} من ${t.target}`, pct(countOn(t, today()), t.target), '', 'لا', '', '', t.notes.map((n) => n.text).join('\n—\n'), ...roleCell(t)];
     }));
   }
   if (kind === 'all' || kind === 'memos') {
@@ -877,7 +881,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, benapps: saveBenApps, benword: runBenWord }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, khrole: khSaveRole, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, benapps: saveBenApps, benword: runBenWord }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste', 'tbulk', 'benimp', 'bencats', 'benapps', 'benword'].includes(kind);
   // a new benefit can take the user straight to an app of theirs (benplus.js)
   const goBen = kind === 'benefit' && wasNew ? ldraft.id : '';

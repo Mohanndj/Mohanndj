@@ -1,121 +1,15 @@
 'use strict';
-// «التخطيط الأسبوعي»: the week (Sunday to Saturday) as seven short rows. One day opens at a time,
-// so the page never gets crowded: its tasks, moving a task to another day, adding one. Recurring
-// goals are summed up in one line. Undated and overdue tasks wait in a tray to be given a day.
+// The week (Sunday to Saturday) and its record in S.weeks. The page «التخطيط الأسبوعي» was removed in v97 at the
+// user's request: the week is planned in «خطِّط» (plan.js), whose review is kept here. A week's old three
+// priorities (focus) stay, and the reports still show them.
 
-const weekUi = { start: '', open: '', move: '' };
 const weekStartOf = (d) => addDays(d, -parse(d).getDay()); // Sunday
 // weeks used to start on Saturday (until v43): an old id moves to its Sunday so the week keeps its notes
 const sundayId = (id) => (/^\d{4}-\d{2}-\d{2}$/.test(id) && parse(id).getDay() === 6 ? addDays(id, 1) : id);
-function normalizeWeek(w) { return { id: w.id ? sundayId(w.id) : weekStartOf(today()), focus: [0, 1, 2].map((i) => String((w.focus || [])[i] || '')), note: String(w.note || '') }; }
-const weekRec = (start) => S.weeks.find((w) => w.id === start);
-const tasksOnDay = (d) => S.tasks.filter((t) => !isGoal(t) && (t.due === d || !!(t.bookId && t.completions && t.completions[d]))).sort((a, b) => doneOn(a, d) - doneOn(b, d) || (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999));
-const goalsOnDay = (d) => S.tasks.filter((t) => isGoal(t) && isRepeat(t) && occursOn(t, d));
-
-function dayChips(taskId, cur, start) {
-  return `<div class="wk-move" role="group" aria-label="انقل إلى">${[0, 1, 2, 3, 4, 5, 6].map((i) => { const d = addDays(start, i); return `<button type="button" class="chip" data-action="wk-to" data-id="${taskId}" data-v="${d}" aria-pressed="${d === cur}">${AR_DAYS[parse(d).getDay()]}</button>`; }).join('')}<button type="button" class="chip" data-action="wk-to" data-id="${taskId}" data-v="">بلا موعد</button></div>`;
+// review («خطِّط»): when, the week's share before anything was cancelled, how many moved, what was cancelled, the three answers
+function normalizeReview(r) {
+  if (!r || typeof r !== 'object') return null;
+  return { at: r.at || today(), pct: Number(r.pct) || 0, moved: Number(r.moved) || 0, dropped: Array.isArray(r.dropped) ? r.dropped.map(String) : [],
+    worked: String(r.worked || ''), missed: String(r.missed || ''), change: String(r.change || '') };
 }
-function wkTaskRow(t, d, start, showDate) {
-  const moving = weekUi.move === t.id;
-  const done = doneOn(t, d);
-  const late = !done && t.due && t.due < today();
-  return `<li class="wk-task${done ? ' done' : ''}${late ? ' is-late' : ''}">
-    <div class="wk-line">${checkButton(t, d, done)}<button type="button" class="t-main" data-action="open" data-id="${t.id}"><span class="t-title">${esc(t.title)}</span>${hasTime(t) || showDate ? `<span class="meta">${showDate ? `<span class="late">${esc(relDate(t.due))}</span>` : ''}${hasTime(t) ? `<span class="num">${esc(timeLabel(t, d))}</span>` : ''}</span>` : ''}</button>
-      ${done ? '' : `<button type="button" class="ghost sm" data-action="wk-move" data-v="${t.id}" aria-expanded="${moving}">نقل</button>`}</div>
-    ${moving ? dayChips(t.id, d, start) : ''}
-  </li>`;
-}
-
-function viewWeek() {
-  const t0 = today();
-  const start = weekUi.start || weekStartOf(t0);
-  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(start, i));
-  // 'none': the user closed the open day (also the one opened by default)
-  const open = weekUi.open === 'none' ? '' : weekUi.open && days.includes(weekUi.open) ? weekUi.open : days.includes(t0) ? t0 : days[0];
-  weekUi.shown = open;
-  const rec = weekRec(start) || normalizeWeek({ id: start });
-  const max = Math.max(1, ...days.map((d) => tasksOnDay(d).length));
-  const late = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due < t0).sort((a, b) => a.due.localeCompare(b.due));
-  const undated = S.tasks.filter((t) => !isGoal(t) && !t.done && !t.due);
-  const end = days[6];
-  return `${moreCrumb()}
-  <section class="section wk">
-    <div class="cal-head">
-      <div class="nav"><button type="button" data-action="wk-nav" data-v="-7" aria-label="الأسبوع السابق">${icon('prev')}</button></div>
-      <div class="titles"><h2>${esc(fmtDate(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtDate(end, { day: 'numeric', month: 'long' }))}</h2><small>${esc(fmtHijri(start, { day: 'numeric', month: 'long' }))} – ${esc(fmtHijri(end, { day: 'numeric', month: 'long' }))}${start === weekStartOf(t0) ? ' | هذا الأسبوع' : ''}</small></div>
-      <div class="nav"><button type="button" data-action="wk-nav" data-v="7" aria-label="الأسبوع التالي">${icon('next')}</button></div>
-    </div>
-    ${start !== weekStartOf(t0) ? '<button type="button" class="ghost" data-action="wk-now">العودة إلى هذا الأسبوع</button>' : ''}
-    <div class="panel wk-focus"><h3>أولويات الأسبوع</h3>
-      ${rec.focus.map((f, i) => `<input type="text" id="wkf-${i}" data-wk="${i}" value="${esc(f)}" placeholder="${['أهم شيء هذا الأسبوع', 'الثاني', 'الثالث'][i]}" autocomplete="off">`).join('')}
-    </div>
-    <ul class="wk-days">${days.map((d) => {
-      const tasks = tasksOnDay(d), goals = goalsOnDay(d);
-      const left = tasks.filter((t) => !doneOn(t, d)).length;
-      const isOpen = d === open;
-      return `<li class="wk-day${d === t0 ? ' today' : ''}${d < t0 ? ' past' : ''}${isOpen ? ' open' : ''}">
-        <button type="button" class="wk-head" data-action="wk-open" data-v="${d}" aria-expanded="${isOpen}">
-          <span class="wk-name"><b>${AR_DAYS[parse(d).getDay()]}</b><small>${esc(fmtDate(d, { day: 'numeric', month: 'short' }))}</small></span>
-          <span class="wk-load"><i style="width:${(tasks.length / max) * 100}%"></i></span>
-          <span class="wk-sum${d < t0 && left ? ' late' : ''}">${d < t0 && left ? '<span class="late-dot" aria-hidden="true"></span>' : ''}${tasks.length ? `${left ? `${left} ${left === 1 ? 'مهمة' : left === 2 ? 'مهمتان' : 'مهام'}${d < t0 ? ' متأخرة' : ''}` : 'أنجزت كل مهامه ✓'}` : 'فارغ'}${goals.length ? ` | ${goals.length} ${goals.length === 1 ? 'هدف' : 'أهداف'}` : ''}</span>
-        </button>
-        ${isOpen ? `<div class="wk-body">
-          ${tasks.length ? `<ul class="wk-tasks">${tasks.map((t) => wkTaskRow(t, d, start)).join('')}</ul>` : '<p class="note-text">لا مهام في هذا اليوم.</p>'}
-          ${goals.length ? `<p class="wk-goals">${icon('repeat')} الأهداف: ${goals.map((g) => esc(g.title)).join('، ')}</p>` : ''}
-          <form class="idea-quick wk-add" data-wk-add="${d}" autocomplete="off"><input type="text" name="t" placeholder="أضف مهمة ليوم ${AR_DAYS[parse(d).getDay()]}" aria-label="مهمة جديدة"><button type="submit" class="primary">${icon('plus')}</button></form>
-        </div>` : ''}
-      </li>`;
-    }).join('')}</ul>
-    ${late.length ? `<details class="panel wk-tray wk-late"${weekUi.lateOpen !== false ? ' open' : ''} id="wkLate"><summary><b><span class="late-dot" aria-hidden="true"></span>متأخرة (${late.length})</b><small class="explain">فات موعدها ولم تُنجز: أنجزها أو انقلها إلى يوم</small></summary>
-      <ul class="wk-tasks">${late.map((t) => wkTaskRow(t, t.due, start, true)).join('')}</ul></details>` : ''}
-    ${undated.length ? `<details class="panel wk-tray"${weekUi.trayOpen ? ' open' : ''} id="wkTray"><summary><b>بلا موعد (${undated.length})</b><small class="explain">اختر لكل مهمة يومها</small></summary>
-      <ul class="wk-tasks">${undated.map((t) => wkTaskRow(t, '', start)).join('')}</ul></details>` : ''}
-  </section>`;
-}
-
-document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action^="wk-"]');
-  if (!el) return;
-  const { action, v } = el.dataset;
-  switch (action) {
-    case 'wk-nav': weekUi.start = addDays(weekUi.start || weekStartOf(today()), Number(v)); weekUi.open = ''; weekUi.move = ''; render(); break;
-    case 'wk-now': weekUi.start = ''; weekUi.open = ''; render(); break;
-    case 'wk-open': weekUi.open = weekUi.shown === v ? 'none' : v; weekUi.move = ''; render(); break;
-    case 'wk-move': weekUi.move = weekUi.move === v ? '' : v; render(); break;
-    case 'wk-to': {
-      const t = getTask(el.dataset.id);
-      if (!t) break;
-      t.due = v;
-      weekUi.move = '';
-      if (v) weekUi.open = v;
-      save(); render();
-      toast(v ? `نُقلت إلى ${AR_DAYS[parse(v).getDay()]}` : 'صارت بلا موعد');
-      break;
-    }
-  }
-});
-document.addEventListener('toggle', (e) => { if (e.target.id === 'wkTray') weekUi.trayOpen = e.target.open; if (e.target.id === 'wkLate') weekUi.lateOpen = e.target.open; }, true);
-document.addEventListener('change', (e) => {
-  const i = e.target.dataset && e.target.dataset.wk;
-  if (i == null) return;
-  const start = weekUi.start || weekStartOf(today());
-  let rec = weekRec(start);
-  if (!rec) { rec = normalizeWeek({ id: start }); S.weeks.push(rec); }
-  rec.focus[+i] = e.target.value.trim();
-  save();
-});
-document.addEventListener('submit', (e) => {
-  const d = e.target.dataset && e.target.dataset.wkAdd;
-  if (!d) return;
-  e.preventDefault();
-  const title = e.target.elements.t.value.trim();
-  if (!title) return;
-  S.tasks.push(normalize({ id: uid(), kind: 'task', title, due: d, created: Date.now() }));
-  save();
-  weekUi.open = d;
-  render();
-  const again = document.querySelector(`[data-wk-add="${d}"] input`);
-  if (again) again.focus();
-});
-
-Object.assign(LibraryViews, { week: viewWeek });
+function normalizeWeek(w) { return { id: w.id ? sundayId(w.id) : weekStartOf(today()), focus: [0, 1, 2].map((i) => String((w.focus || [])[i] || '')), note: String(w.note || ''), review: normalizeReview(w.review) }; }

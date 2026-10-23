@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 96;
+const APP_VERSION = 97;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -154,6 +154,12 @@ function normalize(t) {
     bookId: t.bookId || '',
     readPages: t.readPages && typeof t.readPages === 'object' ? t.readPages : {}, // a book task: pages actually read per session day
     readOn: /^\d{4}-\d{2}-\d{2}$/.test(t.readOn || '') ? t.readOn : '', // a reading session moved to another day («للغد» in the evening close)
+    // «خطِّط» (plan.js, v97): its role (a project's task takes its project's), the area of «شحذ المنشار»,
+    // the day it is a top priority, and the week it was moved from in a review
+    roleId: t.roleId || '',
+    area: t.area || '',
+    prio: /^\d{4}-\d{2}-\d{2}$/.test(t.prio || '') ? t.prio : '',
+    movedFrom: t.movedFrom || '',
   };
 }
 
@@ -167,6 +173,8 @@ function normalizeProject(p) {
     created: p.created || Date.now(),
     doneAt: p.doneAt || null,
     topic: p.topic || '',
+    roleId: p.roleId || '', // «خطِّط»: its tasks take this role
+    area: p.area || '',
   };
 }
 
@@ -214,6 +222,7 @@ function load() {
   s.reminders = (Array.isArray(s.reminders) ? s.reminders : []).map(normalizeReminder);
   s.study = (Array.isArray(s.study) ? s.study : []).filter((x) => x && typeof x === 'object').map(normalizeScience);
   s.kunnasha = (Array.isArray(s.kunnasha) ? s.kunnasha : []).filter((x) => x && typeof x === 'object').map(normalizeKun);
+  s.roles = khWithSaw((Array.isArray(s.roles) ? s.roles : []).filter((x) => x && typeof x === 'object').map(normalizeRole));
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -225,7 +234,7 @@ function load() {
 const S = load();
 const ui = {
   tab: 'today', project: '', filter: 'active', projFilter: 'active', q: '', sort: 'smart', cat: '',
-  calMonth: today().slice(0, 7), calSel: today(), smart: '', timerEnded: null,
+  calMonth: today().slice(0, 7), calSel: today(), calH: '', smart: '', timerEnded: null,
 };
 
 function save() {
@@ -458,6 +467,7 @@ function itemHTML(t, date, opts) {
       ${readLine}
       ${steps}
     </button>
+    ${(opts && opts.extra) || ''}
   </li>`;
 }
 
@@ -731,18 +741,30 @@ function markOf(t, d) {
   return `<i class="${cls}"${p ? ` style="--pc:${p.color}"` : ''}></i>`;
 }
 
-function viewCalendar() {
+// the calendar by Hijri (Umm al-Qura) months too (v97, in «المزيد»): a month from its first day to the next one's
+const HDAY_FMT = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { day: 'numeric' });
+const hDayNum = (d) => Number(HDAY_FMT.format(parse(d)));
+const hMonthStart = (d) => addDays(d, 1 - hDayNum(d));
+function hMonthNext(start) { let x = addDays(start, 28); while (hDayNum(x) !== 1) x = addDays(x, 1); return x; }
+const calHijri = () => S.settings.calType === 'hijri';
+// the shown month: [its first day, the next month's first day)
+function calSpan() {
+  if (calHijri()) { const a = ui.calH || hMonthStart(today()); return [a, hMonthNext(a)]; }
   const [y, m] = ui.calMonth.split('-').map(Number);
-  const first = new Date(y, m - 1, 1);
+  return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 1))];
+}
+function viewCalendar() {
+  const [mStart, mNext] = calSpan(), hij = calHijri();
+  const first = parse(mStart);
   const lead = first.getDay(); // weeks start on Sunday
-  const daysIn = new Date(y, m, 0).getDate();
+  const daysIn = Math.round((parse(mNext) - first) / 86400000);
   const total = Math.ceil((lead + daysIn) / 7) * 7;
   const t0 = today();
   const cells = [];
   const projectsShown = new Set();
   for (let i = 0; i < total; i++) {
-    const d = iso(new Date(y, m - 1, 1 - lead + i));
-    const out = d.slice(0, 7) !== ui.calMonth;
+    const d = addDays(mStart, i - lead);
+    const out = d < mStart || d >= mNext;
     const items = itemsOn(d);
     if (!out) for (const t of items) if (t.projectId) projectsShown.add(t.projectId);
     // a project's tasks show as one mark of its colour, not one per task
@@ -750,19 +772,22 @@ function viewCalendar() {
     const shown = items.filter((t) => !t.projectId || (!seen.has(t.projectId) && seen.add(t.projectId)));
     const marks = shown.slice(0, 4).map((t) => markOf(t, d)).join('') + (shown.length > 4 ? `<span class="more">+${shown.length - 4}</span>` : '');
     const label = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${items.length ? `، ${items.length} عنصر` : ''}`;
-    cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${parse(d).getDate()}</span>${S.settings.hijri ? `<span class="hd">${esc(fmtHijri(d, { day: 'numeric' }))}</span>` : ''}<span class="marks">${marks}</span></button>`);
+    cells.push(`<button type="button" class="cal-day${out ? ' out' : ''}${d === t0 ? ' today' : ''}${d === ui.calSel ? ' sel' : ''}" data-action="cal-day" data-v="${d}" aria-label="${esc(label)}" aria-pressed="${d === ui.calSel}"><span class="n">${hij ? hDayNum(d) : parse(d).getDate()}</span>${hij ? `<span class="hd">${parse(d).getDate()}</span>` : S.settings.hijri ? `<span class="hd">${esc(fmtHijri(d, { day: 'numeric' }))}</span>` : ''}<span class="marks">${marks}</span></button>`);
   }
-  const monthName = first.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
-  const lastIso = iso(new Date(y, m, 0));
-  const h1 = fmtHijri(iso(first), { month: 'long', year: 'numeric' });
+  const lastIso = addDays(mNext, -1);
+  const g1 = first.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' }), g2 = parse(lastIso).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
+  const h1 = fmtHijri(mStart, { month: 'long', year: 'numeric' });
   const h2 = fmtHijri(lastIso, { month: 'long', year: 'numeric' });
-  const hijri = h1 === h2 ? h1 : `${fmtHijri(iso(first), { month: 'long' })} – ${h2}`;
+  // the month's own name on top, the other calendar's months under it
+  const monthName = hij ? h1 : g1;
+  const hijri = hij ? (g1 === g2 ? g1 : `${first.toLocaleDateString(LOCALE, { month: 'long' })} – ${g2}`) : h1 === h2 ? h1 : `${fmtHijri(mStart, { month: 'long' })} – ${h2}`;
   const sel = ui.calSel;
   const selAll = itemsOn(sel).sort(byTime(sel));
   const selItems = selAll.filter((t) => !t.projectId || !getProject(t.projectId));
   const selProjects = [...new Set(selAll.filter((t) => t.projectId && getProject(t.projectId)).map((t) => t.projectId))].map(getProject);
   const legendProjects = [...projectsShown].map(getProject).filter(Boolean);
   return `
+  <div class="seg cal-type" role="group" aria-label="التقويم"><button type="button" data-action="cal-type" data-v="greg" aria-pressed="${!hij}">ميلادي</button><button type="button" data-action="cal-type" data-v="hijri" aria-pressed="${hij}">هجري</button></div>
   <div class="cal-head">
     <div class="nav"><button type="button" data-action="cal-move" data-v="-1" aria-label="الشهر السابق">${icon('prev')}</button></div>
     <div class="titles"><h2>${esc(monthName)}</h2><small>${esc(hijri)}</small></div>
@@ -778,7 +803,7 @@ function viewCalendar() {
       <span><i class="m m-goal"></i>هدف</span>
       ${legendProjects.map((p) => `<span><i class="m m-proj" style="--pc:${p.color}"></i>${esc(p.name)}</span>`).join('')}
       <span><i class="m m-task m-done"></i>منجز</span>
-      ${ui.calMonth !== t0.slice(0, 7) || sel !== t0 ? '<button type="button" class="chip" data-action="cal-today">اليوم</button>' : ''}
+      ${t0 < mStart || t0 >= mNext || sel !== t0 ? '<button type="button" class="chip" data-action="cal-today">اليوم</button>' : ''}
     </div>
   </div>
   <section class="section">
@@ -1137,10 +1162,10 @@ function viewSettings() {
 }
 
 const VIEWS = {
-  today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: viewCalendar, goals: viewGoals,
+  today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), goals: viewGoals, plan: viewPlan,
   stats: () => moreCrumb() + viewStats(), settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'reminders', 'week', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
+const MORE_TABS = ['more', 'reminders', 'calendar', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'stats'];
 
 function render() {
   const view = $('view');
@@ -1281,6 +1306,7 @@ function setKind(kind) {
   $('subsSec').hidden = goal;
   $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
   setGoalMode(draft.mode); // may rename the sheet to «عادة جديدة»
+  khSyncRoleField(); // a goal has no project: its own role
 }
 
 // goal types: recurring, one-time, or a habit (with its own fields)
@@ -1433,6 +1459,7 @@ function openSheet(id, opts = {}) {
   $('fPriority').value = t ? t.priority : 'mid';
   $('fCategory').value = t ? t.category : '';
   renderProjectSelect(t ? t.projectId : opts.projectId || '');
+  khFillRole(t ? t.roleId : opts.roleId || '', t ? t.area : '');
   $('fDue').value = t && !isGoal(t) ? t.due : opts.due || (ui.tab === 'today' ? t0 : '');
   $('fGoalDue').value = t && isGoal(t) && !isRepeat(t) ? t.due : (kind === 'goal' && opts.due) || '';
   $('fStart').value = t && t.repeat ? t.repeat.start : opts.due || t0;
@@ -1488,6 +1515,8 @@ function readDraft() {
     notes: draft.notes,
     time: draft.timeMode === 'clock' ? $('fTime').value : '',
     prayer: draft.timeMode === 'prayer' ? readPrayer() : null,
+    roleId: $('fRole').value,
+    area: $('fRole').value === KH_SAW ? $('fArea').value : '',
   };
   t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
   if (draft.kind === 'goal') {
@@ -1532,6 +1561,8 @@ function readDraft() {
     t.target = 1;
     t.unit = '';
     t.projectId = $('fProject').value;
+    // a project's task takes its project's role, and keeps none of its own
+    if (t.projectId) { t.roleId = ''; t.area = ''; }
     t.subtasks = draft.subtasks;
     t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
@@ -1555,12 +1586,13 @@ function commitDraft() {
 
 // several tasks at once (v93): each line a task, all with one date and one project
 const taskBulkBtn = (pid) => `<button type="button" class="add-btn" data-action="task-bulk" data-v="${pid}">${icon('plus')}عدة مهام</button>`;
-function openTaskBulk(pid) {
+function openTaskBulk(pid, roleId = '') {
   ldraft = { kind: 'tbulk', id: '', isNew: true };
   $('libForm').innerHTML = `${sheetHead('عدة مهام مرة واحدة')}
     <label class="field"><span>المهام: كل مهمة في سطر</span><textarea id="tbText" rows="8" placeholder="حجز تذاكر السفر&#10;تجديد الجواز&#10;شراء هدية"></textarea></label>
     <p class="note-text" id="tbCount"></p>
     <label class="field"><span>المشروع</span><select id="tbProject"><option value="">بلا مشروع (مهام عامة)</option>${S.projects.map((p) => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    <label class="field"><span>الدور</span><select id="tbRole">${khRoleOptions(roleId)}</select><small class="hint">مهام المشروع تأخذ دور مشروعها.</small></label>
     <label class="field"><span>التاريخ (اختياري)</span><input type="date" id="tbDue"></label>
     <div class="sheet-actions"><button type="submit" class="primary">أضفها</button></div>`;
   showLib();
@@ -1572,7 +1604,8 @@ function saveTaskBulk() {
   if (!lines.length) { toast('اكتب المهام، كل مهمة في سطر.'); $('tbText').focus(); return false; }
   const projectId = $('tbProject').value, due = $('tbDue').value, now = Date.now();
   // the first line stays first in «الأحدث»
-  S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, created: now + lines.length - i })));
+  const roleId = projectId ? '' : $('tbRole').value;
+  S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, roleId, area: roleId === KH_SAW ? 'health' : '', created: now + lines.length - i })));
   save();
   const p = getProject(projectId);
   setTimeout(() => toast(`أُضيفت ${plural(lines.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')}${p ? ` إلى «${p.name}»` : ''}`), 300);
@@ -1628,7 +1661,7 @@ for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue', '
 const psheet = $('projSheet');
 let pdraft = null;
 
-function openProjectSheet(id) {
+function openProjectSheet(id, roleId = '') {
   const p = id ? getProject(id) : null;
   const used = new Set(S.projects.map((x) => x.color));
   const color = p ? p.color : (PROJECT_COLORS.find(([c]) => !used.has(c)) || PROJECT_COLORS[0])[0];
@@ -1637,6 +1670,9 @@ function openProjectSheet(id) {
   $('pName').value = p ? p.name : '';
   $('pDesc').value = p ? p.desc : '';
   $('pDue').value = p ? p.due : '';
+  $('pRole').innerHTML = khRoleOptions(p ? p.roleId : roleId);
+  $('pArea').innerHTML = khAreaOptions(p ? p.area : '');
+  $('pAreaWrap').hidden = $('pRole').value !== KH_SAW;
   $('pDel').hidden = !p;
   $('pDel').classList.remove('armed');
   $('pDel').textContent = 'حذف المشروع';
@@ -1657,7 +1693,7 @@ $('projForm').addEventListener('submit', (e) => {
   const name = $('pName').value.trim();
   if (!name) { $('pName').focus(); toast('اكتب اسماً للمشروع.'); return; }
   const existing = getProject(pdraft.id);
-  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value });
+  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value, roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '' });
   if (existing) Object.assign(existing, p); else S.projects.push(p);
   save();
   const isNew = pdraft.isNew;
@@ -1878,7 +1914,7 @@ function checkAlarms() {
 
 // ---------- backup ----------
 function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 function importData(file) {
@@ -1898,7 +1934,8 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun], ['roles', normalizeRole]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      S.roles = khWithSaw(S.roles);
       if (!Array.isArray(data.lists)) S.lists = DEFAULT_LISTS.map(normalizeList);
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
@@ -2318,10 +2355,27 @@ document.addEventListener('click', (e) => {
     case 'cal-day': {
       ui.calSel = v;
       if (v.slice(0, 7) !== ui.calMonth) ui.calMonth = v.slice(0, 7);
+      if (calHijri()) { const [a, b] = calSpan(); if (v < a || v >= b) ui.calH = hMonthStart(v); }
       render();
       break;
     }
+    case 'cal-type': {
+      // the same day stays chosen; its month in the other calendar is shown
+      S.settings.calType = v === 'hijri' ? 'hijri' : 'greg';
+      ui.calH = hMonthStart(ui.calSel);
+      ui.calMonth = ui.calSel.slice(0, 7);
+      save(); render();
+      break;
+    }
     case 'cal-move': {
+      if (calHijri()) {
+        const a = calSpan()[0];
+        ui.calH = Number(v) > 0 ? hMonthNext(a) : hMonthStart(addDays(a, -1));
+        const b = hMonthNext(ui.calH), t0 = today();
+        ui.calSel = t0 >= ui.calH && t0 < b ? t0 : ui.calH;
+        render();
+        break;
+      }
       const [y, m] = ui.calMonth.split('-').map(Number);
       const d = new Date(y, m - 1 + Number(v), 1);
       ui.calMonth = iso(d).slice(0, 7);
@@ -2329,7 +2383,7 @@ document.addEventListener('click', (e) => {
       render();
       break;
     }
-    case 'cal-today': ui.calMonth = today().slice(0, 7); ui.calSel = today(); render(); break;
+    case 'cal-today': ui.calMonth = today().slice(0, 7); ui.calH = hMonthStart(today()); ui.calSel = today(); render(); break;
     case 'close-sheet': closeSheet(); break;
     case 'all-days': draft.days = draft.days.length === 7 ? [] : [...DAY_ORDER]; renderDays(); break;
     case 'work-days': draft.days = [0, 1, 2, 3, 4]; renderDays(); break;
@@ -2458,7 +2512,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.fired = {}; S.snoozed = {}; S.timer = null;
         for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         save(); render(); toast('حُذفت كل البيانات');
@@ -2588,6 +2642,7 @@ window.addEventListener('popstate', () => {
   if (!$('exitBar').hidden) { $('exitBar').hidden = true; } // second back while asking: let it go
   if (closeTopLayer()) { armBack(); return; }
   if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }
+  if (ui.tab === 'plan' && khUi.review) { khUi.review = ''; render(); armBack(); return; }
   if (MORE_TABS.includes(ui.tab) && ui.tab !== 'more') { go('more'); armBack(); return; }
   if (ui.tab !== 'today') { go('today'); armBack(); return; }
   askExit(); // not re-armed: pressing back again leaves the app
@@ -2618,7 +2673,7 @@ function saveWhere() {
   try {
     localStorage.setItem(WHERE_KEY, JSON.stringify({
       tab: ui.tab, project: ui.project, y: Math.round(window.scrollY),
-      sci: studyUi.sci, kun: kunUi.tab, fin: { tab: finUi.tab, plan: finUi.plan, proj: finUi.proj },
+      sci: studyUi.sci, kun: kunUi.tab, fin: { tab: finUi.tab, plan: finUi.plan, proj: finUi.proj }, kh: khUi.tab,
     }));
   } catch {}
 }
@@ -2630,6 +2685,7 @@ function restoreWhere() {
   ui.project = w.project || '';
   if (w.sci) studyUi.sci = w.sci;
   if (w.kun === 'kun') kunUi.tab = 'kun';
+  if (KH_TABS.some(([k]) => k === w.kh)) khUi.tab = w.kh;
   if (w.fin && w.fin.tab) Object.assign(finUi, { tab: w.fin.tab, plan: w.fin.plan || '', proj: w.fin.proj || '' });
   return w;
 }

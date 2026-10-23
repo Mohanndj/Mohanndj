@@ -8,8 +8,8 @@ const Sync = (() => {
   const FILE = 'mahami.json';
   const DESC = 'Mahami app data — بيانات تطبيق مهامي (لا تعدّل هذا الملف يدوياً)';
   const API = 'https://api.github.com';
-  const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'hplans', 'finPlans', 'finDebts', 'finRights', 'finProjects', 'finTx', 'cvs', 'meals', 'mealDone', 'shop', 'lists', 'fines', 'reports', 'subs', 'later', 'weeks', 'people', 'decisions', 'quits', 'reminders', 'study', 'kunnasha'];
-  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook', 'closeSkip', 'decTpl', 'benCats', 'benApps', 'benGo', 'benRecShare'];
+  const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'hplans', 'finPlans', 'finDebts', 'finRights', 'finProjects', 'finTx', 'cvs', 'meals', 'mealDone', 'shop', 'lists', 'fines', 'reports', 'subs', 'later', 'weeks', 'people', 'decisions', 'quits', 'reminders', 'study', 'kunnasha', 'roles'];
+  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook', 'closeSkip', 'decTpl', 'benCats', 'benApps', 'benGo', 'benRecShare', 'calType'];
 
   let cfg = load();
   let busy = false;
@@ -119,12 +119,14 @@ const Sync = (() => {
   function apply(data) {
     applying = true;
     try {
-      const norm = { tasks: normalize, projects: normalizeProject, memos: normalizeMemo, books: normalizeBook, benefits: normalizeBenefit, inspire: normalizeInspire, archive: normalizeArchive, ideas: normalizeIdea, journal: normalizeJournal, jtemplates: normalizeJTemplate, hifz: normalizeHifz, hplans: normalizeHPlan, finPlans: normalizeFinPlan, finDebts: normalizeDebt, finRights: normalizeRight, finProjects: normalizeFinProject, finTx: normalizeTx, cvs: normalizeCV, meals: normalizeMeal, mealDone: normalizeMealDone, shop: normalizeShop, lists: normalizeList, fines: normalizeFine, reports: normalizeReport, subs: normalizeSub, later: normalizeLater, weeks: normalizeWeek, people: normalizePerson, decisions: normalizeDecision, quits: normalizeQuit, reminders: normalizeReminder, study: normalizeScience, kunnasha: normalizeKun };
+      const norm = { tasks: normalize, projects: normalizeProject, memos: normalizeMemo, books: normalizeBook, benefits: normalizeBenefit, inspire: normalizeInspire, archive: normalizeArchive, ideas: normalizeIdea, journal: normalizeJournal, jtemplates: normalizeJTemplate, hifz: normalizeHifz, hplans: normalizeHPlan, finPlans: normalizeFinPlan, finDebts: normalizeDebt, finRights: normalizeRight, finProjects: normalizeFinProject, finTx: normalizeTx, cvs: normalizeCV, meals: normalizeMeal, mealDone: normalizeMealDone, shop: normalizeShop, lists: normalizeList, fines: normalizeFine, reports: normalizeReport, subs: normalizeSub, later: normalizeLater, weeks: normalizeWeek, people: normalizePerson, decisions: normalizeDecision, quits: normalizeQuit, reminders: normalizeReminder, study: normalizeScience, kunnasha: normalizeKun, roles: normalizeRole };
       for (const c of COLLECTIONS) {
         const list = (data[c] || []).map((x) => (norm[c] ? norm[c](x) : x));
         if (c === 'inspire') S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...list];
         else S[c] = list;
       }
+      S.roles = khWithSaw(S.roles); // «شحذ المنشار» stays, whatever came
+
       Object.assign(S.settings, data.settings || {});
       // a setting removed elsewhere (by «حذف كل البيانات») is removed here too
       if (data.settings) for (const k of SETTINGS_KEYS) if (!(k in data.settings)) delete S.settings[k];
