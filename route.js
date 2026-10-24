@@ -180,12 +180,24 @@ document.addEventListener('click', (e) => {
 // ---------- the pinned notification ----------
 // A quiet notification that stays in the shade (and its icon by the clock) with what is left today.
 // A web app cannot forbid swiping it away; it comes back whenever the app is opened or something changes.
-function pinText() {
+// what is left today: tasks, goals (recurring ones due today, one-time ones due by today), list items
+function leftToday() {
   const t0 = today();
   const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0).length;
-  // recurring goals due today, and one-time goals due by today
   const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && !t.done && t.due && t.due <= t0) && !closeSkips().includes(t.id)).length;
   const lists = S.shop.filter((x) => x.need).length;
+  return { tasks, goals, lists };
+}
+// the number on the app's icon: today's tasks and goals left (only where the phone's browser offers it)
+function appBadge() {
+  try {
+    if (!('setAppBadge' in navigator)) return;
+    const { tasks, goals } = leftToday(), n = tasks + goals;
+    (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+  } catch {}
+}
+function pinText() {
+  const { tasks, goals, lists } = leftToday();
   const parts = [tasks && plural(tasks, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة'), goals && plural(goals, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), lists && `${pageName('shop')}: ${lists}`].filter(Boolean);
   return parts.length ? `باقٍ اليوم: ${parts.join(' | ')}` : 'لا شيء باقٍ لليوم ✓';
 }
@@ -200,12 +212,12 @@ async function pinNotify(force) {
     if (reg) await reg.showNotification('الوعي الشخصي', { body, tag: 'pin', silent: true, renotify: false, requireInteraction: true, lang: 'ar', dir: 'rtl', icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', data: { pin: true } });
   } catch {}
 }
-const pinSoon = () => { clearTimeout(pinTimer); pinTimer = setTimeout(() => pinNotify(false), 1500); };
+const pinSoon = () => { clearTimeout(pinTimer); pinTimer = setTimeout(() => { appBadge(); pinNotify(false); }, 1500); };
 async function pinOff() {
   try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) for (const n of await reg.getNotifications({ tag: 'pin' })) n.close(); } catch {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pinNotify(true); });
-setTimeout(() => pinNotify(true), 2000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { appBadge(); pinNotify(true); } });
+setTimeout(() => { appBadge(); pinNotify(true); }, 2000);
 
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'setPin') {

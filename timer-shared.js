@@ -34,7 +34,7 @@ const TimerShared = (() => {
     const ar = (x) => (tm.ar ? String(x).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]) : x);
     return [ar(`${kind}: ${taskTitle}`), {
       body: ar(body), tag: 'timer', renotify: false, silent: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
-      timestamp: now - e, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
+      timestamp: now - e, icon: 'icons/icon-192.png', badge: 'icons/badge-96.png',
       data: { timer: tm, title: taskTitle },
       actions: [
         tm.running ? { action: 'timer-pause', title: 'إيقاف مؤقت' } : { action: 'timer-resume', title: 'استئناف' },

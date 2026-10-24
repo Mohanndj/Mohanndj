@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 104;
+const APP_VERSION = 105;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -246,7 +246,7 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
   if (typeof Sync !== 'undefined') Sync.schedule();
-  if (typeof pinSoon === 'function' && S.settings.pin) pinSoon();
+  if (typeof pinSoon === 'function') pinSoon();
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
 const getProject = (id) => S.projects.find((p) => p.id === id);
@@ -385,6 +385,7 @@ function toggle(id, date) {
   save();
   checkGraduation(t);
   render();
+  if (!wasDone && (doneOn(t, d) || isCounted(t))) haptic();
   if (!wasDone && doneOn(t, d)) askDuration(t, isRepeat(t) ? d : today());
   const p = projectOf(t);
   if (p && t.done) {
@@ -402,8 +403,11 @@ function step(id, date, delta) {
   save();
   checkGraduation(t);
   render();
+  if (delta > 0) haptic();
   if (!wasDone && doneOn(t, date)) askDuration(t, date);
 }
+// a short pulse when something is ticked done (Android), unless turned off in the settings
+function haptic() { try { if (S.settings.haptic !== false && navigator.vibrate) navigator.vibrate(12); } catch {} }
 
 function removeTask(id) {
   if (S.timer && S.timer.taskId === id) { S.timer = null; timerNotify(true); }
@@ -932,6 +936,7 @@ function viewSettings() {
       <div class="seg">${segBtn('digits', 'arab', 'عربية ١٢٣', st.digits)}${segBtn('digits', 'latn', 'إنجليزية 123', st.digits)}</div>
     </div>
     <label class="switch"><input type="checkbox" id="setAskTime"${st.askTime !== false ? ' checked' : ''}><span>بعد إنجاز مهمة أو هدف اسألني: كم استغرقت؟</span></label>
+    <label class="switch"><input type="checkbox" id="setHaptic"${st.haptic !== false ? ' checked' : ''}><span>اهتزاز خفيف عند إتمام مهمة أو هدف أو عادة</span></label>
     <label class="switch"><input type="checkbox" id="setExplain"${st.explain ? ' checked' : ''}><span>إظهار شرح الخانات والصفحات</span></label>
     <label class="switch"><input type="checkbox" id="setHijri"${st.hijri ? ' checked' : ''}><span>إظهار التاريخ الهجري بجانب الميلادي</span></label>
     <div class="field"><span>حجم الخط</span>
@@ -2318,6 +2323,7 @@ document.addEventListener('click', (e) => {
       alarmAction(action === 'alarm-done' ? 'done' : action === 'alarm-snooze' ? 'snooze' : 'dismiss', cur.id, cur.key);
       break;
     }
+    case 'upd-now': location.reload(); break;
     case 'hard-refresh':
       (async () => {
         try {
@@ -2371,6 +2377,7 @@ document.addEventListener('change', (e) => {
   if (id === 'setTone') { S.settings.tone = e.target.value; save(); unlockAudio(); beep(e.target.value); }
   if (id === 'setHijri') { S.settings.hijri = e.target.checked; save(); render(); }
   if (id === 'setAskTime') { S.settings.askTime = e.target.checked; save(); toast(S.settings.askTime ? 'سأسألك عن المدة بعد الإنجاز' : 'لن أسألك عن المدة'); }
+  if (id === 'setHaptic') { S.settings.haptic = e.target.checked; save(); if (S.settings.haptic) haptic(); toast(S.settings.haptic ? 'سيهتز الجوال اهتزازاً خفيفاً عند الإتمام' : 'أُطفئ الاهتزاز عند الإتمام'); }
   if (id === 'setExplain') { S.settings.explain = e.target.checked; save(); applyTheme(); toast(S.settings.explain ? 'سيظهر الشرح تحت الخانات' : 'أُخفي الشرح'); }
   if (id === 'setCity') setCity(e.target.value);
   if (id === 'setMethod' && S.settings.prayer) { S.settings.prayer.method = e.target.value; save(); render(); }
@@ -2406,12 +2413,21 @@ window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; t
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => reg.update()).catch(() => {});
-  // a new version took over: reload once so every file comes from it
-  let reloading = false;
+  // the app opens from its saved copy (sw.js); a new version is saved in the background, then this bar offers it
+  // (nothing reloads by itself, so nothing being written is lost)
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloading || sheet.open || psheet.open) return;
-    reloading = true;
-    location.reload();
+    if (!hadController || $('updBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'updBar'; bar.className = 'upd-bar'; bar.setAttribute('role', 'status');
+    bar.innerHTML = '<span>وصل تحديث جديد</span><button type="button" class="primary" data-action="upd-now">حدّث الآن</button>';
+    document.body.append(bar);
+  });
+  // coming back to the app asks for a new version (at most every half hour)
+  let swChecked = Date.now();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || Date.now() - swChecked < 30 * 60000) return;
+    swChecked = Date.now();
+    navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
   });
   navigator.serviceWorker.addEventListener('message', (e) => {
     const m = e.data || {};

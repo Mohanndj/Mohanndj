@@ -1,9 +1,11 @@
 // Offline support + notification actions for «مهامي»
-// App files are fetched from the network first so the page and its scripts always come from the
-// same version; the cache is only used when there is no connection.
+// The app opens at once from this version's saved copy, like an installed app (v105): every file of a version
+// is saved together when its sw.js is installed, and checked to be of that version, so they always match.
+// A new version is found by the browser checking sw.js, saved whole in the background, and the page then
+// offers «حدّث الآن» (app.js). The manifest still comes from the site first (the phone reads it for the icon).
 importScripts('timer-shared.js');
 
-const VERSION = 104;
+const VERSION = 105;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -55,6 +57,7 @@ const ASSETS = [
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/badge-96.png',
+  './icons/monochrome-512.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
   './icons/icon-maskable-512.png',
@@ -62,11 +65,18 @@ const ASSETS = [
 
 self.addEventListener('install', (e) => {
   // cache: 'reload' skips the browser's HTTP cache so every file is from this version
-  e.waitUntil(
-    caches.open(CACHE)
-      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })));
+    // a server still giving the older page or app.js just after an update would mix two versions: then this one
+    // is not installed (the older one keeps working) and the browser tries again at its next check
+    const [root, page, app] = await Promise.all(['./', './index.html', './app.js'].map(async (u) => (await c.match(u)).text()));
+    if (![root, page].every((t) => t.includes(`APP_VERSION === ${VERSION} `)) || !app.includes(`APP_VERSION = ${VERSION};`)) {
+      await caches.delete(CACHE);
+      throw new Error('mixed versions');
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
@@ -83,9 +93,13 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
 
   if (url.origin === self.location.origin) {
-    // network first, cache as offline fallback
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
+      // the manifest: from the site first (the phone reads it to update the app's icon and name), saved copy offline
+      const fresh = url.pathname.endsWith('/manifest.webmanifest');
+      // this version's saved copy at once (a «?v=» or «?new=» does not change the file)
+      const hit = !fresh && await cache.match(req, { ignoreSearch: true });
+      if (hit) return hit;
       try {
         const res = await fetch(req, { cache: 'no-cache' });
         if (res && res.ok) cache.put(req, res.clone());
