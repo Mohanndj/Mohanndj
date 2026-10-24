@@ -61,7 +61,7 @@ function renderLayout() {
     ${isToday ? '' : '<p class="note-text explain">ولكل صفحة: اكتب علامة تعبيرية واسماً تختاره، واختر لوناً، فتميّزها بنظرة.</p>'}
     <ul class="lay-list">${order.map((k, i) => { const lk = (ldraft.look || {})[k] || {}; return `<li class="${hidden.includes(k) ? 'off' : ''}${isToday ? '' : ' lay-look'}"${!isToday && lk.color ? ` style="--tc:${lk.color}"` : ''}>
       ${isToday ? `<span class="lay-name">${esc(names[k])}</span>` : `<span class="lay-edit">
-        <input type="text" class="lay-emoji" data-lay-emoji="${k}" value="${esc(lk.emoji || '')}" placeholder="🙂" maxlength="4" aria-label="علامة تعبيرية" autocomplete="off" data-novoice>
+        <input type="text" class="lay-emoji" data-lay-emoji="${k}" value="${esc(lk.emoji || '')}" placeholder="🙂" maxlength="16" aria-label="علامة تعبيرية" autocomplete="off" data-novoice>
         <input type="text" class="lay-title" data-lay-title="${k}" value="${esc(lk.name || '')}" placeholder="${esc(names[k])}" aria-label="اسم الصفحة" autocomplete="off" data-novoice>
         <span class="lay-colors">${['', ...LOOK_COLORS].map((c) => `<button type="button" class="lay-c${(lk.color || '') === c ? ' on' : ''}" data-action="lay-color" data-v="${k}" data-c="${c}" style="--c:${c || 'transparent'}" aria-label="${c ? 'لون' : 'بلا لون'}"></button>`).join('')}</span>
       </span>`}

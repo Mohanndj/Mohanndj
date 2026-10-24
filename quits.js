@@ -47,7 +47,7 @@ function quitCard(q) {
       <div class="quit-count"><b>${st.days || 'صفر'}</b><small>${st.days === 1 ? 'يوم' : st.days === 2 ? 'يومان' : st.days >= 3 && st.days <= 10 ? 'أيام' : 'يوم'}</small></div>
       <button type="button" class="t-main" data-action="quit-open" data-v="${q.id}">
         <span class="t-title">${esc(q.title)}</span>
-        <span class="meta"><span>${st.days ? `${st.days < 3 && st.hours ? `و${st.hours} ساعة ` : ''}دون أن تعود إليها` : st.hours ? `منذ ${st.hours} ساعة` : 'بدأت الآن'}</span>${st.bestDays ? `<span>أطول مدة: ${daysWord(st.bestDays)}</span>` : ''}${st.slips ? `<span>${st.slips} ${st.slips === 1 ? 'زلّة' : st.slips === 2 ? 'زلّتان' : 'زلّات'}</span>` : ''}</span>
+        <span class="meta"><span>${st.days ? `${st.days < 3 && st.hours ? `و${st.hours} ساعة ` : ''}دون أن تعود إليها` : st.hours ? `منذ ${st.hours} ساعة` : 'بدأت الآن'}</span>${st.bestDays ? `<span>أطول مدة: ${daysWord(st.bestDays)}</span>` : ''}${st.slips ? `<span>${plural(st.slips, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')}</span>` : ''}</span>
       </button>
       <button type="button" class="ghost quit-slip" data-action="quit-slip" data-v="${q.id}">زللت</button>
     </div>
@@ -146,9 +146,15 @@ document.addEventListener('click', (e) => {
       for (const b of $('slTrig').children) b.setAttribute('aria-pressed', String(b.dataset.v === ldraft.trigger));
       break;
     case 'quit-del-slip': {
+      // two presses («متأكد؟» first); what is typed in the form stays as it was after the sheet is drawn again
+      if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 4000); break; }
       const q = getQuit(ldraft.id);
+      const typed = ['qTitle', 'qWhy', 'qInstead', 'qStart'].map((k) => [k, $(k) ? $(k).value : null]), done = $('qDone') ? $('qDone').checked : null;
       q.slips = q.slips.filter((s) => s.id !== v);
-      save(); openQuit(q.id); render();
+      save(); openQuit(q.id);
+      for (const [k, val] of typed) if ($(k) && val !== null) $(k).value = val;
+      if ($('qDone') && done !== null) $('qDone').checked = done;
+      render();
       break;
     }
   }

@@ -92,8 +92,11 @@ const Sync = (() => {
       else if (l && !r) { if (!b || !same(l, b)) out.push(l); } // new here, or deleted in cloud but edited here
       else if (!l && r) { if (!b || !same(r, b)) out.push(r); } // new in cloud, or deleted here but edited in cloud
     }
-    // keep this device's order, then anything new from the cloud
-    const order = new Map(local.map((x, i) => [x.id, i]));
+    // keep this device's order, then anything new from the cloud; but when nothing was moved or added here since the
+    // last sync, the cloud's order (roles moved ▲▼ on another device)
+    const seq = (xs) => xs.map((x) => x.id).join('\u0001');
+    const lead = !noBase && base.length && seq(local) === seq(base) ? remote : local;
+    const order = new Map(lead.map((x, i) => [x.id, i]));
     return out.sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
   }
 
@@ -118,6 +121,17 @@ const Sync = (() => {
     // a collection missing from the cloud altogether was written by an older version that does not know it
     // (on another device not updated yet): not a deletion, this device's stays
     for (const c of COLLECTIONS) out[c] = c in remote ? mergeList(base && base[c], local[c], remote[c], noBase) : local[c];
+    // «أكلته» of the same day marked on two devices: what either added is kept, what either removed goes
+    // (as a whole list, one device's marks were lost)
+    if (!noBase && base.mealDone && Array.isArray(remote.mealDone)) {
+      const at = (list, id) => (list || []).find((y) => y.id === id);
+      out.mealDone = out.mealDone.map((x) => {
+        const b = at(base.mealDone, x.id), l = at(local.mealDone, x.id), r = at(remote.mealDone, x.id);
+        if (!b || !l || !r || !Array.isArray(b.ids) || !Array.isArray(l.ids) || !Array.isArray(r.ids)) return x;
+        const gone = new Set(b.ids.filter((i) => !l.ids.includes(i) || !r.ids.includes(i)));
+        return { ...x, ids: [...new Set([...l.ids, ...r.ids])].filter((i) => !gone.has(i)) };
+      });
+    }
     out.settings = mergeSettings(base && base.settings, local.settings, remote.settings || {}, noBase, Number(remote.app) >= APP_VERSION);
     return out;
   }
@@ -198,7 +212,9 @@ const Sync = (() => {
       const localChanged = !same(stripTime(merged), stripTime(local));
       if (localChanged) { apply(merged); render(); }
       if (!remote || !same(stripTime(merged), stripTime(remote))) await writeGist(merged);
-      cfg.base = merged;
+      // a copy of its own: what was applied shares its inner objects (a goal's ticks, the categories) with S, so an edit
+      // made here afterwards changed the base too, and the next sync took it for unchanged and let the cloud's old copy win
+      cfg.base = JSON.parse(JSON.stringify(merged));
       cfg.lastSync = Date.now();
       lastError = '';
       store();

@@ -78,7 +78,7 @@ function sciCard(s) {
   return `<button type="button" class="book-card st-card" data-action="study-open" data-v="${s.id}">
     <span class="book-top"><strong>${esc(s.emoji ? `${s.emoji} ${s.name}` : s.name)}</strong>${b ? `<small>${esc(b.title)}</small>` : ''}</span>
     ${b ? `${n ? `<span class="pbar"><i style="width:${Math.round((done / n) * 100)}%"></i></span>` : ''}
-      <span class="book-line">${[n ? `أتممت ${done} من ${plural(n, 'درس واحد', 'درسين', 'دروس', 'درساً')}` : 'لا دروس بعد', nx[0] ? `الدرس القادم: ${nx[0].title}` : n ? 'أتممت دروسه كلها' : ''].filter(Boolean).map(esc).join(' | ')}</span>`
+      <span class="book-line">${[n ? `أتممت ${done || 'صفر'} من ${plural(n, 'درس واحد', 'درسين', 'دروس', 'درساً')}` : 'لا دروس بعد', nx[0] ? `الدرس القادم: ${nx[0].title}` : n ? 'أتممت دروسه كلها' : ''].filter(Boolean).map(esc).join(' | ')}</span>`
     : '<span class="book-line">لا كتاب معتمد بعد</span>'}
     <span class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : '', s.quizzes.length ? `الاختبارات: ${s.quizzes.length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
   </button>`;
@@ -183,6 +183,8 @@ function saveSci() {
   // a stage added later: lessons already complete stay complete (they were done before it existed)
   if (old) for (const b of s.books) for (const l of b.lessons) if (l.completedAt) for (const x of s.stages) if (!l.done[x.id]) l.done[x.id] = l.completedAt;
   if (old) Object.assign(old, s); else { S.study.push(s); studyUi.sci = s.id; }
+  // a stage removed: a lesson whose remaining stages are all ticked is now complete (and gets its reviews)
+  if (old) for (const b of old.books) for (const l of b.lessons) stComplete(old, l);
   save();
   return true;
 }

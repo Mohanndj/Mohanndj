@@ -53,6 +53,8 @@ function archCard(a) {
 }
 
 function viewArchive() {
+  if (archUi.tag && !archTags().includes(archUi.tag)) archUi.tag = ''; // a tag no item has any more
+  if (!S.archive.length) archUi.q = '';
   const q = archUi.q.trim().toLowerCase();
   const list = S.archive.filter((a) =>
     (archUi.filter === 'all' || (archUi.filter === 'open') === !a.revisitedAt) &&
@@ -71,12 +73,12 @@ function viewArchive() {
       <button type="submit" class="primary">${icon('plus')}احفظ</button>
     </form>
     <p class="note-text explain">اكتب معلومة أو الصق رابطاً هنا، أو من أي تطبيق اضغط «مشاركة» ثم اختر «الوعي الشخصي».</p>
-    ${S.archive.length ? `<input type="search" id="archSearch" placeholder="ابحث في الأرشيف" aria-label="بحث" value="${esc(archUi.q)}">
+    ${S.archive.length ? `<input type="search" id="archSearch" placeholder="ابحث في ${esc(pageName('archive'))}" aria-label="بحث" value="${esc(archUi.q)}">
       <div class="seg" role="group" aria-label="عرض">${seg}</div>
       ${tags.length ? `<div class="chips" role="group" aria-label="التصنيف"><button type="button" class="chip" data-action="arch-tag" data-v="" aria-pressed="${!archUi.tag}">الكل</button>${tags.map((t) => `<button type="button" class="chip" data-action="arch-tag" data-v="${esc(t)}" aria-pressed="${archUi.tag === t}">${esc(t)}</button>`).join('')}</div>` : ''}` : ''}
     ${list.length ? `<div class="book-list">${list.map(archCard).join('')}</div>`
-      : S.archive.length ? emptyHTML(archUi.filter === 'open' && !q ? 'رجعت إلى كل شيء' : 'لا نتائج', archUi.filter === 'open' && !q ? 'لا شيء ينتظرك في الأرشيف.' : 'جرّب كلمة أخرى.')
-        : emptyHTML('الأرشيف فارغ', 'رأيت مقالاً أو مقطعاً أو رسالة تريد الرجوع إليها؟ اضغط «مشاركة» في ذلك التطبيق واختر «الوعي الشخصي»، أو أضفه هنا بنفسك.', addBtn('arch-new', 'أضف أول عنصر'))}
+      : S.archive.length ? emptyHTML(archUi.filter === 'open' && !q ? 'رجعت إلى كل شيء' : 'لا نتائج', archUi.filter === 'open' && !q ? `لا شيء ينتظرك في ${esc(pageName('archive'))}.` : 'جرّب كلمة أخرى.')
+        : emptyHTML(`${esc(pageName('archive'))} فارغ`, 'رأيت مقالاً أو مقطعاً أو رسالة تريد الرجوع إليها؟ اضغط «مشاركة» في ذلك التطبيق واختر «الوعي الشخصي»، أو أضفه هنا بنفسك.', addBtn('arch-new', 'أضف أول عنصر'))}
     <details class="howto"><summary>«الوعي الشخصي» لا يظهر في قائمة المشاركة؟</summary>
       <ol>
         <li>يظهر فقط بعد تثبيت التطبيق على الشاشة الرئيسية من Chrome على أندرويد.</li>
@@ -93,7 +95,7 @@ function openArch(id, preset) {
   ldraft = { kind: 'arch', id: a.id, isNew: !getArch(a.id) };
   const f = $('libForm');
   f.innerHTML = `
-    <div class="sheet-head"><h2>${ldraft.isNew ? (preset ? 'حفظ ما شاركته' : 'عنصر جديد') : 'عنصر في الأرشيف'}</h2>
+    <div class="sheet-head"><h2>${ldraft.isNew ? (preset ? 'حفظ ما شاركته' : 'عنصر جديد') : `عنصر في ${esc(pageName('archive'))}`}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="field"><span>العنوان</span><input type="text" id="aTitle" value="${esc(a.title)}" autocomplete="off" placeholder="عمّ يتحدث؟"></label>
     <label class="field"><span>الرابط (اختياري)</span><input type="url" id="aUrl" value="${esc(a.url)}" autocomplete="off" dir="ltr" placeholder="https://"></label>
@@ -111,7 +113,7 @@ function openArch(id, preset) {
       </div>
     </div>
     <div class="sheet-actions">
-      <button type="submit" class="primary">${ldraft.isNew ? 'احفظ في الأرشيف' : 'حفظ'}</button>
+      <button type="submit" class="primary">${ldraft.isNew ? `احفظ في ${esc(pageName('archive'))}` : 'حفظ'}</button>
       ${ldraft.isNew ? '' : '<button type="button" class="danger" data-action="lib-delete">حذف</button>'}
     </div>`;
   libArmed = false;
@@ -140,20 +142,22 @@ function archConvert(kind) {
   const a = readArch();
   const body = [a.url, a.text, a.note].filter(Boolean).join('\n');
   const label = { task: 'مهمة', memo: 'ملاحظة', benefit: 'فائدة' }[kind];
-  a.convertedTo = label;
+  // a task is marked only once it is saved (closing its sheet unsaved changes nothing); a note or benefit is made at once
   const old = getArch(a.id);
   if (old) Object.assign(old, a); else S.archive.push(a);
+  const mark = () => { const i = getArch(a.id); if (i) i.convertedTo = label; };
+  if (kind !== 'task') mark();
   save();
   closeLib();
   if (kind === 'task') {
-    openSheet(null, { prefill: normalize({ id: uid(), kind: 'task', title: a.title, notes: body ? [{ id: uid(), text: body, at: Date.now() }] : [], created: Date.now() }) });
+    openSheet(null, { prefill: normalize({ id: uid(), kind: 'task', title: a.title, notes: body ? [{ id: uid(), text: body, at: Date.now() }] : [], created: Date.now() }), onSaved: mark });
   } else if (kind === 'memo') {
     const m = normalizeMemo({ title: a.title, html: plainToNoteHTML(body), body });
     S.memos.push(m);
     save();
     openMemo(m.id);
   } else {
-    const f = normalizeBenefit({ title: a.title, lesson: [a.text, a.note, a.url].filter(Boolean).join('\n'), book: a.tag || hostOf(a.url) });
+    const f = normalizeBenefit({ title: a.title, lesson: [a.text, a.note, a.url].filter(Boolean).join('\n'), book: a.url ? hostOf(a.url) : '' }); // a tag («معلومة») is not a book
     S.benefits.push(f);
     save();
     openLib('benefit', f.id);
@@ -211,7 +215,7 @@ document.addEventListener('submit', (e) => {
   if (archUi.filter === 'done') archUi.filter = 'open';
   render();
   $('archQuickText').focus();
-  toast(item.tag ? `حُفظت في الأرشيف | ${item.tag}` : 'حُفظت في الأرشيف');
+  toast(item.tag ? `حُفظت في ${pageName('archive')} | ${item.tag}` : `حُفظت في ${pageName('archive')}`);
 });
 document.addEventListener('keydown', (e) => {
   if (e.target.id !== 'archQuickText' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;

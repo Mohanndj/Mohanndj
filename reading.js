@@ -43,7 +43,9 @@ function syncBookGoal(b) {
     if (recent) { recent.repeat.until = null; readingChanged = true; return; }
     const ng = normalize({ kind: 'goal', title, category: 'قراءة', repeat: { days: [...b.rdays].sort(), start: today(), until: null }, target: b.rpages, unit: 'صفحة', bookId: b.id, created: Date.now() });
     // already read today in its project (the book just left it): today's session shows done here too
-    if (readToday(b)) ng.completions[today()] = Date.now();
+    // with the pages that session read, so undoing it here takes back those pages (not the planned ones)
+    const was = readToday(b) && S.tasks.find((x) => x.bookId === b.id && x.completions && x.completions[today()]);
+    if (was) { ng.completions[today()] = Date.now(); if (Number.isFinite((was.readPages || {})[today()])) ng.readPages[today()] = was.readPages[today()]; }
     S.tasks.push(ng);
     readingChanged = true;
     return;
@@ -194,8 +196,10 @@ function saveReadNote() {
   // the pages actually read: «إلى أي صفحة وصلت؟» today, or «كم صفحة قرأت؟» for a past day
   if (b && t && t.completions[d]) {
     let n = 0;
-    if (ldraft.past) n = Math.max(0, Math.round(num($('rnRead').value) || 0));
-    else { const v = $('rnPage').value.trim(); if (v) n = Math.round(num(v) || 0) - (b.page || 0); }
+    // only the number typed counts («ص ١٦٠» = 160); an entry with no number changes nothing (it was read as page 0)
+    const digits = (id) => ($(id).value.match(/[0-9٠-٩۰-۹]+/) || [''])[0];
+    if (ldraft.past) n = Math.max(0, Math.round(num(digits('rnRead')) || 0));
+    else { const v = digits('rnPage'); if (v) n = Math.round(num(v)) - (b.page || 0); }
     if (n) {
       const before = b.page || 0;
       bookAdvance(b, n, d);
@@ -224,6 +228,9 @@ function saveReadNote() {
   if (said.length) toast(said.join(' | '));
   return true;
 }
+// a finished book's end date, kept for the day its task is unticked: ticking it again (a mistake undone)
+// gives the book its own date back, not today's (it was then counted in this year's reading goal)
+const readEndUndo = {};
 // called by toggle() for a task tied to a book
 function readingFromTask(t, d) {
   const b = getBook(t.bookId);
@@ -233,8 +240,8 @@ function readingFromTask(t, d) {
     if (t.completions[d]) startSession(b, t, d);
     else undoSession(b, t, d);
   }
-  else if (t.done && b.status !== 'read') { b.status = 'read'; b.end = b.end || today(); }
-  else if (!t.done && b.status === 'read') { b.status = 'reading'; b.end = ''; }
+  else if (t.done && b.status !== 'read') { b.status = 'read'; const u = readEndUndo[b.id]; b.end = b.end || (u && u.on === today() ? u.end : today()); delete readEndUndo[b.id]; }
+  else if (!t.done && b.status === 'read') { readEndUndo[b.id] = { end: b.end, on: today() }; b.status = 'reading'; b.end = ''; }
 }
 
 // the books page: topics as buttons, and the selected topic's reading project

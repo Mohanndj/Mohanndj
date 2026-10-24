@@ -84,7 +84,9 @@ const Xlsx = (() => {
       const ref = `${col(c)}${r}`;
       if (v === null || v === undefined || v === '') return '';
       if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="${style}"><v>${v}</v></c>`;
-      return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;
+      // a cell holds at most 32,767 characters (a longer note made Excel repair the file): the rest is cut, and said
+      const s = String(v), t = s.length > 32767 ? `${s.slice(0, 32600)}… (اقتُطع الباقي: النص أطول مما تتسع له خلية إكسل)` : s;
+      return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(t)}</t></is></c>`;
     };
     const head = `<row r="1">${sheet.columns.map((c, i) => cell(c.title, 1, i, 1)).join('')}</row>`;
     const body = sheet.rows.map((row, ri) =>

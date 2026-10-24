@@ -94,9 +94,25 @@ function qzParse(text) {
     if (!cur && (m = line.match(QZ_RX.title))) { out.title = m[1].trim(); continue; }
     if (!cur && (m = line.match(QZ_RX.topic))) { out.topic = m[1].trim(); continue; }
     if (cur && last === 'elems' && (m = line.match(QZ_RX.elemLine))) { cur.elems.push(qzElem(m[1])); continue; }
-    if ((m = line.match(QZ_RX.q)) && (m[4] || '').trim()) {
+    // a written model answer set out in numbered lines right under «الإجابة:» («1. طهور» «2. طاهر»): its lines, not new questions
+    if (cur && last === 'ans' && !cur.opts.length && (m = line.match(/^([0-9٠-٩]+)\s*[-–.)]\s*(.+)$/)) && +qzDigits(m[1]) === (cur.ansN || 0) + 1 && (cur.ansN || +qzDigits(m[1]) !== cur.no + 1)) {
+      cur.ansRaw += ` ${line}`; cur.ansN = (cur.ansN || 0) + 1;
+      continue;
+    }
+    // «السؤال 1» alone on its line: the question's text is on the next line
+    if ((m = line.match(QZ_RX.q)) && ((m[4] || '').trim() || m[1])) {
       const no = m[1] || m[2] || m[3];
       cur = { no: no ? +qzDigits(no) : 0, q: m[4].trim(), opts: [], type: '', ansRaw: '', hasAns: false, exp: '', elems: [], marked: -1 };
+      // the options written on the question's own line: «أي الآتي طهور؟ أ) ماء البحر ب) البول»
+      const inl = cur.q.split(new RegExp(`\\s+(?=[(\\[]?${QZ_LETTER}\\s*\\)\\s)`, 'i'));
+      if (inl.length >= 3 && inl.slice(1).every((x) => QZ_RX.opt.test(x))) {
+        cur.q = inl[0];
+        for (const part of inl.slice(1)) {
+          let t = part.match(QZ_RX.opt)[2].trim();
+          if (QZ_MARK.test(t)) { t = t.replace(QZ_MARK, ''); cur.marked = cur.marked === -1 ? cur.opts.length : -2; }
+          cur.opts.push({ label: part.match(QZ_RX.opt)[1], text: t });
+        }
+      }
       out.items.push(cur); last = 'q';
       continue;
     }
@@ -164,7 +180,7 @@ function qzResolve(c) {
   const q = { id: uid(), type: '', q: c.q.trim(), opts: c.opts.map((o) => o.text.trim()), ans: null, elems: c.elems.filter((el) => el.t), explain: c.exp.trim(), bad: '' };
   const t = qzNorm(c.type);
   const tfOpts = q.opts.length === 2 && q.opts.every((o) => qzBool(o) !== null) && qzBool(q.opts[0]) !== qzBool(q.opts[1]);
-  q.type = /صح|خطا/.test(t) ? 'tf' : /نص|مقال|قصير|كتاب|اكمل|اذكر|عرف/.test(t) ? 'text' : /اختيار|متعدد/.test(t) ? 'mc'
+  q.type = /صح|خطا|true|false|^tf$|bool/.test(t) ? 'tf' : /نص|مقال|قصير|كتاب|اكمل|اذكر|عرف|short|essay|text|open|written|fill/.test(t) ? 'text' : /اختيار|متعدد|multiple|choice|mcq/.test(t) ? 'mc'
     : tfOpts ? 'tf' : q.opts.length ? 'mc' : /صح\s*(ام|او)\s*خط/.test(qzNorm(q.q)) || (c.hasAns && qzBool(c.ansRaw) !== null && qzNorm(c.ansRaw).split(' ').length === 1) ? 'tf' : 'text';
   const r = c.ansRaw.trim();
   if (!q.q) q.bad = 'السؤال بلا نص';
@@ -198,6 +214,8 @@ function qzResolve(c) {
   } else {
     q.opts = [];
     if (!c.hasAns || !r) q.bad = 'لم أجد الإجابة النموذجية';
+    // «الإجابة: أ» with no options found: a choice question whose options were not read, not a written answer «أ»
+    else if (!t && new RegExp(`^[(\\[]?\\s*${QZ_LETTER}\\s*[)\\]]?$`, 'i').test(r)) q.bad = `الإجابة «${r}» حرف، ولم أجد اختيارات السؤال`;
     else q.ans = r;
   }
   return q;
@@ -286,7 +304,9 @@ const qzNum = (n) => (n ? String(Math.round(n * 100) / 100) : 'صفر');
 function quizSectionHTML(s) {
   const all = s.quizzes;
   const topics = [...new Set(all.map((z) => z.topic.trim()).filter(Boolean))];
-  if (studyUi.qtopic && !topics.includes(studyUi.qtopic)) studyUi.qtopic = '';
+  if (studyUi.qtopic && !(topics.length > 1 && topics.includes(studyUi.qtopic))) studyUi.qtopic = '';
+  // the search box shows only with two quizzes or more: a search left from before cannot hide the last one
+  if (all.length < 2) studyUi.qq = '';
   const q = qzNorm(studyUi.qq || '');
   let list = all.filter((z) => (!studyUi.qtopic || z.topic.trim() === studyUi.qtopic) && (!q || qzNorm([z.title, z.topic, ...z.qs.map((x) => x.q)].join(' ')).includes(q)));
   const sort = QZ_SORTS[studyUi.qsort] ? studyUi.qsort : 'new';
@@ -316,7 +336,7 @@ function quizSectionHTML(s) {
 function openQuizEdit(sciId, quizId) {
   const s = getSci(sciId), z = quizId ? getQuiz(s, quizId) : null;
   if (!s) return;
-  ldraft = { kind: 'qzedit', id: z ? z.id : uid(), sci: sciId, isNew: !z, previewed: null };
+  ldraft = { kind: 'qzedit', id: z ? z.id : uid(), sci: sciId, isNew: !z, previewed: null, orig: { title: z ? z.title : '', topic: z ? z.topic : '' } };
   const topics = [...new Set([...s.quizzes.map((x) => x.topic), ...s.books.flatMap((b) => b.lessons.map((l) => l.title))].map((t) => t.trim()).filter(Boolean))];
   $('libForm').innerHTML = `${sheetHead(z ? 'تعديل الاختبار' : 'استيراد اختبار')}
     <p class="note-text">${esc(s.name)}</p>
@@ -337,9 +357,14 @@ function openQuizEdit(sciId, quizId) {
   if (z) qzShowPreview();
 }
 // what the sheet holds now, read as a test (with the name and topic typed above it)
+// A name or topic changed in the text («العنوان:»، «الموضوع:») is taken when the box above was left as it was
+// (the box was filled from the test, so the text's change was ignored)
 function qzRead() {
-  const p = qzParse($('qzText').value);
-  return { ...p, title: $('qzTitle').value.trim() || p.title, topic: $('qzTopic').value.trim() || p.topic };
+  const p = qzParse($('qzText').value), o = ldraft.orig || { title: '', topic: '' };
+  const inT = $('qzTitle').value.trim(), inP = $('qzTopic').value.trim();
+  const title = inT === o.title && p.title && p.title !== o.title ? p.title : inT || p.title;
+  const topic = inP === o.topic && p.topic !== o.topic ? p.topic : inP || p.topic;
+  return { ...p, title, topic };
 }
 function qzShowPreview() {
   const p = qzRead();
@@ -531,7 +556,7 @@ Never give credit for repeated words alone. For each element give a short Arabic
 ${qs.map((q) => `Question id ${q.id}: ${q.q}
 Model answer: ${q.ans}
 Elements:
-${qzElems(q).map((el) => `- element id ${el.id}: ${el.t}`).join('\n')}
+${qzElems(q).filter((el) => (a.el[q.id] || {})[el.id] === undefined).map((el) => `- element id ${el.id}: ${el.t}`).join('\n')}
 Student answer: ${a.ans[q.id]}`).join('\n\n')}`,
       schema: { type: 'object', additionalProperties: false, required: ['questions'], properties: { questions: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['qid', 'elements'], properties: { qid: { type: 'string' }, elements: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['eid', 'score', 'reason'], properties: { eid: { type: 'string' }, score: { type: 'string', enum: ['1', '0.5', '0'] }, reason: { type: 'string' } } } } } } } } },
     });
@@ -540,7 +565,8 @@ Student answer: ${a.ans[q.id]}`).join('\n\n')}`,
       const q = qs.find((x) => x.id === rq.qid);
       if (!q) continue;
       const m = a.el[q.id] || (a.el[q.id] = {}), w = a.why[q.id] || (a.why[q.id] = {});
-      for (const re of rq.elements || []) if (qzElems(q).some((el) => el.id === re.eid) && QZ_EL[re.score]) { m[re.eid] = Number(re.score); w[re.eid] = String(re.reason || '').trim(); n++; }
+      // only the elements not judged yet: the student's own judgement is never replaced by Claude's
+      for (const re of rq.elements || []) if (qzElems(q).some((el) => el.id === re.eid) && m[re.eid] === undefined && QZ_EL[re.score]) { m[re.eid] = Number(re.score); w[re.eid] = String(re.reason || '').trim(); n++; }
       a.by[q.id] = 'ai';
       a.res[q.id] = qzElScore(q, m);
     }
@@ -573,7 +599,7 @@ function openQuizResult(sciId, quizId, attId) {
         ${my === undefined ? '' : `<div class="qz-rl"><small>اخترت أن العبارة:</small> ${st2(my)}</div>`}
         <div class="qz-truth"><small>حكم العبارة نفسها</small><b>العبارة: ${st2(q.ans)}</b></div>`;
     } else body = qzTextBody(q, a, my, r);
-    return `<div class="qz-r ${st}"><div class="qz-qh"><span class="qz-n">${i + 1}</span><b>${esc(q.q)}</b><span class="qz-mark">${st === 'ok' ? '✓' : st === 'no' ? '✗' : st === 'part' ? `${r * 100}٪` : '؟'}</span></div>${body}${q.explain ? `<div class="qz-exp"><small>التوضيح</small>${esc(q.explain)}</div>` : ''}</div>`;
+    return `<div class="qz-r ${st}"><div class="qz-qh"><span class="qz-n">${i + 1}</span><b>${esc(q.q)}</b><span class="qz-mark">${st === 'ok' ? '✓' : st === 'no' ? '✗' : st === 'part' ? `${Math.round(r * 100)}٪` : '؟'}</span></div>${body}${q.explain ? `<div class="qz-exp"><small>التوضيح</small>${esc(q.explain)}</div>` : ''}</div>`;
   };
   $('libForm').innerHTML = `${sheetHead(esc(`نتيجة المحاولة ${no}`))}
     <p class="note-text">${esc(`${z.title} | ${relDate(a.d)}`)}</p>

@@ -38,7 +38,7 @@ function hzNext(h, grade) {
   n.last = today();
   return n;
 }
-const inDays = (n) => (n <= 1 ? 'غداً' : n < 30 ? `${afterDays(n)}` : n < 365 ? `بعد ${Math.round(n / 30)} ${Math.round(n / 30) <= 2 ? 'شهر' : 'أشهر'}` : 'بعد سنة');
+const inDays = (n) => (n <= 1 ? 'غداً' : n < 30 ? `${afterDays(n)}` : n < 365 ? `بعد ${plural(Math.round(n / 30), 'شهر', 'شهرين', 'أشهر', 'شهراً')}` : 'بعد سنة');
 
 // ---------- poems: read whatever was pasted into abyat ----------
 // Copied poems come as «صدر * عجز», with the halves on separate lines, split by tabs or wide
@@ -228,13 +228,14 @@ function hzCard(h) {
   return `<button type="button" class="hz-card t-${h.type}" data-action="hz-open" data-v="${h.id}">
     <span class="hz-emoji">${t[1]}</span>
     <span class="hz-main"><b>${esc(hzTitle(h))}</b>${h.source ? `<small>${esc(h.source)}</small>` : ''}
-      <span class="book-line">${st} | ${plural(hzWords(h), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}${h.lapses ? ` | نسيته ${h.lapses === 1 ? 'مرة' : `${h.lapses} مرات`}` : ''}</span></span>
+      <span class="book-line">${st} | ${plural(hzWords(h), 'كلمة واحدة', 'كلمتان', 'كلمات', 'كلمة')}${h.lapses ? ` | نسيته ${plural(h.lapses, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}` : ''}</span></span>
   </button>`;
 }
 
 function viewHifz() {
   const due = hzDue();
   const learning = S.hifz.filter((h) => h.state === 'learn');
+  if (S.hifz.length <= 6) hzUi.q = ''; // the search box shows with 7 texts or more
   const q = hzUi.q.trim().toLowerCase();
   const list = S.hifz.filter((h) => (!hzUi.type || h.type === hzUi.type) && (!q || [h.title, h.text, h.source].some((s) => s.toLowerCase().includes(q))))
     .sort((a, b) => (a.state === 'learn' ? 0 : 1) - (b.state === 'learn' ? 0 : 1) || (a.due || '').localeCompare(b.due || '') || b.created - a.created);
@@ -246,11 +247,11 @@ function viewHifz() {
   <section class="section">
     <div class="section-head"><h2>الحفظ</h2><div class="btn-row">${S.hifz.length ? xlsBtn('hifz') : ''}${addBtn('hz-new', 'نص')}</div></div>
     ${S.hifz.length || S.hplans.length ? `<div class="j-stats">
-      <span><b>${due.length}</b> للمراجعة اليوم</span>
-      <span><b>${S.hifz.filter((h) => h.state === 'review').length}</b> محفوظ</span>
-      <span><b>${S.hifz.filter(hzFirm).length}</b> ثابت</span>
+      <span><b>${due.length || 'صفر'}</b> للمراجعة اليوم</span>
+      <span><b>${S.hifz.filter((h) => h.state === 'review').length || 'صفر'}</b> محفوظ</span>
+      <span><b>${S.hifz.filter(hzFirm).length || 'صفر'}</b> ثابت</span>
     </div>
-    <p class="note-text">${[ayat ? `${ayat} آية` : '', by('hadith') ? plural(by('hadith'), 'حديث واحد', 'حديثان', 'أحاديث', 'حديثاً') : '', by('poem') ? `${by('poem')} من القصائد والأبيات` : ''].filter(Boolean).join(' | ') || 'ابدأ بحفظ أول نص ثم أدخله المراجعة.'}</p>` : ''}
+    <p class="note-text">${[ayat ? unitWord('quran', ayat) : '', by('hadith') ? plural(by('hadith'), 'حديث واحد', 'حديثان', 'أحاديث', 'حديثاً') : '', by('poem') ? `${by('poem')} من القصائد والأبيات` : ''].filter(Boolean).join(' | ') || 'ابدأ بحفظ أول نص ثم أدخله المراجعة.'}</p>` : ''}
     ${due.length ? `<button type="button" class="primary hz-go" data-action="hz-review">${icon('repeat')} ابدأ مراجعة اليوم (${due.length})</button>`
       : S.hifz.some((h) => h.state === 'review') ? '<p class="hz-done">✓ لا مراجعة مستحقة اليوم. أحسنت!</p>' : ''}
     ${S.hplans.length ? `<div class="hz-learning"><h3>خطط الحفظ</h3><div class="book-list">${S.hplans.slice().sort((a, b) => !!a.doneAt - !!b.doneAt || b.created - a.created).map(planCard).join('')}</div></div>` : ''}
@@ -296,7 +297,7 @@ function openHifz(id) {
       <div id="hPlanW">${planFieldsHTML(h.type, h.type === 'quran' ? 5 : 3, [0, 1, 2, 3, 4, 5, 6])}</div>
     </div>`}
     <label class="field" id="hSourceW"${h.type === 'quran' ? ' hidden' : ''}><span>${h.type === 'poem' ? 'الشاعر' : h.type === 'hadith' ? 'الراوي والمصدر' : 'المصدر'}</span><input type="text" id="hSource" value="${esc(h.source)}" autocomplete="off" placeholder="${h.type === 'hadith' ? 'مثال: عن عمر رضي الله عنه، متفق عليه' : ''}"></label>
-    ${id && h.state === 'review' ? `<p class="note-text">في المراجعة | المراجعة القادمة ${esc(dateBoth(h.due, true))} | روجع ${h.reps} ${h.reps === 1 ? 'مرة' : 'مرات'}</p>` : ''}
+    ${id && h.state === 'review' ? `<p class="note-text">في المراجعة | المراجعة القادمة ${esc(dateBoth(h.due, true))} | روجع ${h.reps ? plural(h.reps, 'مرة واحدة', 'مرتين', 'مرات', 'مرة') : 'صفر'}</p>` : ''}
     <div class="sheet-actions">
       <button type="submit" class="primary">${id ? 'حفظ' : 'أضف وابدأ الحفظ'}</button>
       ${id && h.state === 'review' ? '<button type="button" class="ghost" data-action="hz-relearn">أعده للحفظ</button>' : ''}
@@ -346,6 +347,7 @@ async function fetchAyat(btn) {
   btn.disabled = true;
   const label = btn.innerHTML;
   btn.textContent = 'جارٍ الجلب…';
+  const forDraft = ldraft;
   try {
     const res = await fetch(`https://api.alquran.cloud/v1/surah/${s}/quran-uthmani?offset=${from - 1}&limit=${to - from + 1}`);
     if (!res.ok) throw new Error(res.status);
@@ -353,6 +355,8 @@ async function fetchAyat(btn) {
     const ayahs = (data.data && data.data.ayahs) || [];
     if (!ayahs.length) throw new Error('empty');
     const num = (n) => String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+    // only into the form that asked (another one opened meanwhile is left as it is)
+    if (ldraft !== forDraft || !$('hText')) return;
     $('hText').value = ayahs.map((a) => {
       let t = a.text.trim();
       // the API puts the basmala inside the first ayah of most surahs
@@ -361,7 +365,7 @@ async function fetchAyat(btn) {
     }).join('\n');
     $('hFrom').value = from; $('hTo').value = to;
     updatePlanEta();
-    toast(`جُلبت ${to - from + 1} ${to - from + 1 <= 10 && to - from + 1 >= 3 ? 'آيات' : 'آية'}`);
+    toast(`جُلبت ${unitWord('quran', to - from + 1)}`);
   } catch {
     toast('تعذّر جلب الآيات. تحقق من الإنترنت، أو الصق النص بنفسك.');
   }

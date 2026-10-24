@@ -30,8 +30,10 @@ function nextBirthday(p) {
   const t0 = today();
   const [y, m, d] = p.birthday.split('-').map(Number);
   let ny = Number(t0.slice(0, 4));
-  let next = `${ny}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  if (next < t0) { ny++; next = `${ny}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+  // born on 29 February: in a year without it, the birthday is the 28th
+  const on = (yy) => `${yy}-${String(m).padStart(2, '0')}-${String(m === 2 && d === 29 && new Date(yy, 1, 29).getMonth() !== 1 ? 28 : d).padStart(2, '0')}`;
+  let next = on(ny);
+  if (next < t0) { ny++; next = on(ny); }
   return { d: next, days: daysBetween(t0, next), age: y > 1900 ? ny - y : 0 };
 }
 const telHref = (s) => s.replace(/[^\d+]/g, '');
@@ -57,6 +59,9 @@ function personCard(p) {
 }
 
 function viewPeople() {
+  // a filter whose control is no longer drawn (the search box shows with 6 people, the chips with 2 kinds) is let go
+  if (S.people.length <= 5) pplUi.q = '';
+  if (pplUi.rel && !(Object.keys(REL).filter((r) => S.people.some((p) => p.rel === r)).length > 1 && S.people.some((p) => p.rel === pplUi.rel))) pplUi.rel = '';
   const q = pplUi.q.trim().toLowerCase();
   const list = S.people.filter((p) => (!pplUi.rel || p.rel === pplUi.rel) && (!q || [p.name, p.likes, p.gifts, p.notes].some((s) => s.toLowerCase().includes(q))));
   const due = list.filter((p) => (contactDue(p) ?? -1) >= 0).sort((a, b) => contactDue(b) - contactDue(a));
@@ -67,7 +72,7 @@ function viewPeople() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>الأحبّة</h2><div class="btn-row">${S.people.length ? xlsBtn('people') : ''}${addBtn('ppl-new', 'شخص')}</div></div>
-    ${S.people.length ? `<div class="j-stats"><span><b>${S.people.length}</b> شخص</span><span><b>${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length}</b> حان التواصل</span><span><b>${month}</b> تواصل هذا الشهر</span></div>` : ''}
+    ${S.people.length ? `<div class="j-stats"><span><b>${S.people.length}</b> شخص</span><span><b>${S.people.filter((p) => (contactDue(p) ?? -1) >= 0).length || 'صفر'}</b> حان التواصل</span><span><b>${month || 'صفر'}</b> تواصل هذا الشهر</span></div>` : ''}
     ${soon.length ? `<div class="ppl-soon">${soon.map(({ p, b }) => `<button type="button" data-action="ppl-open" data-v="${p.id}">🎂 <b>${esc(p.name)}</b> ${b.days === 0 ? 'اليوم' : `${afterDays(b.days)}`}${b.age ? ` | يكمل ${b.age} سنة` : ''}${p.gifts ? ' | 🎁 عندك أفكار هدايا' : ''}</button>`).join('')}</div>` : ''}
     ${S.people.length > 5 ? `<input type="search" id="pplSearch" placeholder="ابحث بالاسم أو الاهتمامات" aria-label="بحث" value="${esc(pplUi.q)}">` : ''}
     ${rels.length > 1 ? `<div class="chips" role="group" aria-label="الصلة"><button type="button" class="chip" data-action="ppl-rel" data-v="" aria-pressed="${!pplUi.rel}">الكل</button>${rels.map((r) => `<button type="button" class="chip" data-action="ppl-rel" data-v="${r}" aria-pressed="${pplUi.rel === r}">${REL[r]}</button>`).join('')}</div>` : ''}
@@ -145,7 +150,9 @@ function saveContact() {
   if (!p) return false;
   p.contacts.push({ id: uid(), d: $('pcDate').value || today(), how: ldraft.how, note: $('pcNote').value.trim() });
   save();
-  toast(`بارك الله فيك. التواصل القادم مع ${p.name} ${p.every ? `${afterDays(p.every)}` : ''}`);
+  // the next date from the contacts as they are now (a contact logged for an earlier day may leave it already late)
+  const due = contactDue(p);
+  toast(`بارك الله فيك.${p.every && due != null ? ` التواصل القادم مع ${p.name} ${due < 0 ? afterDays(-due) : due === 0 ? 'اليوم' : `(${lateDays(due)})`}` : ''}`);
   return true;
 }
 
@@ -173,7 +180,10 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'ppl-del-contact': {
+      // two presses («متأكد؟» first), and what is typed in the form is saved with it only when it can be (a name)
+      if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'متأكد؟'; setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 4000); break; }
       const p = readPerson();
+      if (!p.name) { toast('اكتب الاسم.'); break; }
       p.contacts = p.contacts.filter((c) => c.id !== v);
       Object.assign(getPerson(p.id), p);
       save(); openPerson(p.id); render();

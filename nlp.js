@@ -98,19 +98,22 @@ const SmartParse = (() => {
 
     // clock time: "الساعة 5 ونص العصر", "الساعة سبع إلا ربع", "5:30 مساءً"
     const MARK = '(صباحا|صباحاً|الصبح|صباح|ص|فجرا|فجراً|الفجر|ظهرا|ظهراً|الظهر|عصرا|عصراً|العصر|مساء|مساءً|مساءا|المسا|المساء|المغرب|بالليل|الليل|ليلا|ليلاً|م)';
-    const setTime = (h, mi, mark) => {
+    const setTime = (h, mi, mark, said = h) => {
       if (mark) {
         if (/صباح|الصبح|^ص$|فجر/.test(mark)) { if (h === 12) h = 0; }
         else if (/ظهر/.test(mark)) { if (h < 5) h += 12; }
         else if (/ليل/.test(mark)) { if (h === 12) h = 0; else if (h >= 5 && h < 12) h += 12; }
         else if (h < 12) h += 12;
-      } else if (h >= 1 && h <= 6) h += 12; // "الساعة 5" usually means the afternoon
+      } else if (said >= 1 && said <= 6) h += 12; // "الساعة 5" usually means the afternoon (by the hour said: «سبع إلا ربع» is morning)
       if (h > 23 || mi > 59) return false;
       r.time = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
     };
-    take(new RegExp(`\\s(?:الساعة|الساعه|ساعة|الساعة\\s+ال)\\s*(\\d{1,2}|${NUMW_RE})(?:[:.](\\d{2}))?(?:\\s*(?:و\\s*)?(نص|النص|نصف|ربع|الربع|ثلث|الثلث))?(?:\\s*(?:إلا|الا)\\s*(ربع|الربع|ثلث|الثلث|\\d+\\s*(?:دقيقة|دقائق|دقايق|د)?))?(?:\\s+${MARK})?${E}`, 'g'),
-      (m0, hh, mm, frac, minus, mark) => {
+    const PRE = '(صباحا|صباحاً|الصبح|صباح|فجرا|فجراً|الفجر|ظهرا|ظهراً|الظهر|عصرا|عصراً|العصر|مساء|مساءً|مساءا|المسا|المساء|المغرب|بالليل|الليلة|الليله|الليل|ليلا|ليلاً)';
+    take(new RegExp(`\\s(?:${PRE}\\s+)?(?:الساعة|الساعه|ساعة|الساعة\\s+ال)\\s*(\\d{1,2}|${NUMW_RE})(?:[:.](\\d{2}))?(?:\\s*(?:و\\s*)?(نص|النص|نصف|ربع|الربع|ثلث|الثلث))?(?:\\s*(?:إلا|الا)\\s*(ربع|الربع|ثلث|الثلث|\\d+\\s*(?:دقيقة|دقائق|دقايق|د)?))?(?:\\s+${MARK})?${E}`, 'g'),
+      (m0, pre, hh, mm, frac, minus, mark) => {
         let h = num(hh), mi = mm ? Number(mm) : 0;
+        const said = h;
+        mark = mark || pre; // said before the hour: «بكرة الصبح الساعة 6» is 6 in the morning
         if (h == null || (!/الساع/.test(m0) && !/^\d/.test(hh))) return false; // «ساعة واحدة» is a length, not a time
         if (frac) mi += /نص/.test(frac) ? 30 : /ربع/.test(frac) ? 15 : 20;
         if (minus) {
@@ -118,9 +121,11 @@ const SmartParse = (() => {
           h -= 1; mi = 60 - sub;
           if (h === 0) h = 12;
         }
-        return setTime(h, mi, mark);
+        return setTime(h, mi, mark, said);
       });
-    take(new RegExp(`\\s(\\d{1,2})[:.](\\d{2})(?:\\s+${MARK})?${E}`, 'g'), (_, hh, mm, mark) => setTime(Number(hh), Number(mm), mark));
+    // «5:30», or «5.30 مساءً» with its time word: «ادفع 12.50 للبقالة» is an amount, not a time
+    take(new RegExp(`\\s(\\d{1,2}):(\\d{2})(?:\\s+${MARK})?${E}`, 'g'), (_, hh, mm, mark) => setTime(Number(hh), Number(mm), mark));
+    take(new RegExp(`\\s(\\d{1,2})\\.(\\d{2})\\s+${MARK}${E}`, 'g'), (_, hh, mm, mark) => setTime(Number(hh), Number(mm), mark));
 
     // repetition
     const setDays = (days) => { r.kind = 'repeat'; r.days = days; };
@@ -130,6 +135,10 @@ const SmartParse = (() => {
     take(new RegExp(`\\sكل\\s+(?:يوم\\s+)?((?:${WD_RE})(?:\\s*(?:و|،|\\s)\\s*(?:يوم\\s+)?(?:${WD_RE}))*)${E}`, 'g'), (_, list) => {
       const days = [...new Set((list.match(new RegExp(WD_RE, 'g')) || []).map((w) => WD[w]))];
       setDays(days);
+    });
+    // «صيام الاثنين والخميس كل أسبوع»: those days, every week
+    take(new RegExp(`\\s(?:يوم\\s+|أيام\\s+|ايام\\s+)?((?:${WD_RE})(?:\\s*(?:و|،|\\s)\\s*(?:يوم\\s+)?(?:${WD_RE}))*)\\s+(?:من\\s+)?كل\\s+(?:أسبوع|اسبوع)${E}`, 'g'), (_, list) => {
+      setDays([...new Set((list.match(new RegExp(WD_RE, 'g')) || []).map((w) => WD[w]))]);
     });
     take(new RegExp(`\\sكل\\s+(?:أسبوع|اسبوع)${E}`, 'g'), () => setDays([now.getDay()]));
     take(new RegExp(`\\sلمدة\\s+(\\d+|${NUMW_RE}|يومين|أسبوع|اسبوع|أسبوعين|اسبوعين|شهر|شهرين|سنة|سنه)(?:\\s+(يوم|أيام|ايام|أسبوع|اسبوع|أسابيع|اسابيع|شهر|أشهر|اشهر|شهور|سنة|سنه|سنوات))?${E}`, 'g'),
@@ -179,7 +188,7 @@ const SmartParse = (() => {
         r.due = plus(d);
       });
     take(new RegExp(`\\s(?:ال)?(?:أسبوع|اسبوع)\\s+(?:القادم|الجاي|المقبل|الياي)${E}`, 'g'), () => { r.due = plus(7); });
-    take(new RegExp(`\\s((?:يوم|في|ب)\\s+)?(${WD_RE})(?:\\s+(القادم|الجاي|المقبل|الياي|الجاية|الجايه))?${E}`, 'g'), (_, pre, w, next) => {
+    take(new RegExp(`\\s((?:يوم|في|ب)\\s+)?(${WD_RE})(?:\\s+(القادمة|القادمه|القادم|الجاية|الجايه|الجاي|المقبلة|المقبله|المقبل|الياي))?${E}`, 'g'), (_, pre, w, next) => {
       if (!pre && !next && /^(?:أحد|احد|اثنين|إثنين)$/.test(w)) return false; // «كلم أحد الزملاء»، «اشتر اثنين حليب»
       let delta = (WD[w] - now.getDay() + 7) % 7;
       if (delta === 0 && next) delta = 7;

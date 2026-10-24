@@ -56,7 +56,8 @@ function bookPace(b) {
   const pct = Math.min(100, Math.round((b.page / b.pages) * 100));
   // a reading schedule decides the finish date: the remaining pages, session by session, on its days
   if (b.status === 'reading' && b.rdays && b.rdays.length && b.rpages) {
-    let need = Math.ceil(left / b.rpages), d = t0;
+    // today's session already read: the next session is on a later reading day
+    let need = Math.ceil(left / b.rpages), d = readToday(b) ? addDays(t0, 1) : t0;
     for (let n = 0; need > 0 && n < 2000; n++) { if (b.rdays.includes(parse(d).getDay())) need--; if (need > 0) d = addDays(d, 1); }
     return { pct, left, rate: (b.rpages * b.rdays.length) / 7, eta: left ? daysBetween(t0, d) : 0, byPlan: true };
   }
@@ -286,9 +287,10 @@ function viewBooks() {
 function readingGoalHTML() {
   const g = readingGoalState();
   if (!g) return `<button type="button" class="goal-cta" data-action="lib-set-goal">${icon('target')} ضع هدفاً لعدد الكتب هذا العام</button>`;
-  const status = g.diff > 0 ? `متقدّم بـ ${g.diff} ${g.diff === 1 ? 'كتاب' : 'كتب'} عن خطتك` : g.diff < 0 ? `متأخر بـ ${-g.diff} ${g.diff === -1 ? 'كتاب' : 'كتب'} عن خطتك` : 'على المسار تماماً';
+  const by = (n) => (n === 1 ? 'بكتاب واحد' : n === 2 ? 'بكتابين' : `بـ ${plural(n, '', '', 'كتب', 'كتاباً')}`);
+  const status = g.diff > 0 ? `متقدّم ${by(g.diff)} عن خطتك` : g.diff < 0 ? `متأخر ${by(-g.diff)} عن خطتك` : 'على المسار تماماً';
   return `<button type="button" class="reading-goal" data-action="lib-set-goal">
-    <span class="row-between"><b>هدف ${g.y}: ${g.done} من ${g.goal} كتاباً</b><small>${g.pct}%</small></span>
+    <span class="row-between"><b>هدف ${g.y}: ${g.done || 'صفر'} من ${plural(g.goal, 'كتاب واحد', 'كتابين', 'كتب', 'كتاباً')}</b><small>${g.pct}%</small></span>
     <span class="pbar"><i style="width:${Math.min(100, g.pct)}%"></i></span>
     <small class="${g.diff < 0 ? 'late' : ''}">${status}</small>
   </button>`;
@@ -404,7 +406,7 @@ function openLib(kind, id, preset = {}) {
         <p class="note-text explain">يذكّرك التطبيق بالعودة إليه في الموعد الذي تختاره (بعد أسبوع إن لم تغيّره)، ثم بعد شهر، ثم ٣ أشهر، ثم ٦ أشهر، ثم سنة، لتستذكر ما سجّلته منه: النقاط التي تكتبها هنا، وفكرته، وفوائدك منه.</p>
         ${(() => { const at = b.rv && b.rvDue ? b.rvDue : addDays(today(), BOOK_RV[0]); return `<label class="field" id="lRvDueW"${b.rv ? '' : ' hidden'}><span>${b.rv && b.rvDue ? 'موعد الاستذكار القادم' : 'موعد أول استذكار'}</span><input type="date" id="lRvDue" min="${today()}" value="${at}"><small class="hint" id="lRvDueH">${esc(fmtHijri(at))}</small></label>`; })()}
         <label class="field" id="lRvPointsW"${b.rv ? '' : ' hidden'}><span>ما الذي أريد أن أتذكره منه تحديداً؟</span><textarea id="lRvPoints" rows="4" placeholder="نقطة في كل سطر">${esc(b.rvPoints)}</textarea></label>
-        ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${b.rvLog.length} ${b.rvLog.length === 1 ? 'مرة' : 'مرات'}` : ''}</p>` : ''}
+        ${b.rv && b.rvDue ? `<p class="note-text">${esc(bookReviewLine(b))} | ${esc(dateBoth(b.rvDue, true))}${b.rvLog.length ? ` | استذكرته ${plural(b.rvLog.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}` : ''}</p>` : ''}
       </div>
       </div>
       ${id ? `<div id="bkBens"${ldraft.tab === 'bens' ? '' : ' hidden'}><div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
@@ -555,7 +557,12 @@ function deleteLib() {
   if (kind === 'arch') S.archive = S.archive.filter((x) => x.id !== id);
   if (kind === 'idea') S.ideas = S.ideas.filter((x) => x.id !== id);
   if (kind === 'jtpl') S.jtemplates = S.jtemplates.filter((x) => x.id !== id);
-  if (kind === 'hifz') S.hifz = S.hifz.filter((x) => x.id !== id);
+  if (kind === 'hifz') {
+    // the portion being learnt from a plan goes back to it: the plan offers it again, and it is not counted memorised
+    const h = S.hifz.find((x) => x.id === id), p = h && h.planId && h.state === 'learn' && !h.relearn && h.num > 0 && S.hplans.find((x) => x.id === h.planId);
+    if (p && p.pos >= h.num) { p.pos = h.num - 1; p.doneAt = ''; }
+    S.hifz = S.hifz.filter((x) => x.id !== id);
+  }
   if (kind === 'meal') S.meals = S.meals.filter((x) => x.id !== id);
   if (kind === 'sub') { S.subs = S.subs.filter((x) => x.id !== id); S.finTx = S.finTx.filter((t) => !(t.src || '').startsWith(`sub:${id}:`)); syncAllPlans(); }
   if (kind === 'later') S.later = S.later.filter((x) => x.id !== id);
@@ -694,7 +701,7 @@ function excelSheets(kind) {
     ], S.people.map((p) => [p.name, REL[p.rel], p.phone, lastContact(p), p.contacts.length, p.birthday, p.likes, p.gifts, p.notes]));
   }
   if (kind === 'all' || kind === 'decisions') {
-    add('القرارات', [
+    add(lookOf('decisions').name ? pageName('decisions') : 'القرارات', [
       { title: 'القرار', width: 30, wrap: true }, { title: 'التاريخ', width: 12 }, { title: 'لماذا', width: 40, wrap: true }, { title: 'التوقع', width: 30, wrap: true },
       { title: 'الثقة', width: 8 }, { title: 'الحالة وقتها', width: 10 }, { title: 'ما حدث', width: 30, wrap: true }, { title: 'النتيجة', width: 10 }, { title: 'الدرس', width: 30, wrap: true },
       { title: 'حالة القرار', width: 12 }, { title: 'النوع', width: 18 }, { title: 'الخيار المختار', width: 22, wrap: true }, { title: 'آخر موعد للحسم', width: 12 }, { title: 'القرار الآن', width: 12 },
@@ -722,7 +729,7 @@ function excelSheets(kind) {
       S.finTx.slice().sort((a, b) => b.d.localeCompare(a.d)).map((t) => [t.d, t.kind === 'in' ? 'دخل' : 'صرف', t.item, t.amount, t.note]));
   }
   if (kind === 'all' || kind === 'inspire') {
-    add('العبارات', [
+    add(lookOf('inspire').name ? pageName('inspire') : 'العبارات', [
       { title: 'العبارة', width: 60, wrap: true }, { title: 'النوع', width: 16 }, { title: 'القائل أو المصدر', width: 24 },
       { title: 'مفضّلة', width: 8 }, { title: 'تاريخ الإضافة', width: 13 },
     ], S.inspire.filter((x) => x.type !== 'image').map((x) => [x.text, QUOTE_KIND[x.type], x.source, yesNo(x.fav), stampDate(x.created)]));
@@ -819,7 +826,8 @@ document.addEventListener('click', (e) => {
       if (f) { f.lastReview = today(); f.reviews = (f.reviews || 0) + 1; save(); render(); toast('أحسنت! ستظهر لك فائدة أخرى غداً'); }
       break;
     }
-    case 'lib-to-action': benefitToAction(v); break;
+    // from inside the benefit's editor: what was just written there is kept first (the task takes its new title)
+    case 'lib-to-action': if (ldraft && ldraft.kind === 'benefit' && ldraft.id === v && $('libSheet').open && !saveLib()) break; benefitToAction(v); break;
     case 'lib-set-goal': {
       const f = $('libForm');
       ldraft = { kind: 'rgoal', id: 'goal', isNew: false };
@@ -911,10 +919,18 @@ document.addEventListener('change', (e) => {
   if (id === 'lStart' && $('lStartH')) $('lStartH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
   if (id === 'lEnd' && $('lEndH')) $('lEndH').textContent = e.target.value ? fmtHijri(e.target.value) : '';
 });
+// a tap outside the sheet, and Escape (or a phone whose browser closes the sheet itself on back), close it like ✕:
+// what it came from (a book's benefits) opens again, and what the sheet held is let go
+const libDismiss = () => { const back = ldraft && ldraft.back; closeLib(); libBack(back); };
 document.addEventListener('click', (e) => {
   const d = $('libSheet');
-  if (d && e.target === d) closeLib();
+  if (d && e.target === d) libDismiss();
 });
+document.addEventListener('cancel', (e) => {
+  if (!e.target || e.target.id !== 'libSheet') return;
+  e.preventDefault();
+  libDismiss();
+}, true);
 
 const LibraryViews = {
   more: viewMore,

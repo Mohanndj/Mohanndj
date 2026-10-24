@@ -95,10 +95,12 @@ function awareStats(P) {
   // ✅ المهام: those due in the period (a task due today counts once done), plus what was done anyway
   // a reading project's book task is counted under the books, not here
   const due = S.tasks.filter((t) => !isGoal(t) && !t.bookId && inAll(t.due)).sort((a, b) => a.due.localeCompare(b.due));
-  const doneDue = due.filter((t) => t.done);
+  // done in the period: a task finished after a past period ended was not done in it
+  const doneBy = (t) => t.done && (!t.doneAt || dayOfTs(t.doneAt) <= last);
+  const doneDue = due.filter(doneBy);
   const doneAll = S.tasks.filter((t) => !isGoal(t) && !t.bookId && t.done && inP(dayOfTs(t.doneAt)));
   const extraT = doneAll.filter((t) => !due.includes(t)).sort((a, b) => a.doneAt - b.doneAt);
-  const missed = due.filter((t) => !t.done && t.due < t0);
+  const missed = due.filter((t) => !doneBy(t) && t.due < t0);
   const stepsBy = S.tasks.map((t) => ({ t, n: t.subtasks.filter((s) => s.done && inP(dayOfTs(s.doneAt))).length })).filter((x) => x.n);
   const steps = sum(stepsBy, (x) => x.n);
   const lateNow = P.current ? S.tasks.filter((t) => !isGoal(t) && !t.bookId && !t.done && t.due && t.due < t0).length : 0;
@@ -169,7 +171,7 @@ function awareStats(P) {
     const bad = new Set(sl.map((s) => dayOfTs(s.at))).size;
     qScores.push(pctOf(past - bad, span));
     qClean += past - bad; qPast += past; qSlips += sl.length;
-    qDetail.push(`«${q.title}»: ${past - bad} يوماً بلا زلّة من ${past}${sl.length ? ` | ${plural(sl.length, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')} (دوافعها: ${list(sl.map((s) => s.trigger || 'غير محدد'))})` : ''}`);
+    qDetail.push(`«${q.title}»: ${past - bad ? daysWord(past - bad) : 'لا يوم'} بلا زلّة من ${past}${sl.length ? ` | ${plural(sl.length, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')} (دوافعها: ${list(sl.map((s) => s.trigger || 'غير محدد'))})` : ''}`);
   }
   add('quits', { title: 'عادات أتركها', icon: '🚭' }, 'habits', qScores.length ? Math.round(sum(qScores, (x) => x) / qScores.length) : null, [
     qPast && `أيام بلا زلّة: ${qClean} من ${qPast}${qSlips ? ` | ${plural(qSlips, 'زلّة واحدة', 'زلّتان', 'زلّات', 'زلّة')}` : ''}`,
@@ -179,7 +181,8 @@ function awareStats(P) {
   // what was memorised in the period against the portions due on its days (never more than was left to learn)
   const hPlans = [], byType = {};
   let hReq = 0, hDone = 0;
-  const uw = (type, n) => (n ? unitWord(type, n) : 'صفر');
+  // after «حفظت» and «من»: «آيتين» not «آيتان»
+  const uw = (type, n) => (!n ? 'صفر' : n === 2 ? { quran: 'آيتين', poem: 'بيتين' }[type] || 'سطرين' : unitWord(type, n));
   for (const p of S.hplans) {
     const total = planUnits(p).length;
     const before = sum(Object.entries(p.log).filter(([d]) => d < start), ([, n]) => Number(n) || 0);
@@ -196,7 +199,7 @@ function awareStats(P) {
     hReq += req; hDone += Math.min(done, req || done);
     const t = byType[p.type] || (byType[p.type] = { req: 0, done: 0, left: 0 });
     t.req += req; t.done += done; t.left += left;
-    hPlans.push(`«${p.title}»: حفظت ${uw(p.type, done)} من ${uw(p.type, req)} مقررة${pc(Math.min(done, req), req)} | في ${plural(daysDone, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}${leftTxt(left ? uw(p.type, left) : 0)}`);
+    hPlans.push(`«${p.title}»: حفظت ${uw(p.type, done)} من ${uw(p.type, req)} مقررة${pc(Math.min(done, req), req)}${daysDone ? ` | في ${plural(daysDone, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}` : ''}${leftTxt(left ? unitWord(p.type, left) : 0)}`);
   }
   const reviewsBy = S.hifz.map((h) => ({ h, n: (h.hist || []).filter(inP).length })).filter((x) => x.n);
   const reviews = sum(reviewsBy, (x) => x.n);
@@ -206,7 +209,7 @@ function awareStats(P) {
   const looseBy = {};
   for (const h of loose) looseBy[h.type] = (looseBy[h.type] || 0) + parsePoemLen(h);
   add('hifz', pageLook('hifz', 'الحفظ', '📖'), 'hifz', hReq ? pctOf(hDone, hReq) : null, [
-    ...Object.entries(byType).map(([type, x]) => `حفظت ${uw(type, x.done)} من ${uw(type, x.req)} مقررة في هذا ${P.word}${pc(Math.min(x.done, x.req), x.req)}${leftTxt(x.left ? uw(type, x.left) : 0)}`),
+    ...Object.entries(byType).map(([type, x]) => `حفظت ${uw(type, x.done)} من ${uw(type, x.req)} مقررة في هذا ${P.word}${pc(Math.min(x.done, x.req), x.req)}${leftTxt(x.left ? unitWord(type, x.left) : 0)}`),
     ...Object.entries(looseBy).map(([type, n]) => `وحفظت خارج الخطط: ${uw(type, n)}`),
     reviews && `راجعت ${plural(reviews, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
   ], [...hPlans, ...learned.map((h) => `حفظت «${hzTitle(h)}»: ${uw(h.type, parsePoemLen(h))} (${dS(h.learnedAt)})`), ...reviewsBy.map((x) => `راجعت «${hzTitle(x.h)}»: ${plural(x.n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`)]);
@@ -243,20 +246,22 @@ function awareStats(P) {
     const qa = s.quizzes.flatMap((z) => z.attempts.filter((x) => inP(x.d) && x.total).map((x) => ({ z, a: x })));
     const qNew = s.quizzes.filter((z) => inP(dayOfTs(z.created)));
     if (qa.length) {
-      const avg = Math.round(sum(qa, (x) => qzPct(x.a)) / qa.length);
-      const pa = s.quizzes.flatMap((z) => z.attempts.filter((x) => x.total && x.d >= stPrev.start && x.d <= stPrev.end));
+      // an attempt whose written answers still wait for a judgement has no score yet: it is not counted as zero
+      const qd = qa.filter((x) => !qzPend(x.a)), wait = qa.length - qd.length;
+      const avg = qd.length ? Math.round(sum(qd, (x) => qzPct(x.a)) / qd.length) : null;
+      const pa = s.quizzes.flatMap((z) => z.attempts.filter((x) => x.total && !qzPend(x) && x.d >= stPrev.start && x.d <= stPrev.end));
       const prev = pa.length ? Math.round(sum(pa, (x) => qzPct(x)) / pa.length) : null;
-      const byTime = qa.slice().sort((x, y) => x.a.at - y.a.at), f0 = qzPct(byTime[0].a), f1 = qzPct(byTime[byTime.length - 1].a);
-      const k = new Set(qa.map((x) => x.z.id)).size, dlt = prev === null ? 0 : avg - prev;
+      const byTime = qd.slice().sort((x, y) => x.a.at - y.a.at), f0 = byTime.length && qzPct(byTime[0].a), f1 = byTime.length && qzPct(byTime[byTime.length - 1].a);
+      const k = new Set(qa.map((x) => x.z.id)).size, dlt = prev === null || avg === null ? 0 : avg - prev;
       stQa.push(...qa);
-      stRows.push(`اختبارات ${s.name}: ${plural(qa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')} في ${plural(k, 'اختبار واحد', 'اختبارين', 'اختبارات', 'اختباراً')} | متوسط درجاتك: ${avg}٪${prev !== null ? ` | مقارنة بـ${P.word} السابق (${prev}٪): ${dlt ? `${dlt > 0 ? '▲' : '▼'} ${Math.abs(dlt)} ${Math.abs(dlt) === 1 ? 'نقطة' : 'نقاط'}` : 'بلا تغيّر'}` : qa.length > 1 ? ` | من ${f0}٪ في أول محاولة إلى ${f1}٪ في آخرها` : ''}`);
+      stRows.push(`اختبارات ${s.name}: ${plural(qa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')} في ${plural(k, 'اختبار واحد', 'اختبارين', 'اختبارات', 'اختباراً')}${avg === null ? '' : ` | متوسط درجاتك: ${avg}٪${prev !== null ? ` | مقارنة بـ${P.word} السابق (${prev}٪): ${dlt ? `${dlt > 0 ? '▲' : '▼'} ${Math.abs(dlt)} ${Math.abs(dlt) === 1 ? 'نقطة' : 'نقاط'}` : 'بلا تغيّر'}` : qd.length > 1 ? ` | من ${f0}٪ في أول محاولة إلى ${f1}٪ في آخرها` : ''}`}${wait ? ` | تنتظر حكمك: ${plural(wait, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')}` : ''}`);
     }
     if (qNew.length) stRows.push(`أضفت ${plural(qNew.length, 'اختباراً واحداً', 'اختبارين', 'اختبارات', 'اختباراً')} في ${s.name}`);
-    stDetail.push(...qa.sort((x, y) => x.a.at - y.a.at).map((x) => `${s.name}: حللت «${x.z.title}»: ${x.a.score} من ${x.a.total} (${qzPct(x.a)}٪) (${dS(x.a.d)})`));
+    stDetail.push(...qa.sort((x, y) => x.a.at - y.a.at).map((x) => `${s.name}: حللت «${x.z.title}»: ${qzPend(x.a) ? 'تنتظر حكمك على إجاباتها النصية' : `${qzNum(x.a.score)} من ${x.a.total} (${qzPct(x.a)}٪)`} (${dS(x.a.d)})`));
   }
   add('study', pageLook('study', 'الدراسة', '🎓'), 'study', stReq ? pctOf(stDone, stReq) : null, [
     ...stRows,
-    S.study.filter((s) => s.quizzes.some((z) => z.attempts.some((x) => inP(x.d)))).length > 1 && `مجموع الاختبارات: ${plural(stQa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')} | متوسط درجاتك: ${Math.round(sum(stQa, (x) => qzPct(x.a)) / stQa.length)}٪`,
+    S.study.filter((s) => s.quizzes.some((z) => z.attempts.some((x) => inP(x.d)))).length > 1 && `مجموع الاختبارات: ${plural(stQa.length, 'محاولة واحدة', 'محاولتان', 'محاولات', 'محاولة')}${stQa.some((x) => !qzPend(x.a)) ? ` | متوسط درجاتك: ${Math.round(sum(stQa.filter((x) => !qzPend(x.a)), (x) => qzPct(x.a)) / stQa.filter((x) => !qzPend(x.a)).length)}٪` : ''}`,
     stRv && stRows.length > 1 && `مجموع المراجعات: ${plural(stRv, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
     P.current && studyDue().length && `للمراجعة الآن: ${plural(studyDue().length, 'درس واحد', 'درسان', 'دروس', 'درساً')}`,
   ], stDetail);
@@ -317,7 +322,7 @@ function awareStats(P) {
     bens.length && `سجّلت ${plural(bens.length, 'فائدة واحدة', 'فائدتين', 'فوائد', 'فائدة')}`,
     kuns.length && `كتبت في كناشة القراءة: ${kuns.length}`,
     recalls && `استذكرت ${plural(recalls, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
-    pendingRecall && `${pendingRecall} ينتظر الاستذكار`,
+    pendingRecall && `ينتظر الاستذكار: ${plural(pendingRecall, 'كتاب واحد', 'كتابان', 'كتب', 'كتاباً')}`,
   ], [...bookLines, ...bens.map((f) => `فائدة: ${f.title || excerpt(f.text || f.lesson, 50)}${f.book ? ` («${f.book}»)` : ''}`), ...kuns.map((k) => `كناشة: ${k.title || excerpt(k.text, 50)}`), ...recallsBy.map((x) => `استذكرت «${x.b.title}» (${x.es.map((e) => dS(e.d)).join('، ')})`)]);
 
   // 📔 يومياتي: days written since the first entry (today only once written)
@@ -359,7 +364,7 @@ function awareStats(P) {
   }
   const whom = new Set(S.people.filter((p) => p.contacts.some((c) => inP(c.d))).map((p) => p.name));
   add('people', pageLook('people', 'الأحبّة', '💞'), 'people', exp ? pctOf(got, exp) : null, [
-    nContacts ? `تواصلت ${plural(nContacts, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} مع ${plural(whom.size, 'شخص واحد', 'شخصين', 'أشخاص', 'شخصاً')}` : (S.people.length ? `لم تسجّل أي تواصل في هذا ${P.word}` : ''),
+    nContacts ? `تواصلت ${plural(nContacts, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} مع ${plural(whom.size, 'شخص واحد', 'شخصين', 'أشخاص', 'شخصاً')}` : (S.people.some((p) => dayOfTs(p.created) <= last) ? `لم تسجّل أي تواصل في هذا ${P.word}` : ''), // only once someone was added by then
     exp && `صلات في وقتها: ${got} من ${exp}${pc(got, exp)}`,
     overdue.length && `فات موعد صلة: ${list(overdue, 5)}`,
     never.length && `لم تتواصل بعد مع: ${list(never, 5)}`,
@@ -399,7 +404,7 @@ function awareStats(P) {
   const weeks = Math.max(1, tracked / 7);
   const coverage = Object.entries(GROUPS).map(([k, [, , rec]]) => Math.min(100, ((gcount[k] || 0) / (rec * weeks)) * 100));
   add('health', pageLook('health', 'الصحة', '🥗'), 'health', planned ? pctOf(ate, planned) : null, [
-    planDays.length && `سجّلت أكلك في ${tracked} من ${planDays.length} يوماً في خطتك`,
+    planDays.length && `سجّلت أكلك في ${tracked || 'صفر'} من ${plural(planDays.length, 'يوم واحد', 'يومين', 'أيام', 'يوماً')} في خطتك`,
     planned && `أكلت ${ate} من ${plural(planned, 'صنف واحد', 'صنفين', 'أصناف', 'صنفاً')} في خطتك لهذا ${P.word}${pc(ate, planned)}`,
     tracked && `متوسط ما أكلته ${Math.round(kcal / tracked)} سعرة، والتكامل الغذائي ${Math.round(sum(coverage, (x) => x) / coverage.length)}٪`,
   ], hLines);

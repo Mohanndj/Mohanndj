@@ -22,7 +22,9 @@ const Media = (() => {
       dbp = new Promise((res, rej) => {
         const r = indexedDB.open('mahami-media', 1);
         r.onupgradeneeded = () => r.result.createObjectStore('images');
-        r.onsuccess = () => res(r.result);
+        // «حذف كل البيانات» deletes the store: this open connection lets go of it (else the deletion waited, and media
+        // saved after it was lost at the next start), and what was shown from it is let go too
+        r.onsuccess = () => { const d = r.result; d.onversionchange = () => { d.close(); dbp = null; for (const u of urls.values()) URL.revokeObjectURL(u); urls.clear(); }; res(d); };
         r.onerror = () => rej(r.error);
       });
     }
@@ -126,7 +128,7 @@ function dailyQuoteHTML() {
   const starter = !q;
   if (starter) q = STARTER_QUOTES[Math.floor(parse(today()).getTime() / 86400000) % STARTER_QUOTES.length];
   return `<button type="button" class="daily-quote" data-tab="inspire">
-    <small>${icon('spark')} الإلهام${starter ? ' | أضف عباراتك من صفحة الإلهام' : ''}</small>
+    <small>${icon('spark')} ${esc(pageName('inspire'))}${starter ? ` | أضف عباراتك من صفحة ${esc(pageName('inspire'))}` : ''}</small>
     <q>${esc(q.text)}</q>
     ${q.source ? `<cite>${esc(q.source)}</cite>` : ''}
   </button>`;

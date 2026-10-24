@@ -164,8 +164,13 @@ function reportDocx(periods) {
   periods.forEach((P) => { lines.push(`## ${P.title}`); lines.push(...reportBody(P, repUi.journal)); });
   const paras = [];
   let firstPeriod = true;
-  for (const l of lines) {
+  // a note written on several lines («الخلاصة»): each line its own paragraph (a line break inside a justified paragraph
+  // stretches the line before it across the page)
+  const CONT = '\u0001';
+  const flat = lines.flatMap((l0) => { const [l, ...more] = String(l0 || '').split('\n'); return [l, ...more.map((x) => x.trim()).filter(Boolean).map((x) => CONT + x)]; });
+  for (const l of flat) {
     if (!l) continue;
+    if (l.startsWith(CONT)) { paras.push({ style: 'Tight', text: ar(l.slice(1)) }); continue; }
     if (l.startsWith('# ')) paras.push({ style: 'Title', text: ar(l.slice(2)) });
     else if (l.startsWith('## ')) {
       const isPeriod = periods.some((P) => l === `## ${P.title}`);

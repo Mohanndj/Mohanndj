@@ -22,9 +22,20 @@ const DEFAULT_TEMPLATES = [
   { id: 'tpl-free', emoji: '✍️', name: 'كتابة حرّة', when: 'any', blocks: { mood: true }, questions: [] },
 ];
 
+// a short mark cut to whole characters as seen: an emoji joined with others («🧑‍💻», 5 code units) is one and is kept
+// whole (cut at 4 code units it became a broken glyph); otherwise as many as fit in n code units, as before
+// (a function declaration: the app's data is loaded before later files' constants exist)
+function glyphsUpTo(s, n = 4) {
+  const t = String(s || '').trim();
+  let parts;
+  try { parts = [...new Intl.Segmenter('ar', { granularity: 'grapheme' }).segment(t)].map((x) => x.segment); } catch { parts = Array.from(t); }
+  let out = '';
+  for (const g of parts) { if (out && out.length + g.length > n) break; out += g; }
+  return out;
+}
 function normalizeJTemplate(t) {
   return {
-    id: t.id || uid(), emoji: String(t.emoji || '📝').slice(0, 4), name: String(t.name || 'قالب'),
+    id: t.id || uid(), emoji: glyphsUpTo(t.emoji || '📝') || '📝', name: String(t.name || 'قالب'),
     when: JWHEN[t.when] ? t.when : 'any',
     questions: (Array.isArray(t.questions) ? t.questions : []).map((q) => String(q).trim()).filter(Boolean),
     blocks: Object.fromEntries(Object.keys(JBLOCKS).map((k) => [k, !!(t.blocks && t.blocks[k])])),
@@ -141,6 +152,9 @@ function viewJournal() {
   const t0 = today();
   const todays = S.journal.filter((j) => j.date === t0);
   const q = jUi.q.trim().toLowerCase();
+  // a month left chosen after its last entry went (its chips show with two months or more) is let go
+  const jMonths = new Set(S.journal.map((j) => monthKey(j.date)));
+  if (jUi.month && !(jMonths.size > 1 && jMonths.has(jUi.month))) jUi.month = '';
   const list = S.journal.filter((j) => (!q || [jText(j), j.tplName, ...j.answers.map((a) => a.q)].some((s) => s.toLowerCase().includes(q))) && (!jUi.month || monthKey(j.date) === jUi.month))
     .sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
   const months = [...new Set(S.journal.map((j) => monthKey(j.date)))].sort().reverse();
@@ -151,7 +165,7 @@ function viewJournal() {
   return `${moreCrumb()}
   <section class="section">
     <div class="section-head"><h2>يومياتي وتأملاتي</h2><div class="btn-row">${S.journal.length ? `<button type="button" class="xls-btn word-btn" data-action="j-export">${icon('note')}وورد</button>${xlsBtn('journal')}` : ''}</div></div>
-    ${S.journal.length ? `<div class="j-stats"><span><b>${S.journal.length}</b> ${S.journal.length >= 3 && S.journal.length <= 10 ? 'يوميات' : 'يومية'}</span><span><b>${thisMonth}</b> هذا الشهر</span><span><b>${streak}</b> ${streak >= 3 && streak <= 10 ? 'أيام متتالية' : 'يوم متتالٍ'}</span></div>` : ''}
+    ${S.journal.length ? `<div class="j-stats"><span><b>${S.journal.length}</b> ${S.journal.length >= 3 && S.journal.length <= 10 ? 'يوميات' : 'يومية'}</span><span><b>${thisMonth || 'صفر'}</b> هذا الشهر</span><span><b>${streak || 'صفر'}</b> ${streak >= 3 && streak <= 10 ? 'أيام متتالية' : 'يوم متتالٍ'}</span></div>` : ''}
     <div class="j-start">
       <div class="row-between"><h3>${jUi.manage ? 'قوالبي' : todays.length ? 'يومية أخرى لليوم؟' : 'اكتب يومية اليوم'}</h3>
         <button type="button" class="j-manage-btn" data-action="j-manage" aria-pressed="${jUi.manage}">${jUi.manage ? `${icon('check')} تم` : `${icon('edit')} تخصيص القوالب`}</button></div>
@@ -253,6 +267,14 @@ function saveJNow() {
     jstate.isNew = false;
     jstate.draft = null;
     $('jDel').hidden = false;
+  } else if (jEmpty(j)) {
+    // everything in a saved entry erased: it is not kept (it was still counted as an entry); writing again keeps it again
+    S.journal = S.journal.filter((x) => x !== j);
+    Object.assign(jstate, { isNew: true, draft: j });
+    $('jDel').hidden = true;
+    save();
+    setJStatus('');
+    return;
   }
   j.updated = Date.now();
   j.facts = dayFacts(j.date);
@@ -276,7 +298,7 @@ function closeJournal() {
 }
 
 async function jAIQuestion(btn) {
-  const j = readJ();
+  const j = readJ(), forId = jstate && jstate.id;
   const f = dayFacts(j.date);
   btn.disabled = true;
   try {
@@ -288,7 +310,8 @@ async function jAIQuestion(btn) {
       effort: 'low',
       maxTokens: 1000,
     });
-    if (q && jstate) { j.answers.push({ q: q.trim(), a: '' }); renderJEditor(j); scheduleJSave(); const last = $(`jA${j.answers.length - 1}`); if (last) last.focus(); }
+    // only into the entry it was asked for: another entry opened meanwhile is left as it is
+    if (q && jstate && jstate.id === forId) { j.answers.push({ q: q.trim(), a: '' }); renderJEditor(j); scheduleJSave(); const last = $(`jA${j.answers.length - 1}`); if (last) last.focus(); }
   } catch (e) { toast(AI.friendly(e)); }
   if (btn.isConnected) btn.disabled = false;
 }
@@ -347,7 +370,7 @@ function openJTpl(id) {
     <div class="sheet-head"><h2>${id ? 'تعديل القالب' : 'قالب جديد'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="grid-emoji">
-      <label class="field"><span>رمز</span><input type="text" id="tEmoji" value="${esc(t.emoji)}" maxlength="4" autocomplete="off" data-novoice></label>
+      <label class="field"><span>رمز</span><input type="text" id="tEmoji" value="${esc(t.emoji)}" maxlength="16" autocomplete="off" data-novoice></label>
       <label class="field"><span>اسم القالب</span><input type="text" id="tName" value="${esc(t.name)}" autocomplete="off" placeholder="مثال: يومية السفر"></label>
     </div>
     <div class="field"><span>الأسئلة</span>
@@ -427,7 +450,7 @@ function runJExport() {
   save();
   const list = S.journal.filter((j) => !jEmpty(j) && (range === 'all' || (range === 'custom' ? j.date >= o.from && j.date <= o.to : monthKey(j.date) === range)));
   if (!list.length) { toast('لا يوميات في هذه الفترة.'); return false; }
-  exportWord(list, o, range === 'all' ? pageName('journal') : range === 'custom' ? `يومياتي من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `يومياتي | ${monthLabel(range)}`);
+  exportWord(list, o, range === 'all' ? pageName('journal') : range === 'custom' ? `${pageName('journal')} من ${fmtDate(o.from, { day: 'numeric', month: 'long', year: 'numeric' })} إلى ${fmtDate(o.to, { day: 'numeric', month: 'long', year: 'numeric' })}` : `${pageName('journal')} | ${monthLabel(range)}`);
   return true;
 }
 

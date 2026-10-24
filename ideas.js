@@ -47,6 +47,8 @@ function ideaCard(x) {
 }
 
 function viewIdeas() {
+  if (ideaUi.tag && !ideaTags().includes(ideaUi.tag)) ideaUi.tag = ''; // a tag no idea has any more
+  if (!S.ideas.length) ideaUi.q = '';
   const q = ideaUi.q.trim().toLowerCase();
   const list = S.ideas.filter((x) =>
     (ideaUi.filter === 'all' || (ideaUi.filter === 'open') === IDEA_OPEN.includes(x.status)) &&
@@ -136,16 +138,18 @@ function ideaConvert(kind) {
   if (!x.text) { toast('اكتب الفكرة أولاً.'); return; }
   const [title, ...rest] = x.text.split('\n');
   const body = [rest.join('\n').trim(), x.details].filter(Boolean).join('\n');
-  x.convertedTo = { task: 'مهمة', project: 'مشروع', memo: 'ملاحظة' }[kind];
-  if (x.status === 'new') x.status = 'grow';
+  // what was written is kept; it is marked «✓ مهمة/مشروع» only once that task or project is saved (closing it unsaved changes nothing)
   const old = getIdea(x.id);
   if (old) Object.assign(old, x); else S.ideas.push(x);
+  const mark = () => { const i = getIdea(x.id); if (i) { i.convertedTo = { task: 'مهمة', project: 'مشروع', memo: 'ملاحظة' }[kind]; if (i.status === 'new') i.status = 'grow'; } };
+  if (kind === 'memo') mark();
   save();
   closeLib();
   if (kind === 'task') {
-    openSheet(null, { prefill: normalize({ id: uid(), kind: 'task', title, category: x.tag, notes: body ? [{ id: uid(), text: body, at: Date.now() }] : [], created: Date.now() }) });
+    openSheet(null, { prefill: normalize({ id: uid(), kind: 'task', title, category: x.tag, notes: body ? [{ id: uid(), text: body, at: Date.now() }] : [], created: Date.now() }), onSaved: mark });
   } else if (kind === 'project') {
     openProjectSheet(null);
+    pdraft.onSaved = mark;
     $('pName').value = title;
     if ($('pDesc')) $('pDesc').value = body;
   } else {
@@ -163,6 +167,7 @@ async function ideaAI(btn) {
   btn.disabled = true;
   const label = btn.innerHTML;
   btn.textContent = 'جارٍ التفكير…';
+  const forId = ldraft && ldraft.id;
   try {
     const out = await AI.ask({
       system: 'أنت مساعد يطوّر الأفكار الشخصية باختصار وبالعربية. اكتب نصاً عادياً بلا Markdown ولا رموز نجمية، بهذه العناوين كل منها في سطر يليه نقاط تبدأ بـ «- »: لماذا تستحق؟ / كيف أنفّذها؟ / الخطوة الأولى اليوم / ما الذي قد يعيقها؟ اجعل كل قسم من نقطتين إلى ثلاث، عملية ومحددة.',
@@ -170,7 +175,8 @@ async function ideaAI(btn) {
       effort: 'low',
       maxTokens: 3000,
     });
-    const d = $('iDetails');
+    // only into the idea it was asked for (another one may be open by now)
+    const d = ldraft && ldraft.id === forId ? $('iDetails') : null;
     if (d && out) { d.value = (d.value.trim() ? d.value.trim() + '\n\n' : '') + out.trim(); d.dispatchEvent(new Event('input', { bubbles: true })); }
   } catch (e) {
     toast(AI.friendly(e));

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 106;
+const APP_VERSION = 107;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -409,11 +409,15 @@ function step(id, date, delta) {
 // a short pulse when something is ticked done (Android), unless turned off in the settings
 function haptic() { try { if (S.settings.haptic !== false && navigator.vibrate) navigator.vibrate(12); } catch {} }
 
-function removeTask(id) {
+// a task gone: its timer and alarms go with it (removeTask also saves and redraws; plan.js deletes with dropTask)
+function dropTask(id) {
   if (S.timer && S.timer.taskId === id) { S.timer = null; timerNotify(true); }
   S.tasks = S.tasks.filter((t) => t.id !== id);
   for (const k of Object.keys(S.fired)) if (k.startsWith(id + '|')) delete S.fired[k];
   for (const k of Object.keys(S.snoozed)) if (k.startsWith(id + '|')) delete S.snoozed[k];
+}
+function removeTask(id) {
+  dropTask(id);
   save();
   render();
 }
@@ -449,9 +453,10 @@ function metaHTML(t, d, opts = {}) {
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())} من ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
   if (t.subtasks.length) meta.push(`<span class="num">${icon('steps')}خطوات: ${t.subtasks.filter((x) => x.done).length} من ${t.subtasks.length}</span>`);
   if (t.notes.length) meta.push(`<span class="num">${icon('note')}${plural(t.notes.length, 'ملاحظة', 'ملاحظتان', 'ملاحظات', 'ملاحظة')}</span>`);
-  const tracked = trackedMs(t.id);
+  // a repeating goal: that day's time only («اليوم» is for today), and «استغرقت» once that day is done
+  const tracked = isRepeat(t) && d ? sessionsOf(t.id).filter((x) => sessionDay(x) === d).reduce((n, x) => n + x.ms, 0) : trackedMs(t.id);
   // (a book task's reading time is shown with its past sessions, not beside its next date)
-  if (tracked >= 60000 && !t.bookId) meta.push(`<span class="num">${icon('clock')}${t.done ? 'استغرقت' : 'عملت عليها'}: ${fmtDur(tracked)}</span>`);
+  if (tracked >= 60000 && !t.bookId) meta.push(`<span class="num">${icon('clock')}${(isRepeat(t) && d ? doneOn(t, d) : t.done) ? 'استغرقت' : 'عملت عليها'}: ${fmtDur(tracked)}</span>`);
   return meta.join('');
 }
 
@@ -618,7 +623,7 @@ function viewToday() {
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
     <div class="txt">
       <b>${summary}</b>
-      <span class="muted">${late ? `<span class="late">${late} متأخرة</span> | ` : ''}${esc(fmtHijri(d))}</span>
+      <span class="muted">${late ? `<span class="late">${late} متأخرة</span>` : ''}${S.settings.hijri ? `${late ? ' | ' : ''}${esc(fmtHijri(d))}` : ''}</span>
     </div>
   </div>`,
     prayer: () => todayBlock('أوقات الصلاة', '', prayerStripHTML()),
@@ -1018,6 +1023,8 @@ function render() {
   $('cats').innerHTML = categories().map((c) => `<option value="${esc(c)}">`).join('');
   // the page is remembered as soon as it is shown, not only on leaving (v96)
   saveWhere();
+  // an alarm whose task was just ticked or deleted (from the list under it) stops showing
+  if (alarmQueue.length) showAlarm();
 }
 
 // a descriptive line whose pieces are joined by « | » shows each piece in its own small box,
@@ -1193,7 +1200,7 @@ function updatePrayerHint() {
   const pt = prayerTimes(d);
   if (!pt) { $('prayerHint').innerHTML = 'لم تحدد مدينتك بعد. <button type="button" class="ghost" data-tab="settings" data-close="1">حدّدها الآن</button>'; return; }
   const p = readPrayer();
-  $('prayerHint').textContent = `الوقت في ${relDate(d)}: ${fmtMin(pt[p.name] + p.offset)} (${Prayer.NAMES[p.name]} ${fmtMin(pt[p.name])})`;
+  $('prayerHint').textContent = `الوقت ${['اليوم', 'غداً', 'أمس'].includes(relDate(d)) ? relDate(d) : `في ${relDate(d)}`}: ${fmtMin(pt[p.name] + p.offset)} (${Prayer.NAMES[p.name]} ${fmtMin(pt[p.name])})`;
 }
 function readPrayer() {
   const rel = $('fPrRel').value;
@@ -1209,7 +1216,9 @@ function renderDays() {
 }
 
 function renderAlarms() {
-  $('fAlarms').innerHTML = ALARM_OPTIONS.map(([v, l]) =>
+  // an alarm set in the quick add («قبلها بـ 20 دقيقة») shows too, so it can be seen and removed
+  const extra = draft.alarms.filter((v) => !ALARM_OPTIONS.some(([o]) => o === v)).map((v) => [v, `قبل ${v < 60 ? `${v} د` : minsWord(v)}`]);
+  $('fAlarms').innerHTML = [...ALARM_OPTIONS, ...extra].sort((a, b) => a[0] - b[0]).map(([v, l]) =>
     `<button type="button" data-action="alarm-opt" data-v="${v}" aria-pressed="${draft.alarms.includes(v)}">${l}</button>`).join('');
 }
 
@@ -1222,7 +1231,7 @@ function renderNotes() {
   $('notesList').innerHTML = notes.slice().reverse().map((n) => `
     <li class="note"><p>${esc(n.text)}</p>
       <div class="note-foot"><span class="num">${esc(fmtStamp(n.at))}</span>
-      <span class="note-btns"><button type="button" data-action="note-move" data-v="${n.id}">إلى الملاحظات</button>
+      <span class="note-btns"><button type="button" data-action="note-move" data-v="${n.id}">إلى ${esc(pageName('notes'))}</button>
       <button type="button" data-action="del-note" data-v="${n.id}" class="${armed === n.id ? 'armed' : ''}">${armed === n.id ? 'تأكيد الحذف' : 'حذف'}</button></span></div>
       ${draft.moveNote === n.id ? `<div class="note-move">
         <select id="nmTarget" aria-label="إلى أي ملاحظة"><option value="">ملاحظة جديدة</option>${memos.map((m) => `<option value="${m.id}">${esc(memoName(m))}</option>`).join('')}</select>
@@ -1263,9 +1272,10 @@ function openSheet(id, opts = {}) {
     notes: t ? t.notes.map((n) => ({ ...n })) : [],
     subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
     alarms: t ? [...t.alarms] : [],
-    autoAlarm: !t || !t.alarms.length,
+    autoAlarm: !t || (!t.alarms.length && !hasTime(t)), // a time given later rings; an alarm turned off stays off
     timeMode: t && t.prayer ? 'prayer' : t && t.time ? 'clock' : 'none',
     fromBenefit: opts.fromBenefit || '',
+    onSaved: opts.onSaved || null, // what made it (an idea, an archived item) is marked only once the task is saved
   };
   draft.mode = t ? (isHabit(t) ? 'habit' : isRepeat(t) ? 'repeat' : 'once') : opts.habit ? 'habit' : draft.repeat ? 'repeat' : 'once';
   draft.hdays = t && isHabit(t) ? [...t.repeat.days] : [...DAY_ORDER];
@@ -1295,7 +1305,10 @@ function openSheet(id, opts = {}) {
   $('fPrName').value = p.name;
   $('fPrRel').value = p.offset < 0 ? 'before' : p.offset > 0 ? 'after' : 'at';
   const absOff = String(Math.abs(p.offset) || 15);
-  $('fPrMin').value = [...$('fPrMin').options].some((o) => o.value === absOff) ? absOff : '15';
+  // an offset not in the list (40 minutes, from the quick add) is added to it as it is, not turned into 15 on saving
+  for (const o of [...$('fPrMin').options]) if (o.dataset.extra) o.remove();
+  if (![...$('fPrMin').options].some((o) => o.value === absOff)) { const o = new Option(`بـ ${minsWord(Number(absOff))}`, absOff); o.dataset.extra = '1'; $('fPrMin').add(o); }
+  $('fPrMin').value = absOff;
   $('fNote').value = '';
   $('fSub').value = '';
   $('delBtn').hidden = !existing;
@@ -1371,7 +1384,8 @@ function readDraft() {
     } else {
       t.repeat = null;
       t.habit = null;
-      t.due = $('fGoalDue').value || '';
+      // a time with no deadline is for today, as for a task (it never rang and never showed in «اليوم»)
+      t.due = $('fGoalDue').value || (hasTime(t) ? today() : '');
       if (t.target > 1) { t.count = Math.min(t.count, t.target); t.done = t.count >= t.target; t.doneAt = t.done ? (base.doneAt || Date.now()) : null; } else t.count = 0;
     }
     // a changed daily amount re-judges the days already counted (7 of a new 6 is done; 6 of a new 8 is not)
@@ -1403,7 +1417,9 @@ function commitDraft() {
   }
   const i = S.tasks.findIndex((x) => x.id === t.id);
   if (i === -1) S.tasks.push(t); else S.tasks[i] = t;
-  for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k]; // new time may ring again
+  // a new time may ring again; an edit that leaves the time and alarms as they were does not ring an answered alarm again
+  const timing = (x) => JSON.stringify([x.due, x.time, x.prayer, x.alarms, x.repeat && x.repeat.days]);
+  if (!was || timing(was) !== timing(t)) for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k];
   save();
   return t;
 }
@@ -1417,6 +1433,7 @@ function openTaskBulk(pid, roleId = '') {
     <p class="note-text" id="tbCount"></p>
     <label class="field"><span>المشروع</span><select id="tbProject"><option value="">بلا مشروع (مهام عامة)</option>${S.projects.map((p) => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
     <label class="field"><span>الدور</span><select id="tbRole">${khRoleOptions(roleId)}</select><small class="hint">مهام المشروع تأخذ دور مشروعها.</small></label>
+    <label class="field" id="tbAreaWrap"${roleId === KH_SAW ? '' : ' hidden'}><span>الجانب</span><select id="tbArea">${khAreaOptions('health')}</select></label>
     <label class="field"><span>التاريخ (اختياري)</span><input type="date" id="tbDue"></label>
     <div class="sheet-actions"><button type="submit" class="primary">أضفها</button></div>`;
   showLib();
@@ -1429,7 +1446,7 @@ function saveTaskBulk() {
   const projectId = $('tbProject').value, due = $('tbDue').value, now = Date.now();
   // the first line stays first in «الأحدث»
   const roleId = projectId ? '' : $('tbRole').value;
-  S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, roleId, area: roleId === KH_SAW ? 'health' : '', created: now + lines.length - i })));
+  S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, roleId, area: roleId === KH_SAW ? ($('tbArea') ? $('tbArea').value : 'health') : '', created: now + lines.length - i })));
   save();
   const p = getProject(projectId);
   setTimeout(() => toast(`أُضيفت ${plural(lines.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')}${p ? ` إلى «${p.name}»` : ''}`), 300);
@@ -1464,10 +1481,11 @@ $('editor').addEventListener('submit', (e) => {
   e.preventDefault();
   if ($('fNote').value.trim()) addNote();
   if ($('fSub').value.trim()) addSub();
-  const fromBenefit = draft.fromBenefit;
+  const fromBenefit = draft.fromBenefit, onSaved = draft.onSaved;
   const t = commitDraft();
   if (!t) return;
   if (fromBenefit && getBenefit(fromBenefit)) { getBenefit(fromBenefit).actionId = t.id; save(); }
+  if (onSaved) { onSaved(t); save(); }
   const wasNew = draftIsNew;
   closeSheet();
   if (t.alarms.length) ensureNotifPermission();
@@ -1489,7 +1507,9 @@ function openProjectSheet(id, roleId = '') {
   const p = id ? getProject(id) : null;
   const used = new Set(S.projects.map((x) => x.color));
   const color = p ? p.color : (PROJECT_COLORS.find(([c]) => !used.has(c)) || PROJECT_COLORS[0])[0];
-  pdraft = { id: p ? p.id : uid(), color, isNew: !p };
+  pdraft = { id: p ? p.id : uid(), color, isNew: !p, onSaved: null };
+  // a delete armed on another project does not carry over to this one
+  projArmed = false; $('pDel').classList.remove('armed'); $('pDel').textContent = 'حذف المشروع';
   $('projTitle').textContent = p ? 'تعديل المشروع' : 'مشروع جديد';
   $('pName').value = p ? p.name : '';
   $('pDesc').value = p ? p.desc : '';
@@ -1519,6 +1539,7 @@ $('projForm').addEventListener('submit', (e) => {
   const existing = getProject(pdraft.id);
   const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value, roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '' });
   if (existing) Object.assign(existing, p); else S.projects.push(p);
+  if (pdraft.onSaved) pdraft.onSaved(p);
   save();
   const isNew = pdraft.isNew;
   closeProjectSheet();
@@ -1620,6 +1641,7 @@ function keepRinging() {
   const started = Date.now();
   let lastNote = Date.now();
   ringLoop = setInterval(() => {
+    showAlarm(); // drops an alarm whose task was done or deleted meanwhile
     const cur = alarmQueue[0];
     if (!cur || Date.now() - started > RING_MIN * 60000) { clearInterval(ringLoop); ringLoop = null; return; }
     beep();
@@ -1667,9 +1689,13 @@ function ring(t, key, d, off) {
   S.fired[key] = Date.now();
   delete S.snoozed[key];
   save();
-  alarmQueue.push({ id: t.id, key, d, off });
+  // the alarm ringing now is the one shown (an older one nobody answered waits behind it), with its own five minutes
+  const was = alarmQueue.findIndex((a) => a.key === key);
+  if (was !== -1) alarmQueue.splice(was, 1);
+  alarmQueue.unshift({ id: t.id, key, d, off });
   showAlarm();
   beep();
+  if (ringLoop) { clearInterval(ringLoop); ringLoop = null; }
   keepRinging();
   try { if (navigator.vibrate && navigator.userActivation?.hasBeenActive) navigator.vibrate([300, 150, 300]); } catch {}
   if (document.visibilityState !== 'visible') systemNotify(t.title, alarmBody(t, d, off), key, t.id);
@@ -1685,7 +1711,8 @@ function showAlarm() {
     return;
   }
   const t = getTask(cur.id);
-  if (!t) { alarmQueue.shift(); showAlarm(); return; }
+  // its task deleted, or done from the list meanwhile: it stops
+  if (!t || doneOn(t, cur.d)) { alarmQueue.shift(); showAlarm(); return; }
   const left = minutesLeft(t, cur.d);
   $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق | بعد ${minsWord(left)}` : 'منبه';
   $('alarmTitle').textContent = `${t.title} | ${timeLabel(t, cur.d)}`;
@@ -1696,7 +1723,7 @@ function alarmAction(action, id, key) {
   const t = getTask(id);
   const date = key && key.includes('|') ? key.split('|')[1] : today();
   if (t && action === 'done') {
-    if (isCounted(t)) { setCount(t, date, t.target); save(); render(); }
+    if (isCounted(t)) { if (notYetOn(t, date)) toast(`موعدها ${dueLabel(date)}`); else { setCount(t, date, t.target); save(); render(); } }
     else if (!doneOn(t, date)) toggle(id, date);
   }
   if (t && action === 'snooze') {
@@ -1707,11 +1734,22 @@ function alarmAction(action, id, key) {
   const i = alarmQueue.findIndex((a) => a.key === key);
   if (i !== -1) alarmQueue.splice(i, 1);
   showAlarm();
+  // answered here: its notification (kept until answered) leaves the phone's shade too
+  if (key && action !== 'dismiss' && 'serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then((reg) => reg && reg.getNotifications({ tag: key })).then((ns) => { for (const n of ns || []) n.close(); }).catch(() => {});
 }
 
 function checkAlarms() {
   const now = Date.now();
   const d0 = today();
+  // a snoozed alarm rings when its snooze ends, whatever its day (snoozed at 23:55 it rings after midnight);
+  // one whose task was done or deleted meanwhile is let go
+  let pruned = false;
+  for (const [key, sn] of Object.entries(S.snoozed)) {
+    const [id, d, off] = key.split('|'), t = getTask(id);
+    if (!t || !d || doneOn(t, d)) { delete S.snoozed[key]; pruned = true; continue; }
+    if (now >= sn) ring(t, key, d, Number(off) || 0);
+  }
+  if (pruned) save();
   for (const t of S.tasks) {
     if (!t.alarms.length || !hasTime(t)) continue;
     // a "day before" alarm belongs to tomorrow's occurrence
@@ -1724,8 +1762,7 @@ function checkAlarms() {
       for (const off of t.alarms) {
         const fireAt = at - off * 60000;
         const key = `${t.id}|${d}|${off}`;
-        const sn = S.snoozed[key];
-        if (sn) { if (now >= sn) ring(t, key, d, off); continue; }
+        if (S.snoozed[key]) continue; // rings above, when its snooze ends
         if (S.fired[key] || now < fireAt) continue;
         if (now - fireAt > MISSED_WINDOW_MIN * 60000) { S.fired[key] = now; save(); continue; }
         ring(t, key, d, off);
@@ -2011,9 +2048,9 @@ function viewTimer() {
     const t = getTask(en.taskId);
     card = `<section class="timer-card">
       <div class="t-ended"><strong>${en.phase === 'break' ? 'انتهت الاستراحة' : 'أحسنت! انتهى الوقت'}</strong>
-      <span class="note-text">${en.phase === 'break' ? 'جاهز لجولة جديدة؟' : `سُجّلت ${en.minutes} دقيقة لـ «${esc(t ? t.title : '')}»`}</span></div>
+      <span class="note-text">${en.phase === 'break' ? 'جاهز لجولة جديدة؟' : `سُجّلت ${plural(en.minutes, 'دقيقة واحدة', 'دقيقتان', 'دقائق', 'دقيقة')} لـ «${esc(t ? t.title : '')}»`}</span></div>
       <div class="t-actions">
-        ${en.phase === 'break' ? '' : `<button type="button" class="ghost" data-action="timer-break">استراحة ${cfg.brk} دقائق</button>`}
+        ${en.phase === 'break' ? '' : `<button type="button" class="ghost" data-action="timer-break">استراحة ${minsWord(cfg.brk)}</button>`}
         <button type="button" class="primary" data-action="timer-again">جولة ${en.phase === 'break' ? 'جديدة' : 'أخرى'} (${cfg.minutes} د)</button>
         ${t && !doneOn(t, today()) && en.phase !== 'break' ? '<button type="button" class="ghost" data-action="timer-done-task">تمت المهمة</button>' : ''}
         <button type="button" data-action="timer-close-end">إغلاق</button>
@@ -2034,7 +2071,7 @@ function viewTimer() {
         <div class="field"><span>الاستراحة بعدها</span><div class="chips wrap">${[5, 10, 15].map((m) => chip('timer-brk', m, cfg.brk, `${m} د`)).join('')}</div></div>` : ''}
         <label class="switch"><input type="checkbox" id="tAwake"${cfg.awake ? ' checked' : ''}><span>إبقاء الشاشة مضاءة أثناء المؤقت</span></label>
         <button type="button" class="primary t-start" data-action="timer-start">ابدأ</button>
-      </div>` : emptyHTML('لا مهام بعد', 'أضف مهمة أولاً ثم شغّل لها المؤقت.', addBtn('new', 'مهمة'))}
+      </div>` : S.tasks.some((t) => !t.bookId) ? emptyHTML('لا مهمة باقية', 'أنجزت مهامك كلها. أضف مهمة جديدة لتشغّل لها المؤقت.', addBtn('new', 'مهمة')) : emptyHTML('لا مهام بعد', 'أضف مهمة أولاً ثم شغّل لها المؤقت.', addBtn('new', 'مهمة'))}
     </section>`;
   }
   const t0 = today();
@@ -2097,6 +2134,10 @@ document.addEventListener('click', (e) => {
     case 'timer-for': {
       const id = draft && draft.id;
       if (!id || !getTask(id)) break;
+      // what was just changed in the sheet is kept first (as «ics» does)
+      if ($('fNote').value.trim()) addNote();
+      if ($('fSub').value.trim()) addSub();
+      if (!commitDraft()) break;
       closeSheet();
       ui.tab = 'timer';
       startTimer(id, cfg.mode, cfg.minutes);
@@ -2147,21 +2188,23 @@ document.addEventListener('click', (e) => {
       if (!projArmed) {
         projArmed = true;
         btn.classList.add('armed');
-        btn.textContent = 'تأكيد: تنتقل مهامه إلى «مهام عامة»';
+        btn.textContent = (S.projects.find((p) => p.id === pdraft.id) || {}).topic ? 'تأكيد: تبقى كتبه في «الكتب»' : 'تأكيد: تنتقل مهامه إلى «مهام عامة»';
         setTimeout(() => { projArmed = false; if (btn.isConnected) { btn.classList.remove('armed'); btn.textContent = 'حذف المشروع'; } }, 3500);
         break;
       }
       projArmed = false;
       const pid = pdraft.id;
       // a reading project's book tasks go with it (the books stay); other tasks become general tasks
-      const wasReading = !!(S.projects.find((p) => p.id === pid) || {}).topic;
+      const gone = S.projects.find((p) => p.id === pid) || {};
+      const wasReading = !!gone.topic;
       if (wasReading) S.tasks = S.tasks.filter((t) => !(t.projectId === pid && t.bookId));
-      for (const t of S.tasks) if (t.projectId === pid) t.projectId = '';
+      // its tasks keep the role they had through it («خطِّط»), not «بلا دور»
+      for (const t of S.tasks) if (t.projectId === pid) { if (!t.roleId && gone.roleId) { t.roleId = gone.roleId; t.area = gone.area || ''; } t.projectId = ''; }
       S.projects = S.projects.filter((p) => p.id !== pid);
       save();
       closeProjectSheet();
       go('tasks', '');
-      toast('حُذف المشروع، ومهامه الآن في «مهام عامة»');
+      toast(wasReading ? 'حُذف المشروع القرائي، وبقيت كتبه في «الكتب»' : 'حُذف المشروع، ومهامه الآن في «مهام عامة»');
       break;
     }
     case 'open': openSheet(id); break;
@@ -2186,6 +2229,7 @@ document.addEventListener('click', (e) => {
     case 'cal-type': {
       // the same day stays chosen; its month in the other calendar is shown
       S.settings.calType = v === 'hijri' ? 'hijri' : 'greg';
+      khMemo.clear?.(); if (typeof khResyncChains === 'function') khResyncChains(); // a plan's months are now the other calendar's
       ui.calH = hMonthStart(ui.calSel);
       ui.calMonth = ui.calSel.slice(0, 7);
       save(); render();
@@ -2326,6 +2370,8 @@ document.addEventListener('click', (e) => {
     case 'upd-now': location.reload(); break;
     case 'hard-refresh':
       (async () => {
+        // only with a working connection: the saved copy is deleted, and without one the app could not open again
+        try { if (!navigator.onLine) throw 0; const r = await fetch(`sw.js?check=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) throw 0; } catch { toast('لا يوجد اتصال بالإنترنت. حدّث التطبيق حين تتصل.'); return; }
         try {
           const scope = new URL('./', location.href).href;
           if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) if (r.scope === scope) await r.unregister();
@@ -2411,12 +2457,15 @@ window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; t
 
 // ---------- service worker ----------
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  const hadController = !!navigator.serviceWorker.controller;
+  // a page opened with no saved copy in control yet (the first visit, or just after «تحديث التطبيق الآن»): its first
+  // takeover is that copy (no bar); a later one is a new version
+  let hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => reg.update()).catch(() => {});
   // the app opens from its saved copy (sw.js); a new version is saved in the background, then this bar offers it
   // (nothing reloads by itself, so nothing being written is lost)
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || $('updBar')) return;
+    if (!hadController) { hadController = true; return; }
+    if ($('updBar')) return;
     const bar = document.createElement('div');
     bar.id = 'updBar'; bar.className = 'upd-bar'; bar.setAttribute('role', 'status');
     bar.innerHTML = '<span>وصل تحديث جديد</span><button type="button" class="primary" data-action="upd-now">حدّث الآن</button>';
@@ -2487,7 +2536,13 @@ document.addEventListener('click', (e) => {
 });
 // a history entry only counts once the user has interacted with the page: on a phone a touch counts when the
 // finger lifts (pointerup/click), so an entry added at pointerdown was skipped by the back button and it left at once
-for (const ev of ['pointerup', 'click', 'keydown']) document.addEventListener(ev, () => { if ($('exitBar').hidden && !leaving) armBack(); }, { passive: true, capture: true });
+// Using the app while «هل تريد الخروج؟» shows (a task opened) means staying: the question goes and back is guarded again
+// (else the next back left the app, losing what was open)
+for (const ev of ['pointerup', 'click', 'keydown']) document.addEventListener(ev, (e) => {
+  if (leaving) return;
+  if ($('exitBar').hidden) { armBack(); return; }
+  if (!(e.target && e.target.closest && e.target.closest('#exitBar'))) stayInApp();
+}, { passive: true, capture: true });
 
 // ---------- where the user was (v95) ----------
 // leaving the app and coming back opens the same page at the same place, not «اليوم» from the top (this phone only)
@@ -2583,5 +2638,6 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
     if (document.visibilityState === 'visible') { applyPendingTimerActions(); checkAlarms(); if (!sheet.open && !psheet.open) render(); }
   });
   let lastDay = today();
-  setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open && !psheet.open) render(); } }, 60000);
+  // a new day: the page, and the pinned notification and icon number (yesterday's count stayed on them until a change)
+  setInterval(() => { if (today() !== lastDay) { lastDay = today(); if (!sheet.open && !psheet.open) render(); if (typeof pinSoon === 'function') pinSoon(); } }, 60000);
 })();

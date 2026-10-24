@@ -36,14 +36,16 @@ const discLine = (f) => (!fineLeft(f) || !f.disc || !f.discUntil ? '' : discOn(f
 
 // read the violation text message (Absher / Efaa) and pull out what matters
 function parseFineMsg(text) {
-  const t = String(text || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\r/g, '');
+  const t = String(text || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/(\d)٫(?=\d)/g, '$1.').replace(/\r/g, '');
   const after = (label) => { const m = new RegExp(`${label}\\s*[:：]\\s*\\n?\\s*([^\\n]+)`).exec(t); return m ? m[1].trim() : ''; };
   const out = {};
   const head = /قيد\s+مخالفة\s*[:：]?\s*\n?\s*([^\n]+)/.exec(t);
   if (head) out.kind = head[1].replace(/\s+/g, ' ').trim();
   const num_ = after('رقم المخالفة'); if (num_) out.number = num_.replace(/\D/g, '');
   const date = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(after('التاريخ')); if (date) out.date = `${date[1]}-${date[2].padStart(2, '0')}-${date[3].padStart(2, '0')}`;
-  const time = /(\d{1,2}:\d{2})/.exec(after('الوقت')); if (time) out.time = time[1];
+  // «10:05 م» is in the evening (22:05); «12:30 ص» just after midnight
+  const time = /(\d{1,2}):(\d{2})\s*(م|مساء|ص|صباح)?/.exec(after('الوقت'));
+  if (time) { let h = Number(time[1]); if (time[3] && /^م/.test(time[3]) && h < 12) h += 12; if (time[3] && /^ص/.test(time[3]) && h === 12) h = 0; out.time = `${h}:${time[2]}`; }
   const city = after('المدينة') || after('الموقع') || after('المكان'); if (city) out.place = city;
   const car = after('السيارة') || after('المركبة'); if (car) out.car = car;
   const val = /([\d.,]+)/.exec(after('القيمة') || after('المبلغ')); const shown = val ? num(val[1]) : 0;

@@ -11,7 +11,7 @@ const money = (n) => `${(Math.round((Number(n) || 0) * 100) / 100).toLocaleStrin
 // amounts as typed on any keyboard: Arabic or Latin digits; «٫» or «.» as the decimal mark; «,» as the
 // decimal mark when it is the only separator followed by one or two digits (58,5), else thousands (1,250)
 const num = (v) => {
-  let s = String(v ?? '').trim().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g, '.').replace(/[٬\s]/g, '');
+  let s = String(v ?? '').trim().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g, '.').replace(/،/g, ',').replace(/[٬\s]/g, '');
   if (!s.includes('.') && /^-?\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.');
   const n = Number(s.replace(/,/g, ''));
   return Number.isFinite(n) ? n : 0;
@@ -29,7 +29,7 @@ function normalizeFinPlan(p) {
     created: p.created || Date.now(), updated: p.updated || Date.now(),
   };
 }
-const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}), ...(x.pre ? { pre: true } : {}) }));
+const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}), ...(x.planTo ? { planTo: x.planTo } : {}), ...(x.pre ? { pre: true } : {}) }));
 function normalizeDebt(d) {
   return { id: d.id || uid(), name: String(d.name || ''), total: num(d.total), monthly: num(d.monthly), end: d.end || '', note: String(d.note || ''), payments: payments(d.payments), created: d.created || Date.now() };
 }
@@ -132,7 +132,7 @@ function assignTx(t, ref, p) {
 function rowRemain(p, rowId, extra = 0) {
   const r = p && rowId && rowId !== 'out' ? planActual(p).rows.find((y) => y.x.id === rowId) : null;
   if (!r) return null;
-  const budget = r.list === 'periodic' ? r.x.amount : r.plan;
+  const budget = r.plan; // a periodic item: this month's share, as the plan and «المصروف» count it
   const left = budget - r.spent - extra;
   return { name: r.x.name, budget, left, text: left > 0.5 ? `بقي ${money(left)} من ${money(budget)} هذا الشهر` : left > -0.5 ? `استنفدت ${money(budget)} كاملاً` : `⚠️ تجاوزت بـ ${money(-left)} (المخطط ${money(budget)})` };
 }
@@ -200,7 +200,7 @@ function debtEnd(d) {
 }
 const getFinPlan = (id) => S.finPlans.find((p) => p.id === id);
 // the chosen plan, else the latest month plan (imported sheets keep the workbook's order: first sheet first)
-const activePlan = () => getFinPlan(S.settings.finActive) || S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''))[0] || S.finPlans[0] || null;
+const activePlan = () => getFinPlan(S.settings.finActive) || currentPlan() || S.finPlans.filter((p) => p.kind === 'month').sort((a, b) => (b.month || '').localeCompare(a.month || ''))[0] || S.finPlans[0] || null;
 const monthName = (m) => (m ? parse(`${m}-01`).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' }) : '');
 
 // income split bar: fixed / periodic / left
@@ -315,7 +315,6 @@ function planListHTML(p, list, scope = 'plan') {
       list === 'periodic' ? `<select class="pl-every" ${at(x, 'every')} aria-label="كل كم">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select><span class="num">${money(x.amount / (x.every || 12))} شهرياً</span>` : '',
       x.link ? `🔗 ${esc(linkLabel(x.link))}` : '',
       pr ? `🔗 مشروع «${esc(pr.name)}» | المتوفر ${money(projCalc(pr).avail)}` : '',
-      x.link && /^fine:/.test(x.link) && typeof discLine === 'function' ? (() => { const f = S.fines.find((y) => `fine:${y.id}` === x.link); return f && discLine(f) ? esc(discLine(f)) : ''; })() : '',
     ].filter(Boolean);
     return `<li class="pl-row${tick && x.done ? ' paid' : ''}${spend ? ' spend' : ''}">
       <span class="pl-main"><input type="text" class="pl-name" id="pl-n-${x.id}" ${at(x, 'name')} value="${esc(x.name)}" placeholder="${PH[list] || 'اسم البند'}" aria-label="الاسم" autocomplete="off" data-novoice>${sub.length ? `<small class="pl-sub">${sub.join('<i>|</i>')}</small>` : ''}</span>
@@ -393,7 +392,8 @@ function finSpendHTML() {
   const nowKey = cur ? cur.month : today().slice(0, 7);
   const m = finUi.month || nowKey;
   const ap = S.finPlans.find((x) => x.kind === 'month' && x.month === m) || null;
-  const txs = S.finTx.filter((t) => (ap ? inPlan(ap, t.d) : t.d.slice(0, 7) === m)).sort((a, b) => b.d.localeCompare(a.d) || b.created - a.created);
+  // with a plan: its period, and what falls in no plan in this calendar month (a day before the first salary-day plan, say)
+  const txs = S.finTx.filter((t) => (ap ? inPlan(ap, t.d) || (t.d.slice(0, 7) === m && !planForDate(t.d)) : t.d.slice(0, 7) === m)).sort((a, b) => b.d.localeCompare(a.d) || b.created - a.created);
   const payT = txs.filter(isPayTx), spendT = txs.filter((t) => !isPayTx(t));
   const out = sum(spendT.filter((t) => t.kind === 'out')), inn = sum(txs.filter((t) => t.kind === 'in'));
   const items = ap ? [...ap.fixed.map((x) => [x.name, x.amount]), ...ap.periodic.map((x) => [x.name, x.amount / (x.every || 12)])].filter(([n]) => n) : [];
@@ -661,6 +661,8 @@ async function importWorkbook(file) {
   let sheets;
   try { sheets = await XlsxRead.read(file); }
   catch (e) { toast(e.message === 'unsupported' ? 'متصفحك لا يدعم قراءة الإكسل. حدّث Chrome.' : 'تعذّر قراءة الملف. تأكد أنه ملف إكسل (.xlsx).'); return; }
+  // an amount typed as text in the sheet («9,000»، «٢٬٠٠٠»، «350.5») is read as the number it is (it was read as 0)
+  for (const sh of sheets) for (const [k, v] of sh.cells) if (typeof v === 'string' && /^[0-9٠-٩]{1,3}(?:[,٬،][0-9٠-٩]{3})*(?:[.٫][0-9٠-٩]{1,2})?$|^[0-9٠-٩]+(?:[.٫][0-9٠-٩]{1,2})?$/.test(v.trim())) sh.cells.set(k, num(v));
   const found = [];
   for (const sh of sheets) {
     const b = parseBudgetSheet(sh);
@@ -700,6 +702,8 @@ function runFinImport() {
     if (f.type === 'plan') {
       const pl = normalizeFinPlan(f.data.plan);
       if (pl.kind === 'month' && monthPlan(pl.month)) { pl.kind = 'scenario'; pl.month = ''; }
+      // a month's plan starts on the salary day, like one made here (a calendar month overlapped the plan before it)
+      if (pl.kind === 'month' && pl.month && !pl.from) Object.assign(pl, defaultRange(pl.month));
       S.finPlans.push(pl); n.plan++;
     }
     if (f.type === 'project') { S.finProjects.push(normalizeFinProject(f.data)); n.project++; }
@@ -718,9 +722,24 @@ function runFinImport() {
 // ---------- new plans and moving plans into months ----------
 const cloneRows = (l) => l.map((x) => { const y = { ...x, id: uid(), ...(x.done != null ? { done: false } : {}) }; delete y.auto; return y; }); // a new plan starts unpaid
 function applyPlan(target, src, mode) {
+  const old = mode === 'replace' ? [...target.fixed, ...target.periodic] : [];
   for (const k of ['income', 'fixed', 'periodic', 'accounts']) {
     if (mode === 'replace') target[k] = cloneRows(src[k]);
     else for (const x of src[k]) if (!target[k].some((y) => y.name && y.name === x.name)) target[k].push(cloneRows([x])[0]);
+  }
+  // the replaced items' payments: one of the same name in the new list takes them (and stays «دُفع»); a «دُفع»
+  // payment of an item that is gone goes with it, as deleting the item does (else it was counted a second time)
+  if (old.length) {
+    const now = [...target.fixed, ...target.periodic], gone = new Set();
+    for (const o of old) {
+      const n = !o.link && o.name && now.find((x) => !x.link && x.name === o.name);
+      if (n && o.done) { n.done = true; if (o.auto) n.auto = true; }
+      for (const t of S.finTx) {
+        if (t.src === `tick:${o.id}`) { if (n) { t.src = `tick:${n.id}`; t.ref = n.id; } else gone.add(t); }
+        else if (n && t.ref === o.id) t.ref = n.id;
+      }
+    }
+    if (gone.size) S.finTx = S.finTx.filter((t) => !gone.has(t));
   }
   if (mode === 'replace' || !target.goal) target.goal = src.goal;
   target.updated = Date.now();
@@ -750,7 +769,9 @@ function defaultRange(m) {
   return { from, to };
 }
 function nextFreeMonth() {
+  // with a salary day, today may still be in last month's period (21 Oct with salary on the 27th: 27 Sep – 26 Oct)
   let d = parse(`${today().slice(0, 7)}-01`);
+  if ((defaultRange(today().slice(0, 7)).from || today()) > today()) d.setMonth(d.getMonth() - 1);
   for (let i = 0; i < 24; i++) { const m = iso(d).slice(0, 7); if (!monthPlan(m)) return m; d.setMonth(d.getMonth() + 1); }
   return today().slice(0, 7);
 }
@@ -1061,7 +1082,11 @@ document.addEventListener('change', (e) => {
       obj.updated = Date.now(); save(); render(); return;
     }
   }
-  if (el.dataset.list) { const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row); if (r) { r[k] = k === 'name' ? String(val).trim() : val; if (k === 'done') delete r.auto; } }
+  if (el.dataset.list) {
+    const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row);
+    if (r) { r[k] = k === 'name' ? String(val).trim() : val; if (k === 'done') delete r.auto; }
+    if (r && (k === 'amount' || k === 'every') && r.done && el.dataset.fin === 'plan' && obj.kind === 'month' && !r.link) finRetick(obj, r);
+  }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
   obj.updated = Date.now();
   save();
@@ -1069,6 +1094,16 @@ document.addEventListener('change', (e) => {
   // (✕, the «دُفع» square, the next field) still lands on what the user saw
   if (el.closest('.pl-list') && (k === 'name' || k === 'amount' || k === 'every')) finRenderSoon(); else render();
 });
+// a ticked item whose amount changed: its «دُفع» payment follows the new amount (it was still counted at the old one,
+// while the plan showed the new one paid), and an automatic tick is checked again against what was recorded
+function finRetick(p, x) {
+  const pr = planRows(p).find((y) => y.x.id === x.id);
+  if (!pr || spendName(x.name)) return;
+  const key = `tick:${x.id}`, tk = S.finTx.find((t) => t.src === key);
+  const others = sum(S.finTx.filter((t) => t.kind === 'out' && t.ref === x.id && t.src !== key && inPlan(p, t.d)));
+  if (tk) { const rest = Math.round((pr.plan - others) * 100) / 100; if (rest > 0.5) tk.amount = rest; else S.finTx = S.finTx.filter((t) => t !== tk); }
+  else if (x.auto && others < pr.plan - 0.5) { x.done = false; delete x.auto; }
+}
 let finRenderTimer = null;
 function finRenderSoon() { clearTimeout(finRenderTimer); finRenderTimer = setTimeout(() => { finRenderTimer = null; if (!document.activeElement || !document.activeElement.closest('.pl-list')) render(); else finRenderSoon(); }, 350); }
 const finRenderNow = () => { if (finRenderTimer) { clearTimeout(finRenderTimer); finRenderTimer = null; } };

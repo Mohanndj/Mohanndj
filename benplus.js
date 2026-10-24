@@ -47,7 +47,7 @@ function openBenCats() {
   const n = (id) => S.benefits.filter((f) => (f.cats || []).includes(id)).length;
   $('libForm').innerHTML = `${sheetHead('🏷 تصنيفات الفوائد')}
     <p class="note-text explain">صنّف بها فوائدك، واعرض كل تصنيف وحده، وصدّره في ملف وورد. حذف التصنيف لا يحذف فوائده.</p>
-    ${cats.length ? `<div class="bc-list">${cats.map((c) => `<div class="bc-row"><input type="text" data-bcat="${c.id}" value="${esc(c.name)}" aria-label="اسم التصنيف" autocomplete="off" data-novoice><small class="dbox">${plural(n(c.id), 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة') || 'لا فوائد'}</small><button type="button" class="ghost sm" data-action="ben-cat-del" data-v="${c.id}">حذف</button></div>`).join('')}</div>` : '<p class="note-text">لا تصنيفات بعد.</p>'}
+    ${cats.length ? `<div class="bc-list">${cats.map((c) => `<div class="bc-row"><input type="text" data-bcat="${c.id}" value="${esc(c.name)}" aria-label="اسم التصنيف" autocomplete="off" data-novoice><small class="dbox">${n(c.id) ? plural(n(c.id), 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة') : 'لا فوائد'}</small><button type="button" class="ghost sm" data-action="ben-cat-del" data-v="${c.id}">حذف</button></div>`).join('')}</div>` : '<p class="note-text">لا تصنيفات بعد.</p>'}
     <div class="ben-cat-new"><input type="text" id="bcNew" placeholder="تصنيف جديد، مثل: التربية" autocomplete="off" data-novoice aria-label="تصنيف جديد"><button type="button" class="ghost" data-action="ben-cat-add">أضف</button></div>
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button></div>`;
   showLib();
@@ -266,7 +266,7 @@ function benImpPreview() {
   const fresh = [...new Set(r.list.filter((f) => f.book && !f.bookId).map((f) => f.book))];
   const nobook = r.list.filter((f) => !f.book).length;
   $('biPrev').innerHTML = !r.list.length && !r.dropped.length ? '<p class="note-text">لا شيء لعرضه. الصق الفوائد أولاً.</p>' : `<div class="bi-sum">
-      <b>ستُحفظ ${plural(r.list.length, 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة') || 'صفر فوائد'}</b>
+      <b>${r.list.length ? `ستُحفظ ${plural(r.list.length, 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة')}` : 'لن تُحفظ أي فائدة'}</b>
       ${fresh.length ? `<span class="dbox">كتب ليست في كتبك: ${fresh.map((x) => `«${esc(x)}»`).join('، ')}</span>` : ''}
       ${nobook ? `<span class="dbox warn">بلا كتاب: ${nobook}</span>` : ''}
       ${r.dropped.length ? `<span class="dbox warn">لن يُحفظ ${plural(r.dropped.length, 'موضع واحد', 'موضعان', 'مواضع', 'موضعاً')} بلا نص: ${r.dropped.map((f) => esc([f.book, f.page !== '' ? `صفحة ${f.page}` : ''].filter(Boolean).join(' ') || 'بلا كتاب')).join('، ')}</span>` : ''}

@@ -328,7 +328,7 @@ function mealImpMsg(msg) {
 async function importMealPlan(file) {
   mealImpBusy(AI.on());
   let sheets;
-  try { sheets = await XlsxRead.read(file); } catch { mealImpMsg('تعذّر قراءة الملف. تأكد أنه ملف إكسل (.xlsx).'); return; }
+  try { sheets = await XlsxRead.read(file); } catch { mealImpShow(() => mealImpMsg('تعذّر قراءة الملف. تأكد أنه ملف إكسل (.xlsx).')); return; }
   let meals = rowsToMeals(sheets.flatMap(parseMealSheet));
   let via = 'file';
   if (AI.on()) {
@@ -338,9 +338,10 @@ async function importMealPlan(file) {
         schema: WEEK_SCHEMA });
       const m2 = toMeals(out.days);
       if (m2.length) { meals = m2; via = 'ai'; }
-    } catch (e) { if (!meals.length) { mealImpMsg(`لم يستطع الذكاء الاصطناعي قراءة الملف: ${AI.friendly(e)}`); return; } }
+    } catch (e) { if (!meals.length) { mealImpShow(() => mealImpMsg(`لم يستطع الذكاء الاصطناعي قراءة الملف: ${AI.friendly(e)}`)); return; } }
   }
-  if (!meals.length) { mealImpMsg('لم أجد في الملف أياماً ووجبات. اجعل أسماء الأيام (السبت…) والوجبات (فطور، غداء، عشاء) في الملف، أو فعّل الذكاء الاصطناعي ليقرأه.'); return; }
+  if (!meals.length) { mealImpShow(() => mealImpMsg('لم أجد في الملف أياماً ووجبات. اجعل أسماء الأيام (السبت…) والوجبات (فطور، غداء، عشاء) في الملف، أو فعّل الذكاء الاصطناعي ليقرأه.')); return; }
+  mealImpShow(() => {
   ldraft = { kind: 'mealimp', id: 'x', isNew: true, meals };
   $('libForm').innerHTML = `${sheetHead('استيراد خطة الطعام')}
     <p class="note-text">${via === 'ai' ? 'قرأها الذكاء الاصطناعي من ملفك.' : 'قُرئت من ملفك مباشرة.'} وجدت ${plural(meals.length, 'وجبة واحدة', 'وجبتين', 'وجبات', 'وجبة')} في ${plural(new Set(meals.map((m) => m.dow)).size, 'يوم واحد', 'يومين', 'أيام', 'يوماً')}:</p>
@@ -350,7 +351,20 @@ async function importMealPlan(file) {
     <div class="sheet-actions"><button type="submit" class="primary">اعتمد الخطة</button></div>`;
   ldraft.mode = 'replace';
   showLib();
+  });
 }
+// the file is read in the background (a minute or more): its result shows over its own waiting sheet, or when
+// nothing is open; another sheet opened meanwhile (a meal being written) is never replaced: it shows when that one closes
+let mealImpWait = null;
+function mealImpShow(fn) {
+  if (!$('libSheet').open || (ldraft && ldraft.kind === 'mealbusy')) { fn(); return; }
+  mealImpWait = fn;
+  toast('قُرئ ملف الطعام: تظهر نتيجته حين تغلق هذه النافذة');
+}
+document.addEventListener('close', (e) => {
+  if (!e.target || e.target.id !== 'libSheet' || !mealImpWait || $('libSheet').open) return;
+  const fn = mealImpWait; mealImpWait = null; fn();
+}, true);
 function saveMealImport() {
   if (ldraft.mode === 'replace') S.meals = ldraft.meals; else S.meals.push(...ldraft.meals);
   save();

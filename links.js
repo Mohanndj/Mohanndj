@@ -42,6 +42,9 @@ function linkSources(p) {
   return out;
 }
 const normName = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+// a row is the same item as a bill or debt when its name is that name: «فاتورة الكهرباء» = «الكهرباء», «قسط خالد» = «خالد»
+// (not a name that merely contains it: «هدية خالد» is not the debt «خالد»)
+const linkBare = (s) => normName(s).replace(/^(?:قسط|أقساط|فاتورة|اشتراك|دين|دَين|سداد)\s+/, '').replace(/^ال/, '');
 const finRowKnown = (id) => !!id && S.finPlans.some((q) => q.fixed.some((x) => x.id === id) || q.periodic.some((x) => x.id === id));
 // keep a monthly plan of this month or later in step with its sources; past months stay as they were
 function syncPlanLinks(p) {
@@ -59,13 +62,38 @@ function syncPlanLinks(p) {
     return ch;
   }
   let changed = false;
+  // two devices may each have added the same linked item before they synced: one row per source (its entries move to it)
+  const seen = new Map();
+  for (const list of ['fixed', 'periodic']) {
+    p[list] = p[list].filter((x) => {
+      if (!x.link) return true;
+      const k = seen.get(x.link);
+      if (!k) { seen.set(x.link, x); return true; }
+      for (const t of S.finTx) if (t.ref === x.id) t.ref = k.id;
+      changed = true;
+      return false;
+    });
+  }
   const srcs = linkSources(p);
   const all = () => [...p.fixed, ...p.periodic];
   for (const s of srcs) {
     if (p.unlinked.includes(s.key)) continue;
     let r = all().find((x) => x.link === s.key);
     // a row the user already wrote for it (from their sheet, say) is linked rather than duplicated
-    if (!r && !s.own) { const want = normName(s.match || s.name); r = want.length >= 3 && all().find((x) => !x.link && x.name && !spendName(x.name) && (normName(x.name).includes(want) || (normName(x.name).length >= 3 && want.includes(normName(x.name))))); if (r) { r.link = s.key; changed = true; } }
+    if (!r && !s.own) {
+      const want = [s.match, s.name].filter(Boolean).map(linkBare).filter((x) => x.length >= 2);
+      r = want.length && all().find((x) => !x.link && x.name && !spendName(x.name) && want.includes(linkBare(x.name)));
+      if (r) {
+        r.link = s.key; changed = true;
+        // what was already paid on the row in this period (its «دُفع», or spending recorded to it) becomes payments
+        // of its source: the row stays paid and is not paid a second time through the bill or debt
+        const ls0 = linkSrc(s.key), was = S.finTx.filter((t) => t.kind === 'out' && inPlan(p, t.d) && (t.src === `tick:${r.id}` || (!t.src && t.ref === r.id)));
+        const next0 = ls0.kind === 'sub' ? ls0.src.next : '';
+        for (const t of was) { const pay = { id: uid(), d: t.d, amount: t.amount, note: '' }; if (next0) { pay.prevNext = next0; pay.planTo = finRange(p).to; } ls0.pays.push(pay); t.src = `${s.key}:${pay.id}`; t.ref = r.id; }
+        // the bill paid in full here moves to its next date, as paying it from the plan does
+        if (next0 && sum(was, (t) => t.amount) >= s.amount - 0.5 && next0 <= finRange(p).to) { let next = next0; const last = was.reduce((m, t) => (t.d > m ? t.d : m), ''); do { next = addMonths(next, ls0.src.every); } while (next <= last); ls0.src.next = next; }
+      }
+    }
     const list = s.every > 1 ? 'periodic' : 'fixed';
     if (!r) { r = row({ name: s.name, amount: s.amount, ...(list === 'periodic' ? { every: s.every } : {}), done: false }); r.link = s.key; p[list].push(r); changed = true; }
     else if (!p[list].includes(r)) { p.fixed = p.fixed.filter((x) => x !== r); p.periodic = p.periodic.filter((x) => x !== r); r = row({ ...r, ...(list === 'periodic' ? { every: s.every } : {}) }); if (list === 'fixed') delete r.every; r.link = s.key; p[list].push(r); changed = true; }
@@ -99,7 +127,7 @@ function payLink(key, amount, d, tx, plan) {
   l.pays.push(pay);
   // a bill paid late may move on several cycles: the payment remembers where it was, for undoing it
   // paid from a plan: a bill already due after that plan's period (paid earlier, outside the app) keeps its date
-  if (l.kind === 'sub') { pay.prevNext = l.src.next; if (!plan || l.src.next <= finRange(plan).to) { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; } }
+  if (l.kind === 'sub') { pay.prevNext = l.src.next; if (plan) pay.planTo = finRange(plan).to; if (!plan || l.src.next <= finRange(plan).to) { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; } }
   let r = rowOfLink(key, d);
   if (!tx) { tx = normalizeTx({ amount, kind: 'out', item: r ? r.name : l.src.name, d }); S.finTx.push(tx); }
   tx.src = `${key}:${pay.id}`;
@@ -118,12 +146,13 @@ function unpayTx(t) {
     const i = l.pays.findIndex((p) => p.id === payId);
     if (i >= 0) {
       const [q] = l.pays.splice(i, 1);
-      const after = l.kind === 'sub' && q.prevNext && l.pays.slice(i).find((x) => x.prevNext);
-      if (after) {
-        // a later payment stays: the date goes back only by what this one moved it, and the later one now starts from here
-        let n = 0; for (let d = q.prevNext; d < after.prevNext && n < 200; n++) d = addMonths(d, l.src.every);
-        for (let k = 0; k < n; k++) l.src.next = addMonths(l.src.next, -l.src.every);
-        after.prevNext = q.prevNext;
+      const later = l.kind === 'sub' && q.prevNext ? l.pays.slice(i).filter((x) => x.prevNext) : [];
+      if (later.length) {
+        // later payments stay: the date goes back to where this one found it, and they move it on again by the
+        // same rule as when they were made (one paid from a plan whose period ends before the date leaves it)
+        let next = q.prevNext;
+        for (const x of later) { x.prevNext = next; if (!x.planTo || next <= x.planTo) { let n = 0; do { next = addMonths(next, l.src.every); } while (next <= x.d && ++n < 200); } }
+        l.src.next = next;
       } else if (l.kind === 'sub') l.src.next = q.prevNext || addMonths(l.src.next, -l.src.every);
     }
   }
