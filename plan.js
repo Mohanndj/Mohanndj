@@ -367,7 +367,7 @@ function khRoleCard(r) {
   const projects = S.projects.filter((p) => !p.doneAt && p.roleId === r.id);
   const goals = S.tasks.filter((t) => khOpenGoal(t) && own(t) && !t.kgoal);
   const visions = S.kgoals.filter((g) => g.level === 'life' && g.roleId === r.id && g.status !== 'dropped');
-  const years = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === r.id && g.status === 'open' && khYrOfKey(g.period) === khYrStart(today()));
+  const years = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === r.id && g.status === 'open' && khYrOfKey(g.period) >= khYrStart(today()));
   const tasks = S.tasks.filter((t) => khOpenTask(t) && own(t));
   const saw = r.id === KH_SAW;
   const goalBtn = (t) => `<button type="button" class="kh-link" data-action="open" data-id="${t.id}">${esc(t.title)}${saw && t.area ? ` <small>(${KH_AREAS[t.area]})</small>` : ''}</button>`;
@@ -377,7 +377,7 @@ function khRoleCard(r) {
     <div class="kh-role-head"><b>${esc(r.name)}</b>
       ${saw ? `<div class="kh-role-acts"><span class="kh-fixed">ثابت</span>${projects.length ? `<button type="button" class="ghost sm" data-action="kh-role-edit" data-v="${r.id}">${icon('edit')} تعديل</button>` : ''}</div>` : `<div class="kh-role-acts"><button type="button" class="icon-btn" data-action="kh-role-mv" data-v="${r.id}" data-d="-1" aria-label="إلى الأعلى"${i ? '' : ' disabled'}>▲</button><button type="button" class="icon-btn" data-action="kh-role-mv" data-v="${r.id}" data-d="1" aria-label="إلى الأسفل"${i < mine - 1 ? '' : ' disabled'}>▼</button><button type="button" class="ghost sm" data-action="kh-role-edit" data-v="${r.id}">${icon('edit')} تعديل</button></div>`}</div>
     ${visions.length ? `<div class="kh-sub"><small>رؤيتي</small><div class="kh-links">${visions.map((v) => `<button type="button" class="kh-link" data-action="kh-edit-goal" data-v="${v.id}">${esc(v.text)}</button>`).join('')}</div></div>` : ''}
-    ${years.length ? `<div class="kh-sub"><small>أهداف السنة</small><div class="kh-links">${years.map((g) => { const x = ygShare(g, khYrStart(today())); return `<button type="button" class="kh-link" data-action="kh-tab" data-v="year">${esc(g.text)}${x.target ? `<small>تحقّق في ${khN(x.done)} من ${KH_UNIT.month(x.target)}</small>` : ''}</button>`; }).join('')}</div></div>` : ''}
+    ${years.length ? `<div class="kh-sub"><small>أهداف السنة</small><div class="kh-links">${years.map((g) => { const gy = khYrOfKey(g.period), cur = gy === khYrStart(today()), x = ygShare(g, gy); return `<button type="button" class="kh-link" data-action="kh-tab" data-v="year" data-yr="${cur ? '' : gy}">${esc(g.text)}${cur ? '' : ` <small>(${esc(khKeyLabel(g.period))})</small>`}${x.target ? `<small>تحقّق في ${khN(x.done)} من ${KH_UNIT.month(x.target)}</small>` : ''}</button>${khContOf(g)}`; }).join('')}</div></div>` : ''}
     ${counts.length ? `<p class="note-text">${counts.join(' | ')}</p>` : visions.length || years.length ? '' : '<p class="note-text">لا شيء لهذا الدور بعد.</p>'}
     ${saw ? '<p class="note-text explain">عنايتك بنفسك لتقوى على أدوارك كلها، بأربعة جوانب: صحي (رياضة ونوم وغذاء)، واجتماعي (صلة وصداقة ومعروف)، ومعرفي (قراءة وتعلّم)، ونفسي (ما يريح نفسك ويرتّبها).</p>' : ''}
     ${projects.length ? `<div class="kh-sub"><small>المشاريع</small><div class="kh-chips">${projects.map((p) => `<button type="button" class="chip" data-action="open-project" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
@@ -592,6 +592,17 @@ const khProg = (x, unit, tail) => (x.target ? `<div class="kh-gprog"><span class
 const khTickBox = (g, from, to, label) => `<label class="kh-tick"><input type="checkbox" data-kh-tick="${g.id}" data-from="${from}" data-to="${to}"${khTicked(g, from, to) ? ' checked' : ''}><span>${label}</span></label>`;
 const khDoneBadge = (label) => `<span class="kh-tick on">${icon('check')}<span>${label}</span></span>`;
 const khStat = (g) => (g.status !== 'open' ? ` <span class="kh-st ${g.status}">${KH_GSTAT[g.status]}</span>` : '');
+// where a year goal's plan stopped («أكمل لاحقاً»): its months, a month goal's weeks, or a week goal's days; shown in «أدواري» and «حياتي» too
+function khContOf(yg) {
+  const gy = khYrOfKey(yg.period);
+  if (yg.status !== 'open' || !gy || khYrNext(gy) <= today()) return '';
+  const name = `«${esc(yg.text)}»`, ms = kgKids(yg, 'month');
+  if (!ms.length) return khCont('month', `أكمل ${name}: ثم أشهرك`, ` data-step="1" data-year="${yg.id}"`);
+  const m = ms.find((x) => !kgClosedOf(x) && !kgKids(x, 'week').length);
+  if (m) return khCont('week', `أكمل ${name}: ثم أسابيعك`, ` data-step="2" data-month="${m.id}"`);
+  const w = ms.flatMap((x) => kgKids(x, 'week')).find((x) => !kgClosedOf(x) && !S.tasks.some((t) => t.kgoal === x.id));
+  return w ? khCont('day', `أكمل ${name}: ثم أيامك`, ` data-step="3" data-week="${w.id}"`) : '';
+}
 const khCont = (lv, label, attrs) => `<button type="button" class="kh-cont lv-${lv}" data-action="kh-wiz"${attrs}>${icon('plus')}<span>${label}</span></button>`;
 const khCtx = (lv, small, text) => `<div class="kh-ctx lv-${lv}"><small>${small}</small><b>${esc(text)}</b></div>`;
 function khMonthsText(g) {
@@ -707,6 +718,7 @@ function khLifeHTML() {
     return `<div class="kh-node lv-life"><button type="button" class="kh-nh" data-action="kh-edit-goal" data-v="${v.id}"><small>رؤيتي${khStat(v)}</small><b>${esc(v.text)}</b>${v.why ? `<small>${esc(v.why)}</small>` : ''}</button>
       ${p.target ? `<small class="kh-serve">تقدّمك نحوها في ${esc(khYrLabel(cy))}: من أشهر خطة سنتك لها</small>${khProg(p, 'month')}` : ''}
       ${ys.length ? `<div class="kh-kids">${ys.map((g) => `<span>${g.status === 'done' ? '✓' : g.status === 'dropped' ? '✗' : '•'} ${esc(g.text)} <small>(${esc(khKeyLabel(g.period))})</small></span>`).join('')}</div>` : ''}
+      ${ys.map(khContOf).join('')}
       ${r && v.status === 'open' && !now.some((g) => g.status === 'open') ? khCont('year', 'التالي: هدف هذه السنة لهذه الرؤية', ` data-step="0" data-role="${r.id}" data-vision="${v.id}"`) : ''}</div>`;
   };
   const card = (r) => {
@@ -1085,7 +1097,7 @@ document.addEventListener('click', (e) => {
   if (!el) return;
   const { action, v } = el.dataset;
   switch (action) {
-    case 'kh-tab': khUi.tab = v; render(); window.scrollTo({ top: 0 }); break;
+    case 'kh-tab': khUi.tab = v; if (el.dataset.yr !== undefined) khUi.yr = el.dataset.yr; render(); window.scrollTo({ top: 0 }); break;
     case 'kh-wk': khUi.wk = addDays(khUi.wk || khWeekOf(today()), Number(v)); render(); break;
     case 'kh-wk-now': khUi.wk = ''; render(); break;
     case 'kh-mo': khUi.mo = v && v !== khMoStart(today()) ? v : ''; render(); break;
@@ -1115,9 +1127,14 @@ document.addEventListener('click', (e) => {
       if (op === 'del') { if (!selArmed(el)) break; const g = kgOf(w.edit === 'month' ? w.monthId : w.weekId); if (g) kgDrop(g); save(); closeLib(); render(); toast('حُذف'); break; }
       khWizKeep();
       if (op === 'later') {
-        if (w.step === 0 && !w.yText.trim() && w.vText.trim() && !khVisions(w.roleId).length) { S.kgoals.push(normalizeKGoal({ level: 'life', roleId: w.roleId, text: w.vText.trim() })); save(); }
+        let vis = false;
+        if (w.step === 0 && !w.yText.trim() && w.vText.trim() && !khVisions(w.roleId).length) { S.kgoals.push(normalizeKGoal({ level: 'life', roleId: w.roleId, text: w.vText.trim() })); save(); vis = true; }
         else if ([w.yText, w.mText, w.wText, w.dText][w.step].trim() && !khWizCommit()) break;
-        closeLib(); render(); toast('حُفظ ما كتبته، وتكمل من زر «أكمل» تحت الهدف في «سنتي»');
+        closeLib();
+        const yg = kgOf(w.yearId), gy = yg && khYrOfKey(yg.period);
+        if (gy) { khUi.tab = 'year'; khUi.yr = gy === khYrStart(today()) ? '' : gy; window.scrollTo({ top: 0 }); }
+        render();
+        toast(gy ? 'حُفظ ما كتبته، وتكمل من «أكمل» تحت هدفك هنا' : vis ? 'حُفظت رؤيتك، وتكمل من «التالي» تحتها في «حياتي»' : 'لم تكتب شيئاً بعد');
         break;
       }
       if (op === 'prev') w.step = Math.max(w.first, w.step - 1);
