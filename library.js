@@ -619,7 +619,7 @@ function excelSheets(kind) {
     ], S.tasks.filter(isGoal).map((t) => {
       if (isRepeat(t)) {
         const st = goalStats(t);
-        const days = t.repeat.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => t.repeat.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
+        const days = t.repeat.per ? `${plural(t.repeat.per, 'مرة', 'مرتان', 'مرات', 'مرة')} في الأسبوع، أي يوم` : t.repeat.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => t.repeat.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
         return [t.title, 'متكرر', days, t.repeat.start, t.repeat.until || 'بلا نهاية', hijriOf(t.repeat.until), t.target, t.unit,
           `${st.hit} من ${st.total} يوم`, st.rate, st.streak, yesNo(isHabit(t)), isHabit(t) ? habitStats(t).strength : '', isHabit(t) ? habitStats(t).stage[0] : '', t.notes.map((n) => n.text).join('\n—\n'), ...roleCell(t)];
       }

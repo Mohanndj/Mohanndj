@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 108;
+const APP_VERSION = 109;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -125,9 +125,20 @@ const minsWord = (n) => (n === 15 ? 'ربع ساعة' : n === 30 ? 'نصف سا�
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 // ---------- state ----------
+// a map of days (date → true, or date → date for a moved occurrence), cleaned
+const dayMap = (o, to) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => /^\d{4}-\d{2}-\d{2}$/.test(k) && (to ? /^\d{4}-\d{2}-\d{2}$/.test(v || '') : !!v)).map(([k, v]) => [k, to ? v : true]));
+// a recurring goal: its days, its start and end; «عدد أيام أيّها كان» (per: 1–6 times a week on any day), and what «خطِّط»
+// did to its occurrences: one moved to another day of its week (mv: day → new day), one cancelled for this time (skip)
+function normalizeRepeat(r) {
+  const out = { ...r }, per = Math.floor(Number(r.per)), mv = dayMap(r.mv, true), skip = dayMap(r.skip);
+  if (per >= 1 && per <= 6) out.per = per; else delete out.per;
+  if (Object.keys(mv).length) out.mv = mv; else delete out.mv;
+  if (Object.keys(skip).length) out.skip = skip; else delete out.skip;
+  return out;
+}
 function normalize(t) {
   const target = Math.max(1, Math.min(999, Number(t.target) || 1));
-  const repeat = t.repeat && Array.isArray(t.repeat.days) ? t.repeat : null;
+  const repeat = t.repeat && Array.isArray(t.repeat.days) ? normalizeRepeat(t.repeat) : null;
   return {
     id: t.id || uid(),
     kind: t.kind === 'goal' || t.kind === 'task' ? t.kind : repeat ? 'goal' : 'task',
@@ -163,6 +174,11 @@ function normalize(t) {
     // v98: the week goal of «خطِّط» a task of its days serves, and «✦ ينعكس في حياتي» (سجل حياتي)
     kgoal: t.kgoal || '',
     life: !!t.life,
+    // v109: a one-time task «for any day of its week» shows from `from` until its date (`due`, the week's last day);
+    // `skip` = cancelled for its day («ألغها» for what was missed: still counted as not done); `tpl` = made by a template of «خطِّط»
+    from: /^\d{4}-\d{2}-\d{2}$/.test(t.from || '') ? t.from : '',
+    skip: dayMap(t.skip),
+    tpl: t.tpl || '',
   };
 }
 
@@ -227,6 +243,7 @@ function load() {
   s.kunnasha = (Array.isArray(s.kunnasha) ? s.kunnasha : []).filter((x) => x && typeof x === 'object').map(normalizeKun);
   s.roles = khWithSaw((Array.isArray(s.roles) ? s.roles : []).filter((x) => x && typeof x === 'object').map(normalizeRole));
   s.kgoals = (Array.isArray(s.kgoals) ? s.kgoals : []).filter((x) => x && typeof x === 'object').map(normalizeKGoal);
+  s.settings.khMfrom = /^\d{4}-\d{2}-\d{2}$/.test(s.settings.khMfrom || '') ? s.settings.khMfrom : today(); // «فاتك يومها» asks about days from the first opening on
   s.settings.timer = { mode: 'up', minutes: 25, brk: 5, awake: true, lastTask: '', ...(s.settings.timer || {}) };
   s.fired = s.fired || {};
   s.snoozed = s.snoozed || {};
@@ -290,12 +307,39 @@ function timeLabel(t, d) {
 }
 
 // ---------- recurrence and progress ----------
+// a day of a recurring goal by its own days, with an occurrence moved to another day of its week (repeat.mv)
+const repDay = (r, d) => (r.days.includes(parse(d).getDay()) && !(r.mv && d in r.mv)) || (!!r.mv && Object.values(r.mv).includes(d));
+// «عدد أيام أيّها كان» (repeat.per): a goal done a number of times in a week, on any day. Its week (k: the first day):
+// the days it may be on, the number the week asks for, the number done, and the days that count in the totals (the days
+// done, and the last days of those still asked for, so a week that ends short is missed for the difference only)
+function quotaOf(t, k) {
+  return khMm(`qt${t.id}${k}`, () => {
+    const r = t.repeat, wk = khDays(k);
+    const eligible = wk.filter((d) => d >= r.start && !(r.until && d > r.until) && (!t.kgoal || khChainOn(t, d)));
+    const done = wk.filter((d) => t.completions[d]), need = Math.min(r.per, eligible.length), left = Math.max(0, need - done.length);
+    const open = eligible.filter((d) => !t.completions[d]);
+    return { need, done: done.length, slots: new Set([...done, ...(left ? open.slice(-left) : [])]) };
+  });
+}
 function occursOn(t, d) {
   const r = t.repeat;
   if (!r || d < r.start || (r.until && d > r.until)) return false;
   // a task of the days of a goal in «خطِّط» shows in its goal's months and weeks only (plan.js, v98)
-  return r.days.includes(parse(d).getDay()) && (!t.kgoal || khChainOn(t, d));
+  if (t.kgoal && !khChainOn(t, d)) return false;
+  // a goal of «any days»: on the list every day until the week's number is done (a day already gone is not waiting)
+  if (r.per) { const q = quotaOf(t, weekStartOf(d)); return !!t.completions[d] || (d >= today() && q.done < q.need); }
+  return repDay(r, d);
 }
+// …and what a day counts as in the totals: as occursOn, but a goal of «any days» asks for its number of the week
+function reqOn(t, d) {
+  const r = t.repeat;
+  if (!r || !r.per) return occursOn(t, d);
+  if (d < r.start || (r.until && d > r.until) || (t.kgoal && !khChainOn(t, d))) return false;
+  return quotaOf(t, weekStartOf(d)).slots.has(d);
+}
+// a one-time task on the list of day d: its day came (or went by), or it is for any day of its week and the week began
+// (`from`); one cancelled for its day is not waiting any more
+const dueOpen = (t, d) => !t.done && !!t.due && !(t.skip && t.skip[t.due]) && (t.due <= d || (!!t.from && t.from <= d));
 // a reading project's book task is done on a day it holds that day's session
 const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done || !!(t.bookId && t.completions && t.completions[d]));
 function countOn(t, d) {
@@ -306,7 +350,7 @@ const goalEnded = (t) => isRepeat(t) ? !!(t.repeat.until && t.repeat.until < tod
 
 function repeatLabel(t) {
   const r = t.repeat;
-  const days = r.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => r.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
+  const days = r.per ? `${plural(r.per, 'مرة', 'مرتان', 'مرات', 'مرة')} في الأسبوع` : r.days.length === 7 ? 'يومياً' : DAY_ORDER.filter((d) => r.days.includes(d)).map((d) => DAY_SHORT[d]).join('، ');
   return days + (r.until ? ` حتى ${fmtDate(r.until)}` : ' بلا نهاية');
 }
 
@@ -315,14 +359,14 @@ function goalStats(t) {
   const end = t.repeat.until && t.repeat.until < t0 ? t.repeat.until : t0;
   let total = 0, hit = 0;
   for (let d = t.repeat.start; d <= end; d = addDays(d, 1)) {
-    if (!occursOn(t, d)) continue;
+    if (!reqOn(t, d)) continue;
     if (d === t0 && !t.completions[d]) continue; // today is not missed while it lasts
     total++;
     if (t.completions[d]) hit++;
   }
   let streak = 0;
   for (let d = end; d >= t.repeat.start; d = addDays(d, -1)) {
-    if (!occursOn(t, d)) continue;
+    if (!reqOn(t, d)) continue;
     if (t.completions[d]) streak++;
     else if (d === t0) continue;
     else break;
@@ -344,7 +388,7 @@ function projectStats(pid) {
   const steps = list.flatMap((t) => t.subtasks);
   const done = list.filter((t) => t.done).length;
   const progress = list.length ? Math.round((list.reduce((n, t) => n + taskProgress(t), 0) / list.length) * 100) : 0;
-  const late = list.filter((t) => !t.done && t.due && t.due < today()).length;
+  const late = list.filter((t) => !t.done && t.due && t.due < today() && !(t.skip && t.skip[t.due])).length;
   return { total: list.length, done, steps: steps.length, stepsDone: steps.filter((s) => s.done).length, progress, late };
 }
 
@@ -424,7 +468,8 @@ function removeTask(id) {
 
 // ---------- rendering: items ----------
 // a task whose day has not come yet cannot be marked done before it (a goal's date is a deadline, so it can)
-const notYet = (t) => !isGoal(t) && !t.done && !!t.due && t.due > today();
+// (one «for any day of its week» is open from the week's first day: its date is the week's last)
+const notYet = (t) => !isGoal(t) && !t.done && !!t.due && t.due > today() && !(t.from && t.from <= today());
 // …and a recurring goal's day that has not come yet
 const notYetOn = (t, d) => notYet(t) || (isRepeat(t) && !!d && d > today());
 function checkButton(t, d, done) {
@@ -444,9 +489,12 @@ function metaHTML(t, d, opts = {}) {
   if (p && !opts.noProject) meta.push(projectChip(p));
   if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
   if (t.category) meta.push(`<span class="cat">${esc(t.category)}</span>`);
-  if (isRepeat(t)) meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
-  else if (t.due && !opts.noDue) {
-    const late = !t.done && t.due < today();
+  if (isRepeat(t)) {
+    meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
+    // «any days»: how many of the week's number are done
+    if (t.repeat.per) { const q = quotaOf(t, weekStartOf(d || today())); if (q.need) meta.push(`<span class="num">هذا الأسبوع: ${Math.min(q.done, q.need)} من ${q.need}</span>`); }
+  } else if (t.due && !opts.noDue) {
+    const late = !t.done && t.due < today() && !(t.skip && t.skip[t.due]);
     meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة: ' : t.bookId && !t.done ? 'الجلسة القادمة: ' : ''}${esc(dueLabel(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
@@ -606,7 +654,7 @@ function viewToday() {
   const items = S.tasks.filter((t) => {
     if (isRepeat(t)) return occursOn(t, d);
     if (t.bookId && t.completions && t.completions[d]) return true; // today's reading session stays, ticked
-    if (!t.done && t.due && t.due <= d) return true;
+    if (dueOpen(t, d)) return true;
     return t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
   });
   items.sort(byTime(d));
@@ -1209,10 +1257,12 @@ function readPrayer() {
 }
 
 function renderDays() {
-  $('fDays').innerHTML =
-    `<button type="button" data-action="all-days" aria-pressed="${draft.days.length === 7}">كل يوم</button>` +
-    `<button type="button" data-action="work-days" aria-pressed="${draft.days.length === 5 && [0, 1, 2, 3, 4].every((d) => draft.days.includes(d))}">أيام الدوام</button>` +
-    DAY_ORDER.map((d) => `<button type="button" data-action="day" data-v="${d}" aria-pressed="${draft.days.includes(d)}">${DAY_SHORT[d]}</button>`).join('');
+  const mode = `<button type="button" data-action="days-mode" data-v="fixed" aria-pressed="${!draft.per}">أيام محددة</button><button type="button" data-action="days-mode" data-v="count" aria-pressed="${!!draft.per}">عدد أيام أيّها كان</button>`;
+  $('fDays').innerHTML = `<div class="days-mode">${mode}</div>` + (draft.per
+    ? `<div class="days-per">${[1, 2, 3, 4, 5, 6].map((n) => `<button type="button" data-action="days-per" data-v="${n}" aria-pressed="${draft.per === n}">${n}</button>`).join('')}</div><small class="hint explain">كم مرة في الأسبوع؟ تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع.</small>`
+    : `<button type="button" data-action="all-days" aria-pressed="${draft.days.length === 7}">كل يوم</button>` +
+      `<button type="button" data-action="work-days" aria-pressed="${draft.days.length === 5 && [0, 1, 2, 3, 4].every((d) => draft.days.includes(d))}">أيام الدوام</button>` +
+      DAY_ORDER.map((d) => `<button type="button" data-action="day" data-v="${d}" aria-pressed="${draft.days.includes(d)}">${DAY_SHORT[d]}</button>`).join(''));
 }
 
 function renderAlarms() {
@@ -1269,6 +1319,7 @@ function openSheet(id, opts = {}) {
     kind,
     repeat: t ? isRepeat(t) : kind === 'goal' && opts.repeat !== false,
     days: t && t.repeat ? [...t.repeat.days] : [...DAY_ORDER],
+    per: t && t.repeat && t.repeat.per ? t.repeat.per : 0, // «عدد أيام أيّها كان»: a number a week on any day
     notes: t ? t.notes.map((n) => ({ ...n })) : [],
     subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
     alarms: t ? [...t.alarms] : [],
@@ -1377,6 +1428,9 @@ function readDraft() {
       let until = $('fUntil').value || null;
       if (until && until < start) until = start;
       t.repeat = { days: (draft.days.length ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+      // «any days»: every day of the week may hold it, and its number a week is asked for (what «خطِّط» moved or cancelled is kept)
+      if (draft.per) t.repeat = { ...t.repeat, days: [...DAY_ORDER].sort(), per: draft.per };
+      for (const k of ['mv', 'skip']) if (base.repeat && base.repeat[k] && !draft.per) t.repeat[k] = base.repeat[k];
       t.due = '';
       t.done = false;
       t.doneAt = null;
@@ -1404,6 +1458,8 @@ function readDraft() {
     t.subtasks = draft.subtasks;
     t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
+  // a new date: it is no longer «for any day of its week», nor cancelled for its old day
+  if (existing && t.due !== existing.due) { t.from = ''; t.skip = {}; }
   return t;
 }
 
@@ -1418,7 +1474,7 @@ function commitDraft() {
   const i = S.tasks.findIndex((x) => x.id === t.id);
   if (i === -1) S.tasks.push(t); else S.tasks[i] = t;
   // a new time may ring again; an edit that leaves the time and alarms as they were does not ring an answered alarm again
-  const timing = (x) => JSON.stringify([x.due, x.time, x.prayer, x.alarms, x.repeat && x.repeat.days]);
+  const timing = (x) => JSON.stringify([x.due, x.time, x.prayer, x.alarms, x.repeat && x.repeat.days, x.repeat && x.repeat.per]);
   if (!was || timing(was) !== timing(t)) for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k];
   save();
   return t;
@@ -2013,7 +2069,7 @@ function timerNotifNote() {
 
 function timerTaskOptions(selected) {
   const t0 = today();
-  const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : !t.done && t.due && t.due <= t0));
+  const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : dueOpen(t, t0)));
   const opt = (t) => `<option value="${t.id}"${t.id === selected ? ' selected' : ''}>${esc(t.title)}</option>`;
   const groups = [['اليوم', todays]];
   for (const p of S.projects) groups.push([`مشروع: ${p.name}`, tasksOf(p.id).filter((t) => !t.done && !todays.includes(t))]);
@@ -2253,6 +2309,8 @@ document.addEventListener('click', (e) => {
     }
     case 'cal-today': ui.calMonth = today().slice(0, 7); ui.calH = hMonthStart(today()); ui.calSel = today(); render(); break;
     case 'close-sheet': closeSheet(); break;
+    case 'days-mode': draft.per = v === 'count' ? (draft.per || 3) : 0; renderDays(); break;
+    case 'days-per': draft.per = Number(v); renderDays(); break;
     case 'all-days': draft.days = draft.days.length === 7 ? [] : [...DAY_ORDER]; renderDays(); break;
     case 'work-days': draft.days = [0, 1, 2, 3, 4]; renderDays(); break;
     case 'hall-days': draft.hdays = draft.hdays.length === 7 ? [] : [...DAY_ORDER]; renderHabitDays(); break;

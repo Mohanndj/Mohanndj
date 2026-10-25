@@ -67,7 +67,7 @@ function goalRun(t, P) {
   let total = 0, hit = 0, left = 0;
   for (const d of P.all) {
     // a day done though not (or no longer) scheduled, after its days were edited, still counts as done
-    if (!occursOn(t, d)) { if (t.completions[d]) { total++; hit++; } continue; }
+    if (!reqOn(t, d)) { if (t.completions[d]) { total++; hit++; } continue; }
     total++;
     if (t.completions[d]) hit++;
     else if (t.target > 1 && t.counts && t.counts[d]) hit += Math.min(1, t.counts[d] / t.target);

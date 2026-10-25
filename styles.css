@@ -2002,6 +2002,93 @@ li.sel .sel-box { background: var(--high); }
 .kh-yrange { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 
+/* ================= v109: «خطِّط»: «!» (why it shows), what had its day, boxes of a goal of «any days», its choice in the editor ================= */
+.kh-why { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--mid); color: var(--mid); font-weight: 800; font-size: .78rem; line-height: 1; display: inline-grid; place-items: center; padding: 0; background: var(--card); }
+.kh-node > .kh-why { justify-self: start; }
+.kh-side .kh-why { align-self: flex-end; }
+.kh-rep-t { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.kh-rep-t .kh-link { flex: 1; min-width: 0; }
+.kh-miss { flex-wrap: wrap; }
+.kh-miss > .kh-link { flex: 1 1 160px; }
+.kh-miss-act { display: flex; gap: 6px; flex-wrap: wrap; }
+.kh-miss-card { border-color: color-mix(in srgb, var(--mid) 45%, var(--line)); }
+.kh-dot.skip { text-decoration: line-through; opacity: .6; border-style: dashed; }
+.kh-hints { gap: 6px; }
+.days-mode, .days-per { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+.days-mode button, .days-per button { flex: 1 1 auto; }
+.kh-rv .kh-ask { margin-top: 4px; }
+
+/* ================= v109: «خطِّط»: printing the plan on one A4 page (planprint.js) ================= */
+.kh-pd-row { display: flex; justify-content: flex-end; }
+.kh-pdf { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; }
+.kh-pdf small { color: var(--muted); font-weight: 700; margin-inline-start: 4px; }
+#print { display: none; }
+#print.measure { display: block; position: absolute; top: 0; left: -99999px; }
+.pd { box-sizing: border-box; color: #111; background: #fff; font-size: 13px; line-height: 1.45; direction: rtl; text-align: start; }
+.pd *, .pd *::before, .pd *::after { box-sizing: border-box; }
+.pd small { color: #555; font-size: 11px; }
+.pd-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 10px; }
+.pd-title { display: flex; align-items: center; gap: 10px; }
+.pd-logo { width: 44px; height: 44px; border-radius: 10px; }
+.pd-head h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+.pd-head p { margin: 2px 0 0; font-size: 12px; color: #444; }
+.pd-head p span { font-size: 11px; color: #666; }
+.pd-stat { display: flex; gap: 14px; text-align: center; }
+.pd-stat b { display: block; font-size: 20px; line-height: 1.1; }
+.pd-stat span { display: block; font-size: 11px; color: #555; }
+.pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+.pd-block { border: 1px solid #ccc; border-inline-start: 5px solid var(--rc, #0f766e); border-radius: 8px; padding: 7px 10px; break-inside: avoid; }
+.pd-block h2 { margin: 0 0 4px; font-size: 14px; }
+.pd-grid + .pd-block { margin-top: 10px; }
+.pd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pd-list li { display: flex; gap: 6px; align-items: flex-start; }
+.pd-bx { flex: none; width: 13px; height: 13px; border: 1.5px solid #333; border-radius: 3px; margin-top: 2px; display: inline-block; position: relative; }
+.pd-bx.on::after { content: "✓"; position: absolute; inset: -5px 0 0; text-align: center; font-size: 14px; font-style: normal; line-height: 1.2; }
+.pd-pri { border: 1.5px solid #c0392b; background: #fdecea; border-radius: 6px; padding: 1px 5px; }
+.pd-tm { font-weight: 700; }
+.pd-ln-i { border-bottom: 1px dashed #aaa; height: 26px; align-items: flex-end !important; }
+.pd-ln-i span { flex: 1; }
+.pd-ln { display: block; border-bottom: 1px dashed #aaa; height: 20px; }
+.pd-empty { color: #777; margin: 0; }
+.pd-week { width: 100%; border-collapse: collapse; }
+.pd-week th, .pd-week td { border: 1px solid #bbb; padding: 4px 6px; vertical-align: middle; }
+.pd-week thead th { background: #f1f5f4; font-size: 12px; }
+.pd-week thead th small { display: block; }
+.pd-role { width: 92px; background: color-mix(in srgb, var(--rc) 14%, #fff); border-inline-start: 5px solid var(--rc); text-align: start; font-size: 13px; }
+.pd-task { text-align: start; min-width: 220px; }
+.pd-c { text-align: center; width: 52px; }
+.pd-c .pd-bx { margin: 0; }
+.pd-end { width: 92px; white-space: nowrap; }
+.pd-end .pd-bx { margin: 0 1px; }
+.pd-sec { font-size: 14px; margin: 12px 0 6px; }
+.pd-year { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pd-weeksgrid { grid-template-columns: repeat(2, 1fr); }
+.pd-mo { border: 1px solid #ccc; border-radius: 8px; padding: 6px 8px; break-inside: avoid; }
+.pd-mo.now { border-color: #0f766e; box-shadow: inset 0 0 0 1px #0f766e; }
+.pd-mo h3 { display: flex; justify-content: space-between; margin: 0 0 4px; font-size: 13px; }
+.pd-dates { display: block; margin-bottom: 3px; }
+.pd-mg { margin: 0 0 3px; font-size: 12px; border-inline-start: 3px solid var(--rc, #0f766e); padding-inline-start: 5px; }
+.pd-goal { margin: 0 0 4px; font-size: 13px; }
+.pd-goal.done { color: #166534; }
+.pd-once { margin: 4px 0 0; font-size: 11px; color: #555; }
+.pd-share { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 3px; }
+.pd-share > span:first-child { flex: 0 1 46%; }
+.pd-bar { display: block; flex: 1; height: 7px; background: #e5e5e5; border-radius: 99px; }
+.pd-bar i { display: block; height: 100%; background: #0f766e; border-radius: 99px; }
+.pd-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; margin-bottom: 10px; }
+.pd-nums span { border: 1px solid #ccc; border-radius: 8px; padding: 6px; font-size: 12px; }
+.pd-nums b { display: block; font-size: 20px; }
+.pd-months { display: grid; grid-template-columns: repeat(var(--n, 7), 1fr); gap: 6px; height: 150px; margin-bottom: 10px; }
+.pd-series > span { display: grid; grid-template-rows: 1fr auto auto; height: 100%; text-align: center; font-size: 11px; }
+.pd-series i { align-self: end; background: #0f766e; border-radius: 4px 4px 0 0; display: block; }
+.pd-foot { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid #ccc; margin-top: 12px; padding-top: 6px; font-size: 10px; color: #555; }
+@media print {
+  html, body { background: #fff !important; }
+  body > *:not(#print) { display: none !important; }
+  #print { display: block; }
+  .pd { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
 /* ================= v108: tablets. From 768px the page widens with the screen (phones are untouched: all of this is inside min-width) ================= */
 @media (min-width: 768px) {
   .top-inner, main.wrap { max-width: 860px; }

@@ -110,8 +110,8 @@ function closeTodayHTML() {
     return `<div class="close-sec"><b>${title} <small class="num">باقٍ ${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
   };
   // tasks and goals (habits have their own section)
-  const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0 && !skip.includes(t.id));
-  const onceGoals = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && !t.done && t.due && t.due <= t0 && !skip.includes(t.id));
+  const tasks = S.tasks.filter((t) => !isGoal(t) && dueOpen(t, t0) && !skip.includes(t.id));
+  const onceGoals = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && dueOpen(t, t0) && !skip.includes(t.id));
   const repGoals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t) && occursOn(t, t0));
   const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
   const tg = [
@@ -163,11 +163,12 @@ document.addEventListener('click', (e) => {
     // a reading project's session has its date worked out from the reading days: the move is kept apart
     if (t.bookId) t.readOn = addDays(t0, 1);
     t.due = addDays(t0, 1);
+    t.from = ''; // (a task for any day of its week is now for tomorrow)
     S.settings.closeSkip = { d: t0, ids: closeSkips(), moved: [...closeMoved(), t.id] };
     save(); render(); toast(`«${t.title}» للغد`); return; }
   if (action === 'close-skip' && t) {
     // a task set aside loses its date (it waits in «بلا موعد»); a goal is just left for today
-    if (!isRepeat(t) && !isGoal(t) && !t.bookId) { t.due = ''; toast(`«${t.title}» صارت بلا موعد`); }
+    if (!isRepeat(t) && !isGoal(t) && !t.bookId) { t.due = ''; t.from = ''; toast(`«${t.title}» صارت بلا موعد`); }
     S.settings.closeSkip = { d: t0, ids: [...closeSkips(), t.id], moved: closeMoved() };
     save(); render();
     return;
@@ -183,8 +184,8 @@ document.addEventListener('click', (e) => {
 // what is left today: tasks, goals (recurring ones due today, one-time ones due by today), list items
 function leftToday() {
   const t0 = today();
-  const tasks = S.tasks.filter((t) => !isGoal(t) && !t.done && t.due && t.due <= t0).length;
-  const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && !t.done && t.due && t.due <= t0) && !closeSkips().includes(t.id)).length;
+  const tasks = S.tasks.filter((t) => !isGoal(t) && dueOpen(t, t0)).length;
+  const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && dueOpen(t, t0)) && !closeSkips().includes(t.id)).length;
   const lists = S.shop.filter((x) => x.need).length;
   return { tasks, goals, lists };
 }
