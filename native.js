@@ -127,7 +127,7 @@ const WaiBridge = (() => {
       const on = isRepeat(t) ? !goalEnded(t) && occursOn(t, d) && !t.completions[d] && !skip.includes(t.id)
         : dueOpen(t, d) && !(isGoal(t) && skip.includes(t.id));
       if (!on) continue;
-      const m = hasTime(t) ? timeOn(t, d) : null, late = !isRepeat(t) && t.due < d && !t.from, cnt = isCounted(t);
+      const m = hasTime(t) ? timeOn(t, d) : null, late = !isRepeat(t) && t.due < d, cnt = isCounted(t);
       const lab = (x) => (d === today() ? dueLabel(x) : fmtDate(x, { weekday: 'long', day: 'numeric', month: 'long' })); // (tomorrow's list is read tomorrow)
       // its time, «متأخرة» (in red there), and a count (written by the app: a tick there adds one)
       out.push({ id: t.id, t: digitsOut(t.title), s: hasTime(t) ? digitsOut(timeLabel(t, d)) : '', l: late ? digitsOut(`متأخرة: ${lab(t.due)}`) : '', m, late, tick: !t.bookId, n: cnt ? countOn(t, d) : 0, of: cnt ? t.target : 0 });

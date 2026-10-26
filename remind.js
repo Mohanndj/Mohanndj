@@ -21,7 +21,8 @@ function hifzTodayHTML() {
   const rows = [];
   const t0 = today();
   for (const p of S.hplans) {
-    if (!planToday(p)) continue;
+    // (a plan finished today, with its last portion, stays until the day ends: «✓ أتممت مقدار اليوم»)
+    if (!planToday(p) && !(p.doneAt === t0 && p.log[t0])) continue;
     const pending = planPending(p);
     if (pending) { rows.push(tRow('🧠', `أكمل حفظ: ${p.title}`, planRange(p, p.pos - parsePoemLen(pending), p.pos), 'hz-plan-go', p.id)); continue; }
     const { a, b, total } = planNext(p);

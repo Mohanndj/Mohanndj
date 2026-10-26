@@ -190,6 +190,7 @@ function saveSci() {
 }
 
 // ---------- a textbook ----------
+// (its place in «سلّم العلم» is not chosen here: that section went in v86, and «التالي»/«أتممته» hid the book with no way back)
 function openSBook(sciId, bookId) {
   const s = getSci(sciId);
   const b = bookId ? s.books.find((x) => x.id === bookId) : normalizeSBook({ status: sciBook(s) ? 'next' : 'current' });
@@ -205,8 +206,6 @@ function openSBook(sciId, bookId) {
       <div class="seg" id="sbShKind" role="group">${Object.entries(SHARH_KIND).map(([k, v]) => `<button type="button" data-action="study-shkind" data-v="${k}" aria-pressed="${b.sharh.kind === k}">${v}</button>`).join('')}</div>
       <label class="field"><span>رابطه (اختياري)</span><input type="url" id="sbShLink" value="${esc(b.sharh.link)}" autocomplete="off" placeholder="https://" dir="ltr" data-novoice></label>
     </div>
-    <div class="field"><span>مكانه في سلّم العلم</span><div class="seg seg-wrap" id="sbStatus" role="group">${Object.entries(SBOOK_STATUS).map(([k, v]) => `<button type="button" data-action="study-bstatus" data-v="${k}" aria-pressed="${b.status === k}">${v}</button>`).join('')}</div>
-      <small class="hint">لكل علم كتاب معتمد واحد؛ اعتماد هذا يجعل المعتمد الحالي «التالي في السلّم».</small></div>
     <label class="field"><span>ملاحظة (اختياري)</span><textarea id="sbNote" rows="2">${esc(b.note)}</textarea></label>
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button>${bookId ? `<button type="button" class="danger" data-action="study-book-del">${b.lessons.length ? `حذف (مع ${plural(b.lessons.length, 'درسه', 'درسيه', 'دروسه', 'درساً')})` : 'حذف'}</button>` : ''}</div>`;
   showLib();

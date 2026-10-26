@@ -128,7 +128,8 @@ const Voice = (() => {
     hideRefine();
     unlockAudio();
     const c = cfg();
-    useAI = !!(c.ai && typeof AI !== 'undefined' && AI.on());
+    // (offline: the dictation is written as heard at once, not after the AI's tries time out)
+    useAI = !!(c.ai && typeof AI !== 'undefined' && AI.on() && navigator.onLine);
     buffer = ''; interim = ''; restarts = 0;
     rec = new SR();
     rec.lang = c.lang;
@@ -206,7 +207,7 @@ const Voice = (() => {
     finishing = true;
     setBubble('جارٍ تنقيح النص…');
     let clean = text;
-    try {
+    if (navigator.onLine) try {
       clean = (await AI.ask({
         // only punctuation: the words stay exactly as they were heard
         system: 'Add punctuation marks to this Arabic voice dictation. Do NOT change, add, remove, reorder or correct any word, and do not translate. Keep every word exactly as given. Return only the text.',
@@ -276,7 +277,7 @@ const Voice = (() => {
   function offerRefine(el) {
     const text = said.join(' ').trim();
     said = [];
-    if (!el || !el.isConnected || !text || typeof AI === 'undefined' || !AI.on()) return;
+    if (!el || !el.isConnected || !text || typeof AI === 'undefined' || !AI.on() || !navigator.onLine) return;
     offer = { el, text };
     showRefine('✨ نقّح ما أمليته', refine);
   }

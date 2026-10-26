@@ -157,7 +157,7 @@ function archConvert(kind) {
     save();
     openMemo(m.id);
   } else {
-    const f = normalizeBenefit({ title: a.title, lesson: [a.text, a.note, a.url].filter(Boolean).join('\n'), book: a.url ? hostOf(a.url) : '' }); // a tag («معلومة») is not a book
+    const f = normalizeBenefit({ title: a.title, text: [a.text, a.url].filter(Boolean).join('\n'), lesson: a.note, book: a.url ? hostOf(a.url) : '' }); // the saved text is the benefit as read; the user's note what is learnt from it // a tag («معلومة») is not a book
     S.benefits.push(f);
     save();
     openLib('benefit', f.id);

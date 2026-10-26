@@ -128,8 +128,9 @@ function awareStats(P) {
   const goals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !t.bookId).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
   const gT = sum(goals, (g) => g.total), gH = oneDec(sum(goals, (g) => g.hit));
   const onceAll = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && ((t.done && inP(dayOfTs(t.doneAt))) || inAll(t.due)));
-  const onceDone = onceAll.filter((t) => t.done);
-  const onceState = (t) => (t.done ? `✓ تحقق${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.target > 1 ? `${countOn(t, t0)} من ${t.target}${t.unit ? ` ${t.unit}` : ''}` : t.due && t.due < t0 ? '✗ لم يتحقق' : 'لم يتحقق بعد');
+  // (achieved after the period ended: not achieved in it, as for tasks)
+  const onceDone = onceAll.filter(doneBy);
+  const onceState = (t) => (doneBy(t) ? `✓ تحقق${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.target > 1 ? `${countOn(t, t0)} من ${t.target}${t.unit ? ` ${t.unit}` : ''}` : t.due && t.due < t0 ? '✗ لم يتحقق' : 'لم يتحقق بعد');
   // «خطِّط» (plan.js, v98): its week goals in the weeks that start in the period, its month goals in the months that
   // start in it (each asked for while its number is not reached), and what was kept in «سجل حياتي». Facts only
   const kWeeks = khWeekStarts(start, addDays(end, 1)), kMonths = [];

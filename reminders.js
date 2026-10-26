@@ -204,7 +204,9 @@ function remindPopup(force) {
   // the app's data not loaded yet (app.js comes after this file, and slowly on a first opening): in a moment
   if (typeof S === 'undefined') { setTimeout(() => remindPopup(force), 1000); return; }
   const act = remActive();
-  if (!act.length || (typeof lsheet === 'function' && lsheet().open)) return;
+  // not over something being written: any open sheet (a task, a project…), a note or a journal entry
+  const busy = !!document.querySelector('dialog[open]') || (typeof mstate !== 'undefined' && !!mstate) || (typeof jstate !== 'undefined' && !!jstate);
+  if (!act.length || busy) return;
   const last = Number(S.settings.remShown) || 0;
   if (!force && Date.now() - last < REMIND_EVERY) return;
   S.settings.remShown = Date.now();

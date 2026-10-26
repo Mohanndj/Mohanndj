@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 132;
+const APP_VERSION = 133;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -422,6 +422,7 @@ function toggle(id, date, quiet) { // (quiet: from the Android app's widget, nob
   const d = date || today();
   // (a reading session done today can still be taken back, though the book's task moved to its next day)
   if (notYetOn(t, d) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(isRepeat(t) ? d : t.due)}`); return; }
+  if (offDay(t, d)) { toast(`${dueLabel(d)} ليس من أيامها`); return; }
   if (t.bookId && readingSession(t, d)) { save(); render(); return; }
   const wasDone = doneOn(t, d);
   if (isCounted(t)) {
@@ -451,6 +452,7 @@ function step(id, date, delta) {
   const t = getTask(id);
   if (!t) return;
   if (delta > 0 && notYetOn(t, date)) { toast(`موعدها ${dueLabel(isRepeat(t) ? date : t.due)}`); return; }
+  if (delta > 0 && offDay(t, date || today())) { toast(`${dueLabel(date || today())} ليس من أيامها`); return; }
   const wasDone = doneOn(t, date);
   setCount(t, date, countOn(t, date) + delta);
   save();
@@ -481,9 +483,18 @@ function removeTask(id) {
 const notYet = (t) => !isGoal(t) && !t.done && !!t.due && t.due > today() && !(t.from && t.from <= today());
 // …and a recurring goal's day that has not come yet
 const notYetOn = (t, d) => notYet(t) || (isRepeat(t) && !!d && d > today());
+// …and a day that is not one of a recurring goal's days (from a search or a project page): it does not count there
+function offDay(t, d) {
+  if (!isRepeat(t) || !d || doneOn(t, d)) return false;
+  const r = t.repeat;
+  // a goal of «any days» may be ticked on any day of its weeks (a day gone by from «أسبوعي»)
+  if (r.per) return d < r.start || (!!r.until && d > r.until) || (!!t.kgoal && !khChainOn(t, d));
+  return !occursOn(t, d);
+}
 function checkButton(t, d, done) {
   if (isRepeat(t) && d > today() && !done) return `<button type="button" class="check later" disabled aria-label="${esc(`يُتاح ${dueLabel(d)}`)}">${icon('check')}</button>`;
   if (notYet(t) && !done) return `<button type="button" class="check later" disabled aria-label="${esc(`يُتاح ${dueLabel(t.due)}`)}">${icon('check')}</button>`;
+  if (offDay(t, d)) return `<button type="button" class="check later" disabled aria-label="${esc(`${dueLabel(d)} ليس من أيامها`)}">${icon('check')}</button>`;
   const counted = isCounted(t);
   const label = counted ? `${countOn(t, d)} من ${t.target}${t.unit ? ' ' + t.unit : ''}، اضغط للزيادة` : done ? 'إلغاء الإنجاز' : 'تمت';
   return `<button type="button" class="check${counted ? ' counted' : ''}" data-action="toggle" data-id="${t.id}" data-date="${d}" aria-pressed="${done}" aria-label="${esc(label)}">${icon('check')}${counted ? `<span class="cnt">${countOn(t, d)}</span>` : ''}</button>`;
@@ -1071,6 +1082,8 @@ const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 
 
 function render() {
   const view = $('view');
+  // a book's reading session is due on its next reading day, whatever page is drawn (a day gone by left it late)
+  syncReading();
   khMemo.clear();
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
@@ -1212,6 +1225,10 @@ function setKind(kind) {
   $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
   setGoalMode(draft.mode); // may rename the sheet to «عادة جديدة»
   khSyncRoleField(); // a goal has no project: its own role
+  // a book's task: its title, days, date and project follow the book (syncReading rewrites them), so not edited here
+  const bk = !!(draft.id && (getTask(draft.id) || {}).bookId);
+  $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !bk;
+  if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
 }
 
 // goal types: recurring, one-time, or a habit (with its own fields)
@@ -2620,8 +2637,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 // ---------- back button & exit confirmation ----------
 // The back button first closes what is open, then returns to «اليوم»; on «اليوم» it asks before leaving.
 let leaving = false;
+let histLen = history.length;
 function armBack() {
   if (!(history.state && history.state.mahamiGuard)) history.pushState({ mahamiGuard: 1 }, '', location.href);
+  histLen = history.length;
 }
 let exitTimer = null;
 function askExit() {
@@ -2647,6 +2666,15 @@ function closeTopLayer() {
 }
 window.addEventListener('popstate', () => {
   if (leaving) return;
+  // a link to a page («#archive» from the icon's shortcut) while the app is open adds a step, as back never does:
+  // it opens that page, it is not «رجوع»
+  if (history.length > histLen) {
+    histLen = history.length;
+    const h = location.hash.slice(1);
+    if (VIEWS[h] && h !== ui.tab) { closeTopLayer(); go(h); }
+    armBack();
+    return;
+  }
   if (!$('exitBar').hidden) { $('exitBar').hidden = true; } // second back while asking: let it go
   if (closeTopLayer()) { armBack(); return; }
   if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }

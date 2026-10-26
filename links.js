@@ -121,7 +121,7 @@ function syncAllPlans() {
 const rowOfLink = (key, d) => { const p = planForDate(d); return p ? [...p.fixed, ...p.periodic].find((x) => x.link === key) : null; };
 const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : l.kind === 'fine' ? `المخالفات المرورية${discLine(l.src) ? ` | ${discLine(l.src)}` : ''}` : `دَين «${l.src.name}»`) : ''; };
 
-// a bill paid every few months whose share is in every month's plan (v131, the owner's choice: «دُفع» on a month
+// a bill paid every few months whose share is in every month's plan (v132, the owner's choice: «دُفع» on a month
 // that is not its due month = its share of this month put aside): the share counts as spent in its month, and on
 // its due date only what is left of it is paid
 const subShare = (s) => s.every > 1 && !s.whole;
