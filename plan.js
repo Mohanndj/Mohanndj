@@ -112,6 +112,8 @@ const khKeyLabel = (key) => { const mm = /^([gh])(\d{4})$/.exec(key || ''); retu
 // a year key in the calendar chosen now: the year its middle falls in (a year goal stays in «سنتي» after a switch)
 const khYrOfKey = (key) => { const sp = khKeySpan(key); return sp ? khYrStart(addDays(sp[0], Math.floor(khDaysBetween(sp[0], sp[1]) / 2))) : null; };
 const khYearOpts = () => { const y = khYrStart(today()), n = khYrNext(y); return [[khYrKey(y), khYrLabel(y)], [khYrKey(n), khYrLabel(n)]]; };
+// how many of the months a year goal is tied to fall outside a year (by their middle, as everywhere): a year it cannot move to
+const khYearOut = (yg, key) => { const sp = khKeySpan(key); return !yg || !sp ? 0 : kgKids(yg, 'month').reduce((n, m) => n + m.months.filter((r) => { const d = khMid(r); return d < sp[0] || d >= sp[1]; }).length, 0); };
 
 // ---------- from the vision to the days (v98): S.kgoals ----------
 // A vision in each role (life); a goal for the year that serves it; the months it is in (chosen ones, or a number of
@@ -1008,14 +1010,18 @@ function khWizDraw() {
   if (edit === 'year') {
     // a year goal edited in its own step (v115): its question and answer, its laws and meaning, as it was written; and what
     // its editor had: its role, the vision it serves, its year (until it is tied to months), its state, and «حذف»
-    const yg = kgOf(w.yearId), lock = !!yg && kgKids(yg, 'month').length > 0;
+    // its year can be changed though it has months (a goal written in one calendar, then the calendar changed: v116),
+    // to a year that holds the months it is tied to
+    const yg = kgOf(w.yearId);
     const ups = S.kgoals.filter((v) => v.level === 'life' && v.roleId === w.roleId && (v.status === 'open' || v.id === w.vision));
     const per = khYearOpts().some(([k]) => k === w.yk) ? khYearOpts() : [...khYearOpts(), [w.yk, khKeyLabel(w.yk)]];
+    const outOf = per.filter(([k]) => k !== w.yk && khYearOut(yg, k));
     body = `<h3 class="kh-wh">هدف السنة</h3>
       <label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}${khRole(w.roleId) ? '' : '<option value="" selected>بلا دور</option>'}</select></label>
       <label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis"><option value="">بلا ربط</option>${ups.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
-      ${lock ? `<p class="note-text">السنة: ${esc(khKeyLabel(w.yk))} (ثابتة بعد ربطه بأشهره)</p>` : `<div class="seg" role="group" aria-label="أيّ سنة؟">${per.map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>`}
+      <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${per.map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk).replace('<button', outOf.some(([o]) => o === k) ? '<button disabled' : '<button')).join('')}</div>
+      ${outOf.length ? `<p class="note-text">${outOf.map(([, l]) => esc(l)).join(' و')}: لا تضم كل أشهره المربوطة</p>` : ''}
       <label class="field kh-q lv-year"><span>اكتب جوابك</span><textarea id="khwY" rows="2">${esc(w.yText)}</textarea></label>
       ${khLawsHTML(w.laws)}
       <label class="field"><span>لماذا تريده؟ (المعنى، اختياري)</span><textarea id="khwWhy" rows="2">${esc(w.why)}</textarea></label>
@@ -1096,7 +1102,10 @@ function khWizCommit() {
     const yg = kgOf(w.yearId);
     if (!yg) { toast('هذا الهدف لم يعد موجوداً.'); return false; }
     if (yg.status !== w.status) yg.closedAt = w.status === 'open' ? '' : today();
+    if (khYearOut(yg, w.yk)) { toast(`${khKeyLabel(w.yk)} لا تضم كل أشهره المربوطة.`); return false; }
+    const moved = yg.period !== w.yk;
     Object.assign(yg, { roleId: w.roleId, text: w.yText.trim(), why: w.why.trim(), laws: { ...w.laws }, parent: w.vision || '', period: w.yk, status: w.status });
+    if (moved) for (const m of kgKids(yg, 'month')) khSyncStart(m); // (its tasks run in its months of the year it is in now)
     save();
     return true;
   }
