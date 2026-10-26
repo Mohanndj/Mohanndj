@@ -18,7 +18,9 @@ function normalizeMemo(m) {
 }
 // before v70, a book added as «مقروء» from the «أقرؤه الآن» list kept today's auto start date, and so was
 // counted as read on the day it was added: started, finished and added the same day, with no reading recorded
-const pastReadByMistake = (b) => b.status === 'read' && b.created && b.end && b.end === iso(new Date(b.created)) && (!b.start || b.start === b.end) && !(b.log || []).length && !Number(b.page);
+// (a repair for books saved before v70, when the mistake was fixed: a book read in the app later, even on the
+// day it was added, keeps its dates)
+const pastReadByMistake = (b) => b.status === 'read' && b.created && b.created < Date.parse('2026-10-17') && b.end && b.end === iso(new Date(b.created)) && (!b.start || b.start === b.end) && !(b.log || []).length && !Number(b.page);
 function normalizeBook(b) {
   if (pastReadByMistake(b)) b = { ...b, start: '', end: '' };
   return {

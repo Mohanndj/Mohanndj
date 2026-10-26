@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 130;
+const APP_VERSION = 131;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -164,6 +164,7 @@ function normalize(t) {
     habit: repeat ? normalizeHabit(t.habit) : null,
     bookId: t.bookId || '',
     readPages: t.readPages && typeof t.readPages === 'object' ? t.readPages : {}, // a book task: pages actually read per session day
+    left: /^\d{4}-\d{2}-\d{2}$/.test(t.left || '') ? t.left : '', // a book task that left its reading project with sessions: kept closed
     readOn: /^\d{4}-\d{2}-\d{2}$/.test(t.readOn || '') ? t.readOn : '', // a reading session moved to another day («للغد» in the evening close)
     // «خطِّط» (plan.js, v97): its role (a project's task takes its project's), the area of «شحذ المنشار»,
     // the day it is a top priority, and the week it was moved from in a review
@@ -276,7 +277,7 @@ const isRepeat = (t) => !!t.repeat;
 // a reading goal (bookId) is ticked whole: its pages move the book on (reading.js)
 const isCounted = (t) => isGoal(t) && t.target > 1 && !t.bookId;
 const projectOf = (t) => (t.projectId ? getProject(t.projectId) : null);
-const tasksOf = (pid) => S.tasks.filter((t) => t.projectId === pid && !isGoal(t));
+const tasksOf = (pid) => S.tasks.filter((t) => t.projectId === pid && !isGoal(t) && !t.left);
 
 // ---------- prayer times ----------
 const prayerMemo = new Map();
@@ -1387,7 +1388,8 @@ function openSheet(id, opts = {}) {
   $('fPrMin').value = absOff;
   $('fNote').value = '';
   $('fSub').value = '';
-  $('delBtn').hidden = !existing;
+  // a book's task is remade by syncReading as soon as it is deleted (losing its sessions): no «حذف» for it
+  $('delBtn').hidden = !existing || !!existing.bookId;
   $('delBtn').classList.remove('armed');
   $('delBtn').textContent = 'حذف';
   $('timerSec').hidden = !existing;
@@ -2324,10 +2326,8 @@ document.addEventListener('click', (e) => {
       // a reading project's book tasks go with it (the books stay); other tasks become general tasks
       const gone = S.projects.find((p) => p.id === pid) || {};
       const wasReading = !!gone.topic;
-      if (wasReading) S.tasks = S.tasks.filter((t) => !(t.projectId === pid && t.bookId));
-      // its tasks keep the role they had through it («خطِّط»), not «بلا دور»
-      for (const t of S.tasks) if (t.projectId === pid) { if (!t.roleId && gone.roleId) { t.roleId = gone.roleId; t.area = gone.area || ''; } t.projectId = ''; }
-      S.projects = S.projects.filter((p) => p.id !== pid);
+      // its tasks keep the role they had through it («خطِّط»), not «بلا دور»; its book tasks go (dropReadingProject)
+      if (gone.id) dropReadingProject(gone);
       save();
       closeProjectSheet();
       go('tasks', '');

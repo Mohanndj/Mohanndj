@@ -45,7 +45,11 @@ function syncBookGoal(b) {
     // already read today in its project (the book just left it): today's session shows done here too
     // with the pages that session read, so undoing it here takes back those pages (not the planned ones)
     const was = readToday(b) && S.tasks.find((x) => x.bookId === b.id && x.completions && x.completions[today()]);
-    if (was) { ng.completions[today()] = Date.now(); if (Number.isFinite((was.readPages || {})[today()])) ng.readPages[today()] = was.readPages[today()]; }
+    if (was) {
+      ng.completions[today()] = Date.now(); if (Number.isFinite((was.readPages || {})[today()])) ng.readPages[today()] = was.readPages[today()];
+      // (the project task that is left keeps its earlier sessions, not today's: it is counted once, here)
+      if (!isRepeat(was)) { delete was.completions[today()]; if (was.readPages) delete was.readPages[today()]; }
+    }
     S.tasks.push(ng);
     readingChanged = true;
     return;
@@ -57,6 +61,22 @@ function syncBookGoal(b) {
     readingChanged = true;
   }
 }
+// a book task that holds reading sessions is history: when it leaves its reading project it is closed
+// (kept done, «left»), so its sessions stay in the report; one with no sessions can go
+function closeBookTask(t) {
+  if (!Object.keys(t.completions || {}).length) return false;
+  if (!t.left) { t.done = true; t.doneAt = t.doneAt || Date.now(); t.due = ''; t.left = today(); readingChanged = true; }
+  return true;
+}
+// stopping or deleting a reading project: its book tasks go (closed if they hold sessions),
+// the tasks the user added to it become general tasks with the role they had through it
+function dropReadingProject(p) {
+  S.tasks = S.tasks.filter((t) => t.projectId !== p.id || !t.bookId || isRepeat(t) || closeBookTask(t));
+  let moved = 0;
+  for (const t of S.tasks) if (t.projectId === p.id && !t.bookId) { if (!t.roleId && p.roleId) { t.roleId = p.roleId; t.area = p.area || ''; } t.projectId = ''; moved++; }
+  S.projects = S.projects.filter((x) => x !== p);
+  return moved;
+}
 function syncTopicProject(p) {
   const books = S.books.filter((b) => b.topic === p.topic);
   // a book read in the past is done on the day it was finished, not on the day the project was made
@@ -66,13 +86,14 @@ function syncTopicProject(p) {
     const title = sch ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`;
     const read = b.status === 'read';
     let t = S.tasks.find((x) => x.projectId === p.id && x.bookId === b.id && !isRepeat(x));
+    if (t && t.left) { t.left = ''; readingChanged = true; } // the book is back in this project: its task goes on
     if (!t) { t = normalize({ kind: 'task', title, projectId: p.id, bookId: b.id, category: 'قراءة', done: read, doneAt: read ? readAt(b) : null, created: Date.now() }); S.tasks.push(t); readingChanged = true; }
     // a scheduled book: the task is due on its next reading day, so «اليوم» shows it on those days only
     const due = sch && !read ? nextReadingDay(b, t) : '';
     if (t.title !== title || t.done !== read || t.due !== due) { t.title = title; t.done = read; t.doneAt = read ? t.doneAt || readAt(b) : null; t.due = due; readingChanged = true; }
   }
   const n = S.tasks.length;
-  S.tasks = S.tasks.filter((x) => !(x.projectId === p.id && x.bookId && !isRepeat(x) && !books.some((b) => b.id === x.bookId)));
+  S.tasks = S.tasks.filter((x) => !(x.projectId === p.id && x.bookId && !isRepeat(x) && !books.some((b) => b.id === x.bookId)) || closeBookTask(x));
   if (S.tasks.length !== n) readingChanged = true;
 }
 // keep goals and reading projects in step with the books; saves only when something changed
@@ -86,9 +107,10 @@ function syncReading() {
   const n = S.tasks.length;
   S.tasks = S.tasks.filter((t) => {
     if (!t.bookId || isRepeat(t) || t.done) return true;
+    if (t.left) return true;
     const p = t.projectId && S.projects.find((x) => x.id === t.projectId);
     const b = getBook(t.bookId);
-    return !!(p && p.topic && b && b.topic === p.topic);
+    return !!(p && p.topic && b && b.topic === p.topic) || closeBookTask(t);
   });
   if (S.tasks.length !== n) readingChanged = true;
   if (readingChanged) save();
@@ -240,7 +262,11 @@ function readingFromTask(t, d) {
     if (t.completions[d]) startSession(b, t, d);
     else undoSession(b, t, d);
   }
-  else if (t.done && b.status !== 'read') { b.status = 'read'; const u = readEndUndo[b.id]; b.end = b.end || (u && u.on === today() ? u.end : today()); delete readEndUndo[b.id]; }
+  else if (t.done && b.status !== 'read') {
+    b.status = 'read'; const u = readEndUndo[b.id]; b.end = b.end || (u && u.on === today() ? u.end : today()); delete readEndUndo[b.id];
+    // read in the app (not long ago): with no start the book's sheet would take it for an old book and drop its end date
+    if (!b.start) b.start = b.end;
+  }
   else if (!t.done && b.status === 'read') { readEndUndo[b.id] = { end: b.end, on: today() }; b.status = 'reading'; b.end = ''; }
 }
 
@@ -298,8 +324,8 @@ document.addEventListener('click', (e) => {
   if (action === 'rd-topic-off') {
     if (!el.classList.contains('armed')) { el.classList.add('armed'); el.textContent = 'تأكيد الإيقاف'; return; }
     const p = topicProject(v);
-    if (p) { S.tasks = S.tasks.filter((t) => t.projectId !== p.id); S.projects = S.projects.filter((x) => x !== p); }
+    const moved = p ? dropReadingProject(p) : 0;
     syncReading(); save(); render();
-    toast('أُوقف المشروع القرائي. الكتب باقية كما هي');
+    toast(`أُوقف المشروع القرائي. الكتب باقية كما هي${moved ? `، ومهامك الأخرى فيه صارت في «مهام عامة»` : ''}`);
   }
 });

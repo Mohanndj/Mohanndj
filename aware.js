@@ -280,7 +280,9 @@ function awareStats(P) {
     // only while the book is being read: from when its task (or its reading) began until it was finished;
     // a book still waiting to be read has no reading days yet (a session it holds still counts)
     const from = b.start && b.start > dayOfTs(t.created) ? b.start : dayOfTs(t.created);
-    const until = b.status === 'read' ? (b.end || dayOfTs(t.doneAt) || '') : b.status === 'reading' ? '9999' : '';
+    const until0 = b.status === 'read' ? (b.end || dayOfTs(t.doneAt) || '') : b.status === 'reading' ? '9999' : '';
+    // a task that left its project (closed with its sessions) asked for nothing after that day
+    const until = t.left && until0 >= t.left ? addDays(t.left, -1) : until0; // (from that day its new goal or project asks for it)
     for (const d of all) {
       if (t.completions[d]) { x.s++; x.h++; continue; }
       if (!b.rdays.length || !b.rpages || d < from || !until || d > until || !b.rdays.includes(parse(d).getDay())) continue;
