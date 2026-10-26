@@ -201,6 +201,8 @@ function viewReminders() {
 
 // on opening the app: the reminders again, at most once every four hours
 function remindPopup(force) {
+  // the app's data not loaded yet (app.js comes after this file, and slowly on a first opening): in a moment
+  if (typeof S === 'undefined') { setTimeout(() => remindPopup(force), 1000); return; }
   const act = remActive();
   if (!act.length || (typeof lsheet === 'function' && lsheet().open)) return;
   const last = Number(S.settings.remShown) || 0;

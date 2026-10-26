@@ -218,7 +218,8 @@ async function pinOff() {
   try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) for (const n of await reg.getNotifications({ tag: 'pin' })) n.close(); } catch {}
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { appBadge(); pinNotify(true); } });
-setTimeout(() => { appBadge(); pinNotify(true); }, 2000);
+// (the app's data may not be loaded yet on a first opening: app.js comes after this file)
+setTimeout(function first() { if (typeof S === 'undefined') { setTimeout(first, 1000); return; } appBadge(); pinNotify(true); }, 2000);
 
 document.addEventListener('change', async (e) => {
   if (e.target.id === 'setPin') {
