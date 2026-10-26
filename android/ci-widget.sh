@@ -8,10 +8,25 @@ fail() { echo "::error::widget: $*"; exit 1; }
 adb uninstall app.mohanndj.alwaei > /dev/null 2>&1 || true
 adb install -r app-debug.apk || fail "the test build did not install"
 adb install -r widgethost.apk || fail "the home screen of the check did not install"
+# what the phone says about the app, when a step fails
+why() {
+  echo "--- the app's processes"; adb shell ps -A | grep -i alwaei
+  echo "--- debugging addresses"; adb shell cat /proc/net/unix 2>&1 | grep -io 'devtools[a-z_0-9]*' | sort -u
+  echo "--- the app's stops"; adb logcat -d -b crash | tail -40
+  echo "--- the phone's log about it"; adb logcat -d | grep -iE 'alwaei|AndroidRuntime|WaiApp|chromium' | tail -60
+}
+adb logcat -c
 adb shell am start -W -n app.mohanndj.alwaei/.MainActivity
-sleep 30
-PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
+PID=""
+for i in $(seq 1 30); do
+  sleep 2
+  PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
+  [ -n "$PID" ] || PID=$(adb shell ps -A -o PID,NAME | tr -d '\r' | awk '$2 == "app.mohanndj.alwaei" { print $1 }')
+  [ -n "$PID" ] && break
+done
 echo "app pid: $PID"
+[ -n "$PID" ] || { why; fail "the test build is not running"; }
+sleep 20
 # the page's debugging address (a test build's WebView opens it under its process's number; the list of such
 # addresses, /proc/net/unix, is closed to the emulator's shell on newer Android, so it is tried directly)
 adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" || fail "no address for the page's debugging"
@@ -21,7 +36,7 @@ for i in $(seq 1 10); do
   [ -n "$WS" ] && break
   sleep 3
 done
-[ -n "$WS" ] || { curl -s -m 5 localhost:9222/json | head -c 400; fail "the page's debugging is not open"; }
+[ -n "$WS" ] || { curl -s -m 5 localhost:9222/json | head -c 400; why; fail "the page's debugging is not open"; }
 page() { python3 android/ci-cdp.py "$WS" "$1"; }
 # the site's newest version (GitHub publishes the site a minute or two after the push that built this app)
 WANT=$(grep -o 'APP_VERSION = [0-9]*' app.js | grep -o '[0-9]*$')
