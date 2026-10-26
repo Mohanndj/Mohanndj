@@ -105,11 +105,31 @@ final class Notifs {
         return key != null && key.startsWith("rem:");
     }
 
-    private static PendingIntent screen(Context c, String tag, JSONObject extra, String snooze) {
-        Intent i = new Intent(c, AlarmActivity.class).setData(Uri.parse("wai://screen/" + Uri.encode(tag)))
+    private static Intent screenIntent(Context c, String tag, JSONObject extra, String snooze) {
+        return new Intent(c, AlarmActivity.class).setData(Uri.parse("wai://screen/" + Uri.encode(tag)))
                 .putExtra("tag", tag).putExtra("extra", extra.toString()).putExtra("snooze", snooze)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
-        return PendingIntent.getActivity(c, ("screen|" + tag).hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static PendingIntent screen(Context c, String tag, JSONObject extra, String snooze) {
+        return PendingIntent.getActivity(c, ("screen|" + tag).hashCode(), screenIntent(c, tag, extra, snooze),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    // v124: may the app show itself over other apps («الظهور فوق التطبيقات الأخرى»)?
+    static boolean overApps(Context c) {
+        return android.provider.Settings.canDrawOverlays(c);
+    }
+
+    // v124: the owner's request («أن يظهر على الشاشة كتنبيهات الجوال نفسها… وليس في القائمة المنسدلة»): the window opened
+    // by the app itself when the alarm rings, over whatever is open (the phone lets an app start a window from the
+    // background only when it may show itself over other apps; without that, the notification and its full screen)
+    static void popUp(Context c, String tag, JSONObject extra, String snooze) {
+        if (!overApps(c)) return;
+        try {
+            c.startActivity(screenIntent(c, tag, extra, snooze));
+        } catch (Exception ignored) {
+        }
     }
 
     private static void onScreen(Context c, Notification.Builder b, String tag, JSONObject extra, String snooze) {
@@ -156,11 +176,14 @@ final class Notifs {
                     action(c, ACT, tag, a.optString("action"), extra)).build());
         }
         if (alarm) b.setDeleteIntent(action(c, DEL, tag, "dismiss", extra));
+        String sn = null;
         if (alarm && isRem(tag)) {
-            JSONObject sn = acts == null ? null : acts.optJSONObject(1);
-            onScreen(c, b, tag, extra, sn == null ? "غفوة" : sn.optString("title", "غفوة"));
+            JSONObject a1 = acts == null ? null : acts.optJSONObject(1);
+            sn = a1 == null ? "غفوة" : a1.optString("title", "غفوة");
+            onScreen(c, b, tag, extra, sn);
         }
         nm(c).notify(idOf(tag), b.build());
+        if (sn != null) popUp(c, tag, extra, sn);
     }
 
     /** An alarm the app rings by itself: its tone again and again (until answered, or five minutes and it goes quiet). */
@@ -186,6 +209,7 @@ final class Notifs {
         Notification n = b.build();
         if (!late) n.flags |= Notification.FLAG_INSISTENT;
         nm(c).notify(idOf(key), n);
+        if (rem && !late) popUp(c, key, extra, snooze);
     }
 
     static void cancel(Context c, String tag) {

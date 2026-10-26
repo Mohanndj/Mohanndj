@@ -22,11 +22,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * A reminder's alarm on the whole screen (v121, the owner's request: «اجعل الكتابة التي تظهر ثابتة على الشاشة حتى أقوم
- * وألغيها»): its hour and its whole text, over the lock screen too, until «قرأت النص» or «غفوة» is pressed here
- * (each goes as its button on the notification does), or the alarm is answered elsewhere (the notification gone).
- * Opened by the notification's full-screen intent (the phone shows it by itself when the screen is off or locked; in use,
- * the notification stays at the top of the screen instead) and by a tap on the notification.
+ * A reminder's alarm on the screen (v121, the owner's request: «اجعل الكتابة التي تظهر ثابتة على الشاشة حتى أقوم
+ * وألغيها»; v124, his: «أقصد أن يظهر على الشاشة كتنبيهات الجوال نفسها… وليس في القائمة المنسدلة»): a window in the
+ * middle of the screen, over whatever is open and over the lock screen, with its hour and its whole text, until
+ * «قرأت النص» or «غفوة» is pressed here (each goes as its button on the notification does), or the alarm is answered
+ * elsewhere (the notification gone). Opened by the app itself when the alarm rings, if it may show itself over other
+ * apps (Notifs.popUp, the permission «الظهور فوق التطبيقات الأخرى»); by the notification's full-screen intent (the
+ * phone shows it by itself when the screen is off or locked); and by a tap on the notification.
  */
 public class AlarmActivity extends Activity {
     private static final int TEAL = 0xFF0F766E;
@@ -56,8 +58,8 @@ public class AlarmActivity extends Activity {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        getWindow().setStatusBarColor(TEAL);
-        getWindow().setNavigationBarColor(TEAL);
+        // a touch beside it does not close it
+        setFinishOnTouchOutside(false);
         show(getIntent());
     }
 
@@ -99,47 +101,59 @@ public class AlarmActivity extends Activity {
         }
         String snooze = in.getStringExtra("snooze");
         if (snooze == null || snooze.isEmpty()) snooze = "غفوة";
-        int pad = (int) dp(24);
+        int pad = (int) dp(22);
+        // as wide as the screen allows, with a margin (at most that of a phone's own alert)
+        int cardW = Math.min(getResources().getDisplayMetrics().widthPixels - (int) dp(32), (int) dp(440));
 
+        // a card in the middle of the screen (the screen behind it dimmed: AlarmTheme)
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        root.setBackgroundColor(TEAL);
-        root.setPadding(pad, (int) dp(40), pad, pad);
-        root.setFitsSystemWindows(true);
+        GradientDrawable card = new GradientDrawable();
+        card.setColor(Color.WHITE);
+        card.setCornerRadius(dp(24));
+        root.setBackground(card);
+        root.setPadding(pad, pad, pad, pad);
 
         TextView kicker = new TextView(this);
         kicker.setText(extra.optString("title", "منبه"));
-        kicker.setTextColor(0xCCFFFFFF);
-        kicker.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        kicker.setGravity(Gravity.CENTER);
+        kicker.setTextColor(TEAL);
+        kicker.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        kicker.setTypeface(Typeface.DEFAULT_BOLD);
+        kicker.setGravity(Gravity.START);
         root.addView(kicker, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        // its whole text, however long (the rest scrolls)
+        // its whole text, however long (beyond half the screen it scrolls)
         ScrollView sv = new ScrollView(this);
         TextView text = new TextView(this);
         text.setText(extra.optString("body", ""));
-        text.setTextColor(Color.WHITE);
-        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+        text.setTextColor(0xFF1F2937);
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         text.setTypeface(Typeface.DEFAULT_BOLD);
         text.setLineSpacing(0, 1.25f);
-        text.setGravity(Gravity.CENTER);
-        text.setTextIsSelectable(false);
-        text.setPadding(0, (int) dp(28), 0, (int) dp(28));
+        text.setGravity(Gravity.START);
+        text.setPadding(0, (int) dp(12), 0, (int) dp(8));
         sv.addView(text, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
-        sv.setFillViewport(true);
-        LinearLayout.LayoutParams svp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        root.addView(sv, svp);
+        int most = getResources().getDisplayMetrics().heightPixels / 2;
+        text.measure(View.MeasureSpec.makeMeasureSpec(cardW - 2 * pad, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED);
+        root.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.min(most, text.getMeasuredHeight())));
 
         // v123, the owner's request: «قرأت النص» and «غفوة» only
-        root.addView(button("قرأت النص", true, v -> answer("done")), buttonParams());
-        root.addView(button(snooze, false, v -> answer("snooze")), buttonParams());
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.addView(button("قرأت النص", true, v -> answer("done")), buttonParams(true));
+        row.addView(button(snooze, false, v -> answer("snooze")), buttonParams(false));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        rp.topMargin = (int) dp(16);
+        root.addView(row, rp);
         setContentView(root);
+        getWindow().setLayout(cardW, WindowManager.LayoutParams.WRAP_CONTENT);
     }
 
-    private LinearLayout.LayoutParams buttonParams() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(56));
-        p.topMargin = (int) dp(12);
+    private LinearLayout.LayoutParams buttonParams(boolean first) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, (int) dp(52), 1f);
+        if (!first) p.setMarginStart((int) dp(10));
         return p;
     }
 
@@ -147,16 +161,16 @@ public class AlarmActivity extends Activity {
         Button bt = new Button(this);
         bt.setText(label);
         bt.setAllCaps(false);
-        bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        bt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         bt.setTypeface(Typeface.DEFAULT_BOLD);
-        bt.setTextColor(main ? TEAL : Color.WHITE);
+        bt.setTextColor(main ? Color.WHITE : TEAL);
         bt.setStateListAnimator(null);
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(dp(16));
-        if (main) bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(14));
+        if (main) bg.setColor(TEAL);
         else {
             bg.setColor(0x00000000);
-            bg.setStroke((int) dp(2), 0x99FFFFFF);
+            bg.setStroke((int) dp(2), TEAL);
         }
         bt.setBackground(bg);
         bt.setContentDescription(label);

@@ -661,6 +661,25 @@ public class MainActivity extends Activity {
             });
         }
 
+        // v124: may a reminder's alarm come up over whatever is open («ok»), or not yet given («denied»)?
+        @JavascriptInterface
+        public String overlayState() {
+            return Notifs.overApps(MainActivity.this) ? "ok" : "denied";
+        }
+
+        // …and the phone's page where «الظهور فوق التطبيقات الأخرى» is given to this app
+        @JavascriptInterface
+        public void overlaySettings() {
+            if (!allowed()) return;
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "افتح إعدادات الجوال ← التطبيقات ← الوعي الشخصي ← الظهور فوق التطبيقات الأخرى", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
         @JavascriptInterface
         public void requestNotif() {
             if (!allowed()) return;

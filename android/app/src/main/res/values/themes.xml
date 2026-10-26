@@ -5,4 +5,11 @@
         <item name="android:windowBackground">@color/brand</item>
         <item name="android:statusBarColor">@color/brand</item>
     </style>
+    <!-- v124: a reminder's alarm as a window in the middle of the screen, the screen behind it dimmed (AlarmActivity) -->
+    <style name="AlarmTheme" parent="@android:style/Theme.Material.Light.Dialog.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowCloseOnTouchOutside">false</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+    </style>
 </resources>

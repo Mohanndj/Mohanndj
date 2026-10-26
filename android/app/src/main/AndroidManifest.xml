@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- v121: a reminder's alarm on the whole screen, over the lock too, until answered -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- v124: …and over whatever is open while the phone is in use («الظهور فوق التطبيقات الأخرى», given by the owner) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- dictation: the phone's speech recognition service must be visible to the app -->
     <queries>
@@ -47,13 +49,15 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- v121: a reminder's alarm on the whole screen until answered (opened by its notification only) -->
+        <!-- v121: a reminder's alarm on the screen until answered (v124: a window in its middle, opened by the app or by
+             its notification) -->
         <activity
             android:name=".AlarmActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
+            android:theme="@style/AlarmTheme"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale" />

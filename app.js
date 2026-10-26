@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 123;
+const APP_VERSION = 124;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1008,6 +1008,7 @@ function viewSettings() {
   <section class="panel">
     <h2>المنبهات</h2>
     <p class="note-text" id="notifStatus">${notifStatus()}</p>
+    ${window.WaiNative && window.WaiNative.overlayState && window.WaiNative.overlayState() === 'denied' ? '<p class="note-text status-bad">منبه التذكير لا يظهر نافذة على الشاشة وأنت تستعمل الجوال حتى تسمح للتطبيق بالظهور فوق التطبيقات الأخرى.</p><div class="btn-row"><button type="button" class="primary" data-action="overlay-allow">اسمح له بالظهور فوق التطبيقات</button></div>' : ''}
     ${window.WaiNative && window.WaiNative.fsiState && window.WaiNative.fsiState() === 'denied' ? '<p class="note-text status-bad">منبه التذكير لا يبقى على الشاشة حتى تسمح للتطبيق بذلك.</p><div class="btn-row"><button type="button" class="primary" data-action="fsi-allow">اسمح له بالظهور على الشاشة</button></div>' : ''}
     <div class="btn-row">
       ${'Notification' in window && Notification.permission === 'default' ? '<button type="button" class="primary" data-action="notif">تفعيل الإشعارات</button>' : ''}
@@ -1018,9 +1019,9 @@ function viewSettings() {
       <div class="btn-row" style="flex-wrap:nowrap"><select id="setTone" style="flex:1;min-width:0">${Object.entries(TONES).map(([v, [l]]) => `<option value="${v}"${(st.tone || 'chime') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="ghost sm" data-action="tone-try">جرّب</button></div></div>
     <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
-  ${window.WaiNative && window.WaiNative.fsiState ? '' : `<section class="panel">
+  ${window.WaiNative && window.WaiNative.overlayState ? '' : `<section class="panel">
     <h2>تطبيق أندرويد</h2>
-    ${window.WaiNative && window.WaiNative.notify ? '<p class="note-text">نسخة أحدث من التطبيق: نص منبه التذكير يبقى فيها على الشاشة حتى تلغيه، والإشعار الدائم لا يزيله «مسح الكل» ولا السحب. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
+    ${window.WaiNative && window.WaiNative.notify ? '<p class="note-text">نسخة أحدث من التطبيق: منبه التذكير يظهر فيها نافذة على الشاشة حتى تجيبه، والإشعار الدائم لا يزيله «مسح الكل» ولا السحب. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
     <div class="btn-row"><button type="button" class="ghost" data-action="apk-get">نزّل تطبيق أندرويد</button></div>
   </section>`}
   <section class="panel">
@@ -2494,6 +2495,7 @@ document.addEventListener('click', (e) => {
     case 'export': exportData(); break;
     case 'apk-get': getApk(); break;
     case 'fsi-allow': if (window.WaiNative && window.WaiNative.fsiSettings) window.WaiNative.fsiSettings(); break;
+    case 'overlay-allow': if (window.WaiNative && window.WaiNative.overlaySettings) window.WaiNative.overlaySettings(); break;
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {

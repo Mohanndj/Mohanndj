@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run by GitHub on the emulator after ci-widget.sh. v122: the pinned notification stays through «Clear all» and a finger,
-# and goes when its setting is turned off. v121: a reminder's alarm stays on the screen until answered.
+# and goes when its setting is turned off. v121/v124: a reminder's alarm stays on the screen until answered, a window
+# over whatever is open when the app may show itself over other apps.
 # With the phone in use, its notification must still be at the top of the screen half a minute later; with the screen
 # off, its whole screen (AlarmActivity) comes up over the lock with its text, «رجوع» does not close it, and its «قرأت النص»
 # ticks the reminder in the page. Pictures of both are written in the log (base64, between ALARMSHOT lines).
@@ -133,7 +134,9 @@ remind() {
     return Math.round((parse(d).getTime() + minutesOf(tm) * 60000 - Date.now()) / 1000); })()"
 }
 
-# 1. the phone in use: its notification stays at the top of the screen
+# 1. the phone in use, the app not allowed over other apps: its notification stays at the top of the screen
+echo "over other apps (appops): $(adb shell appops get app.mohanndj.alwaei SYSTEM_ALERT_WINDOW | tr -d '\r')"
+adb shell appops set app.mohanndj.alwaei SYSTEM_ALERT_WINDOW deny
 S1=$(remind ra1 'تذكير تجريبي يبقى أعلى الشاشة: أعد الكتاب لصاحبه')
 echo "first reminder rings in $S1 s"
 sleep 3
@@ -145,11 +148,43 @@ echo "$NOTE" | grep -q 'أعد الكتاب' || fail "the reminder's notificatio
 echo "$NOTE" | grep -iq 'fullscreenIntent=PendingIntent' || fail "the reminder's notification has no full screen"
 echo "--- heads-up state"; adb shell dumpsys activity service com.android.systemui 2>/dev/null | tr -d '\r' | grep -iE 'headsup|HeadsUpEntry|mHasPinnedNotification' | head -12
 look a1
+top | grep -q 'AlarmActivity' && echo "::warning::the window came up though the app may not show itself over other apps"
 # answered in the page: the notification leaves
 page "(() => { alarmAction('done', 'rem:ra1', 'rem:ra1|' + today() + '|0'); return S.reminders.find((x) => x.id === 'ra1').done; })()"
 sleep 3
 
-# 2. the screen off: its whole screen over the lock
+# 1b. v124: the phone in use, the app allowed over other apps («الظهور فوق التطبيقات الأخرى»): its window comes up
+# over whatever is open (here the home screen), and «غفوة» puts it off
+adb shell appops set app.mohanndj.alwaei SYSTEM_ALERT_WINDOW allow
+OV=$(page "WaiNative.overlayState()")
+echo "the page reads: overlayState = $OV"
+[ "$OV" = '"ok"' ] || fail "the page does not read the permission given"
+S3=$(remind ra3 'خذ الدواء بعد الغداء')
+echo "third reminder rings in $S3 s"
+sleep 3
+adb shell input keyevent KEYCODE_HOME
+sleep $(( S3 + 8 ))
+T=$(top)
+echo "on top: $T"
+echo "$T" | grep -q 'AlarmActivity' || { look a3x; fail "the reminder's window did not come up over the home screen"; }
+look a3
+grep -q 'خذ الدواء بعد الغداء' a3.xml || fail "the reminder's window does not show its text"
+B=$(python3 -c "
+import re
+x=open('a3.xml',encoding='utf-8').read()
+m=re.search(r'text=\"غفوة\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
+[ -n "$B" ] || fail "no «غفوة» on the reminder's window"
+adb shell input tap $B
+sleep 5
+SN=$(page "Object.keys(S.snoozed).some((k) => k.startsWith('rem:ra3'))")
+echo "page: the third reminder snoozed: $SN"
+[ "$SN" = "true" ] || fail "«غفوة» on the reminder's window did not put it off"
+top | grep -q 'AlarmActivity' && fail "the reminder's window stayed after «غفوة»"
+page "(() => { const r = S.reminders.find((x) => x.id === 'ra3'); r.done = true; for (const k of Object.keys(S.snoozed)) if (k.startsWith('rem:ra3')) delete S.snoozed[k]; save(); return 1; })()" > /dev/null
+sleep 2
+
+# 2. the screen off: its window over the lock
 S2=$(remind ra2 'اتصل بأبي بعد صلاة العصر وأخبره بموعد السفر')
 echo "second reminder rings in $S2 s"
 sleep 3
@@ -162,12 +197,24 @@ look a2
 grep -q 'اتصل بأبي بعد صلاة العصر' a2.xml || fail "the reminder's screen does not show its text"
 grep -q 'قرأت النص' a2.xml && grep -q 'غفوة' a2.xml || fail "the reminder's screen lacks its buttons"
 grep -q 'text="إغلاق"' a2.xml && fail "the reminder's screen still has «إغلاق» (v123: «قرأت النص» and «غفوة» only)"
+# the screen off again, then the phone opened (as by the fingerprint): the window is there, in front
+adb shell input keyevent KEYCODE_SLEEP
+sleep 4
+adb shell input keyevent KEYCODE_WAKEUP
+sleep 1
+adb shell wm dismiss-keyguard > /dev/null 2>&1 || adb shell input keyevent 82
+sleep 4
+T=$(top)
+echo "on top after opening the phone: $T"
+echo "$T" | grep -q 'AlarmActivity' || { look a2x; fail "the reminder's window was not there when the phone was opened"; }
+look a2u
+grep -q 'اتصل بأبي بعد صلاة العصر' a2u.xml || fail "the reminder's window lost its text when the phone was opened"
 adb shell input keyevent KEYCODE_BACK
 sleep 2
 top | grep -q 'AlarmActivity' || fail "«رجوع» closed the reminder's screen"
 B=$(python3 -c "
 import re
-x=open('a2.xml',encoding='utf-8').read()
+x=open('a2u.xml',encoding='utf-8').read()
 m=re.search(r'text=\"قرأت النص\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
 print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
 [ -n "$B" ] || fail "no «قرأت النص» on the reminder's screen"
