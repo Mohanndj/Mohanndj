@@ -1330,6 +1330,19 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .rem-time { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; font-size: .85rem; color: var(--muted); }
 .rem-time input { flex: 1 1 120px; min-width: 0; }
 #libForm .rem-time { margin: 4px 0 10px; }
+/* its repetition (v120): folded under its hour, each choice a row; the weekdays as chips that can be ticked */
+.rem-more { display: contents; }
+.rem-rep { flex-basis: 100%; font-size: .85rem; }
+.rem-rep summary { cursor: pointer; color: var(--accent); padding: 4px 0; }
+.rem-rep-body { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px; }
+.rem-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); }
+.rem-f > span:first-child { min-width: 52px; }
+.rem-f select, .rem-f input[type="number"], .rem-f input[type="date"], .rem-f input[type="text"] { flex: 1 1 110px; min-width: 0; }
+.rem-f input[type="number"] { max-width: 90px; }
+.rem-days .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; cursor: pointer; }
+.rem-days .chip input { margin: 0; flex: none; }
+.rem-days .chip:has(input:checked) { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+#libForm .rem-rep { margin: 0 0 10px; }
 .shop-done summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: 4px 0; }
 
 .later-q { margin: 0; font-weight: 700; color: var(--accent); }

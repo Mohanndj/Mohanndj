@@ -78,20 +78,19 @@ const WaiBridge = (() => {
   const alarmItem = (t, key, d, at) => {
     const m = timeOn(t, d), ev = m == null ? at : parse(d).getTime() + m * 60000, left = Math.round((ev - at) / 60000), when = timeLabel(t, d);
     const r = remOf(t.id);
-    if (r) return { key, id: t.id, at, title: digitsOut(remNoteTitle(r)), body: digitsOut(r.text) };
+    if (r) return { key, id: t.id, at, title: digitsOut(remNoteTitle(r, t.time)), body: digitsOut(r.text) };
     return { key, id: t.id, at, title: digitsOut(t.title), body: digitsOut(left > 0 ? `بعد ${minsWord(left)} | ${when}` : `الآن | ${when}`) };
   };
   function alarmList() {
     const now = Date.now(), d0 = today(), out = [];
     for (const [key, sn] of Object.entries(S.snoozed || {})) {
-      const [id, d] = key.split('|'), r = remOf(id), t = r ? remAsTask(r) : getTask(id);
+      const [id, d] = key.split('|'), r = remOf(id), t = r ? remTask(id) : getTask(id);
       if (t && d && sn > now && !(r ? r.done : doneOn(t, d))) out.push(alarmItem(t, key, d, sn));
     }
-    // the reminders with a day and an hour (v119): rung by the phone's alarm clock too, their whole text in the notification
+    // the reminders with a day and an hour (v119): rung by the phone's alarm clock too, their whole text in the
+    // notification; those that repeat, their times of the coming two weeks (or the next one, when further)
     for (const r of S.reminders) {
-      if (r.done || !remTimed(r)) continue;
-      const key = remKey(r), at = remAt(r);
-      if (at > now && !S.snoozed[key] && !S.fired[key]) out.push(alarmItem(remAsTask(r), key, r.due, at));
+      for (const x of remSlots(r, now + 1)) if (!S.snoozed[x.key] && !S.fired[x.key]) out.push(alarmItem(remTask(remSlotId(r, x.tm)), x.key, x.d, x.at));
     }
     for (const t of S.tasks) {
       if (!t.alarms || !t.alarms.length || !hasTime(t)) continue;
