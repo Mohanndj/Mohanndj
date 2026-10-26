@@ -3,4 +3,5 @@ build/
 app/build/
 local.properties
 *.jks
-!app/alwaei.p12
+# the signing key opened for a build; only its locked copy (alwaei.p12.enc) is kept
+app/alwaei.p12

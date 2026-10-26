@@ -1,6 +1,7 @@
 # «الوعي الشخصي» as an Android app: built, tried on an emulator, and published as a release (alwaei.apk) whenever
 # the app's shell (android/) changes. The web app itself is not in it: the app opens the site, so it updates by itself.
-# Without the key's password (the secret ANDROID_KEY_PASSWORD) a trial build is made and tried, and nothing is published.
+# Without the key's password (the secret ANDROID_KEY_PASSWORD, which the owner writes in GitHub himself and nobody else
+# sees) a trial build is made and tried, and nothing is published.
 name: Android app
 
 on:
@@ -35,17 +36,34 @@ jobs:
         env:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -n "$ANDROID_KEY_PASSWORD" ]; then
-            keytool -list -keystore android/app/alwaei.p12 -storetype PKCS12 -storepass "$ANDROID_KEY_PASSWORD" > /dev/null || { echo "::error::ANDROID_KEY_PASSWORD does not open the key"; exit 1; }
-            gradle -p android assembleRelease -Pvc=${{ github.run_number }} --no-daemon --stacktrace
-            cp android/app/build/outputs/apk/release/app-release.apk alwaei.apk
-            echo "signed=1" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$ANDROID_KEY_PASSWORD" ]; then
             echo "::warning::The secret ANDROID_KEY_PASSWORD is missing: a trial build only, not published"
             gradle -p android assembleDebug -Pvc=${{ github.run_number }} --no-daemon --stacktrace
             cp android/app/build/outputs/apk/debug/app-debug.apk alwaei.apk
             echo "signed=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if [ ${#ANDROID_KEY_PASSWORD} -lt 12 ]; then echo "::error::ANDROID_KEY_PASSWORD is too short: 12 characters at least"; exit 1; fi
+          KEY=android/app/alwaei.p12 ENC=android/app/alwaei.p12.enc
+          if [ ! -f "$ENC" ]; then
+            # the first signed build makes the app's key with the owner's password, and keeps it here locked by it
+            # (pushed before anything is signed with it: an app signed by a key that is lost could never be updated)
+            keytool -genkeypair -keystore "$KEY" -storetype PKCS12 -alias alwaei -keyalg RSA -keysize 3072 -validity 12000 \
+              -dname "CN=Alwaei, O=Mohanndj" -storepass "$ANDROID_KEY_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 2000000 -salt -in "$KEY" -out "$ENC" -pass env:ANDROID_KEY_PASSWORD
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$ENC"
+            git commit -m "Android app: its signing key, locked by the repository's secret"
+            { git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"; } || { echo "::error::The new key could not be kept"; exit 1; }
+          else
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 2000000 -in "$ENC" -out "$KEY" -pass env:ANDROID_KEY_PASSWORD 2>/dev/null \
+              && keytool -list -keystore "$KEY" -storetype PKCS12 -storepass "$ANDROID_KEY_PASSWORD" > /dev/null \
+              || { echo "::error::ANDROID_KEY_PASSWORD does not open the app's key (was the secret changed?)"; exit 1; }
+          fi
+          gradle -p android assembleRelease -Pvc=${{ github.run_number }} --no-daemon --stacktrace
+          cp android/app/build/outputs/apk/release/app-release.apk alwaei.apk
+          echo "signed=1" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: alwaei-apk
