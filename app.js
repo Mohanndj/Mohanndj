@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 128;
+const APP_VERSION = 129;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -386,10 +386,12 @@ function taskProgress(t) {
   return t.subtasks.filter((s) => s.done).length / t.subtasks.length;
 }
 function projectStats(pid) {
-  const list = tasksOf(pid);
+  // (v129) the tasks its page lists: its own and its goal's days, so its numbers are those of its page
+  const list = khProjTasks(getProject(pid) || { id: pid });
   const steps = list.flatMap((t) => t.subtasks);
   const done = list.filter((t) => t.done).length;
-  const own = list.length ? list.reduce((n, t) => n + taskProgress(t), 0) / list.length : null;
+  const once = list.filter((t) => !isRepeat(t)); // (its recurring tasks are measured by its goal's months)
+  const own = once.length ? once.reduce((n, t) => n + taskProgress(t), 0) / once.length : null;
   // (v126) a project that is a year goal: its progress is also its goal's, the months achieved of those asked for in
   // the years begun (as «سنتي» counts them); with tasks of its own too, the two count half each
   const goal = khProjShare(getProject(pid)), gf = goal && goal.target ? goal.done / goal.target : null;
@@ -784,7 +786,7 @@ function viewProject(p) {
   // (v126) a project is a year goal: its tasks and the tasks of its days, in one list; a task of its own outside the
   // chain is to be tied to its week, and a project not tied to a vision is «ناقص»
   const yg = khProjGoal(p), need = khProjNeed(p);
-  const all = [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])];
+  const all = khProjTasks(p);
   const list = sortTasks(all.filter((t) => matchFilter(t, ui.projFilter)), ui.projFilter);
   const row = (t) => itemHTML(t, isRepeat(t) ? today() : t.due || today(), { noProject: true, extra: yg && !t.done && t.projectId === p.id && khLoose(t) ? `<div class="kh-side"><button type="button" class="ghost sm" data-action="kh-task-link" data-v="${t.id}">أكمل إعدادها: اربطها بأسبوعها</button></div>` : '' });
   return `
@@ -2140,9 +2142,10 @@ function timerTaskOptions(selected) {
   const todays = S.tasks.filter((t) => (isRepeat(t) ? occursOn(t, t0) : dueOpen(t, t0)));
   const opt = (t) => `<option value="${t.id}"${t.id === selected ? ' selected' : ''}>${esc(t.title)}</option>`;
   const groups = [['اليوم', todays]];
-  for (const p of S.projects) groups.push([`مشروع: ${p.name}`, tasksOf(p.id).filter((t) => !t.done && !todays.includes(t))]);
-  groups.push(['مهام عامة', S.tasks.filter((t) => !isGoal(t) && !t.projectId && !t.done && !todays.includes(t))]);
-  groups.push(['أهداف', S.tasks.filter((t) => isGoal(t) && !todays.includes(t) && !goalEnded(t))]);
+  const inProj = new Set(); // (v129) a project's tasks with it, its goal's days too, and not again under «أهداف»
+  for (const p of S.projects) { const l = khProjTasks(p).filter((t) => !t.done && !goalEnded(t) && !todays.includes(t) && !inProj.has(t)); l.forEach((t) => inProj.add(t)); groups.push([`مشروع: ${p.name}`, l]); }
+  groups.push(['مهام عامة', S.tasks.filter((t) => !isGoal(t) && !t.projectId && !t.done && !todays.includes(t) && !inProj.has(t))]);
+  groups.push(['أهداف', S.tasks.filter((t) => isGoal(t) && !todays.includes(t) && !goalEnded(t) && !inProj.has(t))]);
   return groups.filter(([, l]) => l.length).map(([g, l]) => `<optgroup label="${esc(g)}">${l.map(opt).join('')}</optgroup>`).join('');
 }
 

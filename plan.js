@@ -813,6 +813,8 @@ function khExtend(yg) {
   save();
   return ny;
 }
+// the tasks of a project: its own, and the tasks of its goal's days (v126), each once
+function khProjTasks(p) { const yg = khProjGoal(p); return [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])]; }
 const khProjGoal = (p) => { const g = p && kgOf(p.ygoal); return g && g.level === 'year' ? g : null; };
 function khGoalTasks(yg) {
   const ws = new Set(khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).map((w) => w.id));
