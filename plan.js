@@ -973,21 +973,13 @@ function khChainHTML(yg, y) {
       ${ws.map(weekNode).join('')}
       ${!ws.length && live && mgAhead(m) ? khCont('week', 'أكمل: ثم أسابيعك', ` data-step="2" data-month="${m.id}"`) : ''}</div>`;
   };
-  // a project serving this goal (v114): its progress, and its tasks not done yet
-  const projNode = (p) => {
-    const st = projectStats(p.id), open = sortTasks(tasksOf(p.id).filter((t) => !t.done), 'active');
-    return `<div class="kh-node" style="--lv:${p.color}"><button type="button" class="kh-nh" data-action="open-project" data-v="${p.id}"><small>مشروع${p.doneAt ? ' <span class="kh-st done">أُنجز</span>' : ''}</small><b>${esc(p.name)}</b></button>
-      <div class="kh-gprog"><span class="kh-track sm"><i style="width:${st.progress}%"></i></span><small>${st.total ? `المهام: ${khN(st.done)} من ${st.total}` : 'لا مهام بعد'}</small></div>
-      ${open.map(dayNode).join('')}</div>`;
-  };
-  const ms = kgKids(yg, 'month'), x = ygShare(yg, y), v = kgOf(yg.parent), ps = S.projects.filter((p) => p.ygoal && khLineOf(kgOf(p.ygoal)).includes(yg)), nx = khNextOf(yg);
+  const ms = kgKids(yg, 'month'), x = ygShare(yg, y), v = kgOf(yg.parent), nx = khNextOf(yg);
   return `<div class="kh-node lv-year"><button type="button" class="kh-nh" data-action="kh-edit-goal" data-v="${yg.id}"><small>هدف السنة${khStat(yg)}</small><b>${esc(yg.text)}</b></button>
     ${v ? `<small class="kh-serve">يخدم رؤيتك: ${esc(v.text)}</small>` : ''}
     ${khProg(x, 'month')}${x.target && x.done >= x.target ? khDoneBadge('تحقّق في أشهره كلها') : ''}
     ${ms.map(monthNode).join('')}
     ${yg.status === 'open' && live ? khCont('month', ms.length ? 'اربطه بأشهر أخرى' : 'أكمل: ثم أشهرك', ` data-step="1" data-year="${yg.id}"`) : ''}
-    ${nx ? `<button type="button" class="kh-cont lv-year" data-action="kh-goyear" data-v="${nx.id}"><span>سنته التالية: ${esc(khKeyLabel(nx.period))}</span></button>` : /^[gh]\d{4}$/.test(yg.period) ? `<button type="button" class="kh-cont lv-year" data-action="kh-extend" data-v="${yg.id}">${icon('plus')}<span>امدده إلى السنة التالية (${esc(khKeyLabel(yg.period[0] + (Number(yg.period.slice(1)) + 1)))})</span></button>` : ''}
-    ${ps.map(projNode).join('')}</div>`;
+    ${nx ? `<button type="button" class="kh-cont lv-year" data-action="kh-goyear" data-v="${nx.id}"><span>سنته التالية: ${esc(khKeyLabel(nx.period))}</span></button>` : /^[gh]\d{4}$/.test(yg.period) ? `<button type="button" class="kh-cont lv-year" data-action="kh-extend" data-v="${yg.id}">${icon('plus')}<span>امدده إلى السنة التالية (${esc(khKeyLabel(yg.period[0] + (Number(yg.period.slice(1)) + 1)))})</span></button>` : ''}</div>`;
 }
 function khYearHTML() {
   const now = khYrStart(today()), y = khUi.yr ? khYrStart(khUi.yr) : now, end = khYrNext(y);
