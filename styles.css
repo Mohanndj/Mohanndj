@@ -1324,6 +1324,12 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 .shop-list li.got .shop-name { text-decoration: line-through; color: var(--muted); }
 .shop-name { overflow-wrap: anywhere; }
 .shop-name small { color: var(--muted); }
+/* a reminder's alarm (v119): its day and hour under its text, and their fields under the box it is written in */
+.shop-name .rem-when { display: block; font-size: .8rem; }
+.rem-add { flex-wrap: wrap; }
+.rem-time { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; font-size: .85rem; color: var(--muted); }
+.rem-time input { flex: 1 1 120px; min-width: 0; }
+#libForm .rem-time { margin: 4px 0 10px; }
 .shop-done summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: 4px 0; }
 
 .later-q { margin: 0; font-weight: 700; color: var(--accent); }

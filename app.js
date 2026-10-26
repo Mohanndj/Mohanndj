@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 118;
+const APP_VERSION = 119;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1713,8 +1713,8 @@ function keepRinging() {
     beep();
     if (Date.now() - lastNote >= 60000 && document.visibilityState !== 'visible') {
       lastNote = Date.now();
-      const t = getTask(cur.id);
-      if (t) systemNotify(t.title, alarmBody(t, cur.d, cur.off), cur.key, t.id);
+      const r = remOf(cur.id), t = r ? remAsTask(r) : getTask(cur.id);
+      if (t) systemNotify(r ? remNoteTitle(r) : t.title, r ? r.text : alarmBody(t, cur.d, cur.off), cur.key, t.id);
     }
   }, 4000);
 }
@@ -1766,7 +1766,8 @@ function ring(t, key, d, off) {
   if (ringLoop) { clearInterval(ringLoop); ringLoop = null; }
   keepRinging();
   try { if (navigator.vibrate && navigator.userActivation?.hasBeenActive) navigator.vibrate([300, 150, 300]); } catch {}
-  if (document.visibilityState !== 'visible') systemNotify(t.title, alarmBody(t, d, off), key, t.id);
+  const r = remOf(t.id);
+  if (document.visibilityState !== 'visible') systemNotify(r ? remNoteTitle(r) : t.title, r ? r.text : alarmBody(t, d, off), key, t.id);
 }
 
 function showAlarm() {
@@ -1778,9 +1779,9 @@ function showAlarm() {
     $('alarm').hidden = false;
     return;
   }
-  const t = getTask(cur.id);
-  // its task deleted, or done from the list meanwhile: it stops
-  if (!t || doneOn(t, cur.d)) { alarmQueue.shift(); showAlarm(); return; }
+  const r = remOf(cur.id), t = r ? remAsTask(r) : getTask(cur.id);
+  // its task (or reminder) deleted, or done from the list meanwhile: it stops
+  if (!t || (r ? r.done : doneOn(t, cur.d))) { alarmQueue.shift(); showAlarm(); return; }
   const left = minutesLeft(t, cur.d);
   $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق | بعد ${minsWord(left)}` : 'منبه';
   $('alarmTitle').textContent = `${t.title} | ${timeLabel(t, cur.d)}`;
@@ -1788,8 +1789,11 @@ function showAlarm() {
 }
 
 function alarmAction(action, id, key) {
-  const t = getTask(id);
+  const r = remOf(id), t = r ? null : getTask(id);
   const date = key && key.includes('|') ? key.split('|')[1] : today();
+  // a reminder's alarm: «تمت» ticks the reminder, «غفوة» puts it off as a task's
+  if (r && action === 'done' && !r.done) { r.done = true; r.doneAt = today(); r.updated = Date.now(); save(); render(); }
+  if (r && action === 'snooze') { S.snoozed[key] = Date.now() + SNOOZE_MIN * 60000; save(); toast(`سيرن مجدداً بعد ${SNOOZE_MIN} دقائق`); }
   if (t && action === 'done') {
     if (isCounted(t)) { if (notYetOn(t, date)) toast(`موعدها ${dueLabel(date)}`); else { setCount(t, date, t.target); save(); render(); } }
     else if (!doneOn(t, date)) toggle(id, date);
@@ -1813,8 +1817,8 @@ function checkAlarms() {
   // one whose task was done or deleted meanwhile is let go
   let pruned = false;
   for (const [key, sn] of Object.entries(S.snoozed)) {
-    const [id, d, off] = key.split('|'), t = getTask(id);
-    if (!t || !d || doneOn(t, d)) { delete S.snoozed[key]; pruned = true; continue; }
+    const [id, d, off] = key.split('|'), r = remOf(id), t = r ? remAsTask(r) : getTask(id);
+    if (!t || !d || (r ? r.done : doneOn(t, d))) { delete S.snoozed[key]; pruned = true; continue; }
     if (now >= sn) ring(t, key, d, Number(off) || 0);
   }
   if (pruned) save();
@@ -1836,6 +1840,14 @@ function checkAlarms() {
         ring(t, key, d, off);
       }
     }
+  }
+  // the reminders with a day and an hour (v119)
+  for (const r of S.reminders) {
+    if (r.done || !remTimed(r)) continue;
+    const key = remKey(r), fireAt = remAt(r);
+    if (S.snoozed[key] || S.fired[key] || now < fireAt) continue;
+    if (now - fireAt > MISSED_WINDOW_MIN * 60000) { S.fired[key] = now; save(); continue; }
+    ring(remAsTask(r), key, r.due, 0);
   }
   const cutoff = now - 4 * 86400000;
   for (const k of Object.keys(S.fired)) if (S.fired[k] < cutoff) delete S.fired[k];
