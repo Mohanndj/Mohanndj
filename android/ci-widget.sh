@@ -11,10 +11,17 @@ adb install -r widgethost.apk || fail "the home screen of the check did not inst
 adb shell am start -W -n app.mohanndj.alwaei/.MainActivity
 sleep 30
 PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
-SOCK=$(adb shell cat /proc/net/unix | grep -o "webview_devtools_remote_$PID" | head -1)
-[ -n "$SOCK" ] || fail "the page's debugging is not open"
-adb forward tcp:9222 "localabstract:$SOCK"
-WS=$(curl -s localhost:9222/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])")
+echo "app pid: $PID"
+# the page's debugging address (a test build's WebView opens it under its process's number; the list of such
+# addresses, /proc/net/unix, is closed to the emulator's shell on newer Android, so it is tried directly)
+adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" || fail "no address for the page's debugging"
+WS=""
+for i in $(seq 1 10); do
+  WS=$(curl -s -m 5 localhost:9222/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
+  [ -n "$WS" ] && break
+  sleep 3
+done
+[ -n "$WS" ] || { curl -s -m 5 localhost:9222/json | head -c 400; fail "the page's debugging is not open"; }
 page() { python3 android/ci-cdp.py "$WS" "$1"; }
 # the site's newest version (GitHub publishes the site a minute or two after the push that built this app)
 WANT=$(grep -o 'APP_VERSION = [0-9]*' app.js | grep -o '[0-9]*$')
