@@ -4,17 +4,18 @@
 # it; its circles are pressed; and the page must have marked them done. Each step is written in the log, with the
 # widget's text and a small picture of it (base64, between WIDGETSHOT lines).
 set -u
-fail() { echo "::error::widget: $*"; exit 1; }
-adb uninstall app.mohanndj.alwaei > /dev/null 2>&1 || true
-adb install -r app-debug.apk || fail "the test build did not install"
-adb install -r widgethost.apk || fail "the home screen of the check did not install"
 # what the phone says about the app, when a step fails
 why() {
+  echo "--- the screen's activity"; adb shell dumpsys activity activities | grep -iE 'mResumedActivity|topResumedActivity' | head -3
   echo "--- the app's processes"; adb shell ps -A | grep -i alwaei
   echo "--- debugging addresses"; adb shell cat /proc/net/unix 2>&1 | grep -io 'devtools[a-z_0-9]*' | sort -u
   echo "--- the app's stops"; adb logcat -d -b crash | tail -40
-  echo "--- the phone's log about it"; adb logcat -d | grep -iE 'alwaei|AndroidRuntime|WaiApp|chromium' | tail -60
+  echo "--- the phone's log about it"; adb logcat -d | grep -iE 'alwaei|AndroidRuntime|WaiApp|WaiHost|chromium' | tail -60
 }
+fail() { echo "::error::widget: $*"; why; exit 1; }
+adb uninstall app.mohanndj.alwaei > /dev/null 2>&1 || true
+adb install -r app-debug.apk || fail "the test build did not install"
+adb install -r widgethost.apk || fail "the home screen of the check did not install"
 adb logcat -c
 adb shell am start -W -n app.mohanndj.alwaei/.MainActivity
 PID=""
@@ -58,7 +59,10 @@ page "(() => { const d = today(); S.settings.remShown = Date.now() + 1e9;
 sleep 4
 adb shell appwidget grantbind --package app.mohanndj.alwaei.host --user 0
 adb shell am start -W -n app.mohanndj.alwaei.host/.HostActivity
-sleep 6
+sleep 4
+# drawn again from what the page sent (as at midnight)
+adb shell am broadcast -n app.mohanndj.alwaei/.TodayWidget -a app.mohanndj.alwaei.WIDGET_DAY > /dev/null
+sleep 3
 adb logcat -d -s WaiHost:* | tail -3
 # the widget's text (every text and label on the screen), and its picture
 look() {

@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
-import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
@@ -27,9 +26,12 @@ public class HostActivity extends Activity {
         AppWidgetManager m = AppWidgetManager.getInstance(this);
         ComponentName cn = new ComponentName("app.mohanndj.alwaei", "app.mohanndj.alwaei.TodayWidget");
         int id = host.allocateAppWidgetId();
+        float dp = getResources().getDisplayMetrics().density;
+        // no wider than the emulator's screen
+        int w = Math.min(W, (int) (getResources().getDisplayMetrics().widthPixels / dp) - 16);
         Bundle o = new Bundle();
-        o.putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, W);
-        o.putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, W);
+        o.putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, w);
+        o.putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, w);
         o.putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, H);
         o.putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, H);
         boolean ok = m.bindAppWidgetIdIfAllowed(id, cn, o);
@@ -39,9 +41,8 @@ public class HostActivity extends Activity {
         if (ok) {
             AppWidgetProviderInfo info = m.getAppWidgetInfo(id);
             AppWidgetHostView v = host.createView(getApplicationContext(), id, info);
-            float dp = getResources().getDisplayMetrics().density;
-            f.addView(v, new FrameLayout.LayoutParams((int) (W * dp), (int) (H * dp), Gravity.CENTER));
-            sendBroadcast(new Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).setComponent(cn).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, new int[]{id}));
+            f.addView(v, new FrameLayout.LayoutParams((int) (w * dp), (int) (H * dp), Gravity.CENTER));
+            // (the widget is drawn by the app when bound; only Android may send it APPWIDGET_UPDATE, so no update is sent here)
         }
         setContentView(f);
     }
