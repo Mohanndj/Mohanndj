@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 113;
+const APP_VERSION = 114;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -194,6 +194,7 @@ function normalizeProject(p) {
     topic: p.topic || '',
     roleId: p.roleId || '', // «خطِّط»: its tasks take this role
     area: p.area || '',
+    ygoal: p.ygoal || '', // «خطِّط»: the year goal it serves (v114), shown with its tasks under it in «سنتي»
   };
 }
 
@@ -790,6 +791,7 @@ function viewProject(p) {
       <span>المهام: <b class="num">${st.done} من ${st.total}</b></span>
       ${st.steps ? `<span>خطوات داخل المهام: <b class="num">${st.stepsDone} من ${st.steps}</b></span>` : ''}
       ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
+      ${kgOf(p.ygoal) ? `<span>يخدم هدف السنة: ${esc(kgOf(p.ygoal).text)}</span>` : ''}
     </div>
   </section>
   <section class="section">
@@ -1580,6 +1582,7 @@ function openProjectSheet(id, roleId = '') {
   $('pRole').innerHTML = khRoleOptions(p ? p.roleId : roleId);
   $('pArea').innerHTML = khAreaOptions(p ? p.area : '');
   $('pAreaWrap').hidden = $('pRole').value !== KH_SAW;
+  $('pYGoal').innerHTML = khYGoalOptions(p ? p.ygoal : '');
   $('pDel').hidden = !p;
   $('pDel').classList.remove('armed');
   $('pDel').textContent = 'حذف المشروع';
@@ -1600,7 +1603,7 @@ $('projForm').addEventListener('submit', (e) => {
   const name = $('pName').value.trim();
   if (!name) { $('pName').focus(); toast('اكتب اسماً للمشروع.'); return; }
   const existing = getProject(pdraft.id);
-  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value, roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '' });
+  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value, roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '', ygoal: $('pYGoal').value });
   if (existing) Object.assign(existing, p); else S.projects.push(p);
   if (pdraft.onSaved) pdraft.onSaved(p);
   save();

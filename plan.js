@@ -34,6 +34,12 @@ const khRoleName = (id, area) => (khRole(id) ? `${khRole(id).name}${area ? `: ${
 const khTag = (t) => { const id = khRoleIdOf(t); return `<span class="kh-tag" style="--rc:${khColor(id)}">${esc(khRoleName(id, khAreaOf(t)))}</span>`; };
 const khRoleOptions = (sel) => `<option value="">بلا دور</option>${khRoles().map((r) => `<option value="${r.id}"${r.id === sel ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}`;
 const khAreaOptions = (sel) => Object.entries(KH_AREAS).map(([k, l]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${l}</option>`).join('');
+// a project serving a year goal (v114, shown with its tasks under the goal in «سنتي»): the open year goals whose year has
+// not ended, and the one it serves now (each with its role, which the project takes when it is chosen)
+const khYGoalOptions = (sel) => {
+  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === sel || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today())));
+  return `<option value="">لا يخدم هدف سنة</option>${gs.map((g) => `<option value="${g.id}" data-role="${kgRoleId(g)}"${g.id === sel ? ' selected' : ''}>${esc(g.text)} | ${esc(khRoleName(kgRoleId(g)))} | ${esc(khKeyLabel(g.period))}</option>`).join('')}`;
+};
 
 // ---------- the role field in the task, goal and project editors ----------
 function khFillRole(roleId, area) {
@@ -53,7 +59,10 @@ function khSyncRoleField() {
   else if (p) $('fRoleHint').textContent = khRole(p.roleId) ? `دور مشروعها: ${khRoleName(p.roleId, p.roleId === KH_SAW ? p.area : '')}` : 'مشروعها بلا دور بعد: اختر له دوراً من تعديل المشروع';
   $('fAreaWrap').hidden = !!p || $('fRole').value !== KH_SAW;
 }
-document.addEventListener('change', (e) => { if (e.target.id === 'tbRole' && $('tbAreaWrap')) $('tbAreaWrap').hidden = e.target.value !== KH_SAW; if (e.target.id === 'fRole' || e.target.id === 'fProject') khSyncRoleField(); if (e.target.id === 'pRole') $('pAreaWrap').hidden = e.target.value !== KH_SAW; });
+document.addEventListener('change', (e) => { if (e.target.id === 'tbRole' && $('tbAreaWrap')) $('tbAreaWrap').hidden = e.target.value !== KH_SAW; if (e.target.id === 'fRole' || e.target.id === 'fProject') khSyncRoleField(); if (e.target.id === 'pRole') { $('pAreaWrap').hidden = e.target.value !== KH_SAW; khPYGoalFit(); } if (e.target.id === 'pYGoal') khPRoleFit(); });
+// the project's role and the year goal it serves agree: a goal chosen gives its role, a role chosen leaves a goal of another
+function khPRoleFit() { const o = $('pYGoal').selectedOptions[0], r = o && o.dataset.role; if (r && khRole(r)) { $('pRole').value = r; $('pAreaWrap').hidden = r !== KH_SAW; } }
+function khPYGoalFit() { const o = $('pYGoal').selectedOptions[0], r = o && o.dataset.role; if (r && r !== $('pRole').value) $('pYGoal').value = ''; }
 
 // ---------- the plan's months and years (v98), in the calendar chosen for the monthly calendar (S.settings.calType) ----------
 // A week belongs to the month it starts in (so a month has four weeks or five). A chosen month is kept as two dates
@@ -283,6 +292,7 @@ function kgDrop(g) {
   const ids = new Set(kgSub(g).map((x) => x.id));
   for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x))) dropTask(t.id);
   for (const t of S.tasks) if (ids.has(t.kgoal)) t.kgoal = '';
+  for (const p of S.projects) if (ids.has(p.ygoal)) p.ygoal = ''; // (its project stays, serving no goal)
   S.kgoals = S.kgoals.filter((x) => !ids.has(x.id));
 }
 // what goes with it, said before it is deleted
@@ -478,6 +488,7 @@ function khSaveRole() {
     const p = getProject(s.dataset.khMvto), [role, area = ''] = s.value.split(':');
     if (!p || !khRole(role)) continue;
     p.roleId = role; p.area = role === KH_SAW ? area : '';
+    if (kgOf(p.ygoal) && kgRoleId(kgOf(p.ygoal)) && kgRoleId(kgOf(p.ygoal)) !== role) p.ygoal = ''; // (a goal of the role it left)
     moved.push({ p, to: khRoleName(role, p.area) });
   }
   save();
@@ -808,12 +819,20 @@ function khChainHTML(yg, y) {
       ${ws.map(weekNode).join('')}
       ${!ws.length && live && mgAhead(m) ? khCont('week', 'أكمل: ثم أسابيعك', ` data-step="2" data-month="${m.id}"`) : ''}</div>`;
   };
-  const ms = kgKids(yg, 'month'), x = ygShare(yg, y), v = kgOf(yg.parent);
+  // a project serving this goal (v114): its progress, and its tasks not done yet
+  const projNode = (p) => {
+    const st = projectStats(p.id), open = sortTasks(tasksOf(p.id).filter((t) => !t.done), 'active');
+    return `<div class="kh-node" style="--lv:${p.color}"><button type="button" class="kh-nh" data-action="open-project" data-v="${p.id}"><small>مشروع${p.doneAt ? ' <span class="kh-st done">أُنجز</span>' : ''}</small><b>${esc(p.name)}</b></button>
+      <div class="kh-gprog"><span class="kh-track sm"><i style="width:${st.progress}%"></i></span><small>${st.total ? `المهام: ${khN(st.done)} من ${st.total}` : 'لا مهام بعد'}</small></div>
+      ${open.map(dayNode).join('')}</div>`;
+  };
+  const ms = kgKids(yg, 'month'), x = ygShare(yg, y), v = kgOf(yg.parent), ps = S.projects.filter((p) => p.ygoal === yg.id);
   return `<div class="kh-node lv-year"><button type="button" class="kh-nh" data-action="kh-edit-goal" data-v="${yg.id}"><small>هدف السنة${khStat(yg)}</small><b>${esc(yg.text)}</b></button>
     ${v ? `<small class="kh-serve">يخدم رؤيتك: ${esc(v.text)}</small>` : ''}
     ${khProg(x, 'month')}${x.target && x.done >= x.target ? khDoneBadge('تحقّق في أشهره كلها') : ''}
     ${ms.map(monthNode).join('')}
-    ${yg.status === 'open' && live ? khCont('month', ms.length ? 'اربطه بأشهر أخرى' : 'أكمل: ثم أشهرك', ` data-step="1" data-year="${yg.id}"`) : ''}</div>`;
+    ${yg.status === 'open' && live ? khCont('month', ms.length ? 'اربطه بأشهر أخرى' : 'أكمل: ثم أشهرك', ` data-step="1" data-year="${yg.id}"`) : ''}
+    ${ps.map(projNode).join('')}</div>`;
 }
 function khYearHTML() {
   const now = khYrStart(today()), y = khUi.yr ? khYrStart(khUi.yr) : now, end = khYrNext(y);
