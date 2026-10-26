@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        // a test build only (never the one published): GitHub's widget check fills its page (android/ci-widget.sh)
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
         web = new WebView(this);
         setContentView(web);
         WebSettings s = web.getSettings();
@@ -106,6 +108,12 @@ public class MainActivity extends Activity {
         if (live == this) live = null;
         if (speech != null) speech.destroy();
         super.onDestroy();
+    }
+
+    /** v116: what is kept for the page (a tick on the widget) taken by it now, if it is open. */
+    static void pull() {
+        MainActivity a = live;
+        if (a != null && a.pageReady) a.runOnUiThread(() -> a.web.evaluateJavascript("typeof WaiBridge!=='undefined'&&WaiBridge&&WaiBridge.pull&&WaiBridge.pull()", null));
     }
 
     /** What happened outside the page (an alarm rang, a button pressed): to the page now if it is open, else kept for it. */
@@ -650,6 +658,17 @@ public class MainActivity extends Activity {
             if (!allowed() || json == null) return;
             try {
                 Alarms.set(MainActivity.this, new JSONObject(json));
+            } catch (JSONException ignored) {
+            }
+        }
+
+        // v116: the widget «اليوم»: today's and tomorrow's lists (native.js sendWidget)
+        @JavascriptInterface
+        public void setWidget(String json) {
+            if (!allowed() || json == null) return;
+            try {
+                Store.setWidget(MainActivity.this, new JSONObject(json));
+                TodayWidget.refresh(MainActivity.this);
             } catch (JSONException ignored) {
             }
         }

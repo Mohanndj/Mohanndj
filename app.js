@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 115;
+const APP_VERSION = 116;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -409,7 +409,7 @@ function setCount(t, d, n) {
   else delete t.completions[d];
 }
 
-function toggle(id, date) {
+function toggle(id, date, quiet) { // (quiet: from the Android app's widget, nobody to ask «كم استغرقت؟»)
   const t = getTask(id);
   if (!t) return;
   const d = date || today();
@@ -431,8 +431,8 @@ function toggle(id, date) {
   save();
   checkGraduation(t);
   render();
-  if (!wasDone && (doneOn(t, d) || isCounted(t))) haptic();
-  if (!wasDone && doneOn(t, d)) askDuration(t, isRepeat(t) ? d : today());
+  if (!wasDone && (doneOn(t, d) || isCounted(t)) && !quiet) haptic();
+  if (!wasDone && doneOn(t, d) && !quiet) askDuration(t, isRepeat(t) ? d : today());
   const p = projectOf(t);
   if (p && t.done) {
     const st = projectStats(p.id);

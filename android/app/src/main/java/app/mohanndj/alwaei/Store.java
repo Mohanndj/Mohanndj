@@ -75,6 +75,50 @@ final class Store {
         }
     }
 
+    // v116: the widget's lists, as the page sent them: {arab, days: {"2026-10-26": {date, items: [{id, t, s, tick, n, of}]}}}
+    static synchronized JSONObject widget(Context c) {
+        try {
+            return new JSONObject(prefs(c).getString("widget", "{}"));
+        } catch (JSONException e) {
+            return new JSONObject();
+        }
+    }
+
+    static synchronized void setWidget(Context c, JSONObject w) {
+        prefs(c).edit().putString("widget", w.toString()).apply();
+    }
+
+    // a task ticked on the widget leaves its list at once (a goal counted gains one, and leaves when it is full); the
+    // page sends the true list the next time it runs
+    static synchronized void widgetTick(Context c, String day, String id) {
+        JSONObject w = widget(c), d = w.optJSONObject("days") == null ? null : w.optJSONObject("days").optJSONObject(day);
+        JSONArray items = d == null ? null : d.optJSONArray("items");
+        if (items == null) return;
+        try {
+            JSONArray keep = new JSONArray();
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject x = items.getJSONObject(i);
+                if (id.equals(x.optString("id"))) {
+                    int of = x.optInt("of"), n = x.optInt("n") + 1;
+                    if (of > 0 && n < of) keep.put(x.put("n", n));
+                } else keep.put(x);
+            }
+            d.put("items", keep);
+            setWidget(c, w);
+        } catch (JSONException ignored) {
+        }
+    }
+
+    // the widget's circles carry it: what ticks a task comes from the widget itself
+    static synchronized String widgetToken(Context c) {
+        String t = prefs(c).getString("wtok", "");
+        if (t.isEmpty()) {
+            t = java.util.UUID.randomUUID().toString();
+            prefs(c).edit().putString("wtok", t).apply();
+        }
+        return t;
+    }
+
     static synchronized boolean flag(Context c, String name) {
         return prefs(c).getBoolean(name, false);
     }

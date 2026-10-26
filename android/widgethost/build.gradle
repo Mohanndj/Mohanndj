@@ -1,0 +1,23 @@
+// a home screen of one widget, for checking the app's widget «اليوم» on GitHub's emulator (android/ci-widget.sh);
+// never published
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.mohanndj.alwaei.host'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.mohanndj.alwaei.host'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

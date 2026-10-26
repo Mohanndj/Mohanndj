@@ -55,6 +55,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- v116: the widget «اليوم» on the home screen -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_today_info" />
+        </receiver>
+
         <!-- files handed to another app (a recording to transcribe, a report): read only, one at a time -->
         <provider
             android:name=".ShareProvider"

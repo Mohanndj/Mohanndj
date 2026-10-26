@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = 'alwaei'
 include ':app'
+include ':widgethost' // (only for checking the widget on GitHub's emulator, never published)

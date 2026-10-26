@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the widget «اليوم» (v116): the app's colors, light; the dark ones in values-night -->
+<resources>
+    <color name="w_bg">#FFFFFF</color>
+    <color name="w_text">#1F2937</color>
+    <color name="w_muted">#6B7280</color>
+    <color name="w_brand">#0F766E</color>
+    <color name="w_late">#DC2626</color>
+    <color name="w_line">#E5E7EB</color>
+</resources>

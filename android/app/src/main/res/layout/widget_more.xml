@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the last row of the widget «اليوم» when it holds fewer than are left: how many more (opens the app) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_more"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:gravity="center"
+    android:textColor="@color/w_brand"
+    android:textSize="13sp" />

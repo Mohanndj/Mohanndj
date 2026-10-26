@@ -55,7 +55,7 @@ const WaiBridge = (() => {
 
   // ---------- stage two (v113): only with an app that has it (an app of the first stage stays as it was) ----------
   const has = (k) => typeof N[k] === 'function';
-  let permWait = [], speechCur = null, alarmsTimer = null, alarmsSent = '';
+  let permWait = [], speechCur = null, alarmsTimer = null, alarmsSent = '', widgetSent = '';
 
   // the phone's notifications in place of the browser's: the timer with its buttons, what is left today, an alarm
   const notice = (title, o = {}) => JSON.stringify({ title: String(title), body: o.body || '', tag: o.tag || '', silent: !!o.silent,
@@ -110,6 +110,40 @@ const WaiBridge = (() => {
     if (json !== alarmsSent) { alarmsSent = json; N.setAlarms(json); }
   }
 
+  // v116: the widget «اليوم» on the home screen: what is left of the day, as «اليوم» counts it (route.js leftToday):
+  // the tasks due, the goals of the day not done, by their time; today's and tomorrow's, so the app shows the new day's
+  // at midnight though the page is closed. A goal counted (٣ من ٨) shows its count; a book's session opens the app (its
+  // pages are asked), the rest are ticked from the widget
+  function widgetDay(d) {
+    const skip = d === today() ? closeSkips() : [], out = [];
+    for (const t of S.tasks) {
+      const on = isRepeat(t) ? !goalEnded(t) && occursOn(t, d) && !t.completions[d] && !skip.includes(t.id)
+        : dueOpen(t, d) && !(isGoal(t) && skip.includes(t.id));
+      if (!on) continue;
+      const m = hasTime(t) ? timeOn(t, d) : null, late = !isRepeat(t) && t.due < d && !t.from, cnt = isCounted(t);
+      const lab = (x) => (d === today() ? dueLabel(x) : fmtDate(x, { weekday: 'long', day: 'numeric', month: 'long' })); // (tomorrow's list is read tomorrow)
+      // its time, «متأخرة» (in red there), and a count (written by the app: a tick there adds one)
+      out.push({ id: t.id, t: digitsOut(t.title), s: hasTime(t) ? digitsOut(timeLabel(t, d)) : '', l: late ? digitsOut(`متأخرة: ${lab(t.due)}`) : '', m, late, tick: !t.bookId, n: cnt ? countOn(t, d) : 0, of: cnt ? t.target : 0 });
+    }
+    out.sort((a, b) => (a.m ?? 9999) - (b.m ?? 9999) || (b.late - a.late));
+    const date = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${S.settings.hijri ? ` | ${fmtHijri(d)}` : ''}`;
+    return { date: digitsOut(date), items: out.slice(0, 40).map(({ m, late: _, ...x }) => x) };
+  }
+  function sendWidget() {
+    let json;
+    try {
+      const d0 = today(), d1 = addDays(d0, 1);
+      json = JSON.stringify({ arab: S.settings.digits === 'arab', days: { [d0]: widgetDay(d0), [d1]: widgetDay(d1) } });
+    } catch { return; }
+    if (json !== widgetSent) { widgetSent = json; N.setWidget(json); }
+  }
+  // a task ticked on the widget: done as by its circle in «اليوم», without «كم استغرقت؟» (asked of nobody there)
+  function widgetDone(id, d) {
+    const t = getTask(id);
+    if (!t || t.bookId || doneOn(t, d)) return;
+    toggle(id, d, true);
+  }
+
   // what happened outside the page (an alarm the app rang, «تمت» or «غفوة» on its notification or the watch, a button
   // of the timer): now if the page is open, or in order when it opens (as the browser's service worker did)
   function apply(m, live) {
@@ -118,6 +152,7 @@ const WaiBridge = (() => {
       if (live || m.action === 'done') alarmAction(m.action, m.id, m.key);
       else if (m.action === 'snooze') S.snoozed[m.key] = (m.ts || Date.now()) + SNOOZE_MIN * 60000;
     } else if (m.type === 'timer') applyTimerAction(m.action, m.ts || Date.now());
+    else if (m.type === 'widget') widgetDone(m.id, m.day);
   }
 
   // dictation with the phone's own speech recognition, in the browser's shape (voice.js is unchanged)
@@ -158,8 +193,16 @@ const WaiBridge = (() => {
       list.sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach((m) => { try { apply(m, false); } catch {} });
       if (list.length) save();
       if (has('setAlarms')) sendAlarms();
+      if (has('setWidget')) sendWidget();
     },
-    // app.js save(): the alarms again, a moment after the last change
-    alarmsSoon() { if (has('setAlarms') && !alarmsTimer) alarmsTimer = setTimeout(sendAlarms, 1000); },
+    // the app kept something for the open page (a tick on the widget): taken now, in order
+    pull() {
+      if (!has('takePending')) return;
+      let list = [];
+      try { list = JSON.parse(N.takePending() || '[]'); } catch {}
+      list.sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach((m) => { try { apply(m, true); } catch {} });
+    },
+    // app.js save(): the alarms and the widget again, a moment after the last change
+    alarmsSoon() { if ((has('setAlarms') || has('setWidget')) && !alarmsTimer) alarmsTimer = setTimeout(() => { alarmsTimer = null; if (has('setAlarms')) sendAlarms(); if (has('setWidget')) sendWidget(); }, 1000); },
   };
 })();

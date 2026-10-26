@@ -8,4 +8,9 @@
     <string name="sc_journal">يومية جديدة</string>
     <string name="sc_task">مهمة جديدة</string>
     <string name="sc_archive">الأرشيف</string>
+    <!-- the widget «اليوم» (v116) -->
+    <string name="widget_name">اليوم</string>
+    <string name="widget_desc">ما بقي لك اليوم من مهام وأهداف، تشطبها من الشاشة الرئيسية</string>
+    <string name="widget_first">افتح التطبيق مرة لتظهر هنا مهام يومك</string>
+    <string name="widget_none">لا شيء باقٍ لليوم ✓</string>
 </resources>

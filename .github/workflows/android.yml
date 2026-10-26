@@ -38,7 +38,7 @@ jobs:
         run: |
           if [ -z "$ANDROID_KEY_PASSWORD" ]; then
             echo "::warning::The secret ANDROID_KEY_PASSWORD is missing: a trial build only, not published"
-            gradle -p android assembleDebug -Pvc=${{ github.run_number }} --no-daemon --stacktrace
+            gradle -p android :app:assembleDebug -Pvc=${{ github.run_number }} --no-daemon --stacktrace
             cp android/app/build/outputs/apk/debug/app-debug.apk alwaei.apk
             echo "signed=0" >> "$GITHUB_OUTPUT"
             exit 0
@@ -61,13 +61,26 @@ jobs:
               && keytool -list -keystore "$KEY" -storetype PKCS12 -storepass "$ANDROID_KEY_PASSWORD" > /dev/null \
               || { echo "::error::ANDROID_KEY_PASSWORD does not open the app's key (was the secret changed?)"; exit 1; }
           fi
-          gradle -p android assembleRelease -Pvc=${{ github.run_number }} --no-daemon --stacktrace
+          gradle -p android :app:assembleRelease -Pvc=${{ github.run_number }} --no-daemon --stacktrace
           cp android/app/build/outputs/apk/release/app-release.apk alwaei.apk
           echo "signed=1" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: alwaei-apk
           path: alwaei.apk
+      # for checking the widget «اليوم» (android/ci-widget.sh): a test build whose page can be filled, and a home screen
+      # of one widget (android/widgethost). Neither is published
+      - name: Build the widget's check
+        run: |
+          gradle -p android :app:assembleDebug :widgethost:assembleDebug -Pvc=${{ github.run_number }} --no-daemon --stacktrace
+          cp android/app/build/outputs/apk/debug/app-debug.apk app-debug.apk
+          cp android/widgethost/build/outputs/apk/debug/widgethost-debug.apk widgethost.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: widget-check
+          path: |
+            app-debug.apk
+            widgethost.apk
 
   smoke:
     needs: build
@@ -77,6 +90,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: alwaei-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: widget-check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow websocket-client
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -88,7 +108,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: bash android/ci-smoke.sh
+          script: bash android/ci-smoke.sh && bash android/ci-widget.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -96,6 +116,8 @@ jobs:
           path: |
             smoke.log
             smoke.png
+            w*.png
+            w*.xml
 
   release:
     needs: [build, smoke]
