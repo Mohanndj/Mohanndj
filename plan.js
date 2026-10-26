@@ -112,8 +112,46 @@ const khKeyLabel = (key) => { const mm = /^([gh])(\d{4})$/.exec(key || ''); retu
 // a year key in the calendar chosen now: the year its middle falls in (a year goal stays in «سنتي» after a switch)
 const khYrOfKey = (key) => { const sp = khKeySpan(key); return sp ? khYrStart(addDays(sp[0], Math.floor(khDaysBetween(sp[0], sp[1]) / 2))) : null; };
 const khYearOpts = () => { const y = khYrStart(today()), n = khYrNext(y); return [[khYrKey(y), khYrLabel(y)], [khYrKey(n), khYrLabel(n)]]; };
-// how many of the months a year goal is tied to fall outside a year (by their middle, as everywhere): a year it cannot move to
+// how many of the months a year goal is tied to fall outside a year (by their middle, as everywhere): they move with it
 const khYearOut = (yg, key) => { const sp = khKeySpan(key); return !yg || !sp ? 0 : kgKids(yg, 'month').reduce((n, m) => n + m.months.filter((r) => { const d = khMid(r); return d < sp[0] || d >= sp[1]; }).length, 0); };
+// the years a year goal can be moved to (v118, the owner's request: «القدرة على تعديل سنة الهدف السنوي», after a goal written
+// in the Gregorian calendar could not go to another Gregorian year once the calendar was Hijri): this year and the next in
+// the calendar chosen now, then in the other calendar, and its own year
+function khYearChoices(yk) {
+  const g = Number(today().slice(0, 4)), h = khHij(today()).y;
+  const gs = [[`g${g}`, khKeyLabel(`g${g}`)], [`g${g + 1}`, khKeyLabel(`g${g + 1}`)]], hs = [[`h${h}`, khKeyLabel(`h${h}`)], [`h${h + 1}`, khKeyLabel(`h${h + 1}`)]];
+  const all = calHijri() ? [...hs, ...gs] : [...gs, ...hs];
+  return all.some(([k]) => k === yk) || !yk ? all : [...all, [yk, khKeyLabel(yk)]];
+}
+// a year goal moved to another year: the months it is tied to go with it, each to the same month of its own calendar in
+// the new year (between calendars, the same month a year on or back, or the new year's nearest month); its tasks follow
+const khGNext = (a) => `${addDays(a, 32).slice(0, 8)}01`;
+function khRangeShift(r, k) {
+  const [a, b] = r.split('~');
+  if (a.endsWith('-01') && b === khGNext(a)) { const s = `${Number(a.slice(0, 4)) + k}${a.slice(4)}`; return `${s}~${khGNext(s)}`; }
+  const h = khHij(a), ty = h.y + k;
+  let x = hMonthStart(addDays(a, Math.round(k * 354.37) + 14));
+  for (let i = 0; i < 4; i++) { const q = khHij(x), dm = (ty - q.y) * 12 + (h.m - q.m); if (!dm) break; x = dm > 0 ? hMonthNext(x) : hMonthStart(addDays(x, -1)); }
+  return `${x}~${hMonthNext(x)}`;
+}
+function khRangeInto(r, sp, hij) {
+  const inSp = (x) => { const d = khMid(x); return d >= sp[0] && d < sp[1]; };
+  if (inSp(r)) return r;
+  for (const k of [1, -1, 2, -2, 3, -3]) { const x = khRangeShift(r, k); if (inSp(x)) return x; }
+  const d = khMid(r) < sp[0] ? sp[0] : addDays(sp[1], -1), s = hij ? hMonthStart(d) : `${d.slice(0, 8)}01`;
+  return `${s}~${hij ? hMonthNext(s) : khGNext(s)}`;
+}
+function khMoveYear(yg, key) {
+  const sp = khKeySpan(key);
+  if (!sp || yg.period === key) return;
+  yg.period = key;
+  for (const m of kgKids(yg, 'month')) {
+    m.months = [...new Set(m.months.map((r) => khRangeInto(r, sp, key[0] === 'h')))].sort();
+    khSyncStart(m); // (its tasks run in its months of the year it is in now)
+  }
+}
+// said under the years when the year chosen moves its months
+const khMoveNote = (yg, yk) => (yg && yk !== yg.period && khYearOut(yg, yk) ? `<p class="note-text">أشهره المربوطة تنتقل معه إلى ${esc(khKeyLabel(yk))}</p>` : '');
 
 // ---------- from the vision to the days (v98): S.kgoals ----------
 // A vision in each role (life); a goal for the year that serves it; the months it is in (chosen ones, or a number of
@@ -1010,18 +1048,15 @@ function khWizDraw() {
   if (edit === 'year') {
     // a year goal edited in its own step (v115): its question and answer, its laws and meaning, as it was written; and what
     // its editor had: its role, the vision it serves, its year (until it is tied to months), its state, and «حذف»
-    // its year can be changed though it has months (a goal written in one calendar, then the calendar changed: v116),
-    // to a year that holds the months it is tied to
+    // its year can be changed though it has months, to any year offered in either calendar; its months go with it (v118)
     const yg = kgOf(w.yearId);
     const ups = S.kgoals.filter((v) => v.level === 'life' && v.roleId === w.roleId && (v.status === 'open' || v.id === w.vision));
-    const per = khYearOpts().some(([k]) => k === w.yk) ? khYearOpts() : [...khYearOpts(), [w.yk, khKeyLabel(w.yk)]];
-    const outOf = per.filter(([k]) => k !== w.yk && khYearOut(yg, k));
     body = `<h3 class="kh-wh">هدف السنة</h3>
       <label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}${khRole(w.roleId) ? '' : '<option value="" selected>بلا دور</option>'}</select></label>
       <label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis"><option value="">بلا ربط</option>${ups.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
-      <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${per.map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk).replace('<button', outOf.some(([o]) => o === k) ? '<button disabled' : '<button')).join('')}</div>
-      ${outOf.length ? `<p class="note-text">${outOf.map(([, l]) => esc(l)).join(' و')}: لا تضم كل أشهره المربوطة</p>` : ''}
+      <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${khYearChoices(yg ? yg.period : w.yk).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>
+      ${khMoveNote(yg, w.yk)}
       <label class="field kh-q lv-year"><span>اكتب جوابك</span><textarea id="khwY" rows="2">${esc(w.yText)}</textarea></label>
       ${khLawsHTML(w.laws)}
       <label class="field"><span>لماذا تريده؟ (المعنى، اختياري)</span><textarea id="khwWhy" rows="2">${esc(w.why)}</textarea></label>
@@ -1034,7 +1069,7 @@ function khWizDraw() {
         : vs.length > 1 ? `<label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis">${vs.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>`
         : `<label class="field kh-q lv-life"><span>ما رؤيتك في «${role}»؟ الصورة التي تريد أن تكون عليها في هذا الدور</span><textarea id="khwVt" rows="2">${esc(w.vText)}</textarea></label>`}
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
-      ${yg ? '' : `<div class="seg" role="group" aria-label="أيّ سنة؟">${(khYearOpts().some(([k]) => k === w.yk) ? khYearOpts() : [...khYearOpts(), [w.yk, khKeyLabel(w.yk)]]).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>`}
+      ${yg ? `<div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${khYearChoices(yg.period).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>${khMoveNote(yg, w.yk)}` : `<div class="seg" role="group" aria-label="أيّ سنة؟">${(khYearOpts().some(([k]) => k === w.yk) ? khYearOpts() : [...khYearOpts(), [w.yk, khKeyLabel(w.yk)]]).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>`}
       <label class="field kh-q lv-year"><span>اكتب جوابك</span><textarea id="khwY" rows="2">${esc(w.yText)}</textarea></label>
       ${khLawsHTML(w.laws)}
       <label class="field"><span>لماذا تريده؟ (المعنى، اختياري)</span><textarea id="khwWhy" rows="2">${esc(w.why)}</textarea></label>
@@ -1102,10 +1137,8 @@ function khWizCommit() {
     const yg = kgOf(w.yearId);
     if (!yg) { toast('هذا الهدف لم يعد موجوداً.'); return false; }
     if (yg.status !== w.status) yg.closedAt = w.status === 'open' ? '' : today();
-    if (khYearOut(yg, w.yk)) { toast(`${khKeyLabel(w.yk)} لا تضم كل أشهره المربوطة.`); return false; }
-    const moved = yg.period !== w.yk;
-    Object.assign(yg, { roleId: w.roleId, text: w.yText.trim(), why: w.why.trim(), laws: { ...w.laws }, parent: w.vision || '', period: w.yk, status: w.status });
-    if (moved) for (const m of kgKids(yg, 'month')) khSyncStart(m); // (its tasks run in its months of the year it is in now)
+    Object.assign(yg, { roleId: w.roleId, text: w.yText.trim(), why: w.why.trim(), laws: { ...w.laws }, parent: w.vision || '', status: w.status });
+    khMoveYear(yg, w.yk);
     save();
     return true;
   }
@@ -1119,7 +1152,7 @@ function khWizCommit() {
     }
     const v = { roleId: w.roleId, text: w.yText.trim(), why: w.why.trim(), laws: { ...w.laws }, parent: vid || '', period: w.yk };
     const yg = kgOf(w.yearId);
-    if (yg) Object.assign(yg, v); else { const g = normalizeKGoal({ level: 'year', ...v }); S.kgoals.push(g); w.yearId = g.id; }
+    if (yg) { const { period, ...rest } = v; Object.assign(yg, rest); khMoveYear(yg, period); const mg = kgOf(w.monthId); if (mg) w.months = [...mg.months]; } else { const g = normalizeKGoal({ level: 'year', ...v }); S.kgoals.push(g); w.yearId = g.id; } // (a moved goal's months step shows them where they went)
   }
   if (w.step === 1) {
     if (w.moMode === 'pick' && !w.months.length) { toast('اختر شهراً واحداً على الأقل.'); return false; }
