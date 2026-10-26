@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+// the build's number (GitHub's run number): each new app installs over the one before, keeping its data
+def vc = Integer.parseInt((project.findProperty('vc') ?: '1').toString())
+
+android {
+    namespace 'app.mohanndj.alwaei'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.mohanndj.alwaei'
+        minSdk 26
+        targetSdk 34
+        versionCode vc
+        versionName "1.${vc}"
+    }
+
+    // one key for every build, or the phone refuses the update: the key file is here, locked by a password that is
+    // only in the repository's secrets (ANDROID_KEY_PASSWORD), never written in it
+    signingConfigs {
+        release {
+            storeFile file('alwaei.p12')
+            storeType 'pkcs12'
+            storePassword System.getenv('ANDROID_KEY_PASSWORD') ?: ''
+            keyAlias 'alwaei'
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: ''
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 110;
+const APP_VERSION = 111;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -924,7 +924,8 @@ const hbar = (name, value, width, color) =>
 
 // ---------- view: settings ----------
 function notifStatus() {
-  if (!('Notification' in window)) return '<span class="status-bad">هذا المتصفح لا يدعم الإشعارات. ثبّت التطبيق على الشاشة الرئيسية أولاً.</span>';
+  // (the Android app has no notifications yet, v111: they come in its next stage)
+  if (!('Notification' in window)) return window.WaiNative ? '<span class="status-bad">الإشعارات والمنبّه لم تصل إلى تطبيق أندرويد بعد. حتى تصل، اعتمد عليها في النسخة المثبتة من المتصفح.</span>' : '<span class="status-bad">هذا المتصفح لا يدعم الإشعارات. ثبّت التطبيق على الشاشة الرئيسية أولاً.</span>';
   if (Notification.permission === 'granted') return '<span class="status-ok">الإشعارات مفعّلة</span>';
   if (Notification.permission === 'denied') return '<span class="status-bad">الإشعارات محظورة. فعّلها من إعدادات المتصفح أو الجوال.</span>';
   return '<span>الإشعارات غير مفعّلة بعد</span>';
@@ -2061,7 +2062,7 @@ async function applyPendingTimerActions() {
 }
 
 function timerNotifNote() {
-  if (!('Notification' in window)) return '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
+  if (!('Notification' in window)) return window.WaiNative ? '<p class="note-text">ظهور المؤقت في شريط الإشعارات لم يصل إلى تطبيق أندرويد بعد.</p>' : '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
   if (Notification.permission === 'granted') return '<p class="note-text explain">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
   if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← الوعي الشخصي (أو Chrome) ← الإشعارات.</p>';
   return '<div class="warn-box"><span>ليبقى المؤقت ظاهراً في شريط الإشعارات بعد خروجك من التطبيق، فعّل الإشعارات.</span><button type="button" class="primary" data-action="notif-timer">تفعيل الإشعارات</button></div>';

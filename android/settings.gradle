@@ -1,0 +1,17 @@
+// «الوعي الشخصي» as an Android app: built by GitHub (.github/workflows/android.yml), never by hand
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'alwaei'
+include ':app'
