@@ -2120,3 +2120,9 @@ li.sel .sel-box { background: var(--high); }
 @media (min-width: 1100px) {
   .top-inner, main.wrap { max-width: 960px; }
 }
+
+/* v126: a project not yet tied to a vision («ناقص») */
+.kh-need { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px dashed #d97706; background: color-mix(in srgb, #d97706 8%, transparent); }
+.kh-need b { color: #b45309; }
+.kh-need span { font-size: .85rem; color: var(--muted); }
+.kh-need-tag { color: #b45309; }

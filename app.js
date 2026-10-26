@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 125;
+const APP_VERSION = 126;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -389,9 +389,13 @@ function projectStats(pid) {
   const list = tasksOf(pid);
   const steps = list.flatMap((t) => t.subtasks);
   const done = list.filter((t) => t.done).length;
-  const progress = list.length ? Math.round((list.reduce((n, t) => n + taskProgress(t), 0) / list.length) * 100) : 0;
+  const own = list.length ? list.reduce((n, t) => n + taskProgress(t), 0) / list.length : null;
+  // (v126) a project that is a year goal: its progress is also its goal's, the months achieved of those asked for in
+  // the years begun (as «سنتي» counts them); with tasks of its own too, the two count half each
+  const goal = khProjShare(getProject(pid)), gf = goal && goal.target ? goal.done / goal.target : null;
+  const progress = Math.round(((own === null ? gf : gf === null ? own : (own + gf) / 2) || 0) * 100);
   const late = list.filter((t) => !t.done && t.due && t.due < today() && !(t.skip && t.skip[t.due])).length;
-  return { total: list.length, done, steps: steps.length, stepsDone: steps.filter((s) => s.done).length, progress, late };
+  return { total: list.length, done, steps: steps.length, stepsDone: steps.filter((s) => s.done).length, progress, late, goal };
 }
 
 // ---------- actions ----------
@@ -706,12 +710,13 @@ function viewToday() {
 // ---------- view: tasks & projects ----------
 function projectCardHTML(p) {
   const st = projectStats(p.id);
-  const sub = st.total ? `المهام: ${st.done} من ${st.total}` : 'لا مهام بعد';
+  const sub = st.goal && st.goal.target ? `الهدف: تحقّق في ${st.goal.done} من ${plural(st.goal.target, 'شهر واحد', 'شهرين', 'أشهر', 'شهراً')}${st.total ? ` | المهام: ${st.done} من ${st.total}` : ''}` : st.total ? `المهام: ${st.done} من ${st.total}` : 'لا مهام بعد';
   return `<button type="button" class="pcard" data-action="open-project" data-v="${p.id}" style="--pc:${p.color}">
     <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
     <span class="pbar"><i style="width:${st.progress}%"></i></span>
     <span class="psub"><span class="num">أُنجز ${st.progress}%</span><span>${sub}</span></span>
     ${st.late ? `<span class="late psub">${st.late} متأخرة</span>` : ''}
+    ${khProjNeed(p) ? '<span class="psub kh-need-tag">ناقص: اربطه برؤية</span>' : ''}
   </button>`;
 }
 
@@ -776,7 +781,12 @@ function viewTasks() {
 
 function viewProject(p) {
   const st = projectStats(p.id);
-  const list = sortTasks(tasksOf(p.id).filter((t) => matchFilter(t, ui.projFilter)), ui.projFilter);
+  // (v126) a project is a year goal: its tasks and the tasks of its days, in one list; a task of its own outside the
+  // chain is to be tied to its week, and a project not tied to a vision is «ناقص»
+  const yg = khProjGoal(p), need = khProjNeed(p);
+  const all = [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])];
+  const list = sortTasks(all.filter((t) => matchFilter(t, ui.projFilter)), ui.projFilter);
+  const row = (t) => itemHTML(t, isRepeat(t) ? today() : t.due || today(), { noProject: true, extra: yg && !t.done && t.projectId === p.id && khLoose(t) ? `<div class="kh-side"><button type="button" class="ghost sm" data-action="kh-task-link" data-v="${t.id}">أكمل إعدادها: اربطها بأسبوعها</button></div>` : '' });
   return `
   <div class="crumbs"><button type="button" class="back" data-action="close-project">${icon('back')} كل المشاريع</button></div>
   <section class="phead" style="--pc:${p.color}">
@@ -788,18 +798,20 @@ function viewProject(p) {
     <div class="pbar big"><i style="width:${st.progress}%"></i></div>
     <div class="pstats">
       <span>أُنجز <b class="num">${st.progress}%</b></span>
-      <span>المهام: <b class="num">${st.done} من ${st.total}</b></span>
+      ${st.goal && st.goal.target ? `<span>الهدف: <b class="num">تحقّق في ${st.goal.done} من ${plural(st.goal.target, 'شهر واحد', 'شهرين', 'أشهر', 'شهراً')}</b></span>` : ''}
+      ${st.total || !(st.goal && st.goal.target) ? `<span>المهام: <b class="num">${st.done} من ${st.total}</b></span>` : ''}
       ${st.steps ? `<span>خطوات داخل المهام: <b class="num">${st.stepsDone} من ${st.steps}</b></span>` : ''}
       ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
       ${kgOf(p.ygoal) ? `<span>يخدم هدف السنة: ${esc(kgOf(p.ygoal).text)}</span>` : ''}
     </div>
+    ${need ? `<div class="kh-need"><b>ناقص: اربطه برؤية دوره</b><span>المشروع هدف لسنتك في تسلسل الدور والرؤية، ومهامه مهام أيامه.</span><button type="button" class="primary" data-action="kh-proj-link" data-v="${p.id}">أكمل: من الرؤية إلى الأيام</button></div>` : ''}
   </section>
   <section class="section">
     <div class="section-head"><h2>مهام المشروع</h2><div class="btn-row">${aiBtn('ai-plan', 'خطّط المشروع', ` data-v="${p.id}"`)}${taskBulkBtn(p.id)}${addBtn('new-in-project', 'مهمة', ` data-v="${p.id}"`)}</div></div>
-    ${st.total ? taskToolbar('projFilter', false) : ''}
+    ${all.length ? taskToolbar('projFilter', false) : ''}
     ${list.length
-      ? `<ul class="list">${list.map((t) => itemHTML(t, t.due || today(), { noProject: true })).join('')}</ul>`
-      : st.total ? emptyHTML('لا شيء هنا', ui.projFilter === 'done' ? 'لم تنجز مهام بعد.' : 'أنجزت كل مهام المشروع.')
+      ? `<ul class="list">${list.map(row).join('')}</ul>`
+      : all.length ? emptyHTML('لا شيء هنا', ui.projFilter === 'done' ? 'لم تنجز مهام بعد.' : 'أنجزت كل مهام المشروع.')
         : emptyHTML('المشروع فارغ', 'أضف أول مهمة، ثم افتحها لتضيف لها خطوات.', addBtn('new-in-project', 'أضف مهمة', ` data-v="${p.id}"`))}
   </section>`;
 }
@@ -1612,7 +1624,9 @@ $('projForm').addEventListener('submit', (e) => {
   const isNew = pdraft.isNew;
   closeProjectSheet();
   if (isNew) go('tasks', p.id); else render();
-  toast(isNew ? 'أُنشئ المشروع. أضف له مهاماً الآن.' : 'حُفظ المشروع');
+  // (v126) a new project is a year goal of a vision: its steps, from its year
+  if (isNew && khProjNeed(p)) khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name });
+  else toast(isNew ? 'أُنشئ المشروع. أضف له مهاماً الآن.' : 'حُفظ المشروع');
 });
 psheet.addEventListener('click', (e) => { if (e.target === psheet) closeProjectSheet(); });
 

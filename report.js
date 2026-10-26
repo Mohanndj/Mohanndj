@@ -22,7 +22,7 @@ function periodStats(P) {
   const projects = S.projects.map((p) => {
     const st = projectStats(p.id);
     return { name: p.name, color: p.color, progress: st.progress, total: st.total, doneIn: tasksOf(p.id).filter((t) => t.done && inP(dayOfTs(t.doneAt))).length };
-  }).filter((p) => p.total && (p.doneIn || P.current));
+  }).filter((p) => (p.total || p.progress) && (p.doneIn || P.current));
   return {
     // the same things the areas below count: tasks (not books), goals (not habits or reading), habits, reading sessions
     tasks: ev.filter((e) => e.kind === 'task').length,
