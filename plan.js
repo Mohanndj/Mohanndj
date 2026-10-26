@@ -408,28 +408,19 @@ const khOpenTask = (t) => !isGoal(t) && !t.done && !t.projectId;
 const khMoveOptions = (p) => `<option value="" selected>يبقى هنا</option>${khRoles().map((r) => (r.id === KH_SAW
   ? Object.entries(KH_AREAS).filter(([a]) => !(p.roleId === KH_SAW && p.area === a)).map(([a, n]) => `<option value="${KH_SAW}:${a}">${esc(r.name)}: ${n}</option>`).join('')
   : r.id === p.roleId ? '' : `<option value="${r.id}">${esc(r.name)}</option>`)).join('')}`;
+// a role's card holds its vision only (the user's choice, v110): the chain of its goals is in «سنتي» (and under its vision in
+// «حياتي»), its projects, goals and tasks in their own pages; its projects are still moved from «تعديل»
 function khRoleCard(r) {
-  const own = (t) => khRoleIdOf(t) === r.id;
   const projects = S.projects.filter((p) => !p.doneAt && p.roleId === r.id);
-  const goals = S.tasks.filter((t) => khOpenGoal(t) && own(t) && !t.kgoal);
   const visions = S.kgoals.filter((g) => g.level === 'life' && g.roleId === r.id && g.status !== 'dropped');
-  const years = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === r.id && g.status === 'open' && khYrOfKey(g.period) >= khYrStart(today()));
-  const tasks = S.tasks.filter((t) => khOpenTask(t) && own(t));
   const saw = r.id === KH_SAW;
-  const goalBtn = (t) => `<button type="button" class="kh-link" data-action="open" data-id="${t.id}">${esc(t.title)}${saw && t.area ? ` <small>(${KH_AREAS[t.area]})</small>` : ''}</button>`;
-  const counts = [projects.length && plural(projects.length, 'مشروع واحد', 'مشروعان', 'مشاريع', 'مشروعاً'), goals.length && plural(goals.length, 'هدف واحد', 'هدفان', 'أهداف', 'هدفاً'), tasks.length && plural(tasks.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')].filter(Boolean);
   const i = khRoles().indexOf(r), mine = khRoles().filter((x) => x.id !== KH_SAW).length;
   return `<div class="kh-role" style="--rc:${khColor(r.id)}">
     <div class="kh-role-head"><b>${esc(r.name)}</b>
       ${saw ? `<div class="kh-role-acts"><span class="kh-fixed">ثابت</span>${projects.length ? `<button type="button" class="ghost sm" data-action="kh-role-edit" data-v="${r.id}">${icon('edit')} تعديل</button>` : ''}</div>` : `<div class="kh-role-acts"><button type="button" class="icon-btn" data-action="kh-role-mv" data-v="${r.id}" data-d="-1" aria-label="إلى الأعلى"${i ? '' : ' disabled'}>▲</button><button type="button" class="icon-btn" data-action="kh-role-mv" data-v="${r.id}" data-d="1" aria-label="إلى الأسفل"${i < mine - 1 ? '' : ' disabled'}>▼</button><button type="button" class="ghost sm" data-action="kh-role-edit" data-v="${r.id}">${icon('edit')} تعديل</button></div>`}</div>
     ${visions.length ? `<div class="kh-sub"><small>رؤيتي</small><div class="kh-links">${visions.map((v) => `<button type="button" class="kh-link" data-action="kh-edit-goal" data-v="${v.id}">${esc(v.text)}</button>`).join('')}</div></div>` : ''}
-    ${years.length ? `<div class="kh-sub"><small>أهداف السنة</small><div class="kh-links">${years.map((g) => { const gy = khYrOfKey(g.period), cur = gy === khYrStart(today()), x = ygShare(g, gy); return `<button type="button" class="kh-link" data-action="kh-tab" data-v="year" data-yr="${cur ? '' : gy}">${esc(g.text)}${cur ? '' : ` <small>(${esc(khKeyLabel(g.period))})</small>`}${x.target ? `<small>تحقّق في ${khN(x.done)} من ${KH_UNIT.month(x.target)}</small>` : ''}</button>${khContOf(g)}`; }).join('')}</div></div>` : ''}
-    ${counts.length ? `<p class="note-text">${counts.join(' | ')}</p>` : visions.length || years.length ? '' : '<p class="note-text">لا شيء لهذا الدور بعد.</p>'}
     ${saw ? '<p class="note-text explain">عنايتك بنفسك لتقوى على أدوارك كلها، بأربعة جوانب: صحي (رياضة ونوم وغذاء)، واجتماعي (صلة وصداقة ومعروف)، ومعرفي (قراءة وتعلّم)، ونفسي (ما يريح نفسك ويرتّبها).</p>' : ''}
-    ${projects.length ? `<div class="kh-sub"><small>المشاريع</small><div class="kh-chips">${projects.map((p) => `<button type="button" class="chip" data-action="open-project" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
-    ${goals.length ? `<div class="kh-sub"><small>الأهداف</small><div class="kh-links">${goals.map(goalBtn).join('')}</div></div>` : ''}
-    ${tasks.length ? `<details class="kh-sub"><summary><small>المهام (${tasks.length})</small></summary><div class="kh-links">${tasks.map(goalBtn).join('')}</div></details>` : ''}
-    <div class="btn-row kh-adds">${addBtn('kh-new', 'مهمة', ` data-role="${r.id}"`)}${addBtn('kh-new-goal', 'هدف', ` data-role="${r.id}"`)}${addBtn('kh-new-project', 'مشروع', ` data-role="${r.id}"`)}${visions.length ? '' : addBtn('kh-new-vision', 'رؤية', ` data-role="${r.id}"`)}</div>
+    ${visions.length ? '' : `<div class="btn-row kh-adds">${addBtn('kh-new-vision', 'رؤية', ` data-role="${r.id}"`)}</div>`}
   </div>`;
 }
 // what has no role yet (all of it, the first time): a role is chosen for each right here
