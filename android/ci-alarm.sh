@@ -2,7 +2,7 @@
 # Run by GitHub on the emulator after ci-widget.sh. v122: the pinned notification stays through «Clear all» and a finger,
 # and goes when its setting is turned off. v121: a reminder's alarm stays on the screen until answered.
 # With the phone in use, its notification must still be at the top of the screen half a minute later; with the screen
-# off, its whole screen (AlarmActivity) comes up over the lock with its text, «رجوع» does not close it, and its «تمت»
+# off, its whole screen (AlarmActivity) comes up over the lock with its text, «رجوع» does not close it, and its «قرأت النص»
 # ticks the reminder in the page. Pictures of both are written in the log (base64, between ALARMSHOT lines).
 set -u
 why() {
@@ -31,21 +31,33 @@ top() { adb shell dumpsys activity activities | grep -E 'mResumedActivity|topRes
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard > /dev/null 2>&1 || true
 adb logcat -c
-adb shell am start -W -n app.mohanndj.alwaei/.MainActivity > /dev/null
-PID=""
-for i in $(seq 1 30); do
-  sleep 2
-  PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
-  [ -n "$PID" ] && break
-done
-[ -n "$PID" ] || fail "the test build is not running"
-sleep 8
-adb forward tcp:9223 "localabstract:webview_devtools_remote_$PID" > /dev/null || fail "no address for the page's debugging"
+# the app opened and its page reached (tried three times, as in ci-widget.sh)
+attach() {
+  adb shell am start -W -n app.mohanndj.alwaei/.MainActivity > /dev/null
+  PID=""
+  for i in $(seq 1 30); do
+    sleep 2
+    PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
+    [ -n "$PID" ] && break
+  done
+  echo "app pid: $PID"
+  [ -n "$PID" ] || return 1
+  sleep 8
+  adb forward tcp:9223 "localabstract:webview_devtools_remote_$PID" > /dev/null || return 1
+  WS=""
+  for i in $(seq 1 10); do
+    WS=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
+    [ -n "$WS" ] && return 0
+    sleep 3
+  done
+  return 1
+}
 WS=""
-for i in $(seq 1 10); do
-  WS=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
-  [ -n "$WS" ] && break
-  sleep 3
+for t in 1 2 3; do
+  attach && break
+  echo "::warning::the app or its page was not reached (try $t): started again"
+  adb forward --remove tcp:9223 > /dev/null 2>&1
+  sleep 5
 done
 [ -n "$WS" ] || fail "the page's debugging is not open"
 page() { python3 android/ci-cdp.py "$WS" "$1"; }
@@ -148,22 +160,23 @@ echo "on top: $T"
 echo "$T" | grep -q 'AlarmActivity' || { look a2x; fail "the reminder's screen did not come up with the screen off"; }
 look a2
 grep -q 'اتصل بأبي بعد صلاة العصر' a2.xml || fail "the reminder's screen does not show its text"
-grep -q 'غفوة' a2.xml && grep -q 'إغلاق' a2.xml || fail "the reminder's screen lacks its buttons"
+grep -q 'قرأت النص' a2.xml && grep -q 'غفوة' a2.xml || fail "the reminder's screen lacks its buttons"
+grep -q 'text="إغلاق"' a2.xml && fail "the reminder's screen still has «إغلاق» (v123: «قرأت النص» and «غفوة» only)"
 adb shell input keyevent KEYCODE_BACK
 sleep 2
 top | grep -q 'AlarmActivity' || fail "«رجوع» closed the reminder's screen"
 B=$(python3 -c "
 import re
 x=open('a2.xml',encoding='utf-8').read()
-m=re.search(r'text=\"تمت\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+m=re.search(r'text=\"قرأت النص\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
 print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
-[ -n "$B" ] || fail "no «تمت» on the reminder's screen"
+[ -n "$B" ] || fail "no «قرأت النص» on the reminder's screen"
 adb shell input tap $B
 sleep 5
 DONE=$(page "S.reminders.find((x) => x.id === 'ra2').done")
 echo "page: the second reminder done: $DONE"
-[ "$DONE" = "true" ] || fail "«تمت» on the reminder's screen did not tick it"
-top | grep -q 'AlarmActivity' && fail "the reminder's screen stayed after «تمت»"
+[ "$DONE" = "true" ] || fail "«قرأت النص» on the reminder's screen did not tick it"
+top | grep -q 'AlarmActivity' && fail "the reminder's screen stayed after «قرأت النص»"
 adb shell dumpsys notification --noredact | grep -q 'اتصل بأبي بعد صلاة العصر' && echo "::warning::the phone's notification list still names the second reminder (maybe its record of past ones)"
 if adb logcat -d -b crash | grep -q 'app.mohanndj.alwaei'; then adb logcat -d -b crash | tail -30; fail "the app crashed"; fi
 echo "alarm check passed"

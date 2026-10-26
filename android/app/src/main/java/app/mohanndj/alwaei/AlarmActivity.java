@@ -23,7 +23,7 @@ import org.json.JSONObject;
 
 /**
  * A reminder's alarm on the whole screen (v121, the owner's request: «اجعل الكتابة التي تظهر ثابتة على الشاشة حتى أقوم
- * وألغيها»): its hour and its whole text, over the lock screen too, until «تمت», «غفوة» or «إغلاق» is pressed here
+ * وألغيها»): its hour and its whole text, over the lock screen too, until «قرأت النص» or «غفوة» is pressed here
  * (each goes as its button on the notification does), or the alarm is answered elsewhere (the notification gone).
  * Opened by the notification's full-screen intent (the phone shows it by itself when the screen is off or locked; in use,
  * the notification stays at the top of the screen instead) and by a tap on the notification.
@@ -131,9 +131,9 @@ public class AlarmActivity extends Activity {
         LinearLayout.LayoutParams svp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         root.addView(sv, svp);
 
-        root.addView(button("تمت", true, v -> answer("done")), buttonParams());
+        // v123, the owner's request: «قرأت النص» and «غفوة» only
+        root.addView(button("قرأت النص", true, v -> answer("done")), buttonParams());
         root.addView(button(snooze, false, v -> answer("snooze")), buttonParams());
-        root.addView(button("إغلاق", false, v -> answer("dismiss")), buttonParams());
         setContentView(root);
     }
 
@@ -167,14 +167,7 @@ public class AlarmActivity extends Activity {
     // as its button on the notification: to AlarmReceiver (the page now if it is open, else when it opens)
     private void answer(String action) {
         h.removeCallbacks(watch);
-        if (!tag.isEmpty()) {
-            if (action.equals("dismiss")) {
-                Notifs.cancel(this, tag);
-                sendBroadcast(Notifs.actionIntent(this, Notifs.DEL, tag, "dismiss", extra));
-            } else {
-                sendBroadcast(Notifs.actionIntent(this, Notifs.ACT, tag, action, extra));
-            }
-        }
+        if (!tag.isEmpty()) sendBroadcast(Notifs.actionIntent(this, Notifs.ACT, tag, action, extra));
         finish();
     }
 }

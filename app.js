@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 122;
+const APP_VERSION = 123;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1733,7 +1733,7 @@ async function systemNotify(title, body, key, id) {
     body, tag: key, renotify: true, requireInteraction: true, lang: 'ar', dir: 'rtl',
     icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', vibrate: [200, 100, 200, 100, 400],
     data: { id, key },
-    actions: [{ action: 'done', title: 'تمت' }, { action: 'snooze', title: `غفوة ${SNOOZE_MIN} دقائق` }],
+    actions: remOf(id) ? [{ action: 'done', title: 'قرأت النص' }, { action: 'snooze', title: 'غفوة' }] : [{ action: 'done', title: 'تمت' }, { action: 'snooze', title: `غفوة ${SNOOZE_MIN} دقائق` }],
   };
   try {
     const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
@@ -1771,10 +1771,19 @@ function ring(t, key, d, off) {
   if (document.visibilityState !== 'visible') systemNotify(r ? remNoteTitle(r, t.time) : t.title, r ? r.text : alarmBody(t, d, off), key, t.id);
 }
 
+// a reminder's alarm (v123, the owner's request): «قرأت النص» and «غفوة» only; a task's as before
+function alarmButtons(rem) {
+  const b = (a) => $('alarm').querySelector(`[data-action="${a}"]`);
+  b('alarm-done').textContent = rem ? 'قرأت النص' : 'تمت';
+  b('alarm-snooze').textContent = rem ? 'غفوة' : digitsOut(`غفوة ${SNOOZE_MIN} دقائق`);
+  b('alarm-dismiss').hidden = rem;
+}
+
 function showAlarm() {
   const cur = alarmQueue[0];
   if (!cur) { $('alarm').hidden = true; return; }
   if (cur.id === '__test') {
+    alarmButtons(false);
     $('alarmKicker').textContent = 'منبه تجريبي';
     $('alarmTitle').textContent = 'هذا شكل المنبه وصوته';
     $('alarm').hidden = false;
@@ -1783,6 +1792,7 @@ function showAlarm() {
   const r = remOf(cur.id), t = r ? remTask(cur.id) : getTask(cur.id);
   // its task (or reminder) deleted, or done from the list meanwhile: it stops
   if (!t || (r ? r.done : doneOn(t, cur.d))) { alarmQueue.shift(); showAlarm(); return; }
+  alarmButtons(!!r);
   const left = minutesLeft(t, cur.d);
   $('alarmKicker').textContent = cur.off && left > 0 ? `تذكير مسبق | بعد ${minsWord(left)}` : 'منبه';
   $('alarmTitle').textContent = `${t.title} | ${timeLabel(t, cur.d)}`;

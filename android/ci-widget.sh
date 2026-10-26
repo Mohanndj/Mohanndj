@@ -17,25 +17,37 @@ adb uninstall app.mohanndj.alwaei > /dev/null 2>&1 || true
 adb install -r app-debug.apk || fail "the test build did not install"
 adb install -r widgethost.apk || fail "the home screen of the check did not install"
 adb logcat -c
-adb shell am start -W -n app.mohanndj.alwaei/.MainActivity
-PID=""
-for i in $(seq 1 30); do
-  sleep 2
-  PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
-  [ -n "$PID" ] || PID=$(adb shell ps -A -o PID,NAME | tr -d '\r' | awk '$2 == "app.mohanndj.alwaei" { print $1 }')
-  [ -n "$PID" ] && break
-done
-echo "app pid: $PID"
-[ -n "$PID" ] || { why; fail "the test build is not running"; }
-sleep 20
-# the page's debugging address (a test build's WebView opens it under its process's number; the list of such
-# addresses, /proc/net/unix, is closed to the emulator's shell on newer Android, so it is tried directly)
-adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" || fail "no address for the page's debugging"
+# the app opened and its page reached (tried three times: the emulator's Google services may die soon after it
+# boots, and the system then stops the apps that use them, this one among them)
+attach() {
+  adb shell am start -W -n app.mohanndj.alwaei/.MainActivity > /dev/null
+  PID=""
+  for i in $(seq 1 30); do
+    sleep 2
+    PID=$(adb shell pidof app.mohanndj.alwaei | tr -d '\r')
+    [ -n "$PID" ] || PID=$(adb shell ps -A -o PID,NAME | tr -d '\r' | awk '$2 == "app.mohanndj.alwaei" { print $1 }')
+    [ -n "$PID" ] && break
+  done
+  echo "app pid: $PID"
+  [ -n "$PID" ] || return 1
+  sleep 20
+  # the page's debugging address (a test build's WebView opens it under its process's number; the list of such
+  # addresses, /proc/net/unix, is closed to the emulator's shell on newer Android, so it is tried directly)
+  adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" > /dev/null || return 1
+  WS=""
+  for i in $(seq 1 10); do
+    WS=$(curl -s -m 5 localhost:9222/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
+    [ -n "$WS" ] && return 0
+    sleep 3
+  done
+  return 1
+}
 WS=""
-for i in $(seq 1 10); do
-  WS=$(curl -s -m 5 localhost:9222/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'mohanndj' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
-  [ -n "$WS" ] && break
-  sleep 3
+for t in 1 2 3; do
+  attach && break
+  echo "::warning::the app or its page was not reached (try $t): started again"
+  adb forward --remove tcp:9222 > /dev/null 2>&1
+  sleep 5
 done
 [ -n "$WS" ] || { curl -s -m 5 localhost:9222/json | head -c 400; why; fail "the page's debugging is not open"; }
 page() { python3 android/ci-cdp.py "$WS" "$1"; }

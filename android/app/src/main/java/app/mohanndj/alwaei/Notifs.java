@@ -178,9 +178,11 @@ final class Notifs {
                 .setAutoCancel(true).setOnlyAlertOnce(late).setWhen(a.optLong("at", System.currentTimeMillis()))
                 .setDeleteIntent(action(c, DEL, key, "dismiss", extra));
         Icon ic = Icon.createWithResource(c, R.drawable.ic_stat);
-        b.addAction(new Notification.Action.Builder(ic, "تمت", action(c, ACT, key, "done", extra)).build());
-        b.addAction(new Notification.Action.Builder(ic, cfg.optString("snoozeLabel", "غفوة"), action(c, ACT, key, "snooze", extra)).build());
-        if (rem) onScreen(c, b, key, extra, cfg.optString("snoozeLabel", "غفوة"));
+        // a reminder's (v123, the owner's request): «قرأت النص» and «غفوة»
+        String snooze = rem ? "غفوة" : cfg.optString("snoozeLabel", "غفوة");
+        b.addAction(new Notification.Action.Builder(ic, rem ? "قرأت النص" : "تمت", action(c, ACT, key, "done", extra)).build());
+        b.addAction(new Notification.Action.Builder(ic, snooze, action(c, ACT, key, "snooze", extra)).build());
+        if (rem) onScreen(c, b, key, extra, snooze);
         Notification n = b.build();
         if (!late) n.flags |= Notification.FLAG_INSISTENT;
         nm(c).notify(idOf(key), n);
