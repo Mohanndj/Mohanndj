@@ -119,6 +119,15 @@ final class Store {
         return t;
     }
 
+    // v122: the pinned notification as the page last showed it, shown again when swiped away
+    static synchronized String pin(Context c) {
+        return prefs(c).getString("pin", "");
+    }
+
+    static synchronized void setPin(Context c, String n) {
+        prefs(c).edit().putString("pin", n == null ? "" : n).apply();
+    }
+
     static synchronized boolean flag(Context c, String name) {
         return prefs(c).getBoolean(name, false);
     }

@@ -134,6 +134,12 @@ final class Notifs {
         Notification.Builder b = base(c, quiet ? CH_QUIET : CH_GENERAL, title, body)
                 .setOnlyAlertOnce(!n.optBoolean("renotify")).setAutoCancel(!timer && !tag.equals("pin"));
         if (timer) b.setOngoing(true).setCategory(Notification.CATEGORY_PROGRESS);
+        // v122: the pinned one stays: «مسح الكل» leaves it (ongoing), and swiped away (Android 14 lets a finger take an
+        // ongoing one) it is shown again at once (repostPin); it goes only when its setting is turned off
+        if (tag.equals("pin")) {
+            b.setOngoing(true).setDeleteIntent(action(c, DEL, tag, "pin", new JSONObject()));
+            Store.setPin(c, n.toString());
+        }
         if (alarm) b.setCategory(Notification.CATEGORY_REMINDER);
         long ts = n.optLong("timestamp", 0);
         if (ts > 0) b.setWhen(ts);
@@ -181,7 +187,17 @@ final class Notifs {
     }
 
     static void cancel(Context c, String tag) {
+        if ("pin".equals(tag)) Store.setPin(c, null);
         nm(c).cancel(idOf(tag));
+    }
+
+    static void repostPin(Context c) {
+        String n = Store.pin(c);
+        if (n.isEmpty()) return;
+        try {
+            post(c, new JSONObject(n));
+        } catch (org.json.JSONException ignored) {
+        }
     }
 
     static boolean showing(Context c, String tag) {

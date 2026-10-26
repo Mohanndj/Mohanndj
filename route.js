@@ -82,7 +82,7 @@ function smartSettingsHTML() {
       <small class="hint explain">«لكل شيء»: اكتب «دفعت ١٥٠ بنزين» فيُسجَّل مصروفاً في بنده، و«اشتر حليب وخبز» فيُضاف إلى مشتريات البيت، و«فكرة: …» فتُحفظ في الأفكار. وتبقى بقية خانات الإضافة كما هي.</small>
     </div>
     <label class="switch"><input type="checkbox" id="setPin"${S.settings.pin ? ' checked' : ''}><span>إشعار دائم بما بقي لليوم</span></label>
-    <small class="hint explain">إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.</small>
+    <small class="hint explain">${window.WaiNative && window.WaiNative.fsiState ? 'لا يزيله «مسح الكل» ولا سحبه بالإصبع، ويزول بإطفاء هذا الخيار.' : 'إن سحبته ليختفي يعود في المرة القادمة التي تفتح فيها التطبيق.'}</small>
     <label class="field"><span>بطاقة «إغلاق اليوم» تظهر من الساعة</span>
       <select id="setCloseAt">${[[0, 'لا تُظهرها'], [18, '٦ مساءً'], [19, '٧ مساءً'], [20, '٨ مساءً'], [21, '٩ مساءً'], [22, '١٠ مساءً'], [23, '١١ مساءً']].map(([h, l]) => `<option value="${h}"${at === h ? ' selected' : ''}>${l}</option>`).join('')}</select>
     </label>

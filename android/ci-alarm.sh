@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run by GitHub on the emulator after ci-widget.sh (v121): a reminder's alarm stays on the screen until answered.
+# Run by GitHub on the emulator after ci-widget.sh. v122: the pinned notification stays through «Clear all» and a finger,
+# and goes when its setting is turned off. v121: a reminder's alarm stays on the screen until answered.
 # With the phone in use, its notification must still be at the top of the screen half a minute later; with the screen
 # off, its whole screen (AlarmActivity) comes up over the lock with its text, «رجوع» does not close it, and its «تمت»
 # ticks the reminder in the page. Pictures of both are written in the log (base64, between ALARMSHOT lines).
@@ -55,6 +56,64 @@ if [ "$FSI" != '"ok"' ]; then
   echo "::warning::the phone did not give the app the full screen by itself: allowed here to go on"
   adb shell appops set app.mohanndj.alwaei USE_FULL_SCREEN_INTENT allow
 fi
+# the app's notifications allowed (the test build is installed afresh, so it asks nobody)
+adb shell pm grant app.mohanndj.alwaei android.permission.POST_NOTIFICATIONS
+# 0. v122: the pinned notification: «Clear all» and a finger leave it (Java's "pin".hashCode() is its number)
+# a notification shown now (its number in Java's hashCode): from the phone's list of them, or its whole record
+shown() {
+  L=$(adb shell cmd notification list 2>/dev/null | tr -d '\r')
+  if echo "$L" | grep -qE '^[0-9]+\|'; then echo "$L" | grep -q "|app.mohanndj.alwaei|$1|"
+  else adb shell dumpsys notification | tr -d '\r' | awk '/Notification List:/ { on = 1; next } on && /^  [A-Za-z][^:]*:/ { on = 0 } on' | grep -q "app.mohanndj.alwaei|$1|"; fi
+}
+echo "the phone's list of notifications: $(adb shell cmd notification list 2>/dev/null | tr -d '\r' | head -3 | tr '\n' ' ')"
+pinon() { shown 110997; }
+page "(() => { S.settings.pin = true; save(); pinNotify(true); return Notification.permission; })()"
+sleep 4
+pinon || fail "the pinned notification is not shown"
+# one more that «Clear all» takes (with the pinned one alone, the shade has no «Clear all»)
+page "(() => { new Notification('تجربة', { body: 'إشعار عادي يمسحه «مسح الكل»', tag: 't1' }); return 1; })()"
+sleep 2
+adb shell dumpsys notification --noredact | tr -d '\r' | grep -E 'id=110997|flags=' | grep -A1 'id=110997' | head -2
+adb shell cmd statusbar expand-notifications
+sleep 3
+look p1
+B=$(python3 -c "
+import re
+x=open('p1.xml',encoding='utf-8').read()
+m=re.search(r'(?:text|content-desc)=\"(?:Clear all|Clear all notifications)\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
+if [ -n "$B" ]; then
+  adb shell input tap $B
+  sleep 3
+  pinon || fail "«Clear all» removed the pinned notification"
+  shown 3645 && echo "::warning::«Clear all» left the ordinary notification too" || echo "«Clear all»: the ordinary notification went, the pinned one stayed"
+else
+  echo "::warning::no «Clear all» on the emulator's shade"
+fi
+adb shell cmd statusbar expand-notifications
+sleep 3
+look p2
+P=$(python3 -c "
+import re
+x=open('p2.xml',encoding='utf-8').read()
+m=re.search(r'text=\"[^\"]*باقٍ[^\"]*\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+print('' if not m else '%d %d %d' % (int(m.group(1)), int(m.group(3)), (int(m.group(2))+int(m.group(4)))//2))")
+[ -n "$P" ] || fail "the pinned notification is not on the shade"
+set -- $P
+W=$(adb shell wm size | tr -d '\r' | grep -o '[0-9]*x[0-9]*' | tail -1 | cut -dx -f1)
+adb shell input swipe $(( W / 5 )) $3 $(( W - 5 )) $3 250
+sleep 4
+look p3
+pinon || fail "a finger removed the pinned notification"
+grep -q 'باقٍ' p3.xml && echo "a finger: the pinned notification is back" || echo "::warning::the pinned notification is kept but not seen on the shade"
+adb shell cmd statusbar collapse
+sleep 2
+# turned off in the settings: it goes
+page "(() => { S.settings.pin = false; save(); pinOff(); return 1; })()"
+sleep 3
+pinon && fail "the pinned notification stayed after its setting was turned off"
+echo "pinned notification check passed"
+
 # a reminder ringing at the next whole minute (at least twenty seconds from now); the seconds until then
 remind() {
   page "(() => { S.settings.remShown = Date.now() + 1e9; const n = new Date(Date.now() + 80000); const tm = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'), d = iso(n);

@@ -48,6 +48,11 @@ public class AlarmReceiver extends BroadcastReceiver {
                     String tag = in.getStringExtra("tag"), action = in.getStringExtra("action");
                     JSONObject x = new JSONObject(in.getStringExtra("extra") == null ? "{}" : in.getStringExtra("extra"));
                     if (tag == null || action == null) return;
+                    // v122: the pinned notification swiped away: shown again
+                    if (tag.equals("pin")) {
+                        if (what.equals(Notifs.DEL)) Notifs.repostPin(c);
+                        return;
+                    }
                     if (tag.equals("timer")) {
                         if (action.equals("timer-stop")) Notifs.cancel(c, tag);
                         MainActivity.deliver(c, new JSONObject().put("type", "timer").put("action", action).put("ts", now));

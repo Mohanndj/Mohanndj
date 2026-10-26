@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 121;
+const APP_VERSION = 122;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1020,7 +1020,7 @@ function viewSettings() {
   </section>
   ${window.WaiNative && window.WaiNative.fsiState ? '' : `<section class="panel">
     <h2>تطبيق أندرويد</h2>
-    ${window.WaiNative && window.WaiNative.notify ? '<p class="note-text">نسخة أحدث من التطبيق: نص منبه التذكير يبقى فيها على الشاشة حتى تلغيه. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
+    ${window.WaiNative && window.WaiNative.notify ? '<p class="note-text">نسخة أحدث من التطبيق: نص منبه التذكير يبقى فيها على الشاشة حتى تلغيه، والإشعار الدائم لا يزيله «مسح الكل» ولا السحب. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
     <div class="btn-row"><button type="button" class="ghost" data-action="apk-get">نزّل تطبيق أندرويد</button></div>
   </section>`}
   <section class="panel">
