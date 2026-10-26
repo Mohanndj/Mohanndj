@@ -100,7 +100,9 @@ function syncPlanLinks(p) {
     // its payments in this period made before the row existed (or for a row since removed) belong to it, else they count twice
     for (const t of S.finTx) if (t.src && t.src.startsWith(`${s.key}:`) && t.ref !== r.id && inPlan(p, t.d) && !finRowKnown(t.ref)) { t.ref = r.id; changed = true; }
     const ls = linkSrc(s.key);
-    const done = sum(inPlanList(ls.pays, p)) >= s.amount - 0.5;
+    const inP = inPlanList(ls.pays, p);
+    // its share: put aside this month, or the bill paid in it
+    const done = ls.kind === 'sub' && subShare(ls.src) ? inP.some((q) => !q.aside) || sum(inP) >= s.amount / s.every - 0.5 : sum(inP) >= s.amount - 0.5;
     if (s.own && r.name !== s.name) { r.name = s.name; changed = true; }
     if (r.amount !== s.amount || (list === 'periodic' && r.every !== s.every) || !!r.done !== done) { r.amount = s.amount; if (list === 'periodic') r.every = s.every; r.done = done; changed = true; }
   }
@@ -119,15 +121,26 @@ function syncAllPlans() {
 const rowOfLink = (key, d) => { const p = planForDate(d); return p ? [...p.fixed, ...p.periodic].find((x) => x.link === key) : null; };
 const linkLabel = (key) => { const l = linkSrc(key); return l ? (l.kind === 'sub' ? `${BILL_KIND[l.src.kind]} «${l.src.name}»` : l.kind === 'fine' ? `المخالفات المرورية${discLine(l.src) ? ` | ${discLine(l.src)}` : ''}` : `دَين «${l.src.name}»`) : ''; };
 
+// a bill paid every few months whose share is in every month's plan (v131, the owner's choice: «دُفع» on a month
+// that is not its due month = its share of this month put aside): the share counts as spent in its month, and on
+// its due date only what is left of it is paid
+const subShare = (s) => s.every > 1 && !s.whole;
+// what was put aside for it since it was last paid
+function subAside(s) {
+  const last = s.paid.filter((q) => !q.aside).reduce((m, q) => (q.d > m ? q.d : m), '');
+  return sum(s.paid.filter((q) => q.aside && q.d >= last));
+}
 // one payment, recorded in its source and as one spending entry
 function payLink(key, amount, d, tx, plan) {
   const l = linkSrc(key);
   if (!l || !amount) return null;
   const pay = { id: uid(), d, amount, note: '' };
   l.pays.push(pay);
+  // its share put aside in a month that is not its due month: the bill keeps its date
+  if (l.kind === 'sub' && subShare(l.src) && plan && !subDueIn(l.src, plan)) pay.aside = true;
   // a bill paid late may move on several cycles: the payment remembers where it was, for undoing it
   // paid from a plan: a bill already due after that plan's period (paid earlier, outside the app) keeps its date
-  if (l.kind === 'sub') { pay.prevNext = l.src.next; if (plan) pay.planTo = finRange(plan).to; if (!plan || l.src.next <= finRange(plan).to) { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; } }
+  if (l.kind === 'sub' && !pay.aside) { pay.prevNext = l.src.next; if (plan) pay.planTo = finRange(plan).to; if (!plan || l.src.next <= finRange(plan).to) { let next = l.src.next; do { next = addMonths(next, l.src.every); } while (next <= d); l.src.next = next; } }
   let r = rowOfLink(key, d);
   if (!tx) { tx = normalizeTx({ amount, kind: 'out', item: r ? r.name : l.src.name, d }); S.finTx.push(tx); }
   tx.src = `${key}:${pay.id}`;
@@ -146,14 +159,14 @@ function unpayTx(t) {
     const i = l.pays.findIndex((p) => p.id === payId);
     if (i >= 0) {
       const [q] = l.pays.splice(i, 1);
-      const later = l.kind === 'sub' && q.prevNext ? l.pays.slice(i).filter((x) => x.prevNext) : [];
+      const later = l.kind === 'sub' && q.prevNext && !q.aside ? l.pays.slice(i).filter((x) => x.prevNext) : [];
       if (later.length) {
         // later payments stay: the date goes back to where this one found it, and they move it on again by the
         // same rule as when they were made (one paid from a plan whose period ends before the date leaves it)
         let next = q.prevNext;
         for (const x of later) { x.prevNext = next; if (!x.planTo || next <= x.planTo) { let n = 0; do { next = addMonths(next, l.src.every); } while (next <= x.d && ++n < 200); } }
         l.src.next = next;
-      } else if (l.kind === 'sub') l.src.next = q.prevNext || addMonths(l.src.next, -l.src.every);
+      } else if (l.kind === 'sub' && !q.aside) l.src.next = q.prevNext || addMonths(l.src.next, -l.src.every);
     }
   }
 }

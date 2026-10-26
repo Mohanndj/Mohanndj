@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 131;
+const APP_VERSION = 132;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';

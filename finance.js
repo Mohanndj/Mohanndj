@@ -29,7 +29,7 @@ function normalizeFinPlan(p) {
     created: p.created || Date.now(), updated: p.updated || Date.now(),
   };
 }
-const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}), ...(x.planTo ? { planTo: x.planTo } : {}), ...(x.pre ? { pre: true } : {}) }));
+const payments = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.amount).map((x) => ({ id: x.id || uid(), d: x.d || today(), amount: num(x.amount), note: String(x.note || ''), ...(x.prevNext ? { prevNext: x.prevNext } : {}), ...(x.planTo ? { planTo: x.planTo } : {}), ...(x.pre ? { pre: true } : {}), ...(x.aside ? { aside: true } : {}) }));
 function normalizeDebt(d) {
   return { id: d.id || uid(), name: String(d.name || ''), total: num(d.total), monthly: num(d.monthly), end: d.end || '', note: String(d.note || ''), payments: payments(d.payments), created: d.created || Date.now() };
 }
@@ -1047,7 +1047,7 @@ document.addEventListener('change', (e) => {
   const lrow = el.dataset.list && k === 'done' ? obj[el.dataset.list].find((x) => x.id === el.dataset.row) : null;
   if (lrow && lrow.link) {
     const r = finRange(obj);
-    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), rest = lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0); if (rest > 0.5) payLink(lrow.link, rest, d, null, obj); toast(`سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
+    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), shr = ls && ls.kind === 'sub' && subShare(ls.src), rest = !shr ? lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0) : subDueIn(ls.src, obj) ? ls.src.amount - subAside(ls.src) - sum(inPlanList(ls.pays, obj)) : ls.src.amount / ls.src.every - sum(inPlanList(ls.pays, obj)); if (rest > 0.5) payLink(lrow.link, rest, d, null, obj); toast(shr && !subDueIn(ls.src, obj) ? `جُنّبت حصة هذا الشهر من ${linkLabel(lrow.link)}، وسُجّلت في المصروف` : `سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
     else { unpayLinkPlan(lrow.link, obj); toast('أُلغي دفعه في هذه الخطة'); }
     save(); render(); return;
   }

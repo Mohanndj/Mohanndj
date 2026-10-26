@@ -64,7 +64,7 @@ function openSub(id) {
     <label class="switch"><input type="checkbox" id="sbAuto"${s.auto ? ' checked' : ''}><span>يُخصم تلقائياً من حسابي</span></label>
     ${id ? `<label class="switch"><input type="checkbox" id="sbActive"${s.active ? ' checked' : ''}><span>نشط (أطفئه إذا ألغيت الاشتراك)</span></label>` : ''}
     <label class="field"><span>ملاحظة</span><input type="text" id="sbNote" value="${esc(s.note)}" autocomplete="off"></label>
-    ${id && s.paid.length ? `<div class="field"><span>المدفوعات</span><ul class="ppl-hist">${s.paid.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 12).map((p) => `<li><span>${money(p.amount)} | ${esc(dateBoth(p.d, true))}</span></li>`).join('')}</ul></div>` : ''}
+    ${id && s.paid.length ? `<div class="field"><span>المدفوعات</span><ul class="ppl-hist">${s.paid.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 12).map((p) => `<li><span>${money(p.amount)}${p.aside ? ' (حصة جنّبتها)' : ''} | ${esc(dateBoth(p.d, true))}</span></li>`).join('')}</ul></div>` : ''}
     <div class="sheet-actions"><button type="submit" class="primary">حفظ</button>${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}</div>`;
   libArmed = false;
   showLib();
@@ -81,7 +81,7 @@ function saveSub() {
 function paySub(id) {
   const s = S.subs.find((x) => x.id === id);
   // one payment: in the bill, in «المصروف», and ticked in this month's plan (links.js)
-  const t = payLink(`sub:${s.id}`, s.amount, today());
+  const t = payLink(`sub:${s.id}`, Math.max(0, s.amount - (subShare(s) ? subAside(s) : 0)) || s.amount, today());
   if (t) t.note = BILL_KIND[s.kind];
   save(); render();
   toast(`سُجّل في المصروف والخطة. الموعد القادم ${fmtDate(s.next, { day: 'numeric', month: 'long' })}`);
