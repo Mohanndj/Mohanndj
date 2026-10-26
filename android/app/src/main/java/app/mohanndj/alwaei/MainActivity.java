@@ -642,6 +642,25 @@ public class MainActivity extends Activity {
             return notifState();
         }
 
+        // v121: may a reminder's alarm come up on the whole screen («ok»), or did the phone take that from the app («denied»)?
+        @JavascriptInterface
+        public String fsiState() {
+            return Build.VERSION.SDK_INT < 34 || Notifs.nm(MainActivity.this).canUseFullScreenIntent() ? "ok" : "denied";
+        }
+
+        // …and the phone's page where it is given back
+        @JavascriptInterface
+        public void fsiSettings() {
+            if (!allowed() || Build.VERSION.SDK_INT < 34) return;
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "افتح إعدادات الجوال ← التطبيقات ← الوعي الشخصي", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
         @JavascriptInterface
         public void requestNotif() {
             if (!allowed()) return;

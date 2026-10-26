@@ -87,11 +87,34 @@ final class Notifs {
     }
 
     // a button of a notification (or the notification swiped away): to AlarmReceiver, with what it needs when the page is closed
-    private static PendingIntent action(Context c, String what, String tag, String action, JSONObject extra) {
-        Intent i = new Intent(c, AlarmReceiver.class).setAction(what)
+    static Intent actionIntent(Context c, String what, String tag, String action, JSONObject extra) {
+        return new Intent(c, AlarmReceiver.class).setAction(what)
                 .setData(Uri.parse("wai://" + what + "/" + Uri.encode(tag) + "/" + Uri.encode(action)))
                 .putExtra("tag", tag).putExtra("action", action).putExtra("extra", extra.toString());
-        return PendingIntent.getBroadcast(c, (tag + "|" + action + "|" + what).hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static PendingIntent action(Context c, String what, String tag, String action, JSONObject extra) {
+        return PendingIntent.getBroadcast(c, (tag + "|" + action + "|" + what).hashCode(), actionIntent(c, what, tag, action, extra),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    // v121: a reminder's alarm stays on the screen until answered: its whole screen (AlarmActivity) as the notification's
+    // full-screen intent (shown by the phone when the screen is off or locked; in use, the notification stays at the top
+    // of the screen instead) and as its tap
+    static boolean isRem(String key) {
+        return key != null && key.startsWith("rem:");
+    }
+
+    private static PendingIntent screen(Context c, String tag, JSONObject extra, String snooze) {
+        Intent i = new Intent(c, AlarmActivity.class).setData(Uri.parse("wai://screen/" + Uri.encode(tag)))
+                .putExtra("tag", tag).putExtra("extra", extra.toString()).putExtra("snooze", snooze)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
+        return PendingIntent.getActivity(c, ("screen|" + tag).hashCode(), i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static void onScreen(Context c, Notification.Builder b, String tag, JSONObject extra, String snooze) {
+        PendingIntent s = screen(c, tag, extra, snooze);
+        b.setFullScreenIntent(s, true).setContentIntent(s);
     }
 
     private static Notification.Builder base(Context c, String channel, String title, String body) {
@@ -127,13 +150,19 @@ final class Notifs {
                     action(c, ACT, tag, a.optString("action"), extra)).build());
         }
         if (alarm) b.setDeleteIntent(action(c, DEL, tag, "dismiss", extra));
+        if (alarm && isRem(tag)) {
+            JSONObject sn = acts == null ? null : acts.optJSONObject(1);
+            onScreen(c, b, tag, extra, sn == null ? "غفوة" : sn.optString("title", "غفوة"));
+        }
         nm(c).notify(idOf(tag), b.build());
     }
 
     /** An alarm the app rings by itself: its tone again and again (until answered, or five minutes and it goes quiet). */
     static void alarm(Context c, JSONObject a, JSONObject cfg, boolean late) {
         String key = a.optString("key"), title = a.optString("title"), body = a.optString("body");
-        String channel = late ? CH_ALARM_LATE : alarmChannel(cfg.optString("tone"), cfg.optBoolean("sound", true));
+        // a reminder's, quiet after its minutes, stays at the top of the screen (a channel that may show it there)
+        boolean rem = isRem(key);
+        String channel = late ? (rem ? CH_ALARM_MUTE : CH_ALARM_LATE) : alarmChannel(cfg.optString("tone"), cfg.optBoolean("sound", true));
         JSONObject extra = new JSONObject();
         try {
             extra.put("id", a.optString("id")).put("key", key).put("title", title).put("body", body);
@@ -145,6 +174,7 @@ final class Notifs {
         Icon ic = Icon.createWithResource(c, R.drawable.ic_stat);
         b.addAction(new Notification.Action.Builder(ic, "تمت", action(c, ACT, key, "done", extra)).build());
         b.addAction(new Notification.Action.Builder(ic, cfg.optString("snoozeLabel", "غفوة"), action(c, ACT, key, "snooze", extra)).build());
+        if (rem) onScreen(c, b, key, extra, cfg.optString("snoozeLabel", "غفوة"));
         Notification n = b.build();
         if (!late) n.flags |= Notification.FLAG_INSISTENT;
         nm(c).notify(idOf(key), n);
