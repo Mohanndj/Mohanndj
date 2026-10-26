@@ -2,4 +2,10 @@
 <resources>
     <string name="app_name">الوعي الشخصي</string>
     <color name="brand">#0F766E</color>
+    <!-- the shortcuts of the icon (a long press), as the web app's -->
+    <string name="sc_reminder">تذكير جديد</string>
+    <string name="sc_idea">فكرة جديدة</string>
+    <string name="sc_journal">يومية جديدة</string>
+    <string name="sc_task">مهمة جديدة</string>
+    <string name="sc_archive">الأرشيف</string>
 </resources>

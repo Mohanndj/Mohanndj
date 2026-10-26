@@ -10,6 +10,18 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- saving a file to «التنزيلات» on Android 9 and before -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- v113: notifications, and alarms that ring on time with the app closed, also after the phone restarts -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- dictation: the phone's speech recognition service must be visible to the app -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="false"
@@ -30,7 +42,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- an alarm's time, its quiet copy, the buttons of the notifications: the app's own only -->
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <!-- the phone restarted or the app was updated: the alarms are set again -->
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- files handed to another app (a recording to transcribe, a report): read only, one at a time -->
         <provider

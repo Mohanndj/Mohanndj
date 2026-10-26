@@ -13,8 +13,12 @@ adb logcat -c
 adb shell am start -W -n app.mohanndj.alwaei/.MainActivity
 sleep 45
 adb logcat -d -s WaiApp:* > smoke.log || true
+adb logcat -d -b crash > crash.log || true
 adb exec-out screencap -p > smoke.png || true
 cat smoke.log
 if ! grep -q 'page "{\\"v\\":[0-9]' smoke.log; then echo "::error::the app's page did not open"; exit 1; fi
 if grep -q 'console ERROR' smoke.log; then echo "::error::the page logged an error"; exit 1; fi
+# the app itself did not stop (its notifications, alarms and receivers set up at the start)
+if grep -q 'app.mohanndj.alwaei' crash.log; then cat crash.log; echo "::error::the app crashed"; exit 1; fi
+if ! grep -q '"bridge\\":true' smoke.log; then echo "::error::the page did not find the app's bridge"; exit 1; fi
 echo "smoke test passed"

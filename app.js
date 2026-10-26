@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 112;
+const APP_VERSION = 113;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -264,6 +264,7 @@ function save() {
   catch { toast('تعذّر الحفظ. قد تكون مساحة التخزين ممتلئة.'); }
   if (typeof Sync !== 'undefined') Sync.schedule();
   if (typeof pinSoon === 'function') pinSoon();
+  if (WaiBridge) WaiBridge.alarmsSoon(); // the Android app's alarms (native.js)
 }
 const getTask = (id) => S.tasks.find((t) => t.id === id);
 const getProject = (id) => S.projects.find((p) => p.id === id);
@@ -925,7 +926,7 @@ const hbar = (name, value, width, color) =>
 // ---------- view: settings ----------
 function notifStatus() {
   // (the Android app has no notifications yet, v111: they come in its next stage)
-  if (!('Notification' in window)) return window.WaiNative ? '<span class="status-bad">الإشعارات والمنبّه لم تصل إلى تطبيق أندرويد بعد. حتى تصل، اعتمد عليها في النسخة المثبتة من المتصفح.</span>' : '<span class="status-bad">هذا المتصفح لا يدعم الإشعارات. ثبّت التطبيق على الشاشة الرئيسية أولاً.</span>';
+  if (!('Notification' in window)) return window.WaiNative ? '<span class="status-bad">الإشعارات والمنبّه في النسخة الأحدث من تطبيق أندرويد: نزّلها من «تطبيق أندرويد» أسفل هذه الصفحة وثبّتها فوق هذا.</span>' : '<span class="status-bad">هذا المتصفح لا يدعم الإشعارات. ثبّت التطبيق على الشاشة الرئيسية أولاً.</span>';
   if (Notification.permission === 'granted') return '<span class="status-ok">الإشعارات مفعّلة</span>';
   if (Notification.permission === 'denied') return '<span class="status-bad">الإشعارات محظورة. فعّلها من إعدادات المتصفح أو الجوال.</span>';
   return '<span>الإشعارات غير مفعّلة بعد</span>';
@@ -1014,9 +1015,9 @@ function viewSettings() {
       <div class="btn-row" style="flex-wrap:nowrap"><select id="setTone" style="flex:1;min-width:0">${Object.entries(TONES).map(([v, [l]]) => `<option value="${v}"${(st.tone || 'chime') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="ghost sm" data-action="tone-try">جرّب</button></div></div>
     <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
-  ${window.WaiNative ? '' : `<section class="panel">
+  ${window.WaiNative && window.WaiNative.notify ? '' : `<section class="panel">
     <h2>تطبيق أندرويد</h2>
-    <p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>
+    ${window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
     <div class="btn-row"><button type="button" class="ghost" data-action="apk-get">نزّل تطبيق أندرويد</button></div>
   </section>`}
   <section class="panel">
@@ -1751,6 +1752,8 @@ function ring(t, key, d, off) {
   S.fired[key] = Date.now();
   delete S.snoozed[key];
   save();
+  // the Android app rings an alarm out of sight itself, on time and with the app closed too (native.js, v113)
+  if (WaiBridge && WaiBridge.alarms && document.visibilityState !== 'visible') return;
   // the alarm ringing now is the one shown (an older one nobody answered waits behind it), with its own five minutes
   const was = alarmQueue.findIndex((a) => a.key === key);
   if (was !== -1) alarmQueue.splice(was, 1);
@@ -2079,7 +2082,7 @@ async function applyPendingTimerActions() {
 }
 
 function timerNotifNote() {
-  if (!('Notification' in window)) return window.WaiNative ? '<p class="note-text">ظهور المؤقت في شريط الإشعارات لم يصل إلى تطبيق أندرويد بعد.</p>' : '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
+  if (!('Notification' in window)) return window.WaiNative ? '<p class="note-text">ظهور المؤقت في شريط الإشعارات في النسخة الأحدث من تطبيق أندرويد: نزّلها من «تطبيق أندرويد» في الإعدادات.</p>' : '<p class="note-text">هذا المتصفح لا يعرض الإشعارات. ثبّت التطبيق على الشاشة الرئيسية ليظهر المؤقت خارجه.</p>';
   if (Notification.permission === 'granted') return '<p class="note-text explain">عند خروجك من التطبيق يبقى المؤقت ظاهراً في شريط الإشعارات على جوالك وساعتك، وفيه أزرار الإيقاف والإنهاء.</p>';
   if (Notification.permission === 'denied') return '<p class="note-text warn-box">الإشعارات محظورة، لذلك لن يظهر المؤقت خارج التطبيق. فعّلها من إعدادات الجوال: التطبيقات ← الوعي الشخصي (أو Chrome) ← الإشعارات.</p>';
   return '<div class="warn-box"><span>ليبقى المؤقت ظاهراً في شريط الإشعارات بعد خروجك من التطبيق، فعّل الإشعارات.</span><button type="button" class="primary" data-action="notif-timer">تفعيل الإشعارات</button></div>';
@@ -2687,6 +2690,7 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   else if (nw === 'journal') { ui.tab = 'journal'; render(); openJournal(null, (suggestedTpl() || {}).id); }
   else if (nw) openSheet(null, nw === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
+  if (WaiBridge) WaiBridge.boot(); // the Android app: what happened while the page was closed, and its alarms
   checkAlarms();
   setInterval(checkAlarms, 15000);
   applyPendingTimerActions();

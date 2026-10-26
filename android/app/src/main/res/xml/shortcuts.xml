@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- a long press on the icon: the same shortcuts as the web app (manifest.webmanifest) -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="reminder" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_reminder" android:shortcutLongLabel="@string/sc_reminder">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.mohanndj.alwaei" android:targetClass="app.mohanndj.alwaei.MainActivity" android:data="https://mohanndj.github.io/Mohanndj/?new=reminder#reminders" />
+    </shortcut>
+    <shortcut android:shortcutId="idea" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_idea" android:shortcutLongLabel="@string/sc_idea">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.mohanndj.alwaei" android:targetClass="app.mohanndj.alwaei.MainActivity" android:data="https://mohanndj.github.io/Mohanndj/?new=idea#ideas" />
+    </shortcut>
+    <shortcut android:shortcutId="journal" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_journal" android:shortcutLongLabel="@string/sc_journal">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.mohanndj.alwaei" android:targetClass="app.mohanndj.alwaei.MainActivity" android:data="https://mohanndj.github.io/Mohanndj/?new=journal#journal" />
+    </shortcut>
+    <shortcut android:shortcutId="task" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_task" android:shortcutLongLabel="@string/sc_task">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.mohanndj.alwaei" android:targetClass="app.mohanndj.alwaei.MainActivity" android:data="https://mohanndj.github.io/Mohanndj/?new=task#today" />
+    </shortcut>
+    <shortcut android:shortcutId="archive" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/sc_archive" android:shortcutLongLabel="@string/sc_archive">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.mohanndj.alwaei" android:targetClass="app.mohanndj.alwaei.MainActivity" android:data="https://mohanndj.github.io/Mohanndj/#archive" />
+    </shortcut>
+</shortcuts>

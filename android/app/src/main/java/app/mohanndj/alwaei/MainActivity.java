@@ -12,6 +12,9 @@ import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -35,9 +38,13 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 
 /**
  * «الوعي الشخصي» as an Android app: the web app itself (https://mohanndj.github.io/Mohanndj/), opened in the app's own
@@ -48,7 +55,7 @@ import java.io.OutputStream;
 public class MainActivity extends Activity {
     static final String TAG = "WaiApp";
     static final String BASE = "https://mohanndj.github.io/Mohanndj/";
-    private static final int REQ_FILE = 1, REQ_MIC = 2, REQ_LOC = 3, REQ_STORE = 4;
+    private static final int REQ_FILE = 1, REQ_MIC = 2, REQ_LOC = 3, REQ_STORE = 4, REQ_NOTIF = 5, REQ_SPEECH = 6;
     private static final String NAME = "الوعي الشخصي";
 
     private WebView web;
@@ -58,6 +65,12 @@ public class MainActivity extends Activity {
     private GeolocationPermissions.Callback geoCb;
     private String geoOrigin;
     private Object[] pendingSave; // a file waiting for the storage permission (Android 9 and before)
+    // v113: the app open now (for what a notification's button or an alarm hands the page), and the page in sight
+    static volatile MainActivity live;
+    static volatile boolean visible;
+    private volatile boolean pageReady; // the page has started and asked for what happened while it was closed
+    private SpeechRecognizer speech;
+    private String[] speechWait; // a dictation waiting for the microphone's permission: {lang, interim}
 
     @Override
     protected void onCreate(Bundle state) {
@@ -74,7 +87,36 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "WaiNative");
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
-        if (state == null || web.restoreState(state) == null) web.loadUrl(BASE);
+        live = this;
+        Notifs.channels(this);
+        Uri start = getIntent() == null ? null : getIntent().getData();
+        if (state == null || web.restoreState(state) == null) web.loadUrl(start != null && ours(start.toString()) ? start.toString() : BASE);
+    }
+
+    // opened again from a shortcut of the icon («تذكير جديد»…): its page; from a notification: as it was
+    @Override
+    protected void onNewIntent(Intent in) {
+        super.onNewIntent(in);
+        Uri u = in.getData();
+        if (u != null && ours(u.toString())) web.loadUrl(u.toString());
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (live == this) live = null;
+        if (speech != null) speech.destroy();
+        super.onDestroy();
+    }
+
+    /** What happened outside the page (an alarm rang, a button pressed): to the page now if it is open, else kept for it. */
+    static void deliver(android.content.Context c, JSONObject ev) {
+        MainActivity a = live;
+        if (a != null && a.pageReady) a.runOnUiThread(() -> a.web.evaluateJavascript("typeof WaiBridge!=='undefined'&&WaiBridge&&WaiBridge._ev(" + ev + ")", null));
+        else Store.addPending(c, ev);
+    }
+
+    private void emit(JSONObject ev) {
+        runOnUiThread(() -> web.evaluateJavascript("typeof WaiBridge!=='undefined'&&WaiBridge&&WaiBridge._ev(" + ev + ")", null));
     }
 
     @Override
@@ -87,12 +129,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        visible = false;
         web.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        visible = true;
         web.onResume();
     }
 
@@ -153,6 +197,7 @@ public class MainActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             pageUrl = url;
+            pageReady = false;
         }
 
         @Override
@@ -274,6 +319,16 @@ public class MainActivity extends Activity {
         } else if (req == REQ_LOC && geoCb != null) {
             geoCb.invoke(geoOrigin, ok, false);
             geoCb = null;
+        } else if (req == REQ_NOTIF) {
+            emitPerm();
+        } else if (req == REQ_SPEECH && speechWait != null) {
+            String[] w = speechWait;
+            speechWait = null;
+            if (ok) listen(w[0], "1".equals(w[1]));
+            else {
+                speechEvent("error", null, false, "not-allowed");
+                speechEvent("end", null, false, null);
+            }
         } else if (req == REQ_STORE && pendingSave != null) {
             Object[] p = pendingSave;
             pendingSave = null;
@@ -391,6 +446,85 @@ public class MainActivity extends Activity {
         v.vibrate(VibrationEffect.createWaveform(w, -1));
     }
 
+    // the page's «Notification.permission»: granted, or not asked yet, or refused
+    private String notifState() {
+        boolean on = Notifs.nm(this).areNotificationsEnabled();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            return Store.flag(this, "askedNotif") ? "denied" : "default";
+        return on ? "granted" : "denied";
+    }
+
+    private void emitPerm() {
+        try {
+            emit(new JSONObject().put("type", "perm").put("state", notifState()));
+        } catch (JSONException ignored) {
+        }
+    }
+
+    // ---- dictation (v113): the phone's own speech recognition, one phrase each time, as the page asks ----
+    private void speechEvent(String ev, String text, boolean fin, String error) {
+        try {
+            JSONObject o = new JSONObject().put("type", "speech").put("ev", ev);
+            if (text != null) o.put("text", text).put("final", fin);
+            if (error != null) o.put("error", error);
+            emit(o);
+        } catch (JSONException ignored) {
+        }
+    }
+
+    private static String bestOf(Bundle b) {
+        ArrayList<String> r = b == null ? null : b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        return r == null || r.isEmpty() ? "" : r.get(0);
+    }
+
+    private void listen(String lang, boolean interim) {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            speechEvent("error", null, false, "service-not-allowed");
+            speechEvent("end", null, false, null);
+            return;
+        }
+        if (speech == null) {
+            speech = SpeechRecognizer.createSpeechRecognizer(this);
+            speech.setRecognitionListener(new RecognitionListener() {
+                @Override public void onReadyForSpeech(Bundle b) { speechEvent("start", null, false, null); }
+                @Override public void onBeginningOfSpeech() { speechEvent("speechstart", null, false, null); }
+                @Override public void onRmsChanged(float v) { }
+                @Override public void onBufferReceived(byte[] b) { }
+                @Override public void onEndOfSpeech() { }
+                @Override public void onPartialResults(Bundle b) {
+                    String t = bestOf(b);
+                    if (!t.isEmpty()) speechEvent("result", t, false, null);
+                }
+                @Override public void onResults(Bundle b) {
+                    String t = bestOf(b);
+                    if (!t.isEmpty()) speechEvent("result", t, true, null);
+                    speechEvent("end", null, false, null);
+                }
+                @Override public void onError(int code) {
+                    String e;
+                    switch (code) {
+                        case SpeechRecognizer.ERROR_NO_MATCH: case SpeechRecognizer.ERROR_SPEECH_TIMEOUT: e = "no-speech"; break;
+                        case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS: e = "not-allowed"; break;
+                        case SpeechRecognizer.ERROR_NETWORK: case SpeechRecognizer.ERROR_NETWORK_TIMEOUT: e = "network"; break;
+                        case SpeechRecognizer.ERROR_AUDIO: e = "audio-capture"; break;
+                        case 12: case 13: e = "language-not-supported"; break; // (ERROR_LANGUAGE_NOT_SUPPORTED/UNAVAILABLE, Android 12)
+                        default: e = "aborted";
+                    }
+                    speechEvent("error", null, false, e);
+                    speechEvent("end", null, false, null);
+                }
+                @Override public void onEvent(int t, Bundle b) { }
+            });
+        }
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, interim)
+                .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        if (lang != null && !lang.isEmpty()) i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
+        speech.startListening(i);
+    }
+
     /** What the page may ask of the app (native.js). It answers the app's own page only. */
     final class Bridge {
         private boolean allowed() {
@@ -476,6 +610,79 @@ public class MainActivity extends Activity {
         public void exit() {
             if (!allowed()) return;
             runOnUiThread(() -> moveTaskToBack(true));
+        }
+
+        // ---- v113: notifications, alarms, what happened while the page was closed, dictation ----
+        @JavascriptInterface
+        public void notify(String json) {
+            if (!allowed() || json == null) return;
+            try {
+                Notifs.post(MainActivity.this, new JSONObject(json));
+            } catch (JSONException ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public void closeNotify(String tag) {
+            if (!allowed() || tag == null) return;
+            Notifs.cancel(MainActivity.this, tag);
+            if (tag.contains("|")) Alarms.cancelQuiet(MainActivity.this, tag);
+        }
+
+        @JavascriptInterface
+        public String notifPermission() {
+            return notifState();
+        }
+
+        @JavascriptInterface
+        public void requestNotif() {
+            if (!allowed()) return;
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    Store.setFlag(MainActivity.this, "askedNotif");
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+                } else emitPerm();
+            });
+        }
+
+        @JavascriptInterface
+        public void setAlarms(String json) {
+            if (!allowed() || json == null) return;
+            try {
+                Alarms.set(MainActivity.this, new JSONObject(json));
+            } catch (JSONException ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public String takePending() {
+            if (!allowed()) return "[]";
+            pageReady = true;
+            return Store.takePending(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void speechStart(String lang, boolean interim) {
+            if (!allowed()) return;
+            runOnUiThread(() -> {
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    speechWait = new String[]{lang, interim ? "1" : "0"};
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_SPEECH);
+                } else listen(lang, interim);
+            });
+        }
+
+        @JavascriptInterface
+        public void speechStop() {
+            runOnUiThread(() -> { if (speech != null) speech.stopListening(); });
+        }
+
+        @JavascriptInterface
+        public void speechAbort() {
+            runOnUiThread(() -> {
+                if (speech != null) speech.cancel();
+                speechEvent("end", null, false, null);
+            });
         }
 
         @JavascriptInterface
