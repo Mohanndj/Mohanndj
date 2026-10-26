@@ -102,9 +102,19 @@ jobs:
     if: needs.build.outputs.signed == '1'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: alwaei-apk
+      # a copy on the site itself (https://mohanndj.github.io/Mohanndj/alwaei.apk, and the button in «الإعدادات»):
+      # GitHub's own download link stopped at «جارٍ التنزيل» on the phone
+      - name: Copy to the site
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alwaei.apk
+          git commit -m "Android app ${{ github.run_number }}: its file on the site"
+          git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

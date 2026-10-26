@@ -5,7 +5,7 @@
 // offers «حدّث الآن» (app.js). The manifest still comes from the site first (the phone reads it for the icon).
 importScripts('timer-shared.js');
 
-const VERSION = 111;
+const VERSION = 112;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -93,6 +93,8 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // the Android app's file: always the one on the site, never kept (it changes apart from the web app)
+  if (url.origin === self.location.origin && url.pathname.endsWith('.apk')) return;
   if (url.origin === self.location.origin) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);

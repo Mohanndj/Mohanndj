@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 111;
+const APP_VERSION = 112;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1014,6 +1014,11 @@ function viewSettings() {
       <div class="btn-row" style="flex-wrap:nowrap"><select id="setTone" style="flex:1;min-width:0">${Object.entries(TONES).map(([v, [l]]) => `<option value="${v}"${(st.tone || 'chime') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="ghost sm" data-action="tone-try">جرّب</button></div></div>
     <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
+  ${window.WaiNative ? '' : `<section class="panel">
+    <h2>تطبيق أندرويد</h2>
+    <p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>
+    <div class="btn-row"><button type="button" class="ghost" data-action="apk-get">نزّل تطبيق أندرويد</button></div>
+  </section>`}
   <section class="panel">
     <h2>نسخة احتياطية</h2>
     <p class="note-text explain">بياناتك محفوظة على هذا الجهاز فقط. صدّرها لتنقلها إلى جهاز آخر أو تحتفظ بنسخة.</p>
@@ -1835,6 +1840,18 @@ function exportData() {
   const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
+// the Android app's file (v112): from the site itself, saved as a backup is (a link to GitHub stopped at «جارٍ التنزيل»)
+async function getApk() {
+  toast('يُنزَّل التطبيق…');
+  try {
+    const r = await fetch(`alwaei.apk?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    downloadBlob(new Blob([await r.blob()], { type: 'application/vnd.android.package-archive' }), 'alwaei.apk');
+    toast('نُزّل التطبيق. افتحه من التنزيلات وثبّته');
+  } catch {
+    toast('تعذّر التنزيل. تأكد من الإنترنت ثم أعد المحاولة');
+  }
+}
 function importData(file) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -2440,6 +2457,7 @@ document.addEventListener('click', (e) => {
       })();
       break;
     case 'export': exportData(); break;
+    case 'apk-get': getApk(); break;
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
