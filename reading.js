@@ -256,7 +256,7 @@ function topicCardHTML(topic) {
   const read = books.filter((b) => b.status === 'read').length;
   const p = topicProject(topic);
   return `<div class="panel topic-card">
-    <div class="row-between"><b>موضوع «${esc(topic)}»</b><small>${read} من ${books.length} مقروء</small></div>
+    <div class="row-between"><b>${p ? esc(p.name) : `موضوع «${esc(topic)}»`}</b><small>${read} من ${books.length} مقروء</small></div>
     <div class="progress-line"><i style="width:${books.length ? Math.round((read / books.length) * 100) : 0}%"></i></div>
     ${p ? `<p class="note-text">📚 مشروع قرائي ✓</p>
       <div class="btn-row"><button type="button" class="primary" data-action="open-project" data-v="${p.id}">افتح المشروع</button><button type="button" class="ghost" data-action="rd-topic-off" data-v="${esc(topic)}">أوقف المشروع</button></div>`
