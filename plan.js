@@ -1003,9 +1003,9 @@ function khYearHTML() {
     ${khPeriodNav(y === now ? 'سنتي' : 'سنة', khYrLabel(y), khYrPrev(y), end, 'kh-yr', y !== now ? 'العودة إلى هذه السنة' : '')}
     ${khPdfBtn('year')}
     <p class="note-text explain">من رؤيتك في كل دور: هدف لسنتك، ثم أشهره، ثم أسابيعها، ثم أيامها. والسنة تتحقق بأشهرها.</p>
+    ${[...khRoles(), null].map(card).join('')}
     <div class="panel"><div class="row-between"><b>إنجازات السنة</b><span class="kh-pct ok">${khN(n)}</span></div>
       <div class="kh-months">${months.map((m, i) => `<button type="button" class="kh-mo${m === khMoStart(today()) ? ' now' : ''}" data-action="kh-gomonth" data-v="${m}"><span>${esc(khMoShort(m))}</span><span class="kh-track sm"><i style="width:${Math.round((counts[i] / max) * 100)}%"></i></span><small>${khN(counts[i])}</small></button>`).join('')}</div></div>
-    ${[...khRoles(), null].map(card).join('')}
   </section>`;
 }
 
