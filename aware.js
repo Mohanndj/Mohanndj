@@ -130,10 +130,14 @@ function awareStats(P) {
   const closed = closedDays().filter(inP).length;
   // the week's reviews in «خطِّط» (plan.js, v97): a week counts in the period it ends in or overlaps
   const wkReviews = S.weeks.filter((w) => w.review && w.id >= addDays(start, -6) && w.id <= last).sort((a, b) => a.id.localeCompare(b.id));
+  // a project's recurring task is a task (v143): its days asked in the period and those done
+  const pTasks = S.tasks.filter((t) => khProjTask(t)).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
+  const pT = sum(pTasks, (g) => g.total), pH = oneDec(sum(pTasks, (g) => g.hit));
   const tState = (t) => (t.done ? `✓ أنجزتها${t.doneAt ? ` ${dS(dayOfTs(t.doneAt))}` : ''}` : t.due < t0 ? '✗ لم تُنجز' : t.due === t0 ? 'موعدها اليوم' : 'لم يحن موعدها');
-  add('tasks', { title: 'المهام', icon: '✅' }, 'tasks', pctOf(doneDue.length, due.length), [
+  add('tasks', { title: 'المهام', icon: '✅' }, 'tasks', pctOf(doneDue.length + pH, due.length + pT), [
     due.length && `أنجزت ${doneDue.length} من ${plural(due.length, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')} موعدها في هذا ${P.word}${pc(doneDue.length, due.length)}${leftTxt(due.filter((t) => !t.done && t.due >= t0).length)}`,
     missed.length && `لم تُنجز ${plural(missed.length, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')} فات موعدها`,
+    pT && `المهام المتكررة في مشاريعك: أنجزت ${pH || 'صفر'} من ${plural(pT, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}${pc(pH, pT)}${leftTxt(sum(pTasks, (g) => g.left))}`,
     extraT.length && `وأنجزت ${plural(extraT.length, 'مهمة أخرى', 'مهمتين أخريين', 'مهام أخرى', 'مهمة أخرى')} بلا موعد أو موعدها قبل ${P.word}`,
     doneAll.length && `مجموع ما أنجزته من المهام في هذا ${P.word}: ${doneAll.length}`,
     steps && `أتممت ${plural(steps, 'خطوة واحدة', 'خطوتين', 'خطوات', 'خطوة')} من خطوات المهام`,
@@ -142,6 +146,7 @@ function awareStats(P) {
     wkReviews.length && `راجعت أسبوعك ${plural(wkReviews.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} (إنجاز الأسبوع: ${wkReviews.map((w) => (w.review.pct === null ? 'بلا بنود' : `${w.review.pct}٪`)).join('، ')})`,
   ], [
     ...due.map((t) => `${t.title} (موعدها ${dS(t.due)}): ${tState(t)}`),
+    ...pTasks.map((g) => `${g.t.title} (${khDaysText(g.t)}): أنجزتها ${g.hit || 'صفر'} من ${plural(g.total, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`),
     ...extraT.map((t) => `${t.title} (${t.due ? `موعدها كان ${dS(t.due)}` : 'بلا موعد'}): ✓ أنجزتها ${dS(dayOfTs(t.doneAt))}`),
     ...stepsBy.map((x) => `خطوات «${x.t.title}»: أتممت ${x.n}`),
     ...wkReviews.map((w) => `مراجعة أسبوع ${dS(w.id)}: الإنجاز ${w.review.pct === null ? 'بلا بنود' : `${w.review.pct}٪`}${w.review.moved ? ` | نقلت ${w.review.moved} إلى الأسبوع التالي` : ''}${w.review.dropped.length ? ` | ألغيت: ${w.review.dropped.join('، ')}` : ''}${w.review.worked ? ` | ما نجح: ${w.review.worked}` : ''}${w.review.missed ? ` | ما لم ينجح: ${w.review.missed}` : ''}${w.review.change ? ` | ما أغيّره: ${w.review.change}` : ''}`),
@@ -149,7 +154,7 @@ function awareStats(P) {
 
   // 🎯 الأهداف المتكررة (غير العادات وأهداف القراءة) والأهداف لمرة واحدة
   // (a science's task is counted in «الدراسة», by its lessons and reviews, v137)
-  const goals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !t.bookId && !t.sciId).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
+  const goals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !t.bookId && !t.sciId && !khProjTask(t)).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
   const gT = sum(goals, (g) => g.total), gH = oneDec(sum(goals, (g) => g.hit));
   const onceAll = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && ((t.done && inP(dayOfTs(t.doneAt))) || inAll(t.due)));
   // (achieved after the period ended: not achieved in it, as for tasks)

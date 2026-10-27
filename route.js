@@ -115,10 +115,11 @@ function closeTodayHTML() {
   const repGoals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t) && occursOn(t, t0));
   const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
   const tg = [
-    ...tasks.map((t) => row(t.title, t.due < t0 ? lateDays(daysBetween(t.due, t0)) : '', btn('close-done', t.id, 'أتممت') + btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد'))),
-    ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد'))),
+    // (a task in a chain of «خطِّط» is not moved from here: its date is changed there only, v143)
+    ...tasks.map((t) => row(t.title, t.due < t0 ? lateDays(daysBetween(t.due, t0)) : '', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
+    ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
     // (a science's task is done by its lessons: its button opens what is left of them, v137)
-    ...repOpen.map((t) => row(t.title, isCounted(t) ? `${countOn(t, t0)} من ${t.target}` : 'هدف متكرر', btn('close-done', t.id, t.sciId ? 'أكمل دروسه' : 'أتممت') + btn('close-skip', t.id, 'لم أفعله'))),
+    ...repOpen.map((t) => row(t.title, isCounted(t) ? `${countOn(t, t0)} من ${t.target}` : khProjTask(t) ? 'مهمة متكررة' : 'هدف متكرر', btn('close-done', t.id, t.sciId ? 'أكمل دروسه' : 'أتممت') + btn('close-skip', t.id, 'لم أفعله'))),
   ];
   const doneToday = S.tasks.filter((t) => (!isGoal(t) || !isRepeat(t)) && ((t.done && t.doneAt && iso(new Date(t.doneAt)) === t0 && !(t.bookId && Object.keys(t.completions || {}).length)) || (t.bookId && !isRepeat(t) && t.completions && t.completions[t0]))).length + repGoals.filter((t) => t.completions[t0]).length;
   // habits being built

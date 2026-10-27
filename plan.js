@@ -772,6 +772,22 @@ function khProjShare(p) {
   }, { target: 0, done: 0 }));
 }
 // the project a year goal is (its own, or the one of the years it is carried on from)
+// a task of a week goal's days: in a chain of «خطِّط», whose date, days and time are changed there only (v143, the owner: «كل
+// ما كان داخلا ضمن التسلسل لا يمكن تغييره إلا في تسلسله»)
+const khInChain = (t) => { const w = t && t.kgoal && kgOf(t.kgoal); return !!(w && w.level === 'week' && kgYear(w)); };
+// …and a recurring one of a project's goal is a task, not a goal (v143, the owner: «مهام المشاريع تبقى مهام لا أهداف»)
+const khProjTask = (t) => !!(t && isRepeat(t) && khInChain(t) && khMm(`pt${t.id}`, () => khLineOf(kgYear(kgOf(t.kgoal))).some((g) => khProjOfGoal(g))));
+// its place in its chain: «سنتي» on its goal's year, the task shown there
+function khChainGo(id) {
+  const t = getTask(id), yg = t && khInChain(t) && kgYear(kgOf(t.kgoal)), gy = yg && khYrOfKey(yg.period);
+  if (!gy) return;
+  khUi.tab = 'year'; khUi.yr = gy === khYrStart(today()) ? '' : gy; khUi.role = '';
+  go('plan');
+  const el = document.querySelector(`#view .kh-leaf[data-id="${id}"]`);
+  if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('kh-flash'); setTimeout(() => el.classList.remove('kh-flash'), 2500); }
+}
+// what its date, days and time are, written (in its sheet outside «خطِّط»)
+const khWhenText = (t) => [isRepeat(t) ? khDaysText(t) : t.due ? dueLabel(t.due) : 'بلا موعد', hasTime(t) ? timeLabel(t, today()) : ''].filter(Boolean).join(' | ');
 const khProjOfGoal = (yg) => S.projects.find((p) => p.ygoal === yg.id) || S.projects.find((p) => p.ygoal && khLineOf(kgOf(p.ygoal)).includes(yg)) || null;
 // «المشروع» in the year's step (v126, the owner's request): not a project, a new project of its name, or a project of
 // the list. A project left by its goal stays in «المشاريع», serving no goal; one chosen takes its name and its role
@@ -1560,6 +1576,8 @@ document.addEventListener('click', (e) => {
     case 'kh-plan-pick': khPlanPick(el.dataset.k, el.dataset.day); break;
     case 'kh-wiz': { const o = el.dataset; if (!bookSheetKeep()) break; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
     case 'kh-book-link': { if (!bookSheetKeep()) break; const b = getBook(v), g = bookGoal(b); if (!b) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, book: b.id, yText: `قراءة «${b.title}»` }); break; }
+    case 'kh-chain-at': khChainGo(v); break;
+    case 'kh-chain-go': { const id = draft && draft.id; closeSheet(); if (id) khChainGo(id); break; }
     case 'kh-hz-link': { closeLib(); const p = getPlan(v), g = hpGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, hz: p.id, yText: `حفظ «${p.title}»` }); break; }
     case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
     case 'kh-proj-link': { const p = getProject(v), g = khProjGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name }); break; }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 142;
+const APP_VERSION = 143;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -505,7 +505,7 @@ const projectChip = (p) => `<span class="proj" style="--pc:${p.color}"><i></i>${
 
 function metaHTML(t, d, opts = {}) {
   const meta = [];
-  if (isGoal(t) && !opts.noKind) meta.push(`<span class="kind-goal">${isHabit(t) ? 'عادة' : isRepeat(t) ? 'هدف متكرر' : 'هدف'}</span>`);
+  if (isGoal(t) && !opts.noKind) meta.push(`<span class="kind-goal">${isHabit(t) ? 'عادة' : khProjTask(t) ? 'مهمة متكررة' : isRepeat(t) ? 'هدف متكرر' : 'هدف'}</span>`);
   const p = projectOf(t);
   if (p && !opts.noProject) meta.push(projectChip(p));
   if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
@@ -654,7 +654,7 @@ function smartPreviewHTML() {
   const t = smartToTask(r);
   const d = isRepeat(t) ? t.repeat.start : t.due || today();
   const tags = [`<span class="tag title">${esc(t.title)}</span>`];
-  tags.push(`<span class="tag">${isGoal(t) ? 'هدف متكرر' : 'مهمة'}</span>`);
+  tags.push(`<span class="tag">${isGoal(t) && !khProjTask(t) ? 'هدف متكرر' : isGoal(t) ? 'مهمة متكررة' : 'مهمة'}</span>`);
   const p = projectOf(t);
   if (p) tags.push(`<span class="tag">${icon('folder')}${esc(p.name)}</span>`);
   if (isRepeat(t)) tags.push(`<span class="tag">${icon('repeat')}${esc(repeatLabel(t))}</span>`);
@@ -939,7 +939,8 @@ function completionEvents() {
     if (t.bookId && !getBook(t.bookId)) continue; // a deleted book's sessions went with it (as in «الكتب» in the report)
     const cat = t.category || 'بلا تصنيف';
     // kind: what the report counts it as (a habit day, a reading session, a goal day, a task)
-    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : t.sciId ? 'study' : 'goal' });
+    // (a project's recurring task is a task done that day, v143)
+    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push(khProjTask(t) ? { d, cat, type: 'task', kind: 'task', projectId: t.projectId } : { d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : t.sciId ? 'study' : 'goal' });
     // (a book task with reading sessions: the sessions are its events, its finishing is not one more)
     else if (t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', kind: t.bookId ? 'book' : isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
     // a reading project's book task: each day's reading session is a task done that day
@@ -1231,7 +1232,7 @@ function setKind(kind) {
   $('taskFields').hidden = goal;
   $('goalFields').hidden = !goal;
   $('subsSec').hidden = goal;
-  $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : (goal ? 'تعديل الهدف' : 'تعديل المهمة');
+  $('sheetTitle').textContent = draftIsNew ? (goal ? 'هدف جديد' : 'مهمة جديدة') : `تعديل ${sheetKindWord(goal) === 'هدف' ? 'الهدف' : 'المهمة'}`;
   setGoalMode(draft.mode); // may rename the sheet to «عادة جديدة»
   khSyncRoleField(); // a goal has no project: its own role
   // a book's task: its title, days, date and project follow the book (syncReading rewrites them), so not edited here
@@ -1247,6 +1248,22 @@ function setKind(kind) {
   $('fRepeatMode').hidden = sd; $('fStart').closest('.grid2').hidden = sd;
   if (sd) { $('goalFields').hidden = false; $('repeatFields').hidden = false; for (const id of ['onceGoalFields', 'targetBox', 'habitSection']) $(id).hidden = true; }
 }
+
+// a task in a chain of «خطِّط», opened anywhere else: its date, days and time are shown, and changed there only (v143)
+function chainLock() {
+  const cur = (draft.id && getTask(draft.id)) || {};
+  draft.lock = !!(draft.id && khInChain(cur) && !cur.bookId && !cur.sciId && ui.tab !== 'plan');
+  $('fChainNote').hidden = !draft.lock;
+  // (these two are not shown again by the sheet's own fields: the next sheet opened shows them)
+  $('fDue').closest('.field').hidden = draft.lock;
+  $('fTimeMode').closest('.field').hidden = draft.lock;
+  if (!draft.lock) return;
+  $('fChainWhen').textContent = khWhenText(cur);
+  $('fKind').hidden = true;
+  for (const id of ['fRepeatMode', 'repeatFields', 'onceGoalFields', 'clockFields', 'prayerFields']) $(id).hidden = true;
+}
+// a project's recurring task is a task (v143): so its sheet says
+const sheetKindWord = (goal) => (goal && draft.id && khProjTask(getTask(draft.id)) ? 'مهمة' : goal ? 'هدف' : 'مهمة');
 
 // goal types: recurring, one-time, or a habit (with its own fields)
 function setGoalMode(mode) {
@@ -1269,7 +1286,7 @@ function setGoalMode(mode) {
     ? `لديك ${HABIT_MAX} عادات قيد البناء، أكمل إحداها لتضيف غيرها.`
     : `عاداتك قيد البناء: ${others + (mode === 'habit' ? 1 : 0)} من ${HABIT_MAX}`;
   if (goal) {
-    const label = mode === 'habit' ? 'العادة' : 'الهدف';
+    const label = mode === 'habit' ? 'العادة' : sheetKindWord(true) === 'مهمة' ? 'المهمة' : 'الهدف';
     $('sheetTitle').textContent = draftIsNew ? (mode === 'habit' ? 'عادة جديدة' : 'هدف جديد') : `تعديل ${label}`;
   }
   updatePrayerHint();
@@ -1437,6 +1454,7 @@ function openSheet(id, opts = {}) {
   setKind(kind);
   setTimeMode(draft.timeMode);
   renderDays();
+  chainLock();
   renderHabitDays();
   renderNotes();
   renderSubs();
@@ -1520,6 +1538,8 @@ function readDraft() {
     t.subtasks = draft.subtasks;
     t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
+  // its schedule in a chain of «خطِّط» is changed there only (v143): edited elsewhere, it stays as it was
+  if (draft.lock && existing) for (const k of ['kind', 'due', 'from', 'repeat', 'time', 'prayer', 'skip', 'habit']) t[k] = existing[k];
   // a new date: it is no longer «for any day of its week», nor cancelled for its old day
   if (existing && t.due !== existing.due) { t.from = ''; t.skip = {}; }
   return t;
@@ -2369,7 +2389,8 @@ document.addEventListener('click', (e) => {
       toast(wasReading ? 'حُذف المشروع القرائي، وبقيت كتبه في «الكتب»' : 'حُذف المشروع، ومهامه الآن في «مهام عامة»');
       break;
     }
-    case 'open': openSheet(id); break;
+    // a task of a chain in «خطِّط», tapped in «اليوم»: its place in its chain (v143)
+    case 'open': if (ui.tab === 'today' && khInChain(getTask(id))) khChainGo(id); else openSheet(id); break;
     case 'toggle': toggle(id, el.dataset.date); break;
     case 'step': step(id, el.dataset.date || today(), Number(v)); break;
     case 'filter': ui[el.dataset.k || 'filter'] = v; render(); break;
