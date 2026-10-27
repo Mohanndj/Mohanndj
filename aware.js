@@ -43,6 +43,29 @@ function periodOf(type, key) {
   return { type, key, id: `${type[0]}:${key}`, start, end, last, days, all, title, sub, prev, next, word, current: start <= t0 && t0 <= end, future: start > t0 };
 }
 
+// 💰 a month's money is read by its plan's period (27 Oct – 26 Nov, say) from the plans of October 2026 on
+// (the owner's choice, v136: «فترة الخطة، من هذا الشهر»); a month with no plan yet by the salary day, and
+// before that, and with no salary day, by the calendar. A year runs from its January's start to its December's end.
+const FIN_PLAN_FROM = '2026-10';
+// The change of rule loses no day and counts none twice: October 2026 starts where September (by the calendar) ends.
+function finMonthSpan(m) {
+  if (m >= FIN_PLAN_FROM) {
+    const plan = S.finPlans.find((x) => x.kind === 'month' && x.month === m) || null;
+    const r = plan ? finRange(plan) : defaultRange(m);
+    if (r && r.from) return { from: m === FIN_PLAN_FROM && r.from > `${m}-01` ? `${m}-01` : r.from, to: r.to, plan };
+  }
+  const [y, mo] = m.split('-').map(Number);
+  let to = iso(new Date(y, mo, 0));
+  if (addDays(to, 1).slice(0, 7) === FIN_PLAN_FROM) { const f = finMonthSpan(FIN_PLAN_FROM).from; if (f <= to) to = addDays(f, -1); }
+  return { from: `${m}-01`, to, plan: null };
+}
+function finSpan(P) {
+  if (P.type === 'month') return finMonthSpan(P.key);
+  if (P.type === 'year') return { from: finMonthSpan(`${P.key}-01`).from, to: finMonthSpan(`${P.key}-12`).to };
+  return { from: P.start, to: P.end };
+}
+const finSpanLabel = (r) => `من ${fmtDate(r.from, { day: 'numeric', month: 'long', ...(r.from.slice(0, 4) !== r.to.slice(0, 4) ? { year: 'numeric' } : {}) })} إلى ${fmtDate(r.to, { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
 const pctOf = (a, b) => (b ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : null);
 const dayOfTs = (ts) => (ts ? iso(new Date(ts)) : '');
 // pages read in a period, day by day, from the book's log only: what was really read. A day's entry
@@ -413,25 +436,38 @@ function awareStats(P) {
   ], hLines);
 
   // 💰 المالية: «مصروف …» items: what was spent from each and what is left of it this month;
-  // spending with no item: outside the spending budgets; other items are obligations, just said paid
-  const outs = S.finTx.filter((t) => t.kind === 'out' && inP(t.d));
+  // spending with no item: outside the spending budgets; other items are obligations, just said paid.
+  // A month's and a year's report read it by the plans' periods (finSpan, v136)
+  const FS = finSpan(P), fLast = FS.to < t0 ? FS.to : t0;
+  const inF = (d) => !!d && d >= FS.from && d <= fLast;
+  const outs = S.finTx.filter((t) => t.kind === 'out' && inF(t.d));
   const spent = sum(outs);
-  const ins = S.finTx.filter((t) => t.kind === 'in' && inP(t.d));
+  const ins = S.finTx.filter((t) => t.kind === 'in' && inF(t.d));
   const income = sum(ins);
-  const paidIn = (xs) => sum(xs.flatMap((x) => x.payments).filter((p) => !p.pre && inP(p.d)));
+  const paidIn = (xs) => sum(xs.flatMap((x) => x.payments).filter((p) => !p.pre && inF(p.d)));
   const debtPaid = paidIn(S.finDebts), owePaid = paidIn(LEDGERS.owe.list()), rightGot = paidIn(LEDGERS.right.list()), finesPaid = paidIn(S.fines);
-  const savedLater = sum(S.later.filter((x) => x.decision === 'dropped' && inP(x.decidedAt)), (x) => x.price);
-  const bySpend = new Map(), byDuty = new Map(), outside = {};
+  const savedLater = sum(S.later.filter((x) => x.decision === 'dropped' && inF(x.decidedAt)), (x) => x.price);
+  const bySpend = new Map(), byDuty = new Map(), outside = {}, duty = new Set();
   for (const t of outs) {
     const p = planForDate(t.d);
     const r = p && t.ref && t.ref !== 'out' ? planRows(p).find((y) => y.x.id === t.ref) : null;
-    if (!r && t.src) { const k = `src:${t.item}`; const e = byDuty.get(k) || { p, r: { x: { name: t.item || 'دفعة' } }, amount: 0 }; e.amount += t.amount; byDuty.set(k, e); continue; }
+    if (!r && t.src) { duty.add(t); const k = `src:${t.item}`; const e = byDuty.get(k) || { p, r: { x: { name: t.item || 'دفعة' } }, amount: 0 }; e.amount += t.amount; byDuty.set(k, e); continue; }
     if (!r) { const k = t.item || 'بلا وصف'; outside[k] = (outside[k] || 0) + t.amount; continue; }
     const m = isSpendRow(r) ? bySpend : byDuty;
+    if (m === byDuty) duty.add(t);
     const k = `${p.id}:${r.x.id}`;
     const e = m.get(k) || { p, r, amount: 0 };
     e.amount += t.amount; m.set(k, e);
   }
+  // a year: each month by its own period, one line each (one-time payments, then spending)
+  const monthLines = P.type !== 'year' ? [] : Array.from({ length: 12 }, (_, i) => {
+    const m = `${P.key}-${String(i + 1).padStart(2, '0')}`, ms = finMonthSpan(m);
+    const xs = outs.filter((t) => t.d >= ms.from && t.d <= ms.to);
+    if (!xs.length) return '';
+    const dut = sum(xs.filter((t) => duty.has(t))), sp = sum(xs) - dut;
+    const cal = ms.from === `${m}-01` && ms.to === iso(new Date(Number(P.key), i + 1, 0));
+    return `${monthName(m)}${cal ? '' : ` (${finSpanLabel(ms)})`}: ${[dut && `لمرة واحدة ${money(dut)}`, sp && `مصروفات ${money(sp)}`, dut && sp && `المجموع ${money(dut + sp)}`].filter(Boolean).join(' | ')}`;
+  });
   const spendSum = sum([...bySpend.values()], (e) => e.amount), dutySum = sum([...byDuty.values()], (e) => e.amount);
   const outsideSum = sum(Object.values(outside), (x) => x);
   const spendLines = [...bySpend.values()].sort((a, b) => b.amount - a.amount).map((e) => {
@@ -439,10 +475,11 @@ function awareStats(P) {
     return `${e.r.x.name}: صرفت ${money(e.amount)}${rm ? ` | ${rm.left > 0.5 ? `الباقي ${money(rm.left)} من ${money(rm.budget)}` : rm.left > -0.5 ? `استنفدته كاملاً (${money(rm.budget)})` : `⚠️ تجاوزته بـ ${money(-rm.left)} (المخطط ${money(rm.budget)})`}` : ''}`;
   });
   // facts only: spending is not a count of things to finish, so it gets no progress score
+  const byPlan = FS.from !== P.start || FS.to !== P.end;
   add('finance', pageLook('finance', 'المالية', '💰'), 'finance', null, [
-    spendSum && `صرفت من بنود المصروف: ${money(spendSum)}`,
-    outsideSum && `مصروف خارج البنود: ${money(outsideSum)}`,
-    dutySum && `مدفوعات لمرة واحدة دُفعت: ${money(dutySum)}`,
+    byPlan && (spent || income || debtPaid || owePaid || rightGot || finesPaid || savedLater) && `الفترة: ${finSpanLabel(FS)}${P.type === 'year' ? ' (أشهرها بفترات خططك)' : FS.plan ? ' (فترة خطة الشهر)' : ''}`,
+    dutySum && `المدفوعات لمرة واحدة: ${money(dutySum)}`,
+    (spendSum || outsideSum) && `المصروفات: ${money(spendSum + outsideSum)}${spendSum && outsideSum ? ` (من بنود المصروف ${money(spendSum)}، وخارجها ${money(outsideSum)})` : outsideSum ? ' (خارج بنود المصروف)' : ''}`,
     spent && `مجموع ما دفعت: ${money(spent)}`,
     income && `دخل إضافي: ${money(income)}`,
     debtPaid && `سدّدت من الديون: ${money(debtPaid)}`,
@@ -452,6 +489,7 @@ function awareStats(P) {
     savedLater && `وفّرت بالشراء المؤجّل: ${money(savedLater)}`,
     savingProject() && `نقدك المدخر الآن: ${money(saveCalc(savingProject()).cash)}`,
   ], [
+    ...monthLines,
     ...spendLines,
     ...[...byDuty.values()].map((e) => `${e.r.x.name}: دفعت ${money(e.amount)}`),
     ...Object.entries(outside).sort((a, b) => b[1] - a[1]).map(([k, v]) => `خارج البنود، ${k}: ${money(v)}`),
