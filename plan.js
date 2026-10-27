@@ -1179,6 +1179,9 @@ function khSaveGoal() {
 // of its own, with its days and its time. o: { step, roleId, yk, vision, yearId, monthId, weekId, edit, once, k, day, text }
 const KH_WSTEPS = [['year', 'السنة'], ['month', 'الأشهر'], ['week', 'الأسابيع'], ['day', 'الأيام']];
 function khWizard(o = {}) {
+  // a task of the days, edited in its own step (v144): its week goal, and its answer as written
+  const et = o.task && getTask(o.task);
+  if (et) o = { ...o, step: 3, edit: 'day', weekId: et.kgoal, once: !isRepeat(et), k: weekStartOf((!isRepeat(et) && (et.from || et.due)) || today()), day: !isRepeat(et) && !et.from ? et.due : '', text: et.title };
   const wg = kgOf(o.weekId), mg = kgOf(o.monthId || (wg ? wg.parent : '')), yg = kgOf(o.yearId || (mg ? mg.parent : ''));
   const roleId = o.edit === 'year' && yg ? (khRole(yg.roleId) ? yg.roleId : '') : o.roleId || (yg ? kgRoleId(yg) : '') || (khRoles()[0] || {}).id;
   const step = Number(o.step) || 0;
@@ -1196,7 +1199,14 @@ function khWizard(o = {}) {
     // the days: recurring on days chosen, or (a task for one week of its goal) once on a day of that week
     once: !!o.once, k: o.k || weekStartOf(today()), day: o.day || (o.k && o.k > today() ? o.k : today()), days: [parse(today()).getDay()], dMode: 'fixed', per: 3, dText: o.text || '', cards: [], openTm: -1,
   };
-  khWizCards();
+  if (et) {
+    ldraft.taskId = et.id;
+    if (!o.day) ldraft.day = '';
+    khWizCards();
+    const c = ldraft.cards[0];
+    if (c) Object.assign(c, { own: true, tm: et.time ? 'clock' : et.prayer ? et.prayer.name : '', time: et.time || c.time, area: et.area || c.area },
+      isRepeat(et) ? { mode: et.repeat.per ? 'count' : 'fixed', per: et.repeat.per || 3, days: [...et.repeat.days] } : {});
+  } else khWizCards();
   khWizDraw();
   showLib();
 }
@@ -1247,7 +1257,7 @@ function khWizDraw() { return khIn((ldraft.yk || '')[0], khWizDraw0); }
 function khWizDraw0() {
   const w = ldraft, edit = w.edit;
   const btns = (next) => (edit
-    ? `<div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="danger" data-action="kh-w" data-op="del">حذف</button></div><p class="note-text">${esc(kgDropNote(kgOf(edit === 'year' ? w.yearId : edit === 'month' ? w.monthId : w.weekId)))}</p>`
+    ? `<div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="danger" data-action="kh-w" data-op="del">حذف</button></div>${edit === 'day' ? '' : `<p class="note-text">${esc(kgDropNote(kgOf(edit === 'year' ? w.yearId : edit === 'month' ? w.monthId : w.weekId)))}</p>`}`
     : `<div class="sheet-actions"><button type="submit" class="primary">${next}</button>${w.step > w.first ? '<button type="button" class="ghost" data-action="kh-w" data-op="prev">السابق</button>' : ''}${w.step < 3 ? '<button type="button" class="ghost" data-action="kh-w" data-op="later">أكمل لاحقاً</button>' : ''}</div>`);
   const role = esc(khRoleName(w.roleId));
   let body = '';
@@ -1319,7 +1329,7 @@ function khWizDraw0() {
       ${btns('التالي: الأيام')}`;
   } else {
     const wg = kgOf(w.weekId), days = khDays(w.k).filter((d) => d >= today());
-    body = `${w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
+    body = `${edit === 'day' ? '<h3 class="kh-wh">يومها ووقتها</h3>' : w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
@@ -1411,6 +1421,20 @@ function khWizCommit0() {
     if (bad >= 0) { toast(`اختر أيام المهمة ${bad + 1}.`); return false; }
     const start = khChainStart(mg), until = khChainEnd(mg);
     if (!w.once && until && until < start) { toast('مضت أشهر هذا الهدف، فلا أيام بقيت لمهامه.'); return false; }
+    // a task edited in its step (v144): its title, its days or day, and its time; what it holds stays (done days, notes…)
+    if (w.edit === 'day') {
+      const t = getTask(w.taskId), c = w.cards[0];
+      if (!t) { toast('هذه المهمة لم تعد موجودة.'); return false; }
+      if (w.cards.length > 1) return khNeed('khwD', 'اكتب مهمة واحدة: هذه المهمة وحدها.');
+      const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
+      const keep = isRepeat(t) ? t.repeat : null, s0 = keep && keep.start < start ? keep.start : start;
+      Object.assign(t, { title: c.text, area: c.area, ...when }, w.once
+        ? { kind: 'task', due: w.day || addDays(w.k, 6), from: w.day ? '' : w.k, repeat: null, skip: {} }
+        : { kind: 'goal', due: '', from: '', repeat: c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start: s0, until, per: c.per } : { days: [...c.days].sort(), start: s0, until } });
+      if (!hasTime(t)) t.alarms = [];
+      save();
+      return true;
+    }
     for (const c of w.cards) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)
@@ -1428,7 +1452,7 @@ function khWizNext() {
   khWizKeep();
   if (!khWizCommit()) return false;
   const w = ldraft;
-  if (w.edit || w.step === 3) { toast(w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
+  if (w.edit || w.step === 3) { toast(w.edit === 'day' ? 'حُفظت المهمة' : w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
   w.step++;
   khWizDraw();
   $('libForm').scrollTop = 0;
@@ -1598,6 +1622,7 @@ document.addEventListener('click', (e) => {
     case 'kh-w': {
       if (!ldraft || ldraft.kind !== 'khwiz') break;
       const w = ldraft, op = el.dataset.op;
+      if (op === 'del' && w.edit === 'day') { if (!selArmed(el)) break; dropTask(w.taskId); save(); closeLib(); render(); toast('حُذفت المهمة'); break; }
       if (op === 'del') { if (!selArmed(el)) break; const g = kgOf(w.edit === 'year' ? w.yearId : w.edit === 'month' ? w.monthId : w.weekId); if (g) kgDrop(g); save(); closeLib(); render(); toast('حُذف'); break; }
       khWizKeep();
       if (op === 'later') {
