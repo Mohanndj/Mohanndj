@@ -1638,6 +1638,8 @@ sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); }
 $('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
 $('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
 for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue', 'hStart']) $(id).addEventListener('change', updatePrayerHint);
+// a task put in a project is a task: no «هدف» for it (v144)
+$('fProject').addEventListener('change', () => { const cur = (draft.id && getTask(draft.id)) || {}; if (!draft.lock && !cur.bookId && !cur.sciId) $('fKind').hidden = !!$('fProject').value; });
 
 // ---------- project editor ----------
 const psheet = $('projSheet');

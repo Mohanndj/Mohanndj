@@ -1218,9 +1218,11 @@ const khWBtn = (op, v, label, on) => `<button type="button" data-action="kh-w" d
 // the cards of the days' answer: each line a task; a card keeps its own settings while its line stays
 function khWizCards() {
   const w = ldraft, ls = w.dText.split('\n').map((x) => x.replace(/^\s*(?:[-•*]|\d+[.)-])\s*/, '').trim()).filter(Boolean), prev = w.cards, used = new Set();
+  if (w.edit === 'day' && !ls.length) return; // (the task edited, its title cleared to be rewritten: its card waits)
   w.cards = ls.map((text, i) => {
     let j = prev.findIndex((c, n) => !used.has(n) && c.text === text);
     if (j < 0 && prev[i] && !used.has(i) && !ls.includes(prev[i].text)) j = i; // a line edited in its place
+    if (j < 0 && w.edit === 'day' && i === 0 && prev[0] && !used.has(0)) j = 0; // (the task edited: its title rewritten, its card kept)
     if (j >= 0) used.add(j);
     const c = j >= 0 ? prev[j] : { mode: w.dMode, per: w.per, days: [...w.days], tm: '', time: '07:00', area: w.roleId === KH_SAW ? 'health' : '', own: false };
     if (!c.own) { c.days = [...w.days]; c.mode = w.dMode; c.per = w.per; }
@@ -1333,12 +1335,12 @@ function khWizDraw0() {
     body = `${edit === 'day' ? '<h3 class="kh-wh">يومها ووقتها</h3>' : w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
-      <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
+      ${edit === 'day' ? '' : '<p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>'}
       ${w.once ? `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button></div>${w.day ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
-        : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
+        : edit === 'day' ? '' : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
           <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
-      <label class="field kh-q lv-day"><span>اكتب جوابك: كل مهمة في سطر</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
+      <label class="field kh-q lv-day"><span>${edit === 'day' ? 'العنوان' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
       <div id="khwCards">${khWizCardsHTML()}</div>
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
@@ -1429,9 +1431,15 @@ function khWizCommit0() {
       if (w.cards.length > 1) return khNeed('khwD', 'اكتب مهمة واحدة: هذه المهمة وحدها.');
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       const keep = isRepeat(t) ? t.repeat : null, s0 = keep && keep.start < start ? keep.start : start;
+      const u0 = keep && keep.until && (!until || keep.until < until) ? keep.until : until; // (one that ended stays ended)
+      const rep = c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start: s0, until: u0, per: c.per } : { days: [...c.days].sort(), start: s0, until: u0 };
+      // what «فاتك يومها» moved or cancelled stays, while its days are the same
+      if (keep && String(keep.days) === String(rep.days) && (keep.per || 0) === (rep.per || 0)) for (const k of ['mv', 'skip']) if (keep[k]) rep[k] = keep[k];
+      const due = w.day || addDays(w.k, 6), was = isRepeat(t);
       Object.assign(t, { title: c.text, area: c.area, ...when }, w.once
-        ? { kind: 'task', due: w.day || addDays(w.k, 6), from: w.day ? '' : w.k, repeat: null, skip: {} }
-        : { kind: 'goal', due: '', from: '', repeat: c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start: s0, until, per: c.per } : { days: [...c.days].sort(), start: s0, until } });
+        ? { kind: 'task', due, from: w.day ? '' : w.k, repeat: null, skip: !was && t.due === due ? t.skip : {} }
+        : { kind: 'goal', due: '', from: '', repeat: rep });
+      if (was !== isRepeat(t)) { t.done = false; t.doneAt = null; } // (once ↔ recurring: it starts undone)
       if (!hasTime(t)) t.alarms = [];
       save();
       return true;
