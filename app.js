@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 134;
+const APP_VERSION = 135;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1093,6 +1093,7 @@ function render() {
   boxLines(view);
   renameHeads(view);
   hydrateImages(view);
+  flushDigits();
   if (window.scrollY !== y) window.scrollTo(0, y);
   if (active && $(active)) {
     $(active).focus({ preventScroll: true });
@@ -1173,13 +1174,18 @@ function localizeDigits(root) {
 }
 // only write when something changed: rewriting a link's digits as-is would re-fire the observer forever
 function setDigits(n) { const v = toArabicDigits(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
-new MutationObserver((muts) => {
+function digitMuts(muts) {
   if (S.settings.digits !== 'arab') return;
   for (const m of muts) {
     if (m.type === 'characterData') localizeDigits(m.target);
     else for (const n of m.addedNodes) localizeDigits(n);
   }
-}).observe(document.body, { subtree: true, childList: true, characterData: true });
+}
+const digitObs = new MutationObserver(digitMuts);
+digitObs.observe(document.body, { subtree: true, childList: true, characterData: true });
+// render() converts what it just drew before the browser lays the page out, so the page is laid out once, not
+// twice (the observer alone ran after the layout and changed every number again); same rule, same result
+const flushDigits = () => digitMuts(digitObs.takeRecords());
 
 // ---------- theme ----------
 const mq = window.matchMedia('(prefers-color-scheme: dark)');

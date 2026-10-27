@@ -414,8 +414,8 @@ function finSpendHTML() {
   const nowKey = cur ? cur.month : today().slice(0, 7);
   const m = finUi.month || nowKey;
   const ap = S.finPlans.find((x) => x.kind === 'month' && x.month === m) || null;
-  // with a plan: its period, and what falls in no plan in this calendar month (a day before the first salary-day plan, say)
-  const txs = S.finTx.filter((t) => (ap ? inPlan(ap, t.d) || (t.d.slice(0, 7) === m && !planForDate(t.d)) : t.d.slice(0, 7) === m)).sort((a, b) => b.d.localeCompare(a.d) || b.created - a.created);
+  // with a plan: its period only (the owner's choice, v135: «فترة الخطة وحدها»)
+  const txs = S.finTx.filter((t) => (ap ? inPlan(ap, t.d) : t.d.slice(0, 7) === m)).sort((a, b) => b.d.localeCompare(a.d) || b.created - a.created);
   const payT = txs.filter(isPayTx), spendT = txs.filter((t) => !isPayTx(t));
   const out = sum(spendT.filter((t) => t.kind === 'out')), inn = sum(txs.filter((t) => t.kind === 'in'));
   const items = ap ? [...ap.fixed.map((x) => [x.name, x.amount]), ...ap.periodic.map((x) => [x.name, x.amount / (x.every || 12)])].filter(([n]) => n) : [];
