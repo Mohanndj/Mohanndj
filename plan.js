@@ -1341,7 +1341,8 @@ function khWizCommit0() {
       scg.days = [...w.days].sort();
       if (st) st.repeat.days = [...scg.days];
     }
-    for (const c of w.cards) {
+    // (a line named for the science is its session, not a second task: v139)
+    for (const c of w.cards.filter((c) => !(scg && sciBare(c.text) === sciBare(scg.name)))) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)
       const rep = c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start, until, per: c.per } : { days: [...c.days].sort(), start, until };

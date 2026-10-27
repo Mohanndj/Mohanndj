@@ -89,6 +89,9 @@ function sciWeekGoal(s, cur) {
   const live = (w) => { const e = khChainEnd(kgOf(w.parent)); return !e || e >= today(); };
   return ws.find((w) => w.id === cur && live(w)) || ws.find(live) || ws.find((w) => w.id === cur) || null;
 }
+// «دراسة العقيدة», «العقيدة», «عقيدة»: the same name, without its vowels, «ال» or a leading «دراسة»
+const sciBare = (v) => String(v || '').replace(/[ً-ْـ]/g, '').trim().replace(/^(دراسة|مذاكرة|درس)\s+/, '').split(/\s+/).map((w) => w.replace(/^ال/, '')).join(' ');
+const sciDupOf = (s, x) => !x.sciId && !x.bookId && isRepeat(x) && sciBare(x.title) === sciBare(s.name);
 // kept true to the science on every redraw (as the books' reading tasks are)
 function syncStudy() {
   let changed = false;
@@ -114,6 +117,16 @@ function syncStudy() {
       S.tasks.push(t); changed = true;
     }
     if (t.title !== title) { t.title = title; changed = true; }
+    // a recurring task of its goal's days named for the science is its session written twice (v139, the owner: «المواعيد
+    // دائمًا انعكاس للتسلسل»): the session takes its days, and it goes (closed if it holds days done, so they stay counted)
+    for (const x of khGoalTasks(sciGoal(s)).filter((x) => x !== t && sciDupOf(s, x))) {
+      if (!x.repeat.per && x.repeat.days.length) t.repeat.days = [...x.repeat.days];
+      if (Object.keys(x.completions).length) {
+        x.repeat.until = x.completions[today()] ? today() : addDays(today(), -1);
+        if (x.repeat.until < x.repeat.start) x.repeat.start = x.repeat.until;
+      } else S.tasks = S.tasks.filter((y) => y !== x);
+      changed = true;
+    }
     // its study days are its plan's (v138, the owner's request: «اجعل هذه انعكاس للتسلسل»): the science shows them
     const td = [...t.repeat.days].sort();
     if (String(days) !== String(td)) { s.days = td; changed = true; }
