@@ -344,6 +344,10 @@ function reqOn(t, d) {
 // a one-time task on the list of day d: its day came (or went by), or it is for any day of its week and the week began
 // (`from`); one cancelled for its day is not waiting any more
 const dueOpen = (t, d) => !t.done && !!t.due && !(t.skip && t.skip[t.due]) && (t.due <= d || (!!t.from && t.from <= d));
+// (v146) due on the day itself and not past it: what passed its day is not in «اليوم» nor in «إغلاق اليوم» (nor in what counts
+// as «اليوم»: the home-screen box, the pinned notification, the icon's number); it is at the end of today in «يومي» of «خطِّط»,
+// then under its week and its month. The owner: «لا تظهر فيهما»
+const dueNow = (t, d) => dueOpen(t, d) && t.due >= d;
 // a reading project's book task is done on a day it holds that day's session
 const doneOn = (t, d) => (isRepeat(t) ? !!t.completions[d] : t.done || !!(t.bookId && t.completions && t.completions[d]));
 function countOn(t, d) {
@@ -675,7 +679,7 @@ function viewToday() {
   const items = S.tasks.filter((t) => {
     if (isRepeat(t)) return occursOn(t, d);
     if (t.bookId && t.completions && t.completions[d]) return true; // today's reading session stays, ticked
-    if (dueOpen(t, d)) return true;
+    if (dueNow(t, d)) return true;
     return t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
   });
   items.sort(byTime(d));

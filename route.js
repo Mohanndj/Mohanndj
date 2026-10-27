@@ -110,8 +110,8 @@ function closeTodayHTML() {
     return `<div class="close-sec"><b>${title} <small class="num">باقٍ ${pending.length}</small></b><ul>${pending.join('')}</ul></div>`;
   };
   // tasks and goals (habits have their own section)
-  const tasks = S.tasks.filter((t) => !isGoal(t) && dueOpen(t, t0) && !skip.includes(t.id));
-  const onceGoals = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && dueOpen(t, t0) && !skip.includes(t.id));
+  const tasks = S.tasks.filter((t) => !isGoal(t) && dueNow(t, t0) && !skip.includes(t.id));
+  const onceGoals = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && dueNow(t, t0) && !skip.includes(t.id));
   const repGoals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !goalEnded(t) && occursOn(t, t0));
   const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
   const tg = [
@@ -186,8 +186,8 @@ document.addEventListener('click', (e) => {
 // what is left today: tasks, goals (recurring ones due today, one-time ones due by today), list items
 function leftToday() {
   const t0 = today();
-  const tasks = S.tasks.filter((t) => !isGoal(t) && dueOpen(t, t0)).length;
-  const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && dueOpen(t, t0)) && !closeSkips().includes(t.id)).length;
+  const tasks = S.tasks.filter((t) => !isGoal(t) && dueNow(t, t0)).length;
+  const goals = S.tasks.filter((t) => (isRepeat(t) ? !goalEnded(t) && occursOn(t, t0) && !t.completions[t0] : isGoal(t) && dueNow(t, t0)) && !closeSkips().includes(t.id)).length;
   const lists = S.shop.filter((x) => x.need).length;
   return { tasks, goals, lists };
 }

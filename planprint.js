@@ -116,7 +116,7 @@ function khPdStats() {
 // المرتبطة بالدور والرؤية وهكذا إلى أن تنتهي السنة، واجعلني أتخير الأشهر للطباعة»، «صف لكل أسبوع وأيامه أعمدة»، «لون دورها
 // ومفتاح أعلى الصفحة». What has no day of its own is in every day of its week (the owner: «كل ما لم يحدد له يوم يظهر كل يوم»)
 const khYtBtn = () => `<div class="kh-pd-row"><button type="button" class="ghost kh-pdf" data-action="kh-ytable">${KH_PRINT_IC}<span>طباعة جدول السنة <small>PDF</small></span></button></div>`;
-const khYtOn = (t, d) => (isRepeat(t) ? occursOn(t, d) : t.from ? d >= t.from && d <= t.due : t.due === d);
+const khYtOn = (t, d) => (isRepeat(t) ? occursOn(t, d) : !t.due ? !t.done && d >= today() : t.from ? d >= t.from && d <= t.due : t.due === d);
 function khPdYTable(months) {
   const tasks = S.tasks.filter(khInChain);
   const key = khRoles().map((r) => {

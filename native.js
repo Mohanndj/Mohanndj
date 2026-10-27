@@ -125,7 +125,7 @@ const WaiBridge = (() => {
     const skip = d === today() ? closeSkips() : [], out = [];
     for (const t of S.tasks) {
       const on = isRepeat(t) ? !goalEnded(t) && occursOn(t, d) && !t.completions[d] && !skip.includes(t.id)
-        : dueOpen(t, d) && !(isGoal(t) && skip.includes(t.id));
+        : dueNow(t, d) && !(isGoal(t) && skip.includes(t.id));
       if (!on) continue;
       const m = hasTime(t) ? timeOn(t, d) : null, late = false, cnt = isCounted(t); // (v146: no «متأخرة» in red: the owner: «المتعثرات مكانها الإحصائيات والتقرير فقط»)
       // its time and a count (written by the app: a tick there adds one)
