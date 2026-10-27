@@ -2126,3 +2126,8 @@ li.sel .sel-box { background: var(--high); }
 .kh-need b { color: #b45309; }
 .kh-need span { font-size: .85rem; color: var(--muted); }
 .kh-need-tag { color: #b45309; }
+/* one role only in «يومي», «أسبوعي», «شهري», «سنتي» (v140) */
+.kh-rolef { flex-wrap: wrap; margin: 10px 0 2px; }
+.kh-rolef .chip { display: inline-flex; align-items: center; gap: 6px; }
+.kh-rolef .chip[aria-pressed="true"] { border-color: var(--rc, var(--accent)); color: var(--rc, var(--accent)); }
+.kh-rdot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); flex: none; }

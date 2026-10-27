@@ -18,7 +18,7 @@ const KH_COLORS = ['#3d7a8a', '#a0522d', '#6b5b95', '#2e7d5b', '#b0662a', '#8a4f
 const KH_SUGGEST = ['عبدٌ لله', 'ابن', 'زوج', 'أب', 'موظف', 'طالب علم', 'صديق', 'صاحب مشروع', 'كاتب'];
 const KH_TABS = [['roles', 'أدواري'], ['today', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري'], ['year', 'سنتي'], ['life', 'حياتي'], ['stats', 'إحصائياتي']];
 const KH_WD = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']; // first letters of the days, from Sunday
-const khUi = { tab: 'today', wk: '', mo: '', yr: '', review: '', rv: {}, rvq: null, st: { mode: 'week' } };
+const khUi = { tab: 'today', wk: '', mo: '', yr: '', review: '', rv: {}, rvq: null, st: { mode: 'week' }, role: '' };
 
 function normalizeRole(r) { return { id: r.id || uid(), name: String(r.name || '').trim() || 'دور', created: r.created || Date.now(), tpl: r.tpl || '' }; } // (tpl: made by a template, v109)
 // «شحذ المنشار» is always there, after the user's own roles
@@ -331,7 +331,8 @@ function khSyncStart(g) {
     if (!mg) continue;
     const s = khChainStart(mg), e = khChainEnd(mg);
     if (s < t.repeat.start && !Object.keys(t.completions).length) t.repeat.start = s;
-    if (e) t.repeat.until = e < t.repeat.start ? t.repeat.start : e;
+    // (a book's reading goal ends when the book is read, never by date: its goal's months alone bound its days, v140)
+    if (e && !t.bookId) t.repeat.until = e < t.repeat.start ? t.repeat.start : e;
   }
 }
 // the calendar changed (or months edited): every chain's first and last days follow its months as they are now
@@ -340,12 +341,14 @@ function khResyncChains() { for (const g of S.kgoals.filter((x) => x.level === '
 function kgDrop(g) {
   const ids = new Set(kgSub(g).map((x) => x.id));
   // (a science's task with days done is closed, never deleted: study.js sciClose)
-  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x))) if (!(t.sciId && sciClose(t))) dropTask(t.id);
+  // (and a book's reading goal stays a book's: reading.js takes it on, v140)
+  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x) && !x.bookId)) if (!(t.sciId && sciClose(t))) dropTask(t.id);
   for (const t of S.tasks) if (ids.has(t.kgoal)) t.kgoal = '';
   // (a year carried on from it takes its place: its project stays with that year, and serves no goal if there is none)
   const line = khLineOf(g).filter((x) => !ids.has(x.id));
   for (const p of S.projects) if (ids.has(p.ygoal)) p.ygoal = line.length ? line[0].id : '';
   for (const sc of S.study) if (ids.has(sc.ygoal)) sc.ygoal = line.length ? line[0].id : ''; // (a science likewise, v137)
+  for (const b of S.books) if (ids.has(b.ygoal)) b.ygoal = line.length ? line[0].id : ''; // (and a book, v140)
   for (const x of S.kgoals) if (ids.has(x.prev)) x.prev = ids.has(g.prev) ? '' : g.prev;
   S.kgoals = S.kgoals.filter((x) => !ids.has(x.id));
 }
@@ -448,19 +451,34 @@ function khWeekItems(k) {
   return out;
 }
 const khFrac = (x) => x.done / x.need;
-function khWeekPct(k) {
-  const xs = khWeekItems(k);
+function khWeekPct(k, rid) {
+  const xs = khWeekItems(k).filter((x) => rid === undefined || khRoleIdOf(x.t) === rid);
   return xs.length ? Math.round((xs.reduce((n, x) => n + khFrac(x), 0) / xs.length) * 100) : null;
 }
 const khRec = (k) => S.weeks.find((w) => w.id === k);
 // after the review: the share kept from before what was cancelled
 const khShownPct = (k) => { const r = khRec(k); return r && r.review && r.review.pct !== null ? r.review.pct : khWeekPct(k); };
 
+// one role only (v140, the owner's request: «اجعل في خطط سنتي وشهري وأسبوعي ويومي إمكانية عرض ما تحت دور واحد فقط»):
+// a row of the roles above the four; what is shown, counted and measured there is that role's alone
+const khRoleF = () => (khUi.role && khRole(khUi.role) ? khUi.role : '');
+const khInRole = (t) => !khRoleF() || khRoleIdOf(t) === khRoleF();
+const khShownRoles = () => (khRoleF() ? khRoles().filter((r) => r.id === khRoleF()) : [...khRoles(), null]);
+const khRoleArg = () => (khRoleF() || undefined); // (khDoneIn: one role, or all)
+// a week's share: of that role's items (a review keeps the whole week's)
+const khPctFor = (k) => (khRoleF() ? khWeekPct(k, khRoleF()) : khShownPct(k));
+function khRoleBar() {
+  const rs = khRoles();
+  if (rs.length < 2) return '';
+  return `<div class="chips kh-rolef" role="group" aria-label="اعرض دوراً واحداً"><button type="button" class="chip" data-action="kh-role-f" data-v="" aria-pressed="${!khRoleF()}">كل الأدوار</button>${rs.map((r) => `<button type="button" class="chip" data-action="kh-role-f" data-v="${r.id}" aria-pressed="${khRoleF() === r.id}" style="--rc:${khColor(r.id)}"><i class="kh-rdot"></i>${esc(r.name)}</button>`).join('')}</div>`;
+}
+
 // ---------- the page ----------
 function viewPlan() {
   if (typeof syncReading === 'function') syncReading();
   if (khUi.review) return khReviewHTML(khUi.review);
   return `<div class="seg kh-tabs" role="group" aria-label="أقسام خطِّط">${KH_TABS.map(([v, l]) => `<button type="button" data-action="kh-tab" data-v="${v}" aria-pressed="${khUi.tab === v}">${l}</button>`).join('')}</div>
+  ${['today', 'week', 'month', 'year'].includes(khUi.tab) || !KH_TABS.some(([v]) => v === khUi.tab) ? khRoleBar() : ''}
   ${({ roles: khRolesHTML, week: khWeekHTML, month: khMonthHTML, year: khYearHTML, life: khLifeHTML, stats: khStatsHTML }[khUi.tab] || khTodayHTML)()}`;
 }
 
@@ -556,22 +574,22 @@ const khPrioBtn = (t, d) => { const on = t.prio === d; return `<button type="but
 const khLifeBtn = (t) => `<button type="button" class="kh-life" data-action="kh-life" data-id="${t.id}" aria-pressed="${!!t.life}">${t.life ? '✦ في حياتي' : '✦ ينعكس في حياتي؟'}</button>`;
 const khItem = (t, d, withTag) => `<ul class="list kh-one${t.prio === d ? ' kh-prio-on' : ''}">${itemHTML(t, d, { extra: `<div class="kh-side">${withTag ? khTag(t) : ''}${khWhyOf(t, d)}${khPrioBtn(t, d)}${doneOn(t, d) ? khLifeBtn(t) : ''}</div>` })}</ul>`;
 function khTodayHTML() {
-  const d = today(), k = khWeekOf(d);
-  const items = khTodayItems(d);
+  const d = today(), k = khWeekOf(d), rf = khRoleF();
+  const items = khTodayItems(d).filter(khInRole);
   const timed = items.filter(hasTime).sort((a, b) => (timeOn(a, d) ?? 9999) - (timeOn(b, d) ?? 9999));
   const un = items.filter((t) => !hasTime(t));
-  const np = items.filter((t) => t.prio === d).length;
+  const np = khTodayItems(d).filter((t) => t.prio === d).length; // (the three of the day, whatever the role shown)
   const left = (xs) => { const n = xs.filter((t) => !doneOn(t, d)).length; return xs.length ? `<small class="kh-left${n ? '' : ' ok'}">${n ? `بقي ${n}` : 'أنجزتها كلها'}</small>` : ''; };
   let lastL = '';
   const tl = timed.map((t) => { const l = timeLabel(t, d), h = l !== lastL ? `<span class="kh-tl-h">${esc(l)}</span>` : ''; lastL = l; return `${h}<div class="kh-tl-i" style="--rc:${khColor(khRoleIdOf(t))}">${khItem(t, d, true)}</div>`; }).join('');
-  const groups = [...khRoles(), null].map((r) => {
+  const groups = khShownRoles().map((r) => {
     const xs = un.filter((t) => khRoleIdOf(t) === (r ? r.id : ''));
     return xs.length ? `<div class="kh-day-role" style="--rc:${khColor(r ? r.id : '')}"><h3 class="kh-rt">${esc(r ? r.name : 'بلا دور')}</h3>${xs.map((t) => khItem(t, d, false)).join('')}</div>` : '';
   }).join('');
-  const undated = S.tasks.filter((t) => !isGoal(t) && !t.done && !t.bookId && !t.due);
+  const undated = S.tasks.filter((t) => !isGoal(t) && !t.done && !t.bookId && !t.due && khInRole(t));
   const pend = (t) => `<div class="kh-pend" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-link" data-action="open" data-id="${t.id}">${esc(t.title)}<small>${esc(khRoleName(khRoleIdOf(t), khAreaOf(t)))}${t.due ? ` | ${esc(dueLabel(t.due))}` : ''}</small></button><button type="button" class="ghost sm" data-action="kh-to-today" data-id="${t.id}">لليوم</button></div>`;
   // what had its day this week: another day of the rest of the week, or cancelled for this time
-  const miss = khMissed();
+  const miss = khMissed().filter((m) => khInRole(m.t));
   const mRow = (m) => `<div class="kh-pend kh-miss" style="--rc:${khColor(khRoleIdOf(m.t))}"><span class="kh-link">${esc(m.t.title)}<small>${esc(khRoleName(khRoleIdOf(m.t), khAreaOf(m.t)))} | كانت ليوم ${esc(AR_DAYS[parse(m.d).getDay()])}</small></span><span class="kh-miss-act"><button type="button" class="ghost sm" data-action="kh-mday" data-v="${m.kind}|${m.t.id}|${m.d}">اختر لها يوماً</button><button type="button" class="ghost sm" data-action="kh-mskip" data-v="${m.kind}|${m.t.id}|${m.d}">ألغها</button></span></div>`;
   return `<section class="section">
     <div class="section-head"><h2>يومي</h2><small>${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}</small></div>
@@ -582,8 +600,8 @@ function khTodayHTML() {
     ${miss.length ? `<div class="panel kh-block kh-miss-card"><div class="row-between"><h3>${icon('clock')} فاتك يومها</h3><small class="kh-left">${miss.length}</small></div><p class="note-text explain">مضى يومها ولم تعلّمها: اختر لها يوماً من بقية أسبوعك، أو ألغها لهذه المرة فتُحسب في نسبة أسبوعك غير منجزة. وإن كنت أنجزتها فعلّمها في «أسبوعي».</p>${miss.map(mRow).join('')}</div>` : ''}
     ${timed.length ? `<div class="panel kh-block"><div class="row-between"><h3>${icon('clock')} جدول يومك</h3>${left(timed)}</div><div class="kh-tl">${tl}</div></div>` : ''}
     ${un.length ? `<div class="panel kh-block"><div class="row-between"><h3>${timed.length ? 'في أي وقت من يومك' : 'مهام اليوم'}</h3>${left(un)}</div>${groups}</div>` : ''}
-    ${items.length ? '' : emptyHTML('لا شيء لهذا اليوم بعد', 'أضف مهمة لليوم، أو من خطتك.')}
-    <div class="btn-row">${addBtn('kh-new', 'مهمة لليوم', ` data-due="${d}"`)}${addBtn('kh-plan-pick', 'من خطتك', ` data-k="${k}" data-day="${d}"`)}</div>
+    ${items.length ? '' : emptyHTML(rf ? `لا شيء لهذا اليوم في «${khRole(rf).name}»` : 'لا شيء لهذا اليوم بعد', 'أضف مهمة لليوم، أو من خطتك.')}
+    <div class="btn-row">${addBtn('kh-new', 'مهمة لليوم', ` data-due="${d}"${rf ? ` data-role="${rf}"` : ''}`)}${addBtn('kh-plan-pick', 'من خطتك', ` data-k="${k}" data-day="${d}"`)}</div>
     ${undated.length ? `<details class="panel kh-block"><summary><b>بلا موعد (${undated.length})</b></summary>${undated.map(pend).join('')}</details>` : ''}
   </section>`;
 }
@@ -596,10 +614,10 @@ function khPrevReviewCall() {
 
 // ---------- أسبوعي ----------
 function khProgressHTML(k) {
-  const p = khShownPct(k), n = khWeekItems(k).length;
+  const p = khPctFor(k), n = khWeekItems(k).filter((x) => khInRole(x.t)).length;
   const msg = p === null ? 'أضف مهام أسبوعك: لكل دور مهمة واحدة على الأقل.' : p >= KH_RATE ? `أنجزت ${p}٪: أنت في الطريق الصحيح.` : 'القاعدة الذهبية: إن أنجزت ٧٠٪ من خطتك فأنت في الطريق الصحيح. وما بقي تنقله أو تختصره أو تلغيه في المراجعة.';
   return `<div class="panel kh-prog">
-    <div class="row-between"><b>إنجاز الأسبوع</b><span class="kh-pct${p !== null && p >= KH_RATE ? ' ok' : ''}">${p === null ? '—' : `${p}٪`}</span></div>
+    <div class="row-between"><b>إنجاز الأسبوع${khRoleF() ? ` في «${esc(khRole(khRoleF()).name)}»` : ''}</b><span class="kh-pct${p !== null && p >= KH_RATE ? ' ok' : ''}">${p === null ? '—' : `${p}٪`}</span></div>
     <div class="kh-track" role="img" aria-label="الإنجاز ${p === null ? 'لم يبدأ' : `${p}٪`}، والهدف ٧٠٪"><i style="width:${p || 0}%"></i><b class="kh-mark" style="inset-inline-start:${KH_RATE}%"></b></div>
     <p class="note-text">${msg}${n ? ` (${plural(n, 'بند واحد', 'بندان', 'بنود', 'بنداً')} في خطة الأسبوع)` : ''}</p>
   </div>`;
@@ -618,10 +636,10 @@ function khRepRow(x, t0, k) {
 }
 // the week's hints: roles with nothing in it, and a side of «شحذ المنشار» with nothing; or the first step, with no roles yet
 function khWeekHints(k, xs) {
-  const mine = khRoles().filter((r) => r.id !== KH_SAW);
+  const mine = khRoles().filter((r) => r.id !== KH_SAW && (!khRoleF() || r.id === khRoleF()));
   if (!mine.length) return '<div class="panel"><b>ابدأ بأدوارك</b><p class="note-text">من أنت في حياتك؟ ابن، وزوج، وموظف… ثم ضع لكل دور هدفاً.</p><button type="button" class="primary" data-action="kh-tab" data-v="roles">حدّد أدواري</button></div>';
   const lonely = mine.filter((r) => !xs.some((x) => khRoleIdOf(x.t) === r.id) && !S.kgoals.some((g) => g.level === 'week' && kgRoleId(g) === r.id && wgActive(g, k)));
-  const sawMiss = Object.keys(KH_AREAS).filter((a) => !xs.some((x) => khRoleIdOf(x.t) === KH_SAW && khAreaOf(x.t) === a));
+  const sawMiss = khRoleF() && khRoleF() !== KH_SAW ? [] : Object.keys(KH_AREAS).filter((a) => !xs.some((x) => khRoleIdOf(x.t) === KH_SAW && khAreaOf(x.t) === a));
   if (!lonely.length && !sawMiss.length) return '';
   return `<div class="panel kh-hints">${lonely.length ? `<p class="note-text"><b>أدوار بلا مهمة هذا الأسبوع:</b> ${lonely.map((r) => esc(r.name)).join('، ')}. اجعل لكل دور مهمة واحدة على الأقل من خطته، ولو صغيرة.</p>` : ''}${sawMiss.length ? `<p class="note-text"><b>شحذ المنشار:</b> لم تضع شيئاً لجانب ${sawMiss.map((a) => `«${KH_AREAS[a]}»`).join(' و')}.</p>` : ''}</div>`;
 }
@@ -656,7 +674,7 @@ function khWeekHTML() {
     ${khProgressHTML(k)}
     ${khWeekHints(k, xs)}
     ${addDays(k, 6) <= t0 ? `<button type="button" class="${rec && rec.review ? 'ghost' : 'primary'} kh-rv-btn" data-action="kh-review" data-v="${k}">${rec && rec.review ? `✓ راجعت هذا الأسبوع ${esc(relDate(rec.review.at))}: افتح المراجعة` : 'راجع أسبوعك'}</button>` : ''}
-    ${[...khRoles(), null].map(card).join('')}
+    ${khShownRoles().map(card).join('')}
   </section>`;
 }
 
@@ -779,7 +797,7 @@ function khSetProj(yg, sel, roleId) {
 // «العلم» in the year's step (v137, the owner's choice: every science is a year goal, as a project is): not a science, or a
 // science of «الدراسة» (one goal each); its days' task is then its study sessions (study.js syncStudy)
 function khSciField(w) {
-  if (!S.study.length) return '';
+  if (!S.study.length || w.bookSel) return '';
   const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
   const ss = S.study.filter((s) => s.id === w.sciSel || !sciGoal(s) || line.includes(sciGoal(s)));
   return `<label class="field"><span>العلم</span><select id="khwSci">
@@ -793,6 +811,25 @@ function khSetSci(yg, sel) {
   for (const s of S.study) if (s.ygoal && khLineOf(kgOf(s.ygoal)).includes(yg)) s.ygoal = '';
   const s = sel && getSci(sel);
   if (s) { s.ygoal = yg.id; s.updated = Date.now(); }
+}
+// «الكتاب» in the year's step (v140, the owner: «الكتب كلها تدخل ضمن الأدوار ويجري عليها التسلسل»): not a book, or a book
+// still to read or being read (one goal each); while it is read, its reading goal is the task of its days (reading.js)
+function khBookField(w) {
+  if (w.sciSel) return '';
+  const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
+  const bs = S.books.filter((b) => b.id === w.bookSel || (['reading', 'want'].includes(b.status) && (!bookGoal(b) || line.includes(bookGoal(b)))));
+  if (!bs.length) return '';
+  return `<label class="field"><span>الكتاب</span><select id="khwBook">
+    <option value=""${!w.bookSel ? ' selected' : ''}>ليس كتاباً</option>
+    ${bs.map((b) => `<option value="${b.id}"${b.id === w.bookSel ? ' selected' : ''}>${esc(b.title)}${b.status === 'reading' ? '' : ` (${esc(BOOK_STATUS[b.status])})`}</option>`).join('')}</select></label>`;
+}
+function khSetBook(yg, sel) {
+  if (!yg) return;
+  const cur = bookOfGoal(yg);
+  if (cur && cur.id === sel) return;
+  for (const b of S.books) if (b.ygoal && khLineOf(kgOf(b.ygoal)).includes(yg)) b.ygoal = '';
+  const b = sel && getBook(sel);
+  if (b) b.ygoal = yg.id;
 }
 // «انقله إلى السنة التالية» in its step: what is written is saved, then its year after opens to be edited
 const khExtBtn = (yg) => (yg && /^[gh]\d{4}$/.test(yg.period) ? `<button type="button" class="kh-cont lv-year" data-action="kh-w" data-op="ext">${icon('plus')}<span>${khNextOf(yg) ? `عدّل سنته التالية (${esc(khKeyLabel(khNextOf(yg).period))})` : `امدده إلى السنة التالية (${esc(khKeyLabel(yg.period[0] + (Number(yg.period.slice(1)) + 1)))})`}</span></button>` : '');
@@ -824,7 +861,7 @@ function khExtend(yg) {
       const nw = normalizeKGoal({ ...wg, id: uid(), parent: nm.id, status: 'open', closedAt: '', ticks: {}, created: now, from: '', tpl: '' });
       S.kgoals.push(nw);
       const s0 = khChainStart(nm), e0 = khChainEnd(nm);
-      for (const t of kgTasks(wg).filter((x) => isRepeat(x) && !x.sciId)) { // (a science's one task goes on into it by itself, study.js)
+      for (const t of kgTasks(wg).filter((x) => isRepeat(x) && !x.sciId && !x.bookId)) { // (a science's or a book's one task goes on into it by itself)
         S.tasks.push(normalize({ ...t, id: uid(), kgoal: nw.id, created: now, done: false, doneAt: null, completions: {}, counts: {}, notes: [], subtasks: [], prio: '', life: false, skip: {}, tpl: '', movedFrom: '',
           repeat: { ...t.repeat, start: s0, until: e0 && e0 >= s0 ? e0 : s0, skip: {}, mv: {} } }));
       }
@@ -835,6 +872,13 @@ function khExtend(yg) {
 }
 // the tasks of a project: its own, and the tasks of its goal's days (v126), each once
 function khProjTasks(p) { const yg = khProjGoal(p); return [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])]; }
+// the week goal of a year goal's line a science's or a book's task goes under: the one it is under while its months last,
+// else the first of the line's still to come (v140, from study.js sciWeekGoal)
+function khLineWeekGoal(yg, cur) {
+  const ws = khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).filter((w) => !kgClosedOf(w));
+  const live = (w) => { const e = khChainEnd(kgOf(w.parent)); return !e || e >= today(); };
+  return ws.find((w) => w.id === cur && live(w)) || ws.find(live) || ws.find((w) => w.id === cur) || null;
+}
 const khProjGoal = (p) => { const g = p && kgOf(p.ygoal); return g && g.level === 'year' ? g : null; };
 function khGoalTasks(yg) {
   const ws = new Set(khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).map((w) => w.id));
@@ -956,9 +1000,9 @@ function khMonthNode(g, m) {
 function khMonthHTML() {
   const now = khMoStart(today()), m = khUi.mo ? khMoStart(khUi.mo) : now, end = khMoNext(m), cur = weekStartOf(today());
   // its weeks: those that start in it, each with its share (one still to come has none yet)
-  const weeks = khWeeksOf(m).filter((k) => k <= cur || khWeekItems(k).length), pk = (k) => (k > cur ? null : khShownPct(k));
+  const weeks = khWeeksOf(m).filter((k) => k <= cur || khWeekItems(k).some((x) => khInRole(x.t))), pk = (k) => (k > cur ? null : khPctFor(k));
   const pcts = weeks.map(pk).filter((x) => x !== null), avg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
-  const n = khDoneIn(m, end), life = khLifeRec(m, end).length;
+  const n = khDoneIn(m, end, khRoleArg()), life = khLifeRec(m, end).filter((x) => khInRole(x.t)).length;
   const card = (r) => {
     const gs = S.kgoals.filter((g) => g.level === 'month' && kgRoleId(g) === (r ? r.id : '') && mgActive(g, m));
     if (!r && !gs.length) return '';
@@ -970,7 +1014,7 @@ function khMonthHTML() {
     <p class="note-text explain">أهداف الشهر خطوات من أهداف سنتك. الشهر يتحقق بأسابيعه، والأسبوع بأيامه؛ ولك أن تعلّم «تحقّق هذا الشهر» بحكمك أنت.</p>
     <div class="panel kh-stats"><div class="kh-nums"><span><b>${khN(n)}</b>${n === 1 ? 'إنجاز' : 'إنجازات'}</span><span><b>${avg === null ? '—' : `${avg}٪`}</b>متوسط أسابيعه</span><span><b>${khN(life)}</b>في حياتي</span></div>
       ${weeks.length ? `<div class="kh-chips">${weeks.map((k) => { const p = pk(k); return `<button type="button" class="chip${p !== null && p >= KH_RATE ? ' ok' : ''}" data-action="kh-goweek" data-v="${k}">${esc(khDayLabel(k))}: ${p === null ? (k > cur ? 'لم يأتِ' : 'بلا بنود') : `${p}٪`}</button>`; }).join('')}</div>` : ''}</div>
-    ${[...khRoles(), null].map(card).join('')}
+    ${khShownRoles().map(card).join('')}
   </section>`;
 }
 
@@ -1007,7 +1051,7 @@ function khYearHTML() {
   const now = khYrStart(today()), y = khUi.yr ? khYrStart(khUi.yr) : now, end = khYrNext(y);
   const months = [];
   for (let m = y; m < end; m = khMoNext(m)) months.push(m);
-  const counts = months.map((m) => khDoneIn(m, khMoNext(m))), max = Math.max(1, ...counts), n = khDoneIn(y, end);
+  const counts = months.map((m) => khDoneIn(m, khMoNext(m), khRoleArg())), max = Math.max(1, ...counts), n = khDoneIn(y, end, khRoleArg());
   const card = (r) => {
     const gs = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === (r ? r.id : '') && khYrOfKey(g.period) === y);
     if (!r && !gs.length) return '';
@@ -1017,8 +1061,8 @@ function khYearHTML() {
     ${khPeriodNav(y === now ? 'سنتي' : 'سنة', khYrLabel(y), khYrPrev(y), end, 'kh-yr', y !== now ? 'العودة إلى هذه السنة' : '')}
     ${khPdfBtn('year')}
     <p class="note-text explain">من رؤيتك في كل دور: هدف لسنتك، ثم أشهره، ثم أسابيعها، ثم أيامها. والسنة تتحقق بأشهرها.</p>
-    ${[...khRoles(), null].map(card).join('')}
-    <div class="panel"><div class="row-between"><b>إنجازات السنة</b><span class="kh-pct ok">${khN(n)}</span></div>
+    ${khShownRoles().map(card).join('')}
+    <div class="panel"><div class="row-between"><b>إنجازات السنة${khRoleF() ? ` في «${esc(khRole(khRoleF()).name)}»` : ''}</b><span class="kh-pct ok">${khN(n)}</span></div>
       <div class="kh-months">${months.map((m, i) => `<button type="button" class="kh-mo${m === khMoStart(today()) ? ' now' : ''}" data-action="kh-gomonth" data-v="${m}"><span>${esc(khMoShort(m))}</span><span class="kh-track sm"><i style="width:${Math.round((counts[i] / max) * 100)}%"></i></span><small>${khN(counts[i])}</small></button>`).join('')}</div></div>
   </section>`;
 }
@@ -1114,6 +1158,7 @@ function khWizard(o = {}) {
     kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '',
     projSel: o.proj || (yg ? (khProjOfGoal(yg) || {}).id || '' : ''),
     sciSel: o.sci || (yg ? (sciOfGoal(yg) || {}).id || '' : ''),
+    bookSel: o.book || (yg ? (bookOfGoal(yg) || {}).id || '' : ''),
     yearId: yg ? yg.id : '', monthId: mg ? mg.id : '', weekId: wg ? wg.id : '',
     vision: yg ? yg.parent : o.vision || (khVisions(roleId)[0] || {}).id || '', vText: '',
     yText: yg ? yg.text : o.yText || '', why: yg ? yg.why : '', laws: { ...(yg ? yg.laws : {}) }, yk: (yg && yg.period) || o.yk || khYearOpts()[0][0],
@@ -1187,6 +1232,7 @@ function khWizDraw0() {
       <label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}${khRole(w.roleId) ? '' : '<option value="" selected>بلا دور</option>'}</select></label>
       ${khProjField(w)}
       ${khSciField(w)}
+      ${khBookField(w)}
       <label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis"><option value="">بلا ربط</option>${ups.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
       <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${khYearChoices(yg ? yg.period : w.yk).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>
@@ -1199,11 +1245,12 @@ function khWizDraw0() {
       ${btns()}`;
   } else if (w.step === 0) {
     const vs = khVisions(w.roleId), yg = kgOf(w.yearId);
-    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel), sc = w.sciSel && getSci(w.sciSel);
-    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : sc ? `علم «${esc(sc.name)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
+    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel), sc = w.sciSel && getSci(w.sciSel), bk = w.bookSel && getBook(w.bookSel);
+    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : sc ? `علم «${esc(sc.name)}»: هدف لسنتك` : bk ? `كتاب «${esc(bk.title)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
       ${khProjField(w)}
       ${khSciField(w)}
-      ${pr || sc ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
+      ${khBookField(w)}
+      ${pr || sc || bk ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
       ${vs.length === 1 ? khCtx('life', 'رؤيتك في هذا الدور', vs[0].text)
         : vs.length > 1 ? `<label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis">${vs.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>`
         : `<label class="field kh-q lv-life"><span>ما رؤيتك في «${role}»؟ الصورة التي تريد أن تكون عليها في هذا الدور</span><textarea id="khwVt" rows="2">${esc(w.vText)}</textarea></label>`}
@@ -1243,17 +1290,20 @@ function khWizDraw0() {
     const wg = kgOf(w.weekId), days = khDays(w.k).filter((d) => d >= today());
     // a science's goal (v138): the days chosen here are its study days (its page shows them), chosen one by one
     const scg = !w.once && wg && sciOfGoal(kgYear(wg));
-    if (scg && !w.sciDays) { w.sciDays = true; w.dMode = 'fixed'; if (scg.days.length) { w.days = [...scg.days]; khWizCards(); } }
+    // a book's goal likewise (v140): the days chosen here are its reading days
+    const bkg = !w.once && wg && !scg && bookOfGoal(kgYear(wg)), dd = scg ? scg.days : bkg ? bkg.rdays : [];
+    if ((scg || bkg) && !w.sciDays) { w.sciDays = true; w.dMode = 'fixed'; if (dd.length) { w.days = [...dd]; khWizCards(); } }
     body = `${w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
       ${((sc) => (sc ? khCtx('day', 'مهمة أيامك في هذا العلم', `دراسة ${sc.name}: في الأيام التي تختارها هنا (هي أيام دراسته في صفحته) وأيام مراجعاته، وتُنجز بإتمام دروسها ومراجعاتها`) : ''))(wg && sciOfGoal(kgYear(wg)))}
+      ${((bk) => (bk ? khCtx('day', 'مهمة أيامك في هذا الكتاب', `${bookTitleOf(bk)}: في الأيام التي تختارها هنا (هي أيام قراءته في نافذته)، وكل جلسة تتقدم بها صفحتك بما قرأت فعلاً${bk.status === 'reading' ? '' : '، وتبدأ حين تجعله «أقرؤه الآن»'}`) : ''))(wg && !sciOfGoal(kgYear(wg)) && bookOfGoal(kgYear(wg)))}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
       ${w.once ? `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button></div>${w.day ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
-        : `<div class="kh-ask lv-day"><span class="kh-al">${scg ? `في أيّ أيام تدرس ${esc(scg.name)}؟` : 'في أيّ أيام هذه الأسابيع؟'}</span>
-          ${scg ? '' : `<div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>`}
+        : `<div class="kh-ask lv-day"><span class="kh-al">${scg ? `في أيّ أيام تدرس ${esc(scg.name)}؟` : bkg ? `في أيّ أيام تقرأ «${esc(bkg.title)}»؟` : 'في أيّ أيام هذه الأسابيع؟'}</span>
+          ${scg || bkg ? '' : `<div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>`}
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
-      <label class="field kh-q lv-day"><span>${wg && sciOfGoal(kgYear(wg)) ? 'مهام أخرى لهذا الهدف (اختياري): كل مهمة في سطر' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
+      <label class="field kh-q lv-day"><span>${wg && (sciOfGoal(kgYear(wg)) || bookOfGoal(kgYear(wg))) ? 'مهام أخرى لهذا الهدف (اختياري): كل مهمة في سطر' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
       <div id="khwCards">${khWizCardsHTML()}</div>
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
@@ -1267,6 +1317,7 @@ function khWizKeep() {
     if (v('khwVt') !== null) w.vText = v('khwVt');
     if (v('khwProj') !== null) w.projSel = v('khwProj');
     if (v('khwSci') !== null) w.sciSel = v('khwSci');
+    if (v('khwBook') !== null) w.bookSel = v('khwBook');
     w.yText = v('khwY') ?? w.yText; w.why = v('khwWhy') ?? w.why;
     document.querySelectorAll('#libForm [data-kh-law]').forEach((c) => { w.laws[c.dataset.khLaw] = c.checked; });
   }
@@ -1288,6 +1339,7 @@ function khWizCommit0() {
     khMoveYear(yg, w.yk);
     khSetProj(yg, w.projSel, w.roleId);
     khSetSci(yg, w.sciSel);
+    khSetBook(yg, w.bookSel);
     khFollowCal(yg.period);
     save();
     return true;
@@ -1306,6 +1358,7 @@ function khWizCommit0() {
     // a project's own year goal (v126): the project takes its role
     khSetProj(kgOf(w.yearId), w.projSel, w.roleId);
     khSetSci(kgOf(w.yearId), w.sciSel); // (a science's year goal, v137)
+    khSetBook(kgOf(w.yearId), w.bookSel); // (a book's, v140)
     khFollowCal(w.yk);
   }
   if (w.step === 1) {
@@ -1325,7 +1378,7 @@ function khWizCommit0() {
   if (w.step === 3) {
     const wg = kgOf(w.weekId), mg = wg && kgOf(wg.parent);
     // (a science's goal: its study sessions are the task of its days, other tasks are for the asking)
-    if (!w.cards.length && !(wg && sciOfGoal(kgYear(wg)))) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
+    if (!w.cards.length && !(wg && (sciOfGoal(kgYear(wg)) || bookOfGoal(kgYear(wg))))) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
     if (!wg || !mg) { toast('هدف الأسبوع لم يعد موجوداً.'); return false; }
     if (w.once && w.day && !khDays(w.k).includes(w.day)) { toast('اختر يوماً من أيام هذا الأسبوع.'); return false; }
     const bad = w.once ? -1 : w.cards.findIndex((c) => c.mode !== 'count' && !c.days.length);
@@ -1341,8 +1394,17 @@ function khWizCommit0() {
       scg.days = [...w.days].sort();
       if (st) st.repeat.days = [...scg.days];
     }
-    // (a line named for the science is its session, not a second task: v139)
-    for (const c of w.cards.filter((c) => !(scg && sciBare(c.text) === sciBare(scg.name)))) {
+    // a book's goal likewise: its reading days, on its reading goal there (the book's sheet shows them, v140)
+    const bkg = !w.once && !scg && bookOfGoal(kgYear(wg));
+    if (bkg) {
+      if (!w.days.length) { toast(`اختر أيام قراءة «${bkg.title}».`); return false; }
+      syncReading();
+      const bt = activeBookGoal(bkg);
+      bkg.rdays = [...w.days].sort();
+      if (bt) bt.repeat.days = [...bkg.rdays];
+    }
+    // (a line named for the science or the book is its own task, not a second one: v139, v140)
+    for (const c of w.cards.filter((c) => !(scg && sciBare(c.text) === sciBare(scg.name)) && !(bkg && bookBare(c.text) === bookBare(bkg.title)))) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)
       const rep = c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start, until, per: c.per } : { days: [...c.days].sort(), start, until };
@@ -1486,6 +1548,7 @@ document.addEventListener('click', (e) => {
   if (!el) return;
   const { action, v } = el.dataset;
   switch (action) {
+    case 'kh-role-f': khUi.role = v; render(); break;
     case 'kh-tab': khUi.tab = v; if (el.dataset.yr !== undefined) khUi.yr = el.dataset.yr; render(); window.scrollTo({ top: 0 }); break;
     case 'kh-wk': khUi.wk = addDays(khUi.wk || khWeekOf(today()), Number(v)); render(); break;
     case 'kh-wk-now': khUi.wk = ''; render(); break;
@@ -1504,7 +1567,8 @@ document.addEventListener('click', (e) => {
     case 'kh-stmode': khUi.st = { ...khUi.st, mode: v }; render(); break;
     case 'kh-stgo': { const R = khStatRange(khUi.st); if (v) khUi.st = { ...khUi.st, [R.key]: v }; render(); break; }
     case 'kh-plan-pick': khPlanPick(el.dataset.k, el.dataset.day); break;
-    case 'kh-wiz': { const o = el.dataset; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
+    case 'kh-wiz': { const o = el.dataset; if (!bookSheetKeep()) break; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
+    case 'kh-book-link': { if (!bookSheetKeep()) break; const b = getBook(v), g = bookGoal(b); if (!b) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, book: b.id, yText: `قراءة «${b.title}»` }); break; }
     case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
     case 'kh-proj-link': { const p = getProject(v), g = khProjGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name }); break; }
     case 'kh-task-link': khTaskLinkSheet(v); break;
@@ -1689,7 +1753,7 @@ document.addEventListener('change', (e) => {
   if (ldraft && ldraft.kind === 'khwiz') {
     if (e.target.id === 'khwVis') { ldraft.vision = e.target.value; return; }
     if (e.target.id === 'khwProj') { khWizKeep(); khWizDraw(); return; }
-    if (e.target.id === 'khwSci') { khWizKeep(); khWizDraw(); return; }
+    if (e.target.id === 'khwSci' || e.target.id === 'khwBook') { khWizKeep(); khWizDraw(); return; }
     if (e.target.id === 'khwRole') { khWizKeep(); ldraft.roleId = e.target.value; const up = kgOf(ldraft.vision); if (up && up.roleId !== ldraft.roleId) ldraft.vision = ''; khWizDraw(); return; }
     if (ds.khCtm !== undefined || ds.khCarea !== undefined) khWizKeep(); // (the cards are made again from the lines: first, then the change)
     const c = ldraft.cards[Number(ds.khCtm ?? ds.khCarea ?? -1)];

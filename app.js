@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 139;
+const APP_VERSION = 140;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1241,10 +1241,13 @@ function setKind(kind) {
   // a book's task: its title, days, date and project follow the book (syncReading rewrites them), so not edited here
   // (a science's task likewise follows its science, v137)
   const cur = (draft.id && getTask(draft.id)) || {}, sci = !!cur.sciId, bk = !!cur.bookId || sci;
+  // (a book's reading goal in «خطِّط»: its days are its plan's, edited here, v140)
+  const bplan = !!(cur.bookId && cur.kgoal && isRepeat(cur) && !goalEnded(cur));
   $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !cur.bookId; $('fSciNote').hidden = !sci;
+  $('fBookNote').textContent = bplan ? 'عنوانها من صفحة الكتاب، وأيامها أيام قراءته في «خطِّط» تُعدَّل هنا.' : 'عنوانها وأيامها وتاريخها تُعدَّل من صفحة الكتاب.';
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
   // a science's study days are its plan's (v138): they alone are edited here, and its page in «الدراسة» shows them
-  const sd = sci && !cur.left;
+  const sd = (sci && !cur.left) || bplan;
   $('fRepeatMode').hidden = sd; $('fStart').closest('.grid2').hidden = sd;
   if (sd) { $('goalFields').hidden = false; $('repeatFields').hidden = false; for (const id of ['onceGoalFields', 'targetBox', 'habitSection']) $(id).hidden = true; }
 }
@@ -1381,7 +1384,7 @@ function openSheet(id, opts = {}) {
     repeat: t ? isRepeat(t) : kind === 'goal' && opts.repeat !== false,
     days: t && t.repeat ? [...t.repeat.days] : [...DAY_ORDER],
     per: t && t.repeat && t.repeat.per ? t.repeat.per : 0, // «عدد أيام أيّها كان»: a number a week on any day
-    sci: !!(t && t.sciId), // a science's task: its days chosen one by one (no «any days»), none chosen stays none
+    sci: !!(t && (t.sciId || (t.bookId && t.kgoal && isRepeat(t)))), // a science's task (or a book's in «خطِّط», v140): its days chosen one by one (no «any days»), none chosen stays none
     notes: t ? t.notes.map((n) => ({ ...n })) : [],
     subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
     alarms: t ? [...t.alarms] : [],
@@ -1490,7 +1493,7 @@ function readDraft() {
       const start = $('fStart').value || today();
       let until = $('fUntil').value || null;
       if (until && until < start) until = start;
-      t.repeat = { days: (draft.days.length || base.sciId ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+      t.repeat = { days: (draft.days.length || draft.sci ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
       // «any days»: every day of the week may hold it, and its number a week is asked for (what «خطِّط» moved or cancelled is kept)
       if (draft.per) t.repeat = { ...t.repeat, days: [...DAY_ORDER].sort(), per: draft.per };
       for (const k of ['mv', 'skip']) if (base.repeat && base.repeat[k] && !draft.per) t.repeat[k] = base.repeat[k];

@@ -33,6 +33,7 @@ function normalizeBook(b) {
     // reading.js: topic, and reading days with pages per session
     // study.js: an enrichment book of a science of «الدراسة»
     studyId: String(b.studyId || ''),
+    ygoal: String(b.ygoal || ''), // «خطِّط» (v140): the year goal this book is, from the vision down to its reading days
     topic: String(b.topic || '').trim(), rdays: Array.isArray(b.rdays) ? [...new Set(b.rdays.map(Number).filter((d) => d >= 0 && d <= 6))] : [], rpages: Number(b.rpages) > 0 ? Math.round(Number(b.rpages)) : 0,
     pages: Number(b.pages) > 0 ? Math.round(Number(b.pages)) : '', page: Number(b.page) > 0 ? Math.round(Number(b.page)) : 0,
     log: Array.isArray(b.log) ? b.log.filter((e) => e && e.d && Number.isFinite(e.p)) : [],
@@ -248,6 +249,7 @@ function bookCard(b) {
     <span class="book-top"><strong>${esc(b.title)}</strong>${b.author ? `<small>${esc(b.author)}</small>` : ''}</span>
     <span class="book-line">${icon('cal')}${esc(bookLine(b))}</span>
     ${b.topic || (b.status === 'reading' && scheduleLine(b)) ? `<span class="book-line">${[b.topic ? `<span class="topic-tag">${esc(b.topic)}</span>` : '', libUi.bookTopic ? esc(BOOK_STATUS[b.status]) : '', b.status === 'reading' && scheduleLine(b) ? `📅 ${esc(scheduleLine(b))}` : ''].filter(Boolean).join(' | ')}</span>` : ''}
+    ${bookNeedLink(b) ? '<span class="book-line"><span class="psub kh-need-tag">ناقص: اربطه برؤية</span></span>' : ''}
     ${b.studyId && getSci(b.studyId) ? `<span class="book-line"><span class="topic-tag">${esc(`إثرائي في ${getSci(b.studyId).name}`)}</span></span>` : ''}
     ${pace ? `<span class="pbar"><i style="width:${pace.pct}%"></i></span>
       <span class="book-line">قرأت ${pace.pct}% | صفحة ${b.page} من ${b.pages}${pace.eta != null && pace.left ? ` | ${pace.byPlan ? 'بأيام قراءتك' : 'بسرعتك الحالية'} تنهيه ${pace.eta ? afterDays(pace.eta) : 'اليوم'}` : ''}</span>` : ''}
@@ -524,13 +526,16 @@ function saveLib() {
     const rvPick = $('lRvDue') ? $('lRvDue').value : '', rvAt = rvPick && rvPick < today() ? today() : rvPick;
     if (rv && !(old && old.rv)) Object.assign(rvFields, { rvStep: 0, rvDue: rvAt || addDays(today(), BOOK_RV[0]) });
     else if (rv && rvPick && rvPick !== old.rvDue) rvFields.rvDue = rvAt;
-    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, studyId: $('lStudy') ? $('lStudy').value : old ? old.studyId : '', topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0 });
+    const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, studyId: $('lStudy') ? $('lStudy').value : old ? old.studyId : '', topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0, ygoal: $('lGoal') ? $('lGoal').value : old ? old.ygoal : '' });
     if (old) {
       // keep the benefits' book name in sync
       for (const f of benefitsOf(id)) f.book = title;
       Object.assign(old, b);
     } else S.books.push(b);
     libUi.bookStatus = b.status;
+    // a book now read and not in «خطِّط» yet: its steps open, from the vision to its days (as a new science's do, v140)
+    const bk = getBook(id);
+    if (bk.status === 'reading' && !(old && old.status === 'reading') && bookNeedLink(bk) && !bookGoal(bk)) setTimeout(() => khWizard({ step: 0, book: bk.id, yText: `قراءة «${bk.title}»` }), 0);
   } else {
     const title = v('lTitle'), text = $('lText') ? $('lText').value.trim() : '', lesson = $('lLesson').value.trim(), bookName = v('lBook');
     const voices = ldraft.voices || [];
