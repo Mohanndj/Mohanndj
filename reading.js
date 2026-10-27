@@ -326,7 +326,7 @@ function bookPlanHTML(b) {
 }
 // the year goals it can be: open, its year not ended, not another book's or a science's
 function bookGoalOptions(b) {
-  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === b.ygoal || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today() && !S.books.some((x) => x.id !== b.id && x.ygoal === g.id) && !S.study.some((x) => x.ygoal === g.id))));
+  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === b.ygoal || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today() && !S.books.some((x) => x.id !== b.id && x.ygoal === g.id) && !S.study.some((x) => x.ygoal === g.id) && !S.hplans.some((x) => x.ygoal === g.id))));
   return `<option value="">لم يُربط بعد</option>${gs.map((g) => `<option value="${g.id}"${g.id === b.ygoal ? ' selected' : ''}>${esc(g.text)} | ${esc(khRoleName(kgRoleId(g)))} | ${esc(khKeyLabel(g.period))}</option>`).join('')}`;
 }
 // the book editor: topic and reading days (a book in «خطِّط»: its days are its tasks' there, shown here, v140, v141)

@@ -348,6 +348,7 @@ function kgDrop(g) {
   for (const p of S.projects) if (ids.has(p.ygoal)) p.ygoal = line.length ? line[0].id : '';
   for (const sc of S.study) if (ids.has(sc.ygoal)) sc.ygoal = line.length ? line[0].id : ''; // (a science likewise, v137)
   for (const b of S.books) if (ids.has(b.ygoal)) b.ygoal = line.length ? line[0].id : ''; // (and a book, v140)
+  for (const p of S.hplans) if (ids.has(p.ygoal)) p.ygoal = line.length ? line[0].id : ''; // (and a memorising plan, v142)
   for (const x of S.kgoals) if (ids.has(x.prev)) x.prev = ids.has(g.prev) ? '' : g.prev;
   S.kgoals = S.kgoals.filter((x) => !ids.has(x.id));
 }
@@ -796,7 +797,7 @@ function khSetProj(yg, sel, roleId) {
 // «العلم» in the year's step (v137, the owner's choice: every science is a year goal, as a project is): not a science, or a
 // science of «الدراسة» (one goal each); its days' task is then its study sessions (study.js syncStudy)
 function khSciField(w) {
-  if (!S.study.length || w.bookSel) return '';
+  if (!S.study.length || w.bookSel || w.hzSel) return '';
   const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
   const ss = S.study.filter((s) => s.id === w.sciSel || !sciGoal(s) || line.includes(sciGoal(s)));
   return `<label class="field"><span>العلم</span><select id="khwSci">
@@ -814,7 +815,7 @@ function khSetSci(yg, sel) {
 // «الكتاب» in the year's step (v140, the owner: «الكتب كلها تدخل ضمن الأدوار ويجري عليها التسلسل»): not a book, or a book
 // still to read or being read (one goal each); while it is read, its reading goal is the task of its days (reading.js)
 function khBookField(w) {
-  if (w.sciSel) return '';
+  if (w.sciSel || w.hzSel) return '';
   const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
   const bs = S.books.filter((b) => b.id === w.bookSel || (['reading', 'want'].includes(b.status) && (!bookGoal(b) || line.includes(bookGoal(b)))));
   if (!bs.length) return '';
@@ -829,6 +830,25 @@ function khSetBook(yg, sel) {
   for (const b of S.books) if (b.ygoal && khLineOf(kgOf(b.ygoal)).includes(yg)) b.ygoal = '';
   const b = sel && getBook(sel);
   if (b) b.ygoal = yg.id;
+}
+// «الحفظ» in the year's step (v142, the owner: «أضف كذلك للحفظ ما اتفقنا عليه»): not a plan, or a memorising plan not
+// finished (one goal each); its days are then the tasks of its days
+function khHzField(w) {
+  if (w.sciSel || w.bookSel) return '';
+  const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
+  const ps = S.hplans.filter((p) => p.id === w.hzSel || (!p.doneAt && (!hpGoal(p) || line.includes(hpGoal(p)))));
+  if (!ps.length) return '';
+  return `<label class="field"><span>خطة الحفظ</span><select id="khwHz">
+    <option value=""${!w.hzSel ? ' selected' : ''}>ليست خطة حفظ</option>
+    ${ps.map((p) => `<option value="${p.id}"${p.id === w.hzSel ? ' selected' : ''}>${esc(p.title)}</option>`).join('')}</select></label>`;
+}
+function khSetHz(yg, sel) {
+  if (!yg) return;
+  const cur = hpOfGoal(yg);
+  if (cur && cur.id === sel) return;
+  for (const p of S.hplans) if (p.ygoal && khLineOf(kgOf(p.ygoal)).includes(yg)) p.ygoal = '';
+  const p = sel && getPlan(sel);
+  if (p) p.ygoal = yg.id;
 }
 // «انقله إلى السنة التالية» in its step: what is written is saved, then its year after opens to be edited
 const khExtBtn = (yg) => (yg && /^[gh]\d{4}$/.test(yg.period) ? `<button type="button" class="kh-cont lv-year" data-action="kh-w" data-op="ext">${icon('plus')}<span>${khNextOf(yg) ? `عدّل سنته التالية (${esc(khKeyLabel(khNextOf(yg).period))})` : `امدده إلى السنة التالية (${esc(khKeyLabel(yg.period[0] + (Number(yg.period.slice(1)) + 1)))})`}</span></button>` : '');
@@ -1151,6 +1171,7 @@ function khWizard(o = {}) {
     projSel: o.proj || (yg ? (khProjOfGoal(yg) || {}).id || '' : ''),
     sciSel: o.sci || (yg ? (sciOfGoal(yg) || {}).id || '' : ''),
     bookSel: o.book || (yg ? (bookOfGoal(yg) || {}).id || '' : ''),
+    hzSel: o.hz || (yg ? (hpOfGoal(yg) || {}).id || '' : ''),
     yearId: yg ? yg.id : '', monthId: mg ? mg.id : '', weekId: wg ? wg.id : '',
     vision: yg ? yg.parent : o.vision || (khVisions(roleId)[0] || {}).id || '', vText: '',
     yText: yg ? yg.text : o.yText || '', why: yg ? yg.why : '', laws: { ...(yg ? yg.laws : {}) }, yk: (yg && yg.period) || o.yk || khYearOpts()[0][0],
@@ -1225,6 +1246,7 @@ function khWizDraw0() {
       ${khProjField(w)}
       ${khSciField(w)}
       ${khBookField(w)}
+      ${khHzField(w)}
       <label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis"><option value="">بلا ربط</option>${ups.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
       <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${khYearChoices(yg ? yg.period : w.yk).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>
@@ -1237,12 +1259,13 @@ function khWizDraw0() {
       ${btns()}`;
   } else if (w.step === 0) {
     const vs = khVisions(w.roleId), yg = kgOf(w.yearId);
-    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel), sc = w.sciSel && getSci(w.sciSel), bk = w.bookSel && getBook(w.bookSel);
-    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : sc ? `علم «${esc(sc.name)}»: هدف لسنتك` : bk ? `كتاب «${esc(bk.title)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
+    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel), sc = w.sciSel && getSci(w.sciSel), bk = w.bookSel && getBook(w.bookSel), hp = w.hzSel && getPlan(w.hzSel);
+    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : sc ? `علم «${esc(sc.name)}»: هدف لسنتك` : bk ? `كتاب «${esc(bk.title)}»: هدف لسنتك` : hp ? `حفظ «${esc(hp.title)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
       ${khProjField(w)}
       ${khSciField(w)}
       ${khBookField(w)}
-      ${pr || sc || bk ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
+      ${khHzField(w)}
+      ${pr || sc || bk || hp ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
       ${vs.length === 1 ? khCtx('life', 'رؤيتك في هذا الدور', vs[0].text)
         : vs.length > 1 ? `<label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis">${vs.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>`
         : `<label class="field kh-q lv-life"><span>ما رؤيتك في «${role}»؟ الصورة التي تريد أن تكون عليها في هذا الدور</span><textarea id="khwVt" rows="2">${esc(w.vText)}</textarea></label>`}
@@ -1303,6 +1326,7 @@ function khWizKeep() {
     if (v('khwProj') !== null) w.projSel = v('khwProj');
     if (v('khwSci') !== null) w.sciSel = v('khwSci');
     if (v('khwBook') !== null) w.bookSel = v('khwBook');
+    if (v('khwHz') !== null) w.hzSel = v('khwHz');
     w.yText = v('khwY') ?? w.yText; w.why = v('khwWhy') ?? w.why;
     document.querySelectorAll('#libForm [data-kh-law]').forEach((c) => { w.laws[c.dataset.khLaw] = c.checked; });
   }
@@ -1325,6 +1349,7 @@ function khWizCommit0() {
     khSetProj(yg, w.projSel, w.roleId);
     khSetSci(yg, w.sciSel);
     khSetBook(yg, w.bookSel);
+    khSetHz(yg, w.hzSel);
     khFollowCal(yg.period);
     save();
     return true;
@@ -1344,6 +1369,7 @@ function khWizCommit0() {
     khSetProj(kgOf(w.yearId), w.projSel, w.roleId);
     khSetSci(kgOf(w.yearId), w.sciSel); // (a science's year goal, v137)
     khSetBook(kgOf(w.yearId), w.bookSel); // (a book's, v140)
+    khSetHz(kgOf(w.yearId), w.hzSel); // (a memorising plan's, v142)
     khFollowCal(w.yk);
   }
   if (w.step === 1) {
@@ -1534,6 +1560,7 @@ document.addEventListener('click', (e) => {
     case 'kh-plan-pick': khPlanPick(el.dataset.k, el.dataset.day); break;
     case 'kh-wiz': { const o = el.dataset; if (!bookSheetKeep()) break; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
     case 'kh-book-link': { if (!bookSheetKeep()) break; const b = getBook(v), g = bookGoal(b); if (!b) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, book: b.id, yText: `قراءة «${b.title}»` }); break; }
+    case 'kh-hz-link': { closeLib(); const p = getPlan(v), g = hpGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, hz: p.id, yText: `حفظ «${p.title}»` }); break; }
     case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
     case 'kh-proj-link': { const p = getProject(v), g = khProjGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name }); break; }
     case 'kh-task-link': khTaskLinkSheet(v); break;
@@ -1718,7 +1745,7 @@ document.addEventListener('change', (e) => {
   if (ldraft && ldraft.kind === 'khwiz') {
     if (e.target.id === 'khwVis') { ldraft.vision = e.target.value; return; }
     if (e.target.id === 'khwProj') { khWizKeep(); khWizDraw(); return; }
-    if (e.target.id === 'khwSci' || e.target.id === 'khwBook') { khWizKeep(); khWizDraw(); return; }
+    if (e.target.id === 'khwSci' || e.target.id === 'khwBook' || e.target.id === 'khwHz') { khWizKeep(); khWizDraw(); return; }
     if (e.target.id === 'khwRole') { khWizKeep(); ldraft.roleId = e.target.value; const up = kgOf(ldraft.vision); if (up && up.roleId !== ldraft.roleId) ldraft.vision = ''; khWizDraw(); return; }
     if (ds.khCtm !== undefined || ds.khCarea !== undefined) khWizKeep(); // (the cards are made again from the lines: first, then the change)
     const c = ldraft.cards[Number(ds.khCtm ?? ds.khCarea ?? -1)];

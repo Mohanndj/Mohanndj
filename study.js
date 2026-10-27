@@ -213,7 +213,7 @@ function sciPlanHTML(s) {
 }
 // the year goals it can be: open, its year not ended, not another science's
 function sciGoalOptions(s) {
-  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === s.ygoal || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today() && !S.study.some((x) => x.id !== s.id && x.ygoal === g.id) && !S.books.some((b) => b.ygoal === g.id))));
+  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === s.ygoal || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today() && !S.study.some((x) => x.id !== s.id && x.ygoal === g.id) && !S.books.some((b) => b.ygoal === g.id) && !S.hplans.some((x) => x.ygoal === g.id))));
   return `<option value="">لم يُربط بعد</option>${gs.map((g) => `<option value="${g.id}"${g.id === s.ygoal ? ' selected' : ''}>${esc(g.text)} | ${esc(khRoleName(kgRoleId(g)))} | ${esc(khKeyLabel(g.period))}</option>`).join('')}`;
 }
 

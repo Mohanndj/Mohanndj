@@ -103,6 +103,7 @@ function normalizeHPlan(p) {
     surah: Number(p.surah) || 0, from: Number(p.from) || 0, portion: Math.max(1, Number(p.portion) || 3),
     days: Array.isArray(p.days) && p.days.length ? p.days.map(Number).filter((d) => d >= 0 && d <= 6) : [0, 1, 2, 3, 4, 5, 6],
     pos: Math.max(0, Number(p.pos) || 0), log: p.log && typeof p.log === 'object' ? p.log : {}, doneAt: p.doneAt || '', created: p.created || Date.now(),
+    ygoal: String(p.ygoal || ''), // «خطِّط» (v142): the year goal this plan is, from the vision down to its days
   };
 }
 const getPlan = (id) => S.hplans.find((p) => p.id === id);
@@ -110,7 +111,44 @@ const getPlan = (id) => S.hplans.find((p) => p.id === id);
 const planUnits = (p) => (p.type === 'poem' ? parsePoem(p.text, 'sep').map((b) => poemToText([b])) : p.text.split('\n').map((l) => l.trim()).filter(Boolean));
 // (a card memorised again by choice, «أعده للحفظ», is not the plan's portion of today)
 const planPending = (p) => S.hifz.find((h) => h.planId === p.id && h.state === 'learn' && !h.relearn);
-const planToday = (p, d = today()) => !p.doneAt && p.days.includes(parse(d).getDay());
+const planToday = (p, d = today()) => !p.doneAt && hpDayOn(p, d);
+// A plan in «خطِّط» (v142, the owner: «أضف كذلك للحفظ ما اتفقنا عليه», as a science and a book are): a year goal of a role's
+// vision (p.ygoal, one goal each). Its tasks are the tasks of its days the owner writes in that goal's line, ticked by hand,
+// and its days are those tasks' days (the app makes no task of its own for it)
+const hpGoal = (p) => { const g = p && kgOf(p.ygoal); return g && g.level === 'year' ? g : null; };
+const hpOfGoal = (yg) => (yg ? S.hplans.find((p) => hpGoal(p) && khLineOf(hpGoal(p)).includes(yg)) || null : null);
+const hpNeedLink = (p) => !p.doneAt && (!hpGoal(p) || !kgOf(hpGoal(p).parent));
+const hpPlanTasks = (p) => (hpGoal(p) ? khGoalTasks(hpGoal(p)).filter((x) => isRepeat(x) && !x.sciId && !x.bookId) : []);
+// a day of the plan: one of its tasks' in «خطِّط» (req: as the totals count it), else one of its own days
+const hpDayOn = (p, d, req) => (hpGoal(p) ? hpPlanTasks(p).some((t) => (req ? reqOn : occursOn)(t, d)) : p.days.includes(parse(d).getDay()));
+const hpDayName = (p) => (hpGoal(p) ? [...new Set(hpPlanTasks(p).map(khDaysText))].join('، ') : p.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => p.days.includes(d)).map((d) => AR_DAYS[d]).join('، '));
+// kept true to its line on every redraw: its days are its tasks' there (for the time left to it, planEta)
+function syncHifz() {
+  let changed = false;
+  for (const p of S.hplans.filter(hpGoal)) {
+    const ts = hpPlanTasks(p);
+    if (!ts.length) continue;
+    const days = [...new Set(ts.flatMap((t) => t.repeat.days))].sort();
+    if (String(days) !== String([...p.days].sort())) { p.days = days; changed = true; }
+  }
+  if (changed) save();
+}
+// its place in «خطِّط»: the year goal it is, or what is missing
+function hpPlanHTML(p) {
+  const g = hpGoal(p);
+  if (hpNeedLink(p)) return `<div class="kh-need"><b>ناقص: اربطها برؤية دورها</b><span>خطة الحفظ هدف لسنتك في تسلسل الدور والرؤية، وجلسات حفظها مهام أيامه في «خطِّط».</span><button type="button" class="primary" data-action="kh-hz-link" data-v="${p.id}">أكمل: من الرؤية إلى الأيام</button></div>`;
+  if (!g) return '';
+  return `<div class="st-facts">
+      <div class="st-fact"><small>هدف السنة</small><b>${esc(g.text)}</b></div>
+      <div class="st-fact"><small>الدور</small><b>${esc(khRoleName(kgRoleId(g)))}</b></div>
+    </div>
+    <div class="btn-row">${khContOf(g)}<button type="button" class="ghost sm" data-action="kh-hz-link" data-v="${p.id}">${icon('edit')} هدف السنة</button></div>`;
+}
+// the year goals it can be: open, its year not ended, not another plan's, a science's or a book's
+function hpGoalOptions(p) {
+  const gs = S.kgoals.filter((g) => g.level === 'year' && (g.id === p.ygoal || (!kgClosedOf(g) && (khKeySpan(g.period) || [, '9999'])[1] > today() && !S.hplans.some((x) => x.id !== p.id && x.ygoal === g.id) && !S.study.some((x) => x.ygoal === g.id) && !S.books.some((b) => b.ygoal === g.id))));
+  return `<option value="">لم تُربط بعد</option>${gs.map((g) => `<option value="${g.id}"${g.id === p.ygoal ? ' selected' : ''}>${esc(g.text)} | ${esc(khRoleName(kgRoleId(g)))} | ${esc(khKeyLabel(g.period))}</option>`).join('')}`;
+}
 function planNext(p) {
   const units = planUnits(p);
   const a = Math.min(p.pos, units.length), b = Math.min(units.length, a + p.portion);
@@ -159,8 +197,9 @@ function planCard(p) {
   return `<article class="plan-card${planToday(p) && !p.log[today()] && !done ? ' today' : ''}">
     <button type="button" class="hz-main" data-action="hz-plan-edit" data-v="${p.id}">
       <b>${HIFZ_TYPES[p.type][1]} ${esc(p.title)}</b>
-      <small>${unitWord(p.type, p.portion)} في الجلسة | ${p.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => p.days.includes(d)).map((d) => AR_DAYS[d]).join('، ')}</small>
+      <small>${unitWord(p.type, p.portion)} في الجلسة | ${esc(hpDayName(p) || 'لم تُحدَّد أيامها')}</small>
     </button>
+    ${hpNeedLink(p) ? '<span class="psub kh-need-tag">ناقص: اربطها برؤية</span>' : ''}
     <div class="row-between"><small>حفظت ${learned} من ${unitWord(p.type, total)}</small><small>${pct}%</small></div>
     <div class="progress-line"><i style="width:${pct}%"></i></div>
     ${done ? '<p class="hz-done">✓ أتممت حفظها</p>' : `<div class="row-between">
@@ -180,7 +219,9 @@ function openPlan(id) {
     <div class="sheet-head"><h2>خطة الحفظ</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="field"><span>العنوان</span><input type="text" id="plTitle" value="${esc(p.title)}" autocomplete="off"></label>
-    ${planFieldsHTML(p.type, p.portion, p.days)}
+    ${hpPlanHTML(p)}
+    <label class="field"><span>هدف السنة في «خطِّط»</span><select id="plGoal">${hpGoalOptions(p)}</select></label>
+    ${planFieldsHTML(p.type, p.portion, p.days, hpGoal(p) ? hpDayName(p) || 'لم تُحدَّد بعد' : null)}
     <p class="note-text">حفظت ${Math.min(p.pos, total)} من ${unitWord(p.type, total)}.</p>
     <div class="sheet-actions">
       <button type="submit" class="primary">حفظ</button>
@@ -192,18 +233,22 @@ function openPlan(id) {
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
 }
-function planFieldsHTML(type, portion, days) {
+// (a plan in «خطِّط»: its days are its tasks' there, shown as they are, v142)
+function planFieldsHTML(type, portion, days, planned = null) {
   return `<div class="field"><label for="plPortion">المقدار في كل جلسة</label>
       <div class="pl-row"><input type="number" id="plPortion" min="1" max="200" inputmode="numeric" value="${portion}"><b id="plUnit">${UNIT[type][1]}</b></div>
     </div>
-    <div class="field"><span>أيام الحفظ</span><div class="chips wrap pl-days" id="plDays">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="hz-plan-day" data-v="${d}" aria-pressed="${days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>
+    ${planned !== null ? `<div class="field"><span>أيام الحفظ</span><p class="note-text">${esc(planned)}: من «خطِّط»، أيام مهامها في هدف هذه الخطة، وتُعدَّل منها.</p></div>`
+      : `<div class="field"><span>أيام الحفظ</span><div class="chips wrap pl-days" id="plDays">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="hz-plan-day" data-v="${d}" aria-pressed="${days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>`}
     <p class="note-text" id="plEta"></p>`;
 }
 function savePlan() {
   const p = getPlan(ldraft.id);
   if (!ldraft.days.length) { toast('اختر يوماً واحداً على الأقل.'); return false; }
-  Object.assign(p, { title: $('plTitle').value.trim() || p.title, portion: Math.max(1, parseInt($('plPortion').value, 10) || p.portion), days: [...ldraft.days].sort() });
+  Object.assign(p, { title: $('plTitle').value.trim() || p.title, portion: Math.max(1, parseInt($('plPortion').value, 10) || p.portion), days: [...ldraft.days].sort(), ygoal: $('plGoal').value });
   save();
+  // linked now to a year goal whose line is not built yet: its steps open (as a science's do)
+  if (hpNeedLink(p) && hpGoal(p)) setTimeout(() => khWizard({ step: 0, edit: 'year', yearId: p.ygoal }), 0);
   return true;
 }
 function updatePlanEta() {
@@ -387,9 +432,9 @@ function saveHifz() {
     const p = normalizeHPlan({ type, title: title || (type === 'quran' ? `سورة ${SURAHS[q.s - 1]}${q.from > 1 || q.to < AYAT[q.s - 1] ? ` ${q.from}–${q.to}` : ''}` : excerpt(text.split('\n')[0], 30)), source, text, surah: q.s, from: q.from, portion, days: ldraft.days });
     S.hplans.push(p);
     save();
-    const go = planToday(p);
-    toast(go ? 'أُنشئت الخطة. هذا مقدار اليوم' : 'أُنشئت الخطة، وستظهر لك في صفحة «اليوم» في أيام الحفظ');
-    if (go) setTimeout(() => startPlan(p.id), 50);
+    // a new plan is a year goal of a role's vision: its steps open, from the vision to its days (v142, as a new science's)
+    toast('أُنشئت الخطة. اربطها برؤية دورها، ثم تظهر لك في «اليوم» في أيام مهامها');
+    setTimeout(() => khWizard({ step: 0, hz: p.id, yText: `حفظ «${p.title}»` }), 0);
     return true;
   }
   const h = normalizeHifz({ ...(old || {}), id: ldraft.id, type, text, title, source, surah: q.s, from: q.from, to: q.to });

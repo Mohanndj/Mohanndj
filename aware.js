@@ -215,7 +215,7 @@ function awareStats(P) {
     for (const d of all) {
       const n = Number(p.log[d]) || 0;
       if (d <= last) { done += n; if (n) daysDone++; }
-      if (d < dayOfTs(p.created) || (p.doneAt && d > p.doneAt) || !p.days.includes(parse(d).getDay())) continue;
+      if (d < dayOfTs(p.created) || (p.doneAt && d > p.doneAt) || !hpDayOn(p, d, true)) continue; // (a plan in «خطِّط»: its tasks' days there, v142)
       days++; due += p.portion; if (d >= t0 && !(d === t0 && n)) dueLeft += p.portion;
     }
     const req = Math.max(0, Math.min(due, total - before));

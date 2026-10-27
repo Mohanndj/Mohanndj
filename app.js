@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 141;
+const APP_VERSION = 142;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1086,6 +1086,7 @@ function render() {
   // a book's reading session is due on its next reading day, whatever page is drawn (a day gone by left it late)
   syncReading();
   syncStudy(); // a science's task in «خطِّط» follows its science (study.js, v137)
+  syncHifz(); // a memorising plan's days are its tasks' in «خطِّط» (hifz.js, v142)
   khMemo.clear();
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
