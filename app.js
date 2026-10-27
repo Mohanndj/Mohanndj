@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 136;
+const APP_VERSION = 137;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -163,6 +163,7 @@ function normalize(t) {
     count: Number(t.count) || 0, // progress of a one-time counted goal
     habit: repeat ? normalizeHabit(t.habit) : null,
     bookId: t.bookId || '',
+    sciId: t.sciId || '', // a science's task in «خطِّط» (study.js, v137): its days and whether each is done follow the science
     readPages: t.readPages && typeof t.readPages === 'object' ? t.readPages : {}, // a book task: pages actually read per session day
     left: /^\d{4}-\d{2}-\d{2}$/.test(t.left || '') ? t.left : '', // a book task that left its reading project with sessions: kept closed
     readOn: /^\d{4}-\d{2}-\d{2}$/.test(t.readOn || '') ? t.readOn : '', // a reading session moved to another day («للغد» in the evening close)
@@ -329,6 +330,8 @@ function occursOn(t, d) {
   if (!r || d < r.start || (r.until && d > r.until)) return false;
   // a task of the days of a goal in «خطِّط» shows in its goal's months and weeks only (plan.js, v98)
   if (t.kgoal && !khChainOn(t, d)) return false;
+  // a science's task: on its study days and the days of its reviews, while there is something to do (a closed one: its days done)
+  if (t.sciId) { const s = !t.left && getSci(t.sciId); return s ? sciDay(s, d).need > 0 : !!t.completions[d]; }
   // a goal of «any days»: on the list every day until the week's number is done (a day already gone is not waiting)
   if (r.per) { const q = quotaOf(t, weekStartOf(d)); return !!t.completions[d] || (d >= today() && q.done < q.need); }
   return repDay(r, d);
@@ -420,6 +423,8 @@ function toggle(id, date, quiet) { // (quiet: from the Android app's widget, nob
   const t = getTask(id);
   if (!t) return;
   const d = date || today();
+  // a science's task is done by its lessons and reviews, never by hand: its circle opens what is left of the day
+  if (t.sciId) { sciOpenNext(t, d); return; }
   // (a reading session done today can still be taken back, though the book's task moved to its next day)
   if (notYetOn(t, d) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(isRepeat(t) ? d : t.due)}`); return; }
   if (offDay(t, d)) { toast(`${dueLabel(d)} ليس من أيامها`); return; }
@@ -509,7 +514,8 @@ function metaHTML(t, d, opts = {}) {
   if (p && !opts.noProject) meta.push(projectChip(p));
   if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
   if (t.category) meta.push(`<span class="cat">${esc(t.category)}</span>`);
-  if (isRepeat(t)) {
+  if (t.sciId && !t.left) meta.push(sciMeta(t, d));
+  else if (isRepeat(t)) {
     meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
     // «any days»: how many of the week's number are done
     if (t.repeat.per) { const q = quotaOf(t, weekStartOf(d || today())); if (q.need) meta.push(`<span class="num">هذا الأسبوع: ${Math.min(q.done, q.need)} من ${q.need}</span>`); }
@@ -938,7 +944,7 @@ function completionEvents() {
     if (t.bookId && !getBook(t.bookId)) continue; // a deleted book's sessions went with it (as in «الكتب» in the report)
     const cat = t.category || 'بلا تصنيف';
     // kind: what the report counts it as (a habit day, a reading session, a goal day, a task)
-    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : 'goal' });
+    if (isRepeat(t)) for (const d of Object.keys(t.completions)) ev.push({ d, cat, type: 'goal', kind: isHabit(t) ? 'habit' : t.bookId ? 'read' : t.sciId ? 'study' : 'goal' });
     // (a book task with reading sessions: the sessions are its events, its finishing is not one more)
     else if (t.done && t.doneAt && !(t.bookId && Object.keys(t.completions || {}).length)) ev.push({ d: iso(new Date(t.doneAt)), cat, type: isGoal(t) ? 'goal' : 'task', kind: t.bookId ? 'book' : isGoal(t) ? 'goal' : 'task', projectId: t.projectId });
     // a reading project's book task: each day's reading session is a task done that day
@@ -1084,6 +1090,7 @@ function render() {
   const view = $('view');
   // a book's reading session is due on its next reading day, whatever page is drawn (a day gone by left it late)
   syncReading();
+  syncStudy(); // a science's task in «خطِّط» follows its science (study.js, v137)
   khMemo.clear();
   const active = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
   const caret = active && 'selectionStart' in document.activeElement ? document.activeElement.selectionStart : null;
@@ -1232,8 +1239,9 @@ function setKind(kind) {
   setGoalMode(draft.mode); // may rename the sheet to «عادة جديدة»
   khSyncRoleField(); // a goal has no project: its own role
   // a book's task: its title, days, date and project follow the book (syncReading rewrites them), so not edited here
-  const bk = !!(draft.id && (getTask(draft.id) || {}).bookId);
-  $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !bk;
+  // (a science's task likewise follows its science, v137)
+  const cur = (draft.id && getTask(draft.id)) || {}, sci = !!cur.sciId, bk = !!cur.bookId || sci;
+  $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !cur.bookId; $('fSciNote').hidden = !sci;
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
 }
 
@@ -1412,7 +1420,7 @@ function openSheet(id, opts = {}) {
   $('fNote').value = '';
   $('fSub').value = '';
   // a book's task is remade by syncReading as soon as it is deleted (losing its sessions): no «حذف» for it
-  $('delBtn').hidden = !existing || !!existing.bookId;
+  $('delBtn').hidden = !existing || !!existing.bookId || !!existing.sciId;
   $('delBtn').classList.remove('armed');
   $('delBtn').textContent = 'حذف';
   $('timerSec').hidden = !existing;

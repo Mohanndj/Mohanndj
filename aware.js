@@ -148,7 +148,8 @@ function awareStats(P) {
   ]);
 
   // 🎯 الأهداف المتكررة (غير العادات وأهداف القراءة) والأهداف لمرة واحدة
-  const goals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !t.bookId).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
+  // (a science's task is counted in «الدراسة», by its lessons and reviews, v137)
+  const goals = S.tasks.filter((t) => isRepeat(t) && !isHabit(t) && !t.bookId && !t.sciId).map((t) => ({ t, ...goalRun(t, P) })).filter((g) => g.total);
   const gT = sum(goals, (g) => g.total), gH = oneDec(sum(goals, (g) => g.hit));
   const onceAll = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && ((t.done && inP(dayOfTs(t.doneAt))) || inAll(t.due)));
   // (achieved after the period ended: not achieved in it, as for tasks)

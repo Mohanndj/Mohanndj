@@ -339,11 +339,13 @@ function khResyncChains() { for (const g of S.kgoals.filter((x) => x.level === '
 // a goal and all that is under it: its goals and the recurring tasks of its days go; its tasks for one week stay, unlinked
 function kgDrop(g) {
   const ids = new Set(kgSub(g).map((x) => x.id));
-  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x))) dropTask(t.id);
+  // (a science's task with days done is closed, never deleted: study.js sciClose)
+  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x))) if (!(t.sciId && sciClose(t))) dropTask(t.id);
   for (const t of S.tasks) if (ids.has(t.kgoal)) t.kgoal = '';
   // (a year carried on from it takes its place: its project stays with that year, and serves no goal if there is none)
   const line = khLineOf(g).filter((x) => !ids.has(x.id));
   for (const p of S.projects) if (ids.has(p.ygoal)) p.ygoal = line.length ? line[0].id : '';
+  for (const sc of S.study) if (ids.has(sc.ygoal)) sc.ygoal = line.length ? line[0].id : ''; // (a science likewise, v137)
   for (const x of S.kgoals) if (ids.has(x.prev)) x.prev = ids.has(g.prev) ? '' : g.prev;
   S.kgoals = S.kgoals.filter((x) => !ids.has(x.id));
 }
@@ -397,7 +399,7 @@ function khMissed() {
   const d = today(), k = khWeekOf(d), from = S.settings.khMfrom || d, out = [];
   for (const t of S.tasks) {
     if (isRepeat(t)) {
-      if (isHabit(t) || t.bookId || t.repeat.per || t.repeat.days.length === 7 || goalEnded(t)) continue;
+      if (isHabit(t) || t.bookId || t.sciId || t.repeat.per || t.repeat.days.length === 7 || goalEnded(t)) continue;
       for (const x of khDays(k)) if (x < d && x >= from && x >= t.repeat.start && occursOn(t, x) && !t.completions[x] && !(t.repeat.skip && t.repeat.skip[x])) out.push({ kind: 'g', t, d: x });
     } else if (!isGoal(t) && !t.bookId && !t.done && !t.from && t.due && t.due >= k && t.due < d && !(t.skip && t.skip[t.due])) out.push({ kind: 't', t, d: t.due });
   }
@@ -774,6 +776,24 @@ function khSetProj(yg, sel, roleId) {
   else if (sel) { p = getProject(sel); if (p) Object.assign(p, { ygoal: yg.id, roleId, area: '' }); }
   if (p) { khNameProj(yg); ldraft.projSel = p.id; }
 }
+// «العلم» in the year's step (v137, the owner's choice: every science is a year goal, as a project is): not a science, or a
+// science of «الدراسة» (one goal each); its days' task is then its study sessions (study.js syncStudy)
+function khSciField(w) {
+  if (!S.study.length) return '';
+  const yg = kgOf(w.yearId), line = yg ? khLineOf(yg) : [];
+  const ss = S.study.filter((s) => s.id === w.sciSel || !sciGoal(s) || line.includes(sciGoal(s)));
+  return `<label class="field"><span>العلم</span><select id="khwSci">
+    <option value=""${!w.sciSel ? ' selected' : ''}>ليس علماً</option>
+    ${ss.map((s) => `<option value="${s.id}"${s.id === w.sciSel ? ' selected' : ''}>${esc(s.emoji ? `${s.emoji} ${s.name}` : s.name)}</option>`).join('')}</select></label>`;
+}
+function khSetSci(yg, sel) {
+  if (!yg) return;
+  const cur = sciOfGoal(yg);
+  if (cur && cur.id === sel) return;
+  for (const s of S.study) if (s.ygoal && khLineOf(kgOf(s.ygoal)).includes(yg)) s.ygoal = '';
+  const s = sel && getSci(sel);
+  if (s) { s.ygoal = yg.id; s.updated = Date.now(); }
+}
 // «انقله إلى السنة التالية» in its step: what is written is saved, then its year after opens to be edited
 const khExtBtn = (yg) => (yg && /^[gh]\d{4}$/.test(yg.period) ? `<button type="button" class="kh-cont lv-year" data-action="kh-w" data-op="ext">${icon('plus')}<span>${khNextOf(yg) ? `عدّل سنته التالية (${esc(khKeyLabel(khNextOf(yg).period))})` : `امدده إلى السنة التالية (${esc(khKeyLabel(yg.period[0] + (Number(yg.period.slice(1)) + 1)))})`}</span></button>` : '');
 // a year goal written in a calendar turns the whole plan to it (v126, the owner's request: «التاريخ الهجري يقلب كل
@@ -804,7 +824,7 @@ function khExtend(yg) {
       const nw = normalizeKGoal({ ...wg, id: uid(), parent: nm.id, status: 'open', closedAt: '', ticks: {}, created: now, from: '', tpl: '' });
       S.kgoals.push(nw);
       const s0 = khChainStart(nm), e0 = khChainEnd(nm);
-      for (const t of kgTasks(wg).filter(isRepeat)) {
+      for (const t of kgTasks(wg).filter((x) => isRepeat(x) && !x.sciId)) { // (a science's one task goes on into it by itself, study.js)
         S.tasks.push(normalize({ ...t, id: uid(), kgoal: nw.id, created: now, done: false, doneAt: null, completions: {}, counts: {}, notes: [], subtasks: [], prio: '', life: false, skip: {}, tpl: '', movedFrom: '',
           repeat: { ...t.repeat, start: s0, until: e0 && e0 >= s0 ? e0 : s0, skip: {}, mv: {} } }));
       }
@@ -1093,6 +1113,7 @@ function khWizard(o = {}) {
   ldraft = {
     kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '',
     projSel: o.proj || (yg ? (khProjOfGoal(yg) || {}).id || '' : ''),
+    sciSel: o.sci || (yg ? (sciOfGoal(yg) || {}).id || '' : ''),
     yearId: yg ? yg.id : '', monthId: mg ? mg.id : '', weekId: wg ? wg.id : '',
     vision: yg ? yg.parent : o.vision || (khVisions(roleId)[0] || {}).id || '', vText: '',
     yText: yg ? yg.text : o.yText || '', why: yg ? yg.why : '', laws: { ...(yg ? yg.laws : {}) }, yk: (yg && yg.period) || o.yk || khYearOpts()[0][0],
@@ -1165,6 +1186,7 @@ function khWizDraw0() {
     body = `<h3 class="kh-wh">هدف السنة</h3>
       <label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}${khRole(w.roleId) ? '' : '<option value="" selected>بلا دور</option>'}</select></label>
       ${khProjField(w)}
+      ${khSciField(w)}
       <label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis"><option value="">بلا ربط</option>${ups.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>
       <p class="kh-qt lv-year">هذه السنة، ما الذي تراه يقرّبك من رؤيتك؟</p>
       <div class="seg kh-yrs" role="group" aria-label="أيّ سنة؟">${khYearChoices(yg ? yg.period : w.yk).map(([k, l]) => khWBtn('yk', k, esc(l), k === w.yk)).join('')}</div>
@@ -1177,10 +1199,11 @@ function khWizDraw0() {
       ${btns()}`;
   } else if (w.step === 0) {
     const vs = khVisions(w.roleId), yg = kgOf(w.yearId);
-    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel);
-    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
+    const pr = w.projSel && w.projSel !== 'new' && getProject(w.projSel), sc = w.sciSel && getSci(w.sciSel);
+    body = `${khWizBar(0)}<h3 class="kh-wh">${pr ? `مشروع «${esc(pr.name)}»: هدف لسنتك` : sc ? `علم «${esc(sc.name)}»: هدف لسنتك` : `هدف لسنتك في «${role}»`}</h3>
       ${khProjField(w)}
-      ${pr ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
+      ${khSciField(w)}
+      ${pr || sc ? `<label class="field"><span>الدور</span><select id="khwRole">${khRoles().map((r) => `<option value="${r.id}"${r.id === w.roleId ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></label>` : ''}
       ${vs.length === 1 ? khCtx('life', 'رؤيتك في هذا الدور', vs[0].text)
         : vs.length > 1 ? `<label class="field"><span>يخدم أيّ رؤية؟</span><select id="khwVis">${vs.map((v) => `<option value="${v.id}"${v.id === w.vision ? ' selected' : ''}>${esc(v.text)}</option>`).join('')}</select></label>`
         : `<label class="field kh-q lv-life"><span>ما رؤيتك في «${role}»؟ الصورة التي تريد أن تكون عليها في هذا الدور</span><textarea id="khwVt" rows="2">${esc(w.vText)}</textarea></label>`}
@@ -1220,13 +1243,14 @@ function khWizDraw0() {
     const wg = kgOf(w.weekId), days = khDays(w.k).filter((d) => d >= today());
     body = `${w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
+      ${((sc) => (sc ? khCtx('day', 'مهمة أيامك في هذا العلم', `دراسة ${sc.name}: في أيام دراسته${sc.days.length ? ` (${sciDayName(sc)})` : ''} وأيام مراجعاته، وتُنجز بإتمام دروسها ومراجعاتها`) : ''))(wg && sciOfGoal(kgYear(wg)))}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
       ${w.once ? `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button></div>${w.day ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
         : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
           <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
-      <label class="field kh-q lv-day"><span>اكتب جوابك: كل مهمة في سطر</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
+      <label class="field kh-q lv-day"><span>${wg && sciOfGoal(kgYear(wg)) ? 'مهام أخرى لهذا الهدف (اختياري): كل مهمة في سطر' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
       <div id="khwCards">${khWizCardsHTML()}</div>
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
@@ -1239,6 +1263,7 @@ function khWizKeep() {
     if (v('khwVis') !== null) w.vision = v('khwVis');
     if (v('khwVt') !== null) w.vText = v('khwVt');
     if (v('khwProj') !== null) w.projSel = v('khwProj');
+    if (v('khwSci') !== null) w.sciSel = v('khwSci');
     w.yText = v('khwY') ?? w.yText; w.why = v('khwWhy') ?? w.why;
     document.querySelectorAll('#libForm [data-kh-law]').forEach((c) => { w.laws[c.dataset.khLaw] = c.checked; });
   }
@@ -1259,6 +1284,7 @@ function khWizCommit0() {
     Object.assign(yg, { roleId: w.roleId, text: w.yText.trim(), why: w.why.trim(), laws: { ...w.laws }, parent: w.vision || '', status: w.status });
     khMoveYear(yg, w.yk);
     khSetProj(yg, w.projSel, w.roleId);
+    khSetSci(yg, w.sciSel);
     khFollowCal(yg.period);
     save();
     return true;
@@ -1276,6 +1302,7 @@ function khWizCommit0() {
     if (yg) { const { period, ...rest } = v; Object.assign(yg, rest); khMoveYear(yg, period); const mg = kgOf(w.monthId); if (mg) w.months = [...mg.months]; } else { const g = normalizeKGoal({ level: 'year', ...v }); S.kgoals.push(g); w.yearId = g.id; } // (a moved goal's months step shows them where they went)
     // a project's own year goal (v126): the project takes its role
     khSetProj(kgOf(w.yearId), w.projSel, w.roleId);
+    khSetSci(kgOf(w.yearId), w.sciSel); // (a science's year goal, v137)
     khFollowCal(w.yk);
   }
   if (w.step === 1) {
@@ -1293,8 +1320,9 @@ function khWizCommit0() {
     if (wg) { Object.assign(wg, v); khSyncStart(wg); } else { const g = normalizeKGoal({ level: 'week', from: weekStartOf(today()), ...v }); S.kgoals.push(g); w.weekId = g.id; }
   }
   if (w.step === 3) {
-    if (!w.cards.length) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
     const wg = kgOf(w.weekId), mg = wg && kgOf(wg.parent);
+    // (a science's goal: its study sessions are the task of its days, other tasks are for the asking)
+    if (!w.cards.length && !(wg && sciOfGoal(kgYear(wg)))) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
     if (!wg || !mg) { toast('هدف الأسبوع لم يعد موجوداً.'); return false; }
     if (w.once && w.day && !khDays(w.k).includes(w.day)) { toast('اختر يوماً من أيام هذا الأسبوع.'); return false; }
     const bad = w.once ? -1 : w.cards.findIndex((c) => c.mode !== 'count' && !c.days.length);
@@ -1318,7 +1346,7 @@ function khWizNext() {
   khWizKeep();
   if (!khWizCommit()) return false;
   const w = ldraft;
-  if (w.edit || w.step === 3) { toast(w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
+  if (w.edit || w.step === 3) { toast(w.edit ? 'حُفظ الهدف' : w.first === 3 && w.cards.length ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
   w.step++;
   khWizDraw();
   $('libForm').scrollTop = 0;
@@ -1464,6 +1492,7 @@ document.addEventListener('click', (e) => {
     case 'kh-stgo': { const R = khStatRange(khUi.st); if (v) khUi.st = { ...khUi.st, [R.key]: v }; render(); break; }
     case 'kh-plan-pick': khPlanPick(el.dataset.k, el.dataset.day); break;
     case 'kh-wiz': { const o = el.dataset; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
+    case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
     case 'kh-proj-link': { const p = getProject(v), g = khProjGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name }); break; }
     case 'kh-task-link': khTaskLinkSheet(v); break;
     case 'kh-task-wg': { const t = getTask(v); if (!t) break; t.kgoal = el.dataset.w; save(); closeLib(); render(); toast('رُبطت بأسبوعها'); break; }
@@ -1647,6 +1676,7 @@ document.addEventListener('change', (e) => {
   if (ldraft && ldraft.kind === 'khwiz') {
     if (e.target.id === 'khwVis') { ldraft.vision = e.target.value; return; }
     if (e.target.id === 'khwProj') { khWizKeep(); khWizDraw(); return; }
+    if (e.target.id === 'khwSci') { khWizKeep(); khWizDraw(); return; }
     if (e.target.id === 'khwRole') { khWizKeep(); ldraft.roleId = e.target.value; const up = kgOf(ldraft.vision); if (up && up.roleId !== ldraft.roleId) ldraft.vision = ''; khWizDraw(); return; }
     if (ds.khCtm !== undefined || ds.khCarea !== undefined) khWizKeep(); // (the cards are made again from the lines: first, then the change)
     const c = ldraft.cards[Number(ds.khCtm ?? ds.khCarea ?? -1)];

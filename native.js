@@ -130,7 +130,7 @@ const WaiBridge = (() => {
       const m = hasTime(t) ? timeOn(t, d) : null, late = !isRepeat(t) && t.due < d, cnt = isCounted(t);
       const lab = (x) => (d === today() ? dueLabel(x) : fmtDate(x, { weekday: 'long', day: 'numeric', month: 'long' })); // (tomorrow's list is read tomorrow)
       // its time, «متأخرة» (in red there), and a count (written by the app: a tick there adds one)
-      out.push({ id: t.id, t: digitsOut(t.title), s: hasTime(t) ? digitsOut(timeLabel(t, d)) : '', l: late ? digitsOut(`متأخرة: ${lab(t.due)}`) : '', m, late, tick: !t.bookId, n: cnt ? countOn(t, d) : 0, of: cnt ? t.target : 0 });
+      out.push({ id: t.id, t: digitsOut(t.title), s: hasTime(t) ? digitsOut(timeLabel(t, d)) : '', l: late ? digitsOut(`متأخرة: ${lab(t.due)}`) : '', m, late, tick: !t.bookId && !t.sciId, n: cnt ? countOn(t, d) : 0, of: cnt ? t.target : 0 });
     }
     out.sort((a, b) => (a.m ?? 9999) - (b.m ?? 9999) || (b.late - a.late));
     const date = `${fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' })}${S.settings.hijri ? ` | ${fmtHijri(d)}` : ''}`;
@@ -147,7 +147,7 @@ const WaiBridge = (() => {
   // a task ticked on the widget: done as by its circle in «اليوم», without «كم استغرقت؟» (asked of nobody there)
   function widgetDone(id, d) {
     const t = getTask(id);
-    if (!t || t.bookId || doneOn(t, d)) return;
+    if (!t || t.bookId || t.sciId || doneOn(t, d)) return;
     toggle(id, d, true);
   }
 
