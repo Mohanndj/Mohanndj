@@ -408,6 +408,7 @@ function khLateAll() {
         for (let d = [r.start, from0].sort()[1]; d < t0; d = addDays(d, 1)) if (occursOn(t, d) && !t.completions[d] && !(r.skip && r.skip[d])) out.push({ t, d });
       } else if (!t.done && t.due && t.due < t0 && !(t.skip && t.skip[t.due])) out.push({ t, d: t.due });
     }
+    for (const x of out) x.at = khLateAt(x);
     return out.sort((x, y) => x.d.localeCompare(y.d));
   });
 }
@@ -416,9 +417,12 @@ function khLateAt(x) {
   const w = khWeekOf(x.d);
   return w === khWeekOf(today()) ? 'day' : khMoNext(khMoStart(w)) > today() ? 'week' : 'month';
 }
-// (the tasks for one time that are late: shown in «لم تُنجز في وقتها», not again among the tasks of their week or month)
+const khLates = (test) => khLateAll().filter((x) => khInRole(x.t) && test(x, x.at));
+// (the tasks for one time that are late: shown in «لم تُنجز في وقتها», not again among the tasks of their week)
 const khLateOnce = () => khMm('lateo', () => new Set(khLateAll().filter((x) => !isRepeat(x.t)).map((x) => x.t.id)));
-const khLates = (test) => khLateAll().filter((x) => khInRole(x.t) && test(x, khLateAt(x)));
+// the end of «شهري» for a month: this month, the late of its weeks that ended; a month over, its late of importance «قصوى»
+const khMoLates = (m) => (m === khMoStart(today()) ? khLates((x, at) => at === 'week' && khMoStart(khWeekOf(x.d)) === m)
+  : m < khMoStart(today()) ? khLates((x, at) => at === 'month' && x.t.priority === 'high' && khMoStart(khWeekOf(x.d)) === m) : []);
 const khLateLab = (x) => `${khRoleName(khRoleIdOf(x.t), khAreaOf(x.t))} | ${!isRepeat(x.t) && x.t.from ? `أسبوعها: ${khDayLabel(x.t.from)}` : `يومها: ${AR_DAYS[parse(x.d).getDay()]} ${khDayLabel(x.d)}`}`;
 // what passed its time and is still not done: ticked here, it is done on its day
 const khLateRows = (xs) => xs.map((x) => khDayBox(x.t, x.d, `<div class="kh-side">${khImpBtn(x.t)}</div>`, khLateLab(x))).join('');
@@ -1070,7 +1074,7 @@ function khMonthNode(g, m) {
     ${yg ? `<small class="kh-serve">يخدم سنتك: ${esc(yg.text)}</small>` : ''}
     ${khProg(x, 'week', 'هذا الشهر')}
     ${g.status === 'open' && full ? khDoneBadge('تحقّق هذا الشهر') : ''}
-    ${ws.map((w) => khChainWeek(w, khYrStart(m), live, (t) => (isRepeat(t) || !t.due || khMoStart(khWeekOf(t.due)) === m) && !khLateOnce().has(t.id))).join('')}
+    ${ws.map((w) => khChainWeek(w, khYrStart(m), live, (t) => (isRepeat(t) || !t.due || khMoStart(khWeekOf(t.due)) === m) && !khMoLates(m).some((x) => x.t === t))).join('')}
     ${!ws.length && live && mgAhead(g) ? khCont('week', 'أكمل: ثم أسابيعك', ` data-step="2" data-month="${g.id}"`) : ''}
   </div>`;
 }
@@ -1092,8 +1096,8 @@ function khMonthHTML() {
     <div class="panel kh-stats"><div class="kh-nums"><span><b>${khN(n)}</b>${n === 1 ? 'إنجاز' : 'إنجازات'}</span><span><b>${avg === null ? '—' : `${avg}٪`}</b>متوسط أسابيعه</span><span><b>${khN(life)}</b>في حياتي</span></div>
       ${weeks.length ? `<div class="kh-chips">${weeks.map((k) => { const p = pk(k); return `<button type="button" class="chip${p !== null && p >= KH_RATE ? ' ok' : ''}" data-action="kh-goweek" data-v="${k}">${esc(khDayLabel(k))}: ${p === null ? (k > cur ? 'لم يأتِ' : 'بلا بنود') : `${p}٪`}</button>`; }).join('')}</div>` : ''}</div>
     ${khShownRoles().map(card).join('')}
-    ${m === now ? khWeeksOf(m).filter((k) => k < khWeekOf(today())).map((k) => khLateBox(khLates((x, at) => at === 'week' && khWeekOf(x.d) === k), `لم تُنجز في وقتها: أسبوع ${khDayLabel(k)}`)).join('')
-      : m < now ? khLateBox(khLates((x, at) => at === 'month' && x.t.priority === 'high' && khMoStart(khWeekOf(x.d)) === m), 'لم تُنجز في وقتها في هذا الشهر') : ''}
+    ${m === now ? khWeeksOf(m).map((k) => khLateBox(khMoLates(m).filter((x) => khWeekOf(x.d) === k), `لم تُنجز في وقتها: أسبوع ${khDayLabel(k)}`)).join('')
+      : khLateBox(khMoLates(m), 'لم تُنجز في وقتها في هذا الشهر')}
   </section>`;
 }
 
