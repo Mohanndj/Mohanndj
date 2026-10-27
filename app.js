@@ -1490,7 +1490,8 @@ function readDraft() {
   };
   t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
   if (draft.kind === 'goal') {
-    t.projectId = '';
+    // (a recurring task of a project in its chain keeps its project when saved here, its alarm changed say: the owner approved it)
+    t.projectId = draft.lock && existing ? existing.projectId : '';
     t.target = Math.max(1, Math.min(999, parseInt($('fTarget').value, 10) || 1));
     t.unit = t.target > 1 ? $('fUnit').value.trim() : '';
     if (draft.mode === 'habit') {
