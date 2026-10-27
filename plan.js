@@ -1241,14 +1241,17 @@ function khWizDraw0() {
       ${btns('التالي: الأيام')}`;
   } else {
     const wg = kgOf(w.weekId), days = khDays(w.k).filter((d) => d >= today());
+    // a science's goal (v138): the days chosen here are its study days (its page shows them), chosen one by one
+    const scg = !w.once && wg && sciOfGoal(kgYear(wg));
+    if (scg && !w.sciDays) { w.sciDays = true; w.dMode = 'fixed'; if (scg.days.length) { w.days = [...scg.days]; khWizCards(); } }
     body = `${w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
-      ${((sc) => (sc ? khCtx('day', 'مهمة أيامك في هذا العلم', `دراسة ${sc.name}: في أيام دراسته${sc.days.length ? ` (${sciDayName(sc)})` : ''} وأيام مراجعاته، وتُنجز بإتمام دروسها ومراجعاتها`) : ''))(wg && sciOfGoal(kgYear(wg)))}
+      ${((sc) => (sc ? khCtx('day', 'مهمة أيامك في هذا العلم', `دراسة ${sc.name}: في الأيام التي تختارها هنا (هي أيام دراسته في صفحته) وأيام مراجعاته، وتُنجز بإتمام دروسها ومراجعاتها`) : ''))(wg && sciOfGoal(kgYear(wg)))}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
       ${w.once ? `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button></div>${w.day ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
-        : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
-          <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
+        : `<div class="kh-ask lv-day"><span class="kh-al">${scg ? `في أيّ أيام تدرس ${esc(scg.name)}؟` : 'في أيّ أيام هذه الأسابيع؟'}</span>
+          ${scg ? '' : `<div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>`}
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
       <label class="field kh-q lv-day"><span>${wg && sciOfGoal(kgYear(wg)) ? 'مهام أخرى لهذا الهدف (اختياري): كل مهمة في سطر' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
       <div id="khwCards">${khWizCardsHTML()}</div>
@@ -1329,6 +1332,15 @@ function khWizCommit0() {
     if (bad >= 0) { toast(`اختر أيام المهمة ${bad + 1}.`); return false; }
     const start = khChainStart(mg), until = khChainEnd(mg);
     if (!w.once && until && until < start) { toast('مضت أشهر هذا الهدف، فلا أيام بقيت لمهامه.'); return false; }
+    // a science's goal: the days chosen are its study days, on its task in the plan (study.js reflects them on its page, v138)
+    const scg = !w.once && sciOfGoal(kgYear(wg));
+    if (scg) {
+      if (!w.days.length) { toast(`اختر أيام دراسة ${scg.name}.`); return false; }
+      syncStudy();
+      const st = sciTask(scg);
+      scg.days = [...w.days].sort();
+      if (st) st.repeat.days = [...scg.days];
+    }
     for (const c of w.cards) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)

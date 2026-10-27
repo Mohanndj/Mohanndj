@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 137;
+const APP_VERSION = 138;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1243,6 +1243,10 @@ function setKind(kind) {
   const cur = (draft.id && getTask(draft.id)) || {}, sci = !!cur.sciId, bk = !!cur.bookId || sci;
   $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !cur.bookId; $('fSciNote').hidden = !sci;
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
+  // a science's study days are its plan's (v138): they alone are edited here, and its page in «الدراسة» shows them
+  const sd = sci && !cur.left;
+  $('fRepeatMode').hidden = sd; $('fStart').closest('.grid2').hidden = sd;
+  if (sd) { $('goalFields').hidden = false; $('repeatFields').hidden = false; for (const id of ['onceGoalFields', 'targetBox', 'habitSection']) $(id).hidden = true; }
 }
 
 // goal types: recurring, one-time, or a habit (with its own fields)
@@ -1315,7 +1319,7 @@ function readPrayer() {
 
 function renderDays() {
   const mode = `<button type="button" data-action="days-mode" data-v="fixed" aria-pressed="${!draft.per}">أيام محددة</button><button type="button" data-action="days-mode" data-v="count" aria-pressed="${!!draft.per}">عدد أيام أيّها كان</button>`;
-  $('fDays').innerHTML = `<div class="days-mode">${mode}</div>` + (draft.per
+  $('fDays').innerHTML = (draft.sci ? '' : `<div class="days-mode">${mode}</div>`) + (draft.per
     ? `<div class="days-per">${[1, 2, 3, 4, 5, 6].map((n) => `<button type="button" data-action="days-per" data-v="${n}" aria-pressed="${draft.per === n}">${n}</button>`).join('')}</div><small class="hint explain">كم مرة في الأسبوع؟ تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع.</small>`
     : `<button type="button" data-action="all-days" aria-pressed="${draft.days.length === 7}">كل يوم</button>` +
       `<button type="button" data-action="work-days" aria-pressed="${draft.days.length === 5 && [0, 1, 2, 3, 4].every((d) => draft.days.includes(d))}">أيام الدوام</button>` +
@@ -1377,6 +1381,7 @@ function openSheet(id, opts = {}) {
     repeat: t ? isRepeat(t) : kind === 'goal' && opts.repeat !== false,
     days: t && t.repeat ? [...t.repeat.days] : [...DAY_ORDER],
     per: t && t.repeat && t.repeat.per ? t.repeat.per : 0, // «عدد أيام أيّها كان»: a number a week on any day
+    sci: !!(t && t.sciId), // a science's task: its days chosen one by one (no «any days»), none chosen stays none
     notes: t ? t.notes.map((n) => ({ ...n })) : [],
     subtasks: t ? t.subtasks.map((n) => ({ ...n })) : [],
     alarms: t ? [...t.alarms] : [],
@@ -1485,7 +1490,7 @@ function readDraft() {
       const start = $('fStart').value || today();
       let until = $('fUntil').value || null;
       if (until && until < start) until = start;
-      t.repeat = { days: (draft.days.length ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
+      t.repeat = { days: (draft.days.length || base.sciId ? [...draft.days] : [...DAY_ORDER]).sort(), start, until };
       // «any days»: every day of the week may hold it, and its number a week is asked for (what «خطِّط» moved or cancelled is kept)
       if (draft.per) t.repeat = { ...t.repeat, days: [...DAY_ORDER].sort(), per: draft.per };
       for (const k of ['mv', 'skip']) if (base.repeat && base.repeat[k] && !draft.per) t.repeat[k] = base.repeat[k];

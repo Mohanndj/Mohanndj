@@ -114,7 +114,9 @@ function syncStudy() {
       S.tasks.push(t); changed = true;
     }
     if (t.title !== title) { t.title = title; changed = true; }
-    if (String(t.repeat.days) !== String(days)) { t.repeat.days = days; changed = true; }
+    // its study days are its plan's (v138, the owner's request: «اجعل هذه انعكاس للتسلسل»): the science shows them
+    const td = [...t.repeat.days].sort();
+    if (String(days) !== String(td)) { s.days = td; changed = true; }
     // each day done or not by what was studied that day (the days with a lesson finished or a review, and today)
     const ds = new Set([today(), ...Object.keys(t.completions), ...s.books.flatMap((b) => b.lessons.flatMap((l) => [l.completedAt, ...l.rvLog]))].filter(Boolean));
     for (const d of ds) {
@@ -276,7 +278,8 @@ function openSci(id) {
   $('libForm').innerHTML = `${sheetHead(id ? 'العلم' : 'علم جديد')}
     <div class="grid2"><label class="field"><span>اسم العلم</span><input type="text" id="scName" value="${esc(s.name)}" autocomplete="off" placeholder="مثال: الفقه"></label>
       <label class="field"><span>علامة (اختياري)</span><input type="text" id="scEmoji" value="${esc(s.emoji)}" autocomplete="off" placeholder="📘" data-novoice></label></div>
-    <div class="field"><span>أيام الدراسة</span><div class="seg seg-wrap" id="scDays" role="group">${WEEK_ORDER.map((d) => `<button type="button" data-action="study-day" data-v="${d}" aria-pressed="${s.days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>
+    ${sciTask(s) ? `<div class="field"><span>أيام الدراسة</span><p class="note-text">${esc(s.days.length ? sciDayName(s) : 'لم تُحدَّد بعد')}: من «خطِّط»، وتُعدَّل من مهمة «${esc(sciTask(s).title)}» أو خطوة «الأيام» في هدف هذا العلم.</p><button type="button" class="ghost sm" data-action="study-sci-days" data-v="${sciTask(s).id}">${icon('edit')} عدّل أيام الدراسة</button></div>`
+      : `<div class="field"><span>أيام الدراسة</span><div class="seg seg-wrap" id="scDays" role="group">${WEEK_ORDER.map((d) => `<button type="button" data-action="study-day" data-v="${d}" aria-pressed="${s.days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>`}
     <label class="field"><span>الدروس في الجلسة</span><input type="number" id="scPer" min="1" max="10" inputmode="numeric" value="${s.per}" data-novoice></label>
     <label class="field"><span>هدف السنة في «خطِّط»</span><select id="scGoal">${sciGoalOptions(s)}</select></label>
     <div class="field"><span>مراحل الدرس (يكتمل الدرس حين تُنجز كلها)</span><div id="scStages">${stStageRows()}</div><button type="button" class="ghost sm" data-action="study-stage-add">${icon('plus')} مرحلة</button></div>
@@ -477,6 +480,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'study-sci-edit': openSci(v); break;
+    case 'study-sci-days': closeLib(); openSheet(v); break; // (its days are its task's in «خطِّط», v138)
     case 'study-day': { const d = Number(v); ldraft.days = ldraft.days.includes(d) ? ldraft.days.filter((x) => x !== d) : [...ldraft.days, d]; el.setAttribute('aria-pressed', String(ldraft.days.includes(d))); break; }
     case 'study-stage-add': stReadStages(); ldraft.stages.push({ id: uid(), name: '' }); $('scStages').innerHTML = stStageRows(); $(`scSt-${ldraft.stages.length - 1}`).focus(); break;
     case 'study-stage-del': stReadStages(); if (ldraft.stages.length > 1) ldraft.stages.splice(+el.dataset.i, 1); $('scStages').innerHTML = stStageRows(); break;
