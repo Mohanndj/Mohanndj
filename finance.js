@@ -6,6 +6,18 @@
 // The workbook can be imported straight from the phone; nothing is sent anywhere.
 
 const finUi = { tab: 'plans', plan: '', proj: '', month: '', lg: 'debt' };
+const finMem = {}; // what each tab had open when it was left (this session)
+// to another tab of the page: the one left keeps what was open in it (a month's plan, a project, a month's
+// spending) and where its page was, and the one opened comes back as it was left; gives where to scroll to
+function finSwitch(v) {
+  finMem[finUi.tab] = { plan: finUi.plan, proj: finUi.proj, month: finUi.month, y: window.scrollY };
+  const m = finUi.tab === v ? {} : finMem[v] || {};
+  finUi.tab = v;
+  finUi.plan = m.plan && getFinPlan(m.plan) ? m.plan : '';
+  finUi.proj = m.proj && S.finProjects.some((x) => x.id === m.proj) ? m.proj : '';
+  finUi.month = m.month || '';
+  return m.y || 0;
+}
 const EVERY_M = [1, 2, 3, 4, 6, 12, 24];
 const money = (n) => `${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US')} ${S.settings.currency || 'ريال'}`;
 // amounts as typed on any keyboard: Arabic or Latin digits; «٫» or «.» as the decimal mark; «,» as the
@@ -171,6 +183,16 @@ function planSplit(p) {
   return { a, spendRows, payRows, budget, fromItems, outside, spendLeft: budget - fromItems - outside,
     payTotal: sum(payRows, (r) => r.plan) + sum(a.strayPays), payPaid: sum(payRows, (r) => r.paid) + sum(a.strayPays), payLeft: sum(payRows, (r) => r.left) };
 }
+// a long list of payments with no item: the last ten first (each with its own «أضفها إلى…», whose choices are
+// built only when it is opened: a full list in each made the plan's page slow to open)
+const LOOSE_N = 10;
+const looseShown = (list) => { const l = list.slice().sort((x, y) => y.d.localeCompare(x.d) || y.created - x.created); return finUi.looseAll ? l : l.slice(0, LOOSE_N); };
+function fillAssign(sel) {
+  if (!sel || sel.dataset.filled) return;
+  sel.dataset.filled = '1';
+  sel.insertAdjacentHTML('beforeend', refOptions(getFinPlan(sel.dataset.plan), ''));
+}
+for (const ev of ['pointerdown', 'focusin', 'keydown']) document.addEventListener(ev, (e) => { const sel = e.target.closest && e.target.closest('select[data-assign]'); if (sel) fillAssign(sel); }, true);
 const refOptions = (p, cur) => `${p ? planRows(p).filter((r) => r.x.name).map((r) => `<option value="${r.x.id}"${cur === r.x.id ? ' selected' : ''}>${esc(r.x.name)} (${money(r.plan)})</option>`).join('') : ''}<option value="out"${cur === 'out' ? ' selected' : ''}>خارج المخطط له</option>`;
 
 // «اليوم»: a small box for what you paid today: the amount, what for, and its item in this month's plan
@@ -345,8 +367,8 @@ function planSumHTML(p) {
     ${sp.budget || spent ? `<button type="button" class="pc-sub pc-go" data-action="fin-spend-of" data-v="${p.month}"><div class="progress-line pc-bar spend${spent > sp.budget + 0.5 ? ' over' : ''}"><i style="width:${spendPct}%"></i></div><small><span>صُرف ${money(spent)}</span><span>${sp.spendLeft >= 0 ? `باقٍ ${money(sp.spendLeft)}` : `تجاوزت ${money(-sp.spendLeft)}`} | التفاصيل ‹</span></small></button>` : ''}
     ${line('=', left < 0 ? 'العجز' : 'المتبقي', Math.abs(left), left < 0 ? 'pc-out neg' : 'pc-out pos')}
     ${a.loose.length ? `<div class="fin-loose"><h4>مدفوعات لم تُضف إلى بند <small>${a.loose.length}</small></h4>
-      <ul>${a.loose.map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
-        <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option>${refOptions(p, '')}</select></li>`).join('')}</ul></div>` : ''}
+      <ul>${looseShown(a.loose).map((t) => `<li><span><b>${money(t.amount)}</b> ${esc(t.item || 'بلا وصف')} <small>${esc(relDate(t.d))}</small></span>
+        <select data-assign="${t.id}" data-plan="${p.id}" aria-label="أضفها إلى"><option value="">أضفها إلى…</option></select></li>`).join('')}</ul>${a.loose.length > LOOSE_N ? `<button type="button" class="ghost small" data-action="fin-loose-all">${finUi.looseAll ? 'أظهر آخر عشر فقط' : `أظهر الكل (${a.loose.length})`}</button>` : ''}</div>` : ''}
   </div>`;
 }
 function planDetailHTML(p) {
@@ -1157,8 +1179,9 @@ document.addEventListener('click', (e) => {
     return false;
   };
   switch (action) {
-    case 'fin-spend-of': finUi.tab = 'spend'; finUi.month = v; finUi.plan = ''; render(); window.scrollTo({ top: 0 }); break;
-    case 'fin-tab': finUi.tab = v; finUi.plan = ''; finUi.proj = ''; finUi.month = ''; render(); window.scrollTo({ top: 0 }); break;
+    case 'fin-spend-of': finSwitch('spend'); finUi.month = v; render(); window.scrollTo({ top: 0 }); break;
+    case 'fin-tab': { const y = finSwitch(v); render(); window.scrollTo({ top: y, behavior: 'instant' }); break; }
+    case 'fin-loose-all': finUi.looseAll = !finUi.looseAll; render(); break;
     case 'fin-open': finUi.tab = 'plans'; finUi.plan = v; render(); window.scrollTo({ top: 0 }); break;
     case 'fin-close': finUi.plan = ''; finUi.proj = ''; render(); break;
     case 'fin-new': case 'fin-new-month': openFinNew('month'); break;
@@ -1226,7 +1249,7 @@ document.addEventListener('click', (e) => {
     case 'owe-new': openLedger('owe', null); break;
     case 'owe-open': openLedger('owe', v); break;
     case 'owe-pay': openPayment('owe', v); break;
-    case 'fin-lg': finUi.tab = 'ledger'; finUi.lg = v; render(); break;
+    case 'fin-lg': { const y = finSwitch('ledger'); finUi.lg = v; render(); window.scrollTo({ top: y, behavior: 'instant' }); break; }
     case 'lg-pay-del': {
       const x = (ldraft.kind === 'debt' ? S.finDebts : S.finRights).find((d) => d.id === ldraft.id);
       x.payments = x.payments.filter((p) => p.id !== v); if (ldraft.kind === 'debt') { dropPayment(`debt:${x.id}`, v); syncAllPlans(); } save(); openLedger(ldraft.kind, x.id); render();
@@ -1240,7 +1263,7 @@ document.addEventListener('click', (e) => {
       toast('أُنشئ. اكتب رصيد البداية إن كان معك مدخرات قبل أول شهر');
       break;
     }
-    case 'proj-open': finUi.tab = 'projects'; finUi.proj = v; render(); window.scrollTo({ top: 0 }); break;
+    case 'proj-open': finSwitch('projects'); finUi.proj = v; render(); window.scrollTo({ top: 0 }); break;
     case 'proj-paid': { const p = S.finProjects.find((x) => x.id === el.dataset.sid); if (p) { p.paidFrom = v; save(); render(); } break; }
     case 'proj-del': if (!armed()) break; S.finProjects = S.finProjects.filter((p) => p.id !== v); finUi.proj = ''; save(); render(); break;
   }
