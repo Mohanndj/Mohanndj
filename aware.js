@@ -254,7 +254,7 @@ function awareStats(P) {
       const doneToday = b.lessons.filter((l) => l.completedAt === t0).length;
       let dueN = 0, dueLeft = 0;
       for (const d of all) {
-        if (d < dayOfTs(s.created) || !s.days.includes(parse(d).getDay())) continue;
+        if (d < dayOfTs(s.created) || !sciStudyOn(s, d, true)) continue; // (a science in «خطِّط»: its tasks' days there, v141)
         dueN += s.per;
         if (d > t0) dueLeft += s.per; else if (d === t0) dueLeft += Math.max(0, s.per - doneToday);
       }

@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 140;
+const APP_VERSION = 141;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -330,8 +330,6 @@ function occursOn(t, d) {
   if (!r || d < r.start || (r.until && d > r.until)) return false;
   // a task of the days of a goal in «خطِّط» shows in its goal's months and weeks only (plan.js, v98)
   if (t.kgoal && !khChainOn(t, d)) return false;
-  // a science's task: on its study days and the days of its reviews, while there is something to do (a closed one: its days done)
-  if (t.sciId) { const s = !t.left && getSci(t.sciId); return s ? sciDay(s, d).need > 0 : !!t.completions[d]; }
   // a goal of «any days»: on the list every day until the week's number is done (a day already gone is not waiting)
   if (r.per) { const q = quotaOf(t, weekStartOf(d)); return !!t.completions[d] || (d >= today() && q.done < q.need); }
   return repDay(r, d);
@@ -423,8 +421,6 @@ function toggle(id, date, quiet) { // (quiet: from the Android app's widget, nob
   const t = getTask(id);
   if (!t) return;
   const d = date || today();
-  // a science's task is done by its lessons and reviews, never by hand: its circle opens what is left of the day
-  if (t.sciId) { sciOpenNext(t, d); return; }
   // (a reading session done today can still be taken back, though the book's task moved to its next day)
   if (notYetOn(t, d) && !doneOn(t, d)) { toast(`موعدها ${dueLabel(isRepeat(t) ? d : t.due)}`); return; }
   if (offDay(t, d)) { toast(`${dueLabel(d)} ليس من أيامها`); return; }
@@ -514,8 +510,7 @@ function metaHTML(t, d, opts = {}) {
   if (p && !opts.noProject) meta.push(projectChip(p));
   if (!opts.noPriority) meta.push(`<span class="pri p-${t.priority}">${PRI_LABEL[t.priority]}</span>`);
   if (t.category) meta.push(`<span class="cat">${esc(t.category)}</span>`);
-  if (t.sciId && !t.left) meta.push(sciMeta(t, d));
-  else if (isRepeat(t)) {
+  if (isRepeat(t)) {
     meta.push(`<span>${icon('repeat')}${esc(repeatLabel(t))}</span>`);
     // «any days»: how many of the week's number are done
     if (t.repeat.per) { const q = quotaOf(t, weekStartOf(d || today())); if (q.need) meta.push(`<span class="num">هذا الأسبوع: ${Math.min(q.done, q.need)} من ${q.need}</span>`); }

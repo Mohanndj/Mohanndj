@@ -340,9 +340,8 @@ function khResyncChains() { for (const g of S.kgoals.filter((x) => x.level === '
 // a goal and all that is under it: its goals and the recurring tasks of its days go; its tasks for one week stay, unlinked
 function kgDrop(g) {
   const ids = new Set(kgSub(g).map((x) => x.id));
-  // (a science's task with days done is closed, never deleted: study.js sciClose)
   // (and a book's reading goal stays a book's: reading.js takes it on, v140)
-  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x) && !x.bookId)) if (!(t.sciId && sciClose(t))) dropTask(t.id);
+  for (const t of S.tasks.filter((x) => ids.has(x.kgoal) && isRepeat(x) && !x.bookId)) dropTask(t.id);
   for (const t of S.tasks) if (ids.has(t.kgoal)) t.kgoal = '';
   // (a year carried on from it takes its place: its project stays with that year, and serves no goal if there is none)
   const line = khLineOf(g).filter((x) => !ids.has(x.id));
@@ -872,13 +871,6 @@ function khExtend(yg) {
 }
 // the tasks of a project: its own, and the tasks of its goal's days (v126), each once
 function khProjTasks(p) { const yg = khProjGoal(p); return [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])]; }
-// the week goal of a year goal's line a science's or a book's task goes under: the one it is under while its months last,
-// else the first of the line's still to come (v140, from study.js sciWeekGoal)
-function khLineWeekGoal(yg, cur) {
-  const ws = khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).filter((w) => !kgClosedOf(w));
-  const live = (w) => { const e = khChainEnd(kgOf(w.parent)); return !e || e >= today(); };
-  return ws.find((w) => w.id === cur && live(w)) || ws.find(live) || ws.find((w) => w.id === cur) || null;
-}
 const khProjGoal = (p) => { const g = p && kgOf(p.ygoal); return g && g.level === 'year' ? g : null; };
 function khGoalTasks(yg) {
   const ws = new Set(khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).map((w) => w.id));
@@ -1288,22 +1280,15 @@ function khWizDraw0() {
       ${btns('التالي: الأيام')}`;
   } else {
     const wg = kgOf(w.weekId), days = khDays(w.k).filter((d) => d >= today());
-    // a science's goal (v138): the days chosen here are its study days (its page shows them), chosen one by one
-    const scg = !w.once && wg && sciOfGoal(kgYear(wg));
-    // a book's goal likewise (v140): the days chosen here are its reading days
-    const bkg = !w.once && wg && !scg && bookOfGoal(kgYear(wg)), dd = scg ? scg.days : bkg ? bkg.rdays : [];
-    if ((scg || bkg) && !w.sciDays) { w.sciDays = true; w.dMode = 'fixed'; if (dd.length) { w.days = [...dd]; khWizCards(); } }
     body = `${w.first === 3 ? '<h3 class="kh-wh">مهمة لهذا الهدف</h3>' : `${khWizBar(3)}<h3 class="kh-wh">ثم أيامك</h3>`}
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
-      ${((sc) => (sc ? khCtx('day', 'مهمة أيامك في هذا العلم', `دراسة ${sc.name}: في الأيام التي تختارها هنا (هي أيام دراسته في صفحته) وأيام مراجعاته، وتُنجز بإتمام دروسها ومراجعاتها`) : ''))(wg && sciOfGoal(kgYear(wg)))}
-      ${((bk) => (bk ? khCtx('day', 'مهمة أيامك في هذا الكتاب', `${bookTitleOf(bk)}: في الأيام التي تختارها هنا (هي أيام قراءته في نافذته)، وكل جلسة تتقدم بها صفحتك بما قرأت فعلاً${bk.status === 'reading' ? '' : '، وتبدأ حين تجعله «أقرؤه الآن»'}`) : ''))(wg && !sciOfGoal(kgYear(wg)) && bookOfGoal(kgYear(wg)))}
       ${w.first === 3 ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       <p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>
       ${w.once ? `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button></div>${w.day ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
-        : `<div class="kh-ask lv-day"><span class="kh-al">${scg ? `في أيّ أيام تدرس ${esc(scg.name)}؟` : bkg ? `في أيّ أيام تقرأ «${esc(bkg.title)}»؟` : 'في أيّ أيام هذه الأسابيع؟'}</span>
-          ${scg || bkg ? '' : `<div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>`}
+        : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
+          <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
-      <label class="field kh-q lv-day"><span>${wg && (sciOfGoal(kgYear(wg)) || bookOfGoal(kgYear(wg))) ? 'مهام أخرى لهذا الهدف (اختياري): كل مهمة في سطر' : 'اكتب جوابك: كل مهمة في سطر'}</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
+      <label class="field kh-q lv-day"><span>اكتب جوابك: كل مهمة في سطر</span><textarea id="khwD" rows="3">${esc(w.dText)}</textarea></label>
       <div id="khwCards">${khWizCardsHTML()}</div>
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
@@ -1377,34 +1362,14 @@ function khWizCommit0() {
   }
   if (w.step === 3) {
     const wg = kgOf(w.weekId), mg = wg && kgOf(wg.parent);
-    // (a science's goal: its study sessions are the task of its days, other tasks are for the asking)
-    if (!w.cards.length && !(wg && (sciOfGoal(kgYear(wg)) || bookOfGoal(kgYear(wg))))) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
+    if (!w.cards.length) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
     if (!wg || !mg) { toast('هدف الأسبوع لم يعد موجوداً.'); return false; }
     if (w.once && w.day && !khDays(w.k).includes(w.day)) { toast('اختر يوماً من أيام هذا الأسبوع.'); return false; }
     const bad = w.once ? -1 : w.cards.findIndex((c) => c.mode !== 'count' && !c.days.length);
     if (bad >= 0) { toast(`اختر أيام المهمة ${bad + 1}.`); return false; }
     const start = khChainStart(mg), until = khChainEnd(mg);
     if (!w.once && until && until < start) { toast('مضت أشهر هذا الهدف، فلا أيام بقيت لمهامه.'); return false; }
-    // a science's goal: the days chosen are its study days, on its task in the plan (study.js reflects them on its page, v138)
-    const scg = !w.once && sciOfGoal(kgYear(wg));
-    if (scg) {
-      if (!w.days.length) { toast(`اختر أيام دراسة ${scg.name}.`); return false; }
-      syncStudy();
-      const st = sciTask(scg);
-      scg.days = [...w.days].sort();
-      if (st) st.repeat.days = [...scg.days];
-    }
-    // a book's goal likewise: its reading days, on its reading goal there (the book's sheet shows them, v140)
-    const bkg = !w.once && !scg && bookOfGoal(kgYear(wg));
-    if (bkg) {
-      if (!w.days.length) { toast(`اختر أيام قراءة «${bkg.title}».`); return false; }
-      syncReading();
-      const bt = activeBookGoal(bkg);
-      bkg.rdays = [...w.days].sort();
-      if (bt) bt.repeat.days = [...bkg.rdays];
-    }
-    // (a line named for the science or the book is its own task, not a second one: v139, v140)
-    for (const c of w.cards.filter((c) => !(scg && sciBare(c.text) === sciBare(scg.name)) && !(bkg && bookBare(c.text) === bookBare(bkg.title)))) {
+    for (const c of w.cards) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)
       const rep = c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start, until, per: c.per } : { days: [...c.days].sort(), start, until };
@@ -1421,7 +1386,7 @@ function khWizNext() {
   khWizKeep();
   if (!khWizCommit()) return false;
   const w = ldraft;
-  if (w.edit || w.step === 3) { toast(w.edit ? 'حُفظ الهدف' : w.first === 3 && w.cards.length ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
+  if (w.edit || w.step === 3) { toast(w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
   w.step++;
   khWizDraw();
   $('libForm').scrollTop = 0;

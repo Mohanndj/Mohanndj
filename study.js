@@ -52,125 +52,58 @@ const sciEnrich = (s) => S.books.filter((b) => b.studyId === s.id);
 const lessonDone = (s, l) => s.stages.every((x) => l.done[x.id]);
 const nextLessons = (s) => { const b = sciBook(s); return b ? b.lessons.filter((l) => !l.completedAt) : []; };
 const studyDue = () => S.study.flatMap((s) => s.books.flatMap((b) => b.lessons.filter((l) => l.completedAt && l.rvDue && l.rvDue <= today()).map((l) => ({ s, b, l }))));
-const sciDayName = (s) => (s.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => s.days.includes(d)).map((d) => AR_DAYS[d]).join('، '));
+// its study days: a science in «خطِّط» studies on the days of the tasks the owner wrote in its line (v141), others on their own
+const sciDayName = (s) => (sciGoal(s) ? [...new Set(sciPlanTasks(s).map(khDaysText))].join('، ') : s.days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => s.days.includes(d)).map((d) => AR_DAYS[d]).join('، '));
 const lessonNo = (b, l) => b.lessons.indexOf(l) + 1;
 
-// ---------- a science in «خطِّط» (v137, the owner's choices: a task among the tasks, linked as a project is, done by
-// its lessons, its reviews in it) ----------
-// A science is a year goal of a role's vision (s.ygoal); its days' task is ONE recurring task (t.sciId) under a week goal of
-// that goal's line. The science is its only source: the task's title and days follow it, and each day it is done or not by
-// what was studied that day, never ticked by hand; a task that holds days done is never deleted, only closed (t.left)
+// ---------- a science in «خطِّط» (v137: linked as a project is) ----------
+// A science is a year goal of a role's vision (s.ygoal). Its study tasks are the tasks of its days the owner writes in that
+// goal's line, ticked by hand as any task of the days (v141, the owner: «مهام الدراسة هي فقط المتسلسلة، لا شيء يدرج هناك
+// كمهمة إن لم تكن متسلسلة»): the app makes no task of its own for it, and its study days are those tasks' days. (v137–v140
+// made one, t.sciId, done by the lessons: it goes)
 const sciGoal = (s) => { const g = s && kgOf(s.ygoal); return g && g.level === 'year' ? g : null; };
 const sciOfGoal = (yg) => (yg ? S.study.find((s) => sciGoal(s) && khLineOf(sciGoal(s)).includes(yg)) || null : null);
 const sciNeedLink = (s) => { const g = sciGoal(s); return !g || !kgOf(g.parent); };
-const sciTask = (s) => S.tasks.find((t) => t.sciId === s.id && !t.left) || null;
-// a day of a science: the lessons asked (on its study days, as many as a session, of those not done before that day) and the
-// reviews (today: those due and those done today; a day gone by: those done that day; a day to come: those falling on it)
-function sciDay(s, d) {
-  return khMm(`sd${s.id}${d}`, () => {
-    const t0 = today(), b = sciBook(s), all = s.books.flatMap((x) => x.lessons);
-    const study = s.days.includes(parse(d).getDay());
-    const L = study && b ? Math.min(s.per, b.lessons.filter((l) => !l.completedAt || l.completedAt >= d).length) : 0;
-    const Ld = Math.min(L, all.filter((l) => l.completedAt === d).length);
-    const Rd = all.reduce((n, l) => n + l.rvLog.filter((x) => x === d).length, 0);
-    const R = d < t0 ? Rd : d === t0 ? Rd + all.filter((l) => l.completedAt && l.rvDue && l.rvDue <= t0).length : all.filter((l) => l.completedAt && l.rvDue === d).length;
-    return { L, Ld, R, Rd, need: L + R, done: Ld + Rd };
-  });
-}
-// a closed task keeps its days done (it leaves the plan's lists); one with none goes
-function sciClose(t) {
-  if (!Object.keys(t.completions).length) return false;
-  if (!t.left) { const t0 = today(); t.left = t0; t.repeat.until = t.completions[t0] ? t0 : addDays(t0, -1); if (t.repeat.until < t.repeat.start) t.repeat.start = t.repeat.until; }
-  return true;
-}
-// the week goal its task goes under: the one it is under while its months last, else the first of the line's still to come
-function sciWeekGoal(s, cur) {
-  const ws = khLineOf(sciGoal(s)).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).filter((w) => !kgClosedOf(w));
-  const live = (w) => { const e = khChainEnd(kgOf(w.parent)); return !e || e >= today(); };
-  return ws.find((w) => w.id === cur && live(w)) || ws.find(live) || ws.find((w) => w.id === cur) || null;
-}
+// the recurring tasks of its goal's days, as the owner wrote them in its line
+const sciPlanTasks = (s) => (sciGoal(s) ? khGoalTasks(sciGoal(s)).filter((x) => isRepeat(x) && !x.sciId && !x.bookId) : []);
+// a study day: one of its tasks' in «خطِّط» (req: as the totals count it, a goal of «any days» asking its number of the week)
+const sciStudyOn = (s, d, req) => (sciGoal(s) ? sciPlanTasks(s).some((t) => (req ? reqOn : occursOn)(t, d)) : s.days.includes(parse(d).getDay()));
 // «دراسة العقيدة», «العقيدة», «عقيدة»: the same name, without its vowels, «ال» or a leading «دراسة»
 const sciBare = (v) => String(v || '').replace(/[ً-ْـ]/g, '').trim().replace(/^(دراسة|مذاكرة|درس)\s+/, '').split(/\s+/).map((w) => w.replace(/^ال/, '')).join(' ');
-const sciDupOf = (s, x) => !x.sciId && !x.bookId && isRepeat(x) && sciBare(x.title) === sciBare(s.name);
-// kept true to the science on every redraw (as the books' reading tasks are)
+// kept true to its line on every redraw: no task of the app's own (one made by v137–v140 is removed), and its
+// study days those of its tasks there (v141; a goal of «any days» has none fixed: it shows as its tasks' text)
 function syncStudy() {
   let changed = false;
-  for (const t of S.tasks.filter((x) => x.sciId && !x.left)) {
-    const s = getSci(t.sciId);
-    if (s && sciGoal(s) && sciWeekGoal(s, t.kgoal)) continue;
-    if (!sciClose(t)) S.tasks = S.tasks.filter((x) => x !== t);
-    changed = true;
+  // (its days «done» were its lessons and reviews, which stay in the science and the report: it goes whole)
+  if (S.tasks.some((x) => x.sciId)) { S.tasks = S.tasks.filter((x) => !x.sciId); changed = true; }
+  // a task of its line closed by v139 as the science's «written twice» (its days had gone to the app's task), or by v140 as
+  // a book's: it goes on, once (one it had none done in was deleted then, and is written anew by the owner)
+  if (!S.settings.fix141) {
+    S.settings.fix141 = true; changed = true;
+    const back = (yg, same) => {
+      const ws = new Set(khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).map((w) => w.id));
+      for (const x of S.tasks.filter((x) => ws.has(x.kgoal) && isRepeat(x) && !x.sciId && !x.bookId && ['2026-10-26', '2026-10-27'].includes(x.repeat.until) && same(x.title))) {
+        const e = khChainEnd(kgOf(kgOf(x.kgoal).parent));
+        x.repeat.until = e && e >= x.repeat.start ? e : null;
+      }
+    };
+    for (const s of S.study.filter(sciGoal)) back(sciGoal(s), (v) => sciBare(v) === sciBare(s.name));
+    for (const b of S.books.filter(bookGoal)) back(bookGoal(b), (v) => bookBare(v) === bookBare(b.title));
   }
-  for (const s of S.study) {
-    const wg = sciGoal(s) && sciWeekGoal(s, (sciTask(s) || {}).kgoal);
-    if (!wg) continue;
-    let t = sciTask(s);
-    const mg = kgOf(wg.parent), title = `دراسة ${s.name}`, days = [...s.days].sort();
-    if (t && t.kgoal !== wg.id) {
-      // its goal of the week changed (months that ended, the year carried on, another goal): the days done stay where they were
-      if (sciClose(t)) t = null; else t.kgoal = wg.id;
-      changed = true;
-    }
-    if (!t) {
-      const start = khChainStart(mg), until = khChainEnd(mg);
-      t = normalize({ kind: 'goal', title, sciId: s.id, kgoal: wg.id, roleId: kgRoleId(wg), repeat: { days, start, until: until && until >= start ? until : start } });
-      S.tasks.push(t); changed = true;
-    }
-    if (t.title !== title) { t.title = title; changed = true; }
-    // a recurring task of its goal's days named for the science is its session written twice (v139, the owner: «المواعيد
-    // دائمًا انعكاس للتسلسل»): the session takes its days, and it goes (closed if it holds days done, so they stay counted)
-    for (const x of khGoalTasks(sciGoal(s)).filter((x) => x !== t && sciDupOf(s, x))) {
-      if (!x.repeat.per && x.repeat.days.length) t.repeat.days = [...x.repeat.days];
-      if (Object.keys(x.completions).length) {
-        x.repeat.until = x.completions[today()] ? today() : addDays(today(), -1);
-        if (x.repeat.until < x.repeat.start) x.repeat.start = x.repeat.until;
-      } else S.tasks = S.tasks.filter((y) => y !== x);
-      changed = true;
-    }
-    // its study days are its plan's (v138, the owner's request: «اجعل هذه انعكاس للتسلسل»): the science shows them
-    const td = [...t.repeat.days].sort();
-    if (String(days) !== String(td)) { s.days = td; changed = true; }
-    // each day done or not by what was studied that day (the days with a lesson finished or a review, and today)
-    const ds = new Set([today(), ...Object.keys(t.completions), ...s.books.flatMap((b) => b.lessons.flatMap((l) => [l.completedAt, ...l.rvLog]))].filter(Boolean));
-    for (const d of ds) {
-      const x = sciDay(s, d), ok = d <= today() && occursOn(t, d) && x.need > 0 && x.Ld >= x.L && x.Rd >= x.R;
-      if (ok && !t.completions[d]) { t.completions[d] = Date.now(); changed = true; }
-      if (!ok && t.completions[d]) { delete t.completions[d]; changed = true; }
-    }
+  for (const s of S.study.filter(sciGoal)) {
+    const days = [...new Set(sciPlanTasks(s).filter((t) => !t.repeat.per).flatMap((t) => t.repeat.days))].sort();
+    if (String(days) !== String([...s.days].sort())) { s.days = days; changed = true; }
   }
   if (changed) save();
 }
-// its task's circle opens what is left of today: a review due, then the next lesson
-function sciOpenNext(t, d) {
-  const s = getSci(t.sciId);
-  if (!s || t.left) return;
-  if (d !== today()) { toast(`تُنجز «${t.title}» بإتمام دروس يومها ومراجعاته في «${pageName('study')}»`); return; }
-  const rv = studyDue().find((x) => x.s.id === s.id);
-  if (rv) { openStudyReview(s.id, rv.b.id, rv.l.id); return; }
-  const x = sciDay(s, d), b = sciBook(s), l = nextLessons(s)[0];
-  if (x.Ld < x.L && b && l) { openLesson(s.id, b.id, l.id); return; }
-  toast(x.need ? 'أتممت جلسة اليوم ✓' : 'لا دروس ولا مراجعات لهذا العلم اليوم');
-}
-// what its row says: today's lessons and reviews, and the next lesson
-function sciMeta(t, d) {
-  const s = getSci(t.sciId);
-  if (!s) return '';
-  const x = sciDay(s, d || today()), l = nextLessons(s)[0];
-  return [
-    s.days.length ? `<span>أيام الدراسة: ${esc(sciDayName(s))}</span>` : '',
-    x.need ? `<span class="num">${esc(`أنجزت ${x.done || 'صفر'} من ${x.need}`)}${x.L && x.R ? esc(` (${plural(x.L, 'درس واحد', 'درسان', 'دروس', 'درساً')} و${plural(x.R, 'مراجعة واحدة', 'مراجعتان', 'مراجعات', 'مراجعة')})`) : x.R ? ' (مراجعات)' : ''}</span>` : '',
-    l && x.Ld < x.L ? `<span>${esc(`الدرس القادم: ${l.title}`)}</span>` : '',
-  ].join('');
-}
 
 // ---------- «اليوم»: the next lessons on a study day, and the reviews due ----------
-// (a science whose task is on today's list is there, among the tasks, not here as well)
+// (a science in «خطِّط»: on the days of its tasks there, v141)
 function studyTodayHTML() {
-  const t0 = today(), dow = parse(t0).getDay(), rows = [];
-  const inTasks = (s) => { const t = sciTask(s); return !!(t && occursOn(t, t0)); };
+  const t0 = today(), rows = [];
   for (const s of S.study) {
     const b = sciBook(s);
-    if (!b || !s.days.includes(dow) || inTasks(s)) continue;
+    if (!b || !sciStudyOn(s, t0)) continue;
     // lessons finished today stay, struck through, until the day ends
     for (const l of b.lessons.filter((x) => x.completedAt === t0)) rows.push(tRow(s.emoji || '📘', `${s.name}: ${l.title}`, `الدرس ${lessonNo(b, l)} من ${b.lessons.length}`, 'study-lesson', `${s.id}|${b.id}|${l.id}`, true));
     for (const l of nextLessons(s).slice(0, Math.max(0, s.per - b.lessons.filter((x) => x.completedAt === t0).length))) {
@@ -178,7 +111,7 @@ function studyTodayHTML() {
       rows.push(tRow(s.emoji || '📘', `${s.name}: ${l.title}`, `الدرس ${lessonNo(b, l)} من ${b.lessons.length}${left.length < s.stages.length ? ` | باقٍ: ${left.join('، ')}` : ''}`, 'study-lesson', `${s.id}|${b.id}|${l.id}`));
     }
   }
-  for (const { s, b, l } of studyDue().filter((x) => !inTasks(x.s))) rows.push(tRow('🔁', `راجع: ${l.title}`, `${s.name} | ${b.title}`, 'study-review', `${s.id}|${b.id}|${l.id}`));
+  for (const { s, b, l } of studyDue()) rows.push(tRow('🔁', `راجع: ${l.title}`, `${s.name} | ${b.title}`, 'study-review', `${s.id}|${b.id}|${l.id}`));
   return todayBlock('الدراسة', 'study', tList(rows));
 }
 
@@ -192,7 +125,7 @@ function sciCard(s) {
       <span class="book-line">${[n ? `أتممت ${done || 'صفر'} من ${plural(n, 'درس واحد', 'درسين', 'دروس', 'درساً')}` : 'لا دروس بعد', nx[0] ? `الدرس القادم: ${nx[0].title}` : n ? 'أتممت دروسه كلها' : ''].filter(Boolean).map(esc).join(' | ')}</span>`
     : '<span class="book-line">لا كتاب معتمد بعد</span>'}
     ${sciNeedLink(s) ? '<span class="psub kh-need-tag">ناقص: اربطه برؤية</span>' : ''}
-    <span class="book-line">${[s.days.length ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : '', s.quizzes.length ? `الاختبارات: ${s.quizzes.length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
+    <span class="book-line">${[sciDayName(s) ? `أيام الدراسة: ${sciDayName(s)}` : 'بلا أيام محددة', due ? `للمراجعة اليوم: ${due}` : '', sciEnrich(s).length ? `كتب إثرائية: ${sciEnrich(s).length}` : '', s.quizzes.length ? `الاختبارات: ${s.quizzes.length}` : ''].filter(Boolean).map(esc).join(' | ')}</span>
   </button>`;
 }
 function lessonRow(s, b, l, next) {
@@ -233,7 +166,7 @@ function viewStudy() {
   <section class="section">
     <div class="section-head"><h2>${esc(s.emoji ? `${s.emoji} ${s.name}` : s.name)}</h2><button type="button" class="ghost sm" data-action="study-sci-edit" data-v="${s.id}">${icon('edit')} تعديل العلم</button></div>
     <div class="st-facts">
-      ${fact('أيام الدراسة', s.days.length ? sciDayName(s) : 'لم تُحدَّد')}
+      ${fact('أيام الدراسة', sciDayName(s) || 'لم تُحدَّد')}
       ${fact('في كل جلسة', plural(s.per, 'درس واحد', 'درسان', 'دروس', 'درساً'))}
     </div>
     <div class="st-fact"><small>مراحل الدرس</small><span class="st-chips">${s.stages.map((x) => `<span>${esc(x.name)}</span>`).join('')}</span></div>
@@ -291,7 +224,7 @@ function openSci(id) {
   $('libForm').innerHTML = `${sheetHead(id ? 'العلم' : 'علم جديد')}
     <div class="grid2"><label class="field"><span>اسم العلم</span><input type="text" id="scName" value="${esc(s.name)}" autocomplete="off" placeholder="مثال: الفقه"></label>
       <label class="field"><span>علامة (اختياري)</span><input type="text" id="scEmoji" value="${esc(s.emoji)}" autocomplete="off" placeholder="📘" data-novoice></label></div>
-    ${sciTask(s) ? `<div class="field"><span>أيام الدراسة</span><p class="note-text">${esc(s.days.length ? sciDayName(s) : 'لم تُحدَّد بعد')}: من «خطِّط»، وتُعدَّل من مهمة «${esc(sciTask(s).title)}» أو خطوة «الأيام» في هدف هذا العلم.</p><button type="button" class="ghost sm" data-action="study-sci-days" data-v="${sciTask(s).id}">${icon('edit')} عدّل أيام الدراسة</button></div>`
+    ${sciGoal(s) ? `<div class="field"><span>أيام الدراسة</span><p class="note-text">${esc(sciDayName(s) || 'لم تُحدَّد بعد')}: من «خطِّط»، أيام مهامه في هدف هذا العلم، وتُعدَّل منها.</p></div>`
       : `<div class="field"><span>أيام الدراسة</span><div class="seg seg-wrap" id="scDays" role="group">${WEEK_ORDER.map((d) => `<button type="button" data-action="study-day" data-v="${d}" aria-pressed="${s.days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>`}
     <label class="field"><span>الدروس في الجلسة</span><input type="number" id="scPer" min="1" max="10" inputmode="numeric" value="${s.per}" data-novoice></label>
     <label class="field"><span>هدف السنة في «خطِّط»</span><select id="scGoal">${sciGoalOptions(s)}</select></label>
@@ -493,7 +426,6 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'study-sci-edit': openSci(v); break;
-    case 'study-sci-days': closeLib(); openSheet(v); break; // (its days are its task's in «خطِّط», v138)
     case 'study-day': { const d = Number(v); ldraft.days = ldraft.days.includes(d) ? ldraft.days.filter((x) => x !== d) : [...ldraft.days, d]; el.setAttribute('aria-pressed', String(ldraft.days.includes(d))); break; }
     case 'study-stage-add': stReadStages(); ldraft.stages.push({ id: uid(), name: '' }); $('scStages').innerHTML = stStageRows(); $(`scSt-${ldraft.stages.length - 1}`).focus(); break;
     case 'study-stage-del': stReadStages(); if (ldraft.stages.length > 1) ldraft.stages.splice(+el.dataset.i, 1); $('scStages').innerHTML = stStageRows(); break;
