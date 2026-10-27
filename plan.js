@@ -906,7 +906,8 @@ function khExtend(yg) {
   return ny;
 }
 // the tasks of a project: its own, and the tasks of its goal's days (v126), each once
-function khProjTasks(p) { const yg = khProjGoal(p); return [...tasksOf(p.id), ...(yg ? khGoalTasks(yg).filter((t) => t.projectId !== p.id) : [])]; }
+// (v145: every task of its chain, whatever it carries, once: a recurring one carrying the project's name fell out of both, the owner: «ليش زالت من صفحة مشروعها حين جعلتها متكررة»)
+function khProjTasks(p) { const yg = khProjGoal(p), own = tasksOf(p.id); return [...own, ...(yg ? khGoalTasks(yg).filter((t) => !own.includes(t)) : [])]; }
 const khProjGoal = (p) => { const g = p && kgOf(p.ygoal); return g && g.level === 'year' ? g : null; };
 function khGoalTasks(yg) {
   const ws = new Set(khLineOf(yg).flatMap((y) => kgKids(y, 'month')).flatMap((m) => kgKids(m, 'week')).map((w) => w.id));
