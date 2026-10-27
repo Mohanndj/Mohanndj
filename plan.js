@@ -420,6 +420,18 @@ const khLates = (test) => khLateAll().filter((x) => khInRole(x.t) && test(x, khL
 const khLateLab = (x) => `${khRoleName(khRoleIdOf(x.t), khAreaOf(x.t))} | ${!isRepeat(x.t) && x.t.from ? `أسبوعها: ${khDayLabel(x.t.from)}` : `يومها: ${AR_DAYS[parse(x.d).getDay()]} ${khDayLabel(x.d)}`}`;
 // what passed its time and is still not done: ticked here, it is done on its day
 const khLateRows = (xs) => xs.map((x) => khDayBox(x.t, x.d, `<div class="kh-side">${khImpBtn(x.t)}</div>`, khLateLab(x))).join('');
+// (v146) at the end of today, the days a recurring task missed this week in one box: «فاتها يومان: الأحد والاثنين», each day
+// ticked by itself; the owner, on the suggestion: «اقتراح جيد»
+function khLateGroup(xs) {
+  const by = new Map();
+  for (const x of xs) { const key = isRepeat(x.t) ? x.t : x; by.set(key, [...(by.get(key) || []), x]); }
+  return [...by.values()].map((g) => {
+    if (g.length === 1) return khLateRows(g);
+    const t = g[0].t;
+    const dots = g.map((x) => `<button type="button" class="kh-dot" data-action="toggle" data-id="${t.id}" data-date="${x.d}" aria-pressed="false" aria-label="${esc(`${AR_DAYS[parse(x.d).getDay()]} ${khDayLabel(x.d)}`)}">${KH_WD[parse(x.d).getDay()]}</button>`).join('');
+    return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khRoleName(khRoleIdOf(t), khAreaOf(t)))} | فاتها ${plural(g.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')}: ${esc(g.map((x) => AR_DAYS[parse(x.d).getDay()]).join(' و'))}</small><b>${esc(t.title)}</b></button><div class="kh-side">${khImpBtn(t)}</div><div class="kh-dots">${dots}</div></div>`;
+  }).join('');
+}
 // «!» on what is not fixed to a day or a week: it shows in every period until it is done, and says why
 const khWhyBtn = (text) => `<button type="button" class="kh-why" data-action="kh-why" data-t="${esc(text)}" aria-label="لماذا يظهر هنا؟">!</button>`;
 const khWhyOf = (t, d) => (t.repeat && t.repeat.per ? khWhyBtn(`تظهر كل يوم لأنك لم تحدد أيامها: تنجزها ${KH_UNIT.times(t.repeat.per)} في الأسبوع في أي يوم، فإذا اكتمل عددها لم تظهر بقية الأسبوع.`)
@@ -605,7 +617,7 @@ function khTodayHTML() {
     const lt = d === t0 ? late : [];
     return `<div class="kh-dsec${d === t0 ? ' now' : ''}"><div class="kh-dsec-h"><b>${esc(AR_DAYS[parse(d).getDay()])}</b><small>${esc(khDayLabel(d))}</small>${d === t0 ? '<span class="kh-today">اليوم</span>' : ''}${xs.length && d >= t0 ? `<small class="kh-left${n === xs.length ? ' ok' : ''}">${n === xs.length ? 'أنجزتها كلها' : `بقي ${n ? `${xs.length - n} من ${xs.length}` : xs.length}`}</small>` : ''}</div>
       ${xs.map((t) => khDayBox(t, d, side(t, d))).join('') || (d >= t0 ? '<p class="note-text">لا شيء محدد لهذا اليوم.</p>' : '')}
-      ${lt.length ? `<div class="kh-late"><b>لم تُنجز في وقتها</b>${khLateRows(lt)}</div>` : ''}</div>`;
+      ${lt.length ? `<div class="kh-late"><b>لم تُنجز في وقتها</b>${khLateGroup(lt)}</div>` : ''}</div>`;
   };
   return `<section class="section">
     <div class="section-head"><h2>يومي</h2><small>${esc(fmtDate(k, { day: 'numeric', month: 'long' }))} – ${esc(fmtDate(last, { day: 'numeric', month: 'long' }))}</small></div>
