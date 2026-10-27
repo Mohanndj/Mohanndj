@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 145;
+const APP_VERSION = 146;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -8,7 +8,7 @@ const OLD_KEY = 'my-tasks-v1';
 const LOCALE = 'ar-u-nu-latn';
 const HIJRI = 'ar-SA-u-ca-islamic-umalqura-nu-latn';
 const PRI = { high: 3, mid: 2, low: 1 };
-const PRI_LABEL = { high: 'عالية', mid: 'متوسطة', low: 'منخفضة' };
+const PRI_LABEL = { high: 'قصوى', mid: 'متوسطة', low: 'منخفضة' }; // (v146: «عالية» became «قصوى», the owner: «أهمية عالية تتوحد إلى أهمية قصوى»)
 const DAY_ORDER = [0, 1, 2, 3, 4, 5, 6]; // Sunday first
 const DAY_SHORT = { 6: 'سبت', 0: 'أحد', 1: 'اثنين', 2: 'ثلاثاء', 3: 'أربعاء', 4: 'خميس', 5: 'جمعة' };
 const ACCENTS = {
@@ -515,8 +515,8 @@ function metaHTML(t, d, opts = {}) {
     // «any days»: how many of the week's number are done
     if (t.repeat.per) { const q = quotaOf(t, weekStartOf(d || today())); if (q.need) meta.push(`<span class="num">هذا الأسبوع: ${Math.min(q.done, q.need)} من ${q.need}</span>`); }
   } else if (t.due && !opts.noDue) {
-    const late = !t.done && t.due < today() && !(t.skip && t.skip[t.due]);
-    meta.push(`<span class="${late ? 'late' : ''}">${icon('cal')}${late ? 'متأخرة: ' : t.bookId && !t.done ? 'الجلسة القادمة: ' : ''}${esc(dueLabel(t.due))}</span>`);
+    // (v146: its date as it is, no «متأخرة» nor red: the owner: «المتعثرات مكانها الإحصائيات والتقرير فقط»)
+    meta.push(`<span>${icon('cal')}${t.bookId && !t.done ? 'الجلسة القادمة: ' : ''}${esc(dueLabel(t.due))}</span>`);
   }
   if (hasTime(t)) meta.push(`<span class="num">${icon(t.alarms.length ? 'bell' : t.prayer ? 'moon' : 'clock')}${esc(timeLabel(t, d || t.due || today()))}</span>`);
   if (isCounted(t)) meta.push(`<span class="num count-btn">${countOn(t, d || today())} من ${t.target}${t.unit ? ' ' + esc(t.unit) : ''}</span>`);
@@ -663,7 +663,7 @@ function smartPreviewHTML() {
   if (t.prayer && !S.settings.prayer) tags.push('<span class="tag warn">حدّد مدينتك في الإعدادات</span>');
   for (const a of t.alarms.filter((x) => x > 0)) tags.push(`<span class="tag">${icon('bell')}قبل ${esc(minsWord(a))}</span>`);
   if (t.target > 1) tags.push(`<span class="tag">${icon('target')}${t.target} ${esc(t.unit)} يومياً</span>`);
-  if (t.priority !== 'mid') tags.push(`<span class="tag">${icon('flag')}أولوية ${PRI_LABEL[t.priority]}</span>`);
+  if (t.priority !== 'mid') tags.push(`<span class="tag">${icon('flag')}أهمية ${PRI_LABEL[t.priority]}</span>`);
   if (t.category) tags.push(`<span class="tag">${icon('tag')}${esc(t.category)}</span>`);
   return `<div class="parsed">${tags.join('')}</div>
     <div class="smart-actions"><button type="button" class="ghost" data-action="smart-edit">تعديل قبل الإضافة</button></div>`;
@@ -681,7 +681,6 @@ function viewToday() {
   items.sort(byTime(d));
   const done = items.filter((t) => doneOn(t, d)).length;
   const p = pct(done, items.length);
-  const late = items.filter((t) => !isRepeat(t) && !t.done && t.due && t.due < d).length;
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   const parts = {
@@ -692,7 +691,7 @@ function viewToday() {
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
     <div class="txt">
       <b>${summary}</b>
-      <span class="muted">${late ? `<span class="late">${late} متأخرة</span>` : ''}${S.settings.hijri ? `${late ? ' | ' : ''}${esc(fmtHijri(d))}` : ''}</span>
+      <span class="muted">${S.settings.hijri ? esc(fmtHijri(d)) : ''}</span>
     </div>
   </div>`,
     prayer: () => todayBlock('أوقات الصلاة', '', prayerStripHTML()),
@@ -730,7 +729,6 @@ function projectCardHTML(p) {
     <span class="pcard-top"><i class="pdot"></i><span class="pname">${esc(p.name)}</span></span>
     <span class="pbar"><i style="width:${st.progress}%"></i></span>
     <span class="psub"><span class="num">أُنجز ${st.progress}%</span><span>${sub}</span></span>
-    ${st.late ? `<span class="late psub">${st.late} متأخرة</span>` : ''}
     ${khProjNeed(p) ? '<span class="psub kh-need-tag">ناقص: اربطه برؤية</span>' : ''}
   </button>`;
 }
@@ -751,13 +749,11 @@ function taskToolbar(filterKey, withSearch) {
 }
 
 function sortTasks(list, filter) {
-  const t0 = today();
   return list.sort((a, b) => {
     if (filter === 'done') return (b.doneAt || 0) - (a.doneAt || 0);
     if (ui.sort === 'created') return b.created - a.created;
     if (ui.sort === 'due') return (a.due || '9999').localeCompare(b.due || '9999') || (timeOn(a, a.due) ?? 9999) - (timeOn(b, b.due) ?? 9999);
-    const lateA = a.due && a.due < t0, lateB = b.due && b.due < t0;
-    return a.done - b.done || lateB - lateA || PRI[b.priority] - PRI[a.priority] || (a.due || '9999').localeCompare(b.due || '9999');
+    return a.done - b.done || PRI[b.priority] - PRI[a.priority] || (a.due || '9999').localeCompare(b.due || '9999');
   });
 }
 const matchFilter = (t, f) => f === 'all' || (f === 'done') === t.done;
@@ -816,7 +812,7 @@ function viewProject(p) {
       ${st.goal && st.goal.target ? `<span>الهدف: <b class="num">تحقّق في ${st.goal.done} من ${plural(st.goal.target, 'شهر واحد', 'شهرين', 'أشهر', 'شهراً')}</b></span>` : ''}
       ${st.total || !(st.goal && st.goal.target) ? `<span>المهام: <b class="num">${st.done} من ${st.total}</b></span>` : ''}
       ${st.steps ? `<span>خطوات داخل المهام: <b class="num">${st.stepsDone} من ${st.steps}</b></span>` : ''}
-      ${p.due ? `<span class="${p.due < today() && st.progress < 100 ? 'late' : ''}">${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
+      ${p.due ? `<span>${icon('flag')} ينتهي ${esc(relDateH(p.due))}</span>` : ''}
       ${kgOf(p.ygoal) ? `<span>يخدم هدف السنة: ${esc(kgOf(p.ygoal).text)}</span>` : ''}
     </div>
     ${need ? `<div class="kh-need"><b>ناقص: اربطه برؤية دوره</b><span>المشروع هدف لسنتك في تسلسل الدور والرؤية، ومهامه مهام أيامه.</span><button type="button" class="primary" data-action="kh-proj-link" data-v="${p.id}">أكمل: من الرؤية إلى الأيام</button></div>` : ''}

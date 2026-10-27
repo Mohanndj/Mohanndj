@@ -1907,6 +1907,29 @@ li.sel .sel-box { background: var(--high); }
 .kh-pri { display: inline-flex; align-items: center; gap: 3px; font-size: .72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 2px 7px; background: var(--card); white-space: nowrap; }
 .kh-pri[aria-pressed="true"] { color: var(--high); border-color: var(--high); font-weight: 700; }
 .kh-prio-on > .task { border-color: var(--high); box-shadow: inset 0 0 0 1px var(--high); background: color-mix(in srgb, var(--high) 6%, var(--card)); }
+.kh-imp { display: inline-flex; align-items: center; gap: 3px; font-size: .72rem; color: var(--muted); border: 1px dashed var(--line); border-radius: 99px; padding: 2px 7px; background: var(--card); white-space: nowrap; }
+.kh-imp[aria-pressed="true"] { color: var(--high); border: 1px solid var(--high); font-weight: 700; }
+.kh-days { display: grid; gap: 10px; }
+.kh-dsec { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); min-width: 0; }
+.kh-dsec.now { border: 2px solid var(--accent); }
+.kh-dsec-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.kh-dsec-h .kh-left { margin-inline-start: auto; }
+.kh-today { background: var(--accent); color: var(--accent-fg); border-radius: 999px; padding: 0 8px; font-size: .78rem; font-weight: 700; }
+.kh-dbox { grid-template-columns: auto 1fr; align-items: center; border-inline-start-color: var(--rc); }
+.kh-dbox > .kh-side, .kh-dbox > .kh-serve, .kh-dbox > .kh-dots { grid-column: 1 / -1; }
+.kh-dbox > .kh-side { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; max-width: none; padding: 0; }
+.kh-dbox .kh-leaf { padding: 2px 0; }
+.kh-dbox.done .check::before { background: var(--accent); border-color: var(--accent); }
+.kh-dbox.done .check svg { opacity: 1; }
+.kh-dbox.done .kh-leaf b { text-decoration: line-through; color: var(--muted); }
+.kh-dbox.kh-prio-on { border-color: var(--high); box-shadow: inset 0 0 0 1px var(--high); }
+.kh-dbox.kh-wbox { grid-template-columns: 1fr; }
+.kh-dwrap > .kh-leaf { padding: 0; }
+.kh-dwrap > .kh-imp { justify-self: start; }
+.kh-yt-all, .kh-yt-ms label { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.kh-yt-ms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.kh-late { display: grid; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.kh-late > b { font-size: .88rem; }
 .kh-prio-sum { margin: 0; color: var(--high); font-weight: 700; font-size: .92rem; }
 .kh-pend { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0 6px 0; border-top: 1px dashed var(--line); border-inline-start: 4px solid var(--rc); padding-inline-start: 8px; }
 .kh-pend .kh-link { flex: 1; }
@@ -2105,6 +2128,18 @@ li.sel .sel-box { background: var(--high); }
 .pd-months { display: grid; grid-template-columns: repeat(var(--n, 7), 1fr); gap: 6px; height: 150px; margin-bottom: 10px; }
 .pd-series > span { display: grid; grid-template-rows: 1fr auto auto; height: 100%; text-align: center; font-size: 11px; }
 .pd-series i { align-self: end; background: #0f766e; border-radius: 4px 4px 0 0; display: block; }
+.pd-ypage { break-after: page; page-break-after: always; }
+.pd-ypage:last-child { break-after: auto; page-break-after: auto; }
+.pd-keys { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; margin-bottom: 6px; }
+.pd-key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--rc); margin-inline-end: 4px; vertical-align: middle; }
+.pd-ytab { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pd-ytab th, .pd-ytab td { border: 1px solid #bbb; padding: 3px 4px; vertical-align: top; text-align: start; }
+.pd-ytab thead th { background: #f1f5f4; font-size: 12px; text-align: center; }
+.pd-ytab tr { break-inside: avoid; page-break-inside: avoid; }
+.pd-ytab td { height: 86px; }
+.pd-yd { display: block; font-size: 10px; margin-bottom: 2px; }
+.pd-yt { display: flex; gap: 3px; align-items: flex-start; font-size: 10.5px; line-height: 1.3; border-inline-start: 3px solid var(--rc); padding-inline-start: 3px; margin-top: 2px; overflow-wrap: anywhere; }
+.pd-yt .pd-bx { width: 10px; height: 10px; margin-top: 1px; }
 .pd-foot { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid #ccc; margin-top: 12px; padding-top: 6px; font-size: 10px; color: #555; }
 @media print {
   html, body { background: #fff !important; }

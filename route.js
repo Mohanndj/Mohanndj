@@ -116,7 +116,7 @@ function closeTodayHTML() {
   const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
   const tg = [
     // (a task in a chain of «خطِّط» is not moved from here: its date is changed there only, v143)
-    ...tasks.map((t) => row(t.title, t.due < t0 ? lateDays(daysBetween(t.due, t0)) : '', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
+    ...tasks.map((t) => row(t.title, '', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
     ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
     // (a science's task is done by its lessons: its button opens what is left of them, v137)
     ...repOpen.map((t) => row(t.title, isCounted(t) ? `${countOn(t, t0)} من ${t.target}` : khProjTask(t) ? 'مهمة متكررة' : 'هدف متكرر', btn('close-done', t.id, t.sciId ? 'أكمل دروسه' : 'أتممت') + btn('close-skip', t.id, 'لم أفعله'))),

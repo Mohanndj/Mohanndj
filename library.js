@@ -601,7 +601,7 @@ function excelSheets(kind) {
     add('المهام', [
       { title: 'المهمة', width: 34, wrap: true }, { title: 'المشروع', width: 20 }, { title: 'الحالة', width: 10 },
       { title: 'التاريخ', width: 13 }, { title: 'التاريخ الهجري', width: 22 }, { title: 'الوقت', width: 18 },
-      { title: 'الأولوية', width: 10 }, { title: 'التصنيف', width: 14 }, { title: 'الخطوات المنجزة', width: 10 },
+      { title: 'الأهمية', width: 10 }, { title: 'التصنيف', width: 14 }, { title: 'الخطوات المنجزة', width: 10 },
       { title: 'عدد الخطوات', width: 10 }, { title: 'الخطوات', width: 40, wrap: true }, { title: 'الملاحظات', width: 40, wrap: true },
       { title: 'الوقت المسجل (دقيقة)', width: 12 }, { title: 'تاريخ الإنجاز', width: 13 }, ...roleCol,
     ], tasks.map((t) => [

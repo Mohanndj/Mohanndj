@@ -177,7 +177,7 @@ function openAIPreview(title, intro, tasks) {
     if (!isRepeat(t) && t.due) bits.push(relDateH(t.due));
     if (hasTime(t)) bits.push(timeLabel(t, t.due || (t.repeat && t.repeat.start) || today()));
     if (t.target > 1) bits.push(`${t.target} ${t.unit}`);
-    if (t.priority !== 'mid') bits.push(`أولوية ${PRI_LABEL[t.priority]}`);
+    if (t.priority !== 'mid') bits.push(`أهمية ${PRI_LABEL[t.priority]}`);
     return `<li><label class="ai-item"><input type="checkbox" data-i="${i}" checked>
       <span><b>${esc(t.title)}</b><small>${esc(bits.join(' | '))}</small>
       ${t.subtasks.length ? `<ul class="ai-steps">${t.subtasks.map((s) => `<li>${esc(s.text)}</li>`).join('')}</ul>` : ''}</span></label></li>`;

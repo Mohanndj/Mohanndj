@@ -110,6 +110,49 @@ function khPdStats() {
     </div>${khPdFoot}`;
 }
 
+// ---------- the year's table (v146): the months chosen, a page each: its weeks as rows (from Sunday; a week is of the month it
+// starts in) and their seven days as columns, each day with the tasks of the plan on it in their role's colour and a box to
+// tick, and a key of the roles and their visions; the owner: «طباعة جدول السنة بأسابيعه ومهامه، الأحد ويقابله مهامه السنوية
+// المرتبطة بالدور والرؤية وهكذا إلى أن تنتهي السنة، واجعلني أتخير الأشهر للطباعة»، «صف لكل أسبوع وأيامه أعمدة»، «لون دورها
+// ومفتاح أعلى الصفحة». What has no day of its own is in every day of its week (the owner: «كل ما لم يحدد له يوم يظهر كل يوم»)
+const khYtBtn = () => `<div class="kh-pd-row"><button type="button" class="ghost kh-pdf" data-action="kh-ytable">${KH_PRINT_IC}<span>طباعة جدول السنة <small>PDF</small></span></button></div>`;
+const khYtOn = (t, d) => (isRepeat(t) ? occursOn(t, d) : t.from ? d >= t.from && d <= t.due : t.due === d);
+function khPdYTable(months) {
+  const tasks = S.tasks.filter(khInChain);
+  const key = khRoles().map((r) => {
+    const vs = S.kgoals.filter((g) => g.level === 'life' && g.roleId === r.id && g.status !== 'dropped');
+    return `<span class="pd-key" style="--rc:${khColor(r.id)}"><i></i><b>${esc(r.name)}</b>${vs.length ? `: ${esc(vs.map((g) => g.text).join('، '))}` : ''}</span>`;
+  }).join('');
+  const item = (t, d) => `<span class="pd-yt" style="--rc:${khColor(khRoleIdOf(t))}">${khPdBx(doneOn(t, d))}<span>${hasTime(t) ? `<small class="pd-tm">${esc(timeLabel(t, d))}</small> ` : ''}${esc(t.title)}</span></span>`;
+  const cell = (d) => `<td><small class="pd-yd">${esc(khDayLabel(d))}</small>${tasks.filter((t) => khYtOn(t, d)).sort(byTime(d)).map((t) => item(t, d)).join('')}</td>`;
+  return months.map((m) => `<section class="pd-ypage">${khPdHead('جدول السنة', esc(khMoLabel(m)), '')}<div class="pd-keys">${key}</div>
+    <table class="pd-ytab"><thead><tr>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<th>${esc(AR_DAYS[i])}</th>`).join('')}</tr></thead>
+    <tbody>${khWeeksOf(m).map((k) => `<tr>${khDays(k).map(cell).join('')}</tr>`).join('')}</tbody></table>${khPdFoot}</section>`).join('');
+}
+// the months to print: those of the year shown in «سنتي», all ticked
+function khYtSheet() {
+  const y = khYrStart(khUi.yr || today()), end = khYrNext(y), months = [];
+  for (let m = y; m < end; m = khMoNext(m)) months.push(m);
+  ldraft = { kind: 'khpick', id: 'x', isNew: false };
+  $('libForm').innerHTML = `${sheetHead('طباعة جدول السنة')}
+    <p class="note-text">اختر الأشهر التي تطبعها: لكل شهر صفحة، أسابيعه صفوف وأيامها أعمدة، وفي كل يوم مهامه بلون دورها.</p>
+    <label class="kh-yt-all"><input type="checkbox" id="khYtAll" checked><span>الكل</span></label>
+    <div class="kh-yt-ms">${months.map((m) => `<label><input type="checkbox" data-kh-ytm="${m}" checked><span>${esc(khMoLabel(m))}</span></label>`).join('')}</div>
+    <div class="sheet-actions"><button type="button" class="primary" data-action="kh-yt-go">${KH_PRINT_IC}<span>اطبعه، أو احفظه PDF</span></button><button type="button" class="ghost" data-action="lib-close">إلغاء</button></div>`;
+  showLib();
+}
+function khPrintYTable(months) {
+  let box = document.getElementById('print');
+  if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.appendChild(box); }
+  let pg = document.getElementById('pageSize');
+  if (!pg) { pg = document.createElement('style'); pg.id = 'pageSize'; document.head.appendChild(pg); }
+  pg.textContent = '@page{size:A4 landscape;margin:10mm}';
+  box.className = '';
+  box.innerHTML = `<div class="pd" dir="rtl" style="width:${KH_PAGE.week[0]}px">${khPdYTable(months)}</div>`;
+  toast('اختر «حفظ PDF» أو «حفظ في الملفات» من نافذة الطباعة');
+  setTimeout(() => window.print(), 300);
+}
+
 // builds the page, fits it on one page (writing lines fill what is left; what is too long is shrunk), and opens the print window
 function khPrint(level) {
   const [W, H, size] = KH_PAGE[level];
@@ -151,8 +194,20 @@ function khPrintSheet(level) {
   showLib();
 }
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action="kh-print"], [data-action="kh-print-go"]');
+  const el = e.target.closest('[data-action="kh-print"], [data-action="kh-print-go"], [data-action="kh-ytable"], [data-action="kh-yt-go"]');
   if (!el) return;
+  if (el.dataset.action === 'kh-ytable') { khYtSheet(); return; }
+  if (el.dataset.action === 'kh-yt-go') {
+    const ms = [...document.querySelectorAll('[data-kh-ytm]')].filter((x) => x.checked).map((x) => x.dataset.khYtm);
+    if (!ms.length) { toast('اختر شهراً واحداً على الأقل'); return; }
+    closeLib(); khPrintYTable(ms);
+    return;
+  }
   if (el.dataset.action === 'kh-print') khPrintSheet(el.dataset.v);
   else { closeLib(); khPrint(el.dataset.v); }
+});
+// the months of the year's table: «الكل» ticks or unticks them all, and follows them
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'khYtAll') { for (const x of document.querySelectorAll('[data-kh-ytm]')) x.checked = e.target.checked; return; }
+  if (e.target.dataset && e.target.dataset.khYtm && $('khYtAll')) $('khYtAll').checked = [...document.querySelectorAll('[data-kh-ytm]')].every((x) => x.checked);
 });
