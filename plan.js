@@ -1052,7 +1052,8 @@ function khChainHTML(yg, y) {
   const live = khYrNext(y) > today(); // a year gone by is shown, not built on
   const dayNode = (t) => {
     const ds = Object.keys(t.completions).filter((d) => t.completions[d] && d >= y && d < khYrNext(y));
-    return `<button type="button" class="kh-node lv-day kh-leaf" data-action="open" data-id="${t.id}"><small>${isRepeat(t) ? esc(khDaysText(t)) : (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>`;
+    // (its day, tapped: its own days step, where its day and time are changed, v144)
+    return `<button type="button" class="kh-node lv-day kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>`;
   };
   const weekNode = (w) => {
     const ts = kgTasks(w);
@@ -1341,7 +1342,7 @@ function khWizDraw0() {
       <div id="khwCards">${khWizCardsHTML()}</div>
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
-  $('libForm').innerHTML = `${sheetHead(edit ? 'تعديل الهدف' : 'من الرؤية إلى الأيام')}${body}`;
+  $('libForm').innerHTML = `${sheetHead(edit === 'day' ? 'تعديل المهمة' : edit ? 'تعديل الهدف' : 'من الرؤية إلى الأيام')}${body}`;
 }
 // what is written in the step on screen, into the draft
 function khWizKeep() {
@@ -1601,7 +1602,9 @@ document.addEventListener('click', (e) => {
     case 'kh-wiz': { const o = el.dataset; if (!bookSheetKeep()) break; khWizard({ step: o.step, roleId: o.role, yk: o.yk, vision: o.vision, yearId: o.year, monthId: o.month, weekId: o.week, once: !!o.once, k: o.k, day: o.day }); break; }
     case 'kh-book-link': { if (!bookSheetKeep()) break; const b = getBook(v), g = bookGoal(b); if (!b) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, book: b.id, yText: `قراءة «${b.title}»` }); break; }
     case 'kh-chain-at': khChainGo(v); break;
-    case 'kh-chain-go': { const id = draft && draft.id; closeSheet(); if (id) khChainGo(id); break; }
+    // its day and time: in its own days step (v144)
+    case 'kh-chain-go': { const id = draft && draft.id; closeSheet(); if (id) khWizard({ task: id }); break; }
+    case 'kh-day-edit': khWizard({ task: v }); break;
     case 'kh-hz-link': { closeLib(); const p = getPlan(v), g = hpGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, hz: p.id, yText: `حفظ «${p.title}»` }); break; }
     case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
     case 'kh-proj-link': { const p = getProject(v), g = khProjGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, proj: p.id, roleId: khRole(p.roleId) ? p.roleId : '', yText: p.name }); break; }

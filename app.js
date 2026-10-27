@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 143;
+const APP_VERSION = 144;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1249,10 +1249,12 @@ function setKind(kind) {
   if (sd) { $('goalFields').hidden = false; $('repeatFields').hidden = false; for (const id of ['onceGoalFields', 'targetBox', 'habitSection']) $(id).hidden = true; }
 }
 
-// a task in a chain of «خطِّط», opened anywhere else: its date, days and time are shown, and changed there only (v143)
+// a task in a chain of «خطِّط»: its date, days and time are shown here and changed in its own days step only, wherever it
+// is opened (v143; v144, the owner: «احصر تغيير المواعيد من خانات خطط فقط»); and a project's task is never made a goal
 function chainLock() {
   const cur = (draft.id && getTask(draft.id)) || {};
-  draft.lock = !!(draft.id && khInChain(cur) && !cur.bookId && !cur.sciId && ui.tab !== 'plan');
+  draft.lock = !!(draft.id && khInChain(cur) && !cur.bookId && !cur.sciId);
+  if (cur.projectId || (draftIsNew && $('fProject').value)) $('fKind').hidden = true;
   $('fChainNote').hidden = !draft.lock;
   // (these two are not shown again by the sheet's own fields: the next sheet opened shows them)
   $('fDue').closest('.field').hidden = draft.lock;

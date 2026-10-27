@@ -1943,6 +1943,7 @@ li.sel .sel-box { background: var(--high); }
 .kh-nh, .kh-leaf { display: grid; gap: 2px; text-align: start; color: var(--fg); padding: 0; min-width: 0; overflow-wrap: anywhere; }
 .kh-leaf { padding: 8px 10px; }
 /* a task reached from «اليوم» or its sheet: shown where it is in its chain (v143) */
+.kh-day-edit { text-decoration: underline dotted; cursor: pointer; }
 .kh-leaf.kh-flash { outline: 3px solid var(--accent, #0f766e); outline-offset: 2px; }
 .kh-nh small, .kh-leaf small { color: var(--lv); font-size: .78rem; font-weight: 700; }
 .kh-leaf small + b + small, .kh-nh b + small { color: var(--muted); font-weight: 400; }
