@@ -116,15 +116,35 @@ function khPdStats() {
 // المرتبطة بالدور والرؤية وهكذا إلى أن تنتهي السنة، واجعلني أتخير الأشهر للطباعة»، «صف لكل أسبوع وأيامه أعمدة»، «لون دورها
 // ومفتاح أعلى الصفحة». What has no day of its own is in every day of its week (the owner: «كل ما لم يحدد له يوم يظهر كل يوم»)
 const khYtBtn = () => `<div class="kh-pd-row"><button type="button" class="ghost kh-pdf" data-action="kh-ytable">${KH_PRINT_IC}<span>طباعة جدول السنة <small>PDF</small></span></button></div>`;
-const khYtOn = (t, d) => (isRepeat(t) ? occursOn(t, d) : !t.due ? !t.done && d >= today() : t.from ? d >= t.from && d <= t.due : t.due === d);
+// (v147) a reading project's book task is one task whose date moves to its book's next reading day: in the table it is on every
+// reading day of its book (in its week goal's weeks): the days gone by since the book began (ticked if read), and the days to
+// come until its expected end (the pages left ÷ the pages of a session; with no number of pages, until it is read). The owner:
+// «عندي براهين وجود الله هذا كل يوم ومع ذلك لم يظهر»، and his choices «حتى الموعد المتوقع لإتمامه»، «الجدول وحده»، «كل يوم قراءة مضى»
+function khYtBookEnd(t, b) {
+  if (!b.pages || !b.rpages) return '';
+  let left = Math.ceil(Math.max(0, b.pages - (b.page || 0)) / b.rpages), d = today();
+  if (!left) return t.completions && t.completions[d] ? d : addDays(d, -1);
+  for (let i = 0; i < 3660; i++, d = addDays(d, 1)) if (b.rdays.includes(parse(d).getDay()) && !(t.completions && t.completions[d]) && !--left) return d;
+  return d;
+}
+function khYtBook(t, d, end) {
+  const b = getBook(t.bookId);
+  if (t.completions && t.completions[d]) return true;
+  if (!b || !b.rdays.length || t.done) return !t.done && t.due === d;
+  if (!b.rdays.includes(parse(d).getDay()) || !khChainOn(t, d)) return false;
+  const from = b.start || (t.created ? iso(new Date(t.created)) : today());
+  return d >= from && (d < today() || !end || d <= end);
+}
+const khYtOn = (t, d, ends) => (isRepeat(t) ? occursOn(t, d) : t.bookId ? khYtBook(t, d, ends && ends.get(t))
+  : !t.due ? !t.done && d >= today() : t.from ? d >= t.from && d <= t.due : t.due === d);
 function khPdYTable(months) {
-  const tasks = S.tasks.filter(khInChain);
+  const tasks = S.tasks.filter(khInChain), ends = new Map(tasks.filter((t) => t.bookId && !isRepeat(t) && getBook(t.bookId)).map((t) => [t, khYtBookEnd(t, getBook(t.bookId))]));
   const key = khRoles().map((r) => {
     const vs = S.kgoals.filter((g) => g.level === 'life' && g.roleId === r.id && g.status !== 'dropped');
     return `<span class="pd-key" style="--rc:${khColor(r.id)}"><i></i><b>${esc(r.name)}</b>${vs.length ? `: ${esc(vs.map((g) => g.text).join('، '))}` : ''}</span>`;
   }).join('');
   const item = (t, d) => `<span class="pd-yt" style="--rc:${khColor(khRoleIdOf(t))}">${khPdBx(doneOn(t, d))}<span>${hasTime(t) ? `<small class="pd-tm">${esc(timeLabel(t, d))}</small> ` : ''}${esc(t.title)}</span></span>`;
-  const cell = (d) => `<td><small class="pd-yd">${esc(khDayLabel(d))}</small>${tasks.filter((t) => khYtOn(t, d)).sort(byTime(d)).map((t) => item(t, d)).join('')}</td>`;
+  const cell = (d) => `<td><small class="pd-yd">${esc(khDayLabel(d))}</small>${tasks.filter((t) => khYtOn(t, d, ends)).sort(byTime(d)).map((t) => item(t, d)).join('')}</td>`;
   return months.map((m) => `<section class="pd-ypage">${khPdHead('جدول السنة', esc(khMoLabel(m)), '')}<div class="pd-keys">${key}</div>
     <table class="pd-ytab"><thead><tr>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<th>${esc(AR_DAYS[i])}</th>`).join('')}</tr></thead>
     <tbody>${khWeeksOf(m).map((k) => `<tr>${khDays(k).map(cell).join('')}</tr>`).join('')}</tbody></table>${khPdFoot}</section>`).join('');
