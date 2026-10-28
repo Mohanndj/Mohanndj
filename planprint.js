@@ -123,20 +123,23 @@ const khYtBtn = () => `<div class="kh-pd-row"><button type="button" class="ghost
 function khYtBookEnd(t, b) {
   if (!b.pages || !b.rpages) return '';
   let left = Math.ceil(Math.max(0, b.pages - (b.page || 0)) / b.rpages), d = today();
-  if (!left) return t.completions && t.completions[d] ? d : addDays(d, -1);
+  if (!left && t.completions && t.completions[d]) return d;
+  left = left || 1; // at its last page and not ticked today: its session is still due, as «اليوم» shows it
   for (let i = 0; i < 3660; i++, d = addDays(d, 1)) if (b.rdays.includes(parse(d).getDay()) && !(t.completions && t.completions[d]) && !--left) return d;
   return d;
 }
+const khYtPlain = (t, d) => (!t.due ? !t.done && d >= today() : t.from ? d >= t.from && d <= t.due : t.due === d);
 function khYtBook(t, d, end) {
   const b = getBook(t.bookId);
+  // only the task whose date moves (as syncTopicProject moves it); a book in «خطِّط» is read by its tasks there
+  if (b && bookGoal(b)) return khYtPlain(t, d);
   if (t.completions && t.completions[d]) return true;
-  if (!b || !b.rdays.length || t.done) return !t.done && t.due === d;
+  if (!b || !scheduled(b) || t.done) return khYtPlain(t, d);
   if (!b.rdays.includes(parse(d).getDay()) || !khChainOn(t, d)) return false;
   const from = b.start || (t.created ? iso(new Date(t.created)) : today());
   return d >= from && (d < today() || !end || d <= end);
 }
-const khYtOn = (t, d, ends) => (isRepeat(t) ? occursOn(t, d) : t.bookId ? khYtBook(t, d, ends && ends.get(t))
-  : !t.due ? !t.done && d >= today() : t.from ? d >= t.from && d <= t.due : t.due === d);
+const khYtOn = (t, d, ends) => (isRepeat(t) ? occursOn(t, d) : t.bookId ? khYtBook(t, d, ends && ends.get(t)) : khYtPlain(t, d));
 function khPdYTable(months) {
   const tasks = S.tasks.filter(khInChain), ends = new Map(tasks.filter((t) => t.bookId && !isRepeat(t) && getBook(t.bookId)).map((t) => [t, khYtBookEnd(t, getBook(t.bookId))]));
   const key = khRoles().map((r) => {
