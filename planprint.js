@@ -132,9 +132,8 @@ const khYtPlain = (t, d) => (!t.due ? !t.done && d >= today() : t.from ? d >= t.
 function khYtBook(t, d, end) {
   const b = getBook(t.bookId);
   // only the task whose date moves (as syncTopicProject moves it); a book in «خطِّط» is read by its tasks there
-  if (b && bookGoal(b)) return khYtPlain(t, d);
   if (t.completions && t.completions[d]) return true;
-  if (!b || !scheduled(b) || t.done) return khYtPlain(t, d);
+  if (!b || !bookSessions(b) || t.done) return khYtPlain(t, d); // (v151: linked to a year goal or not)
   if (!b.rdays.includes(parse(d).getDay()) || !khChainOn(t, d)) return false;
   const from = b.start || (t.created ? iso(new Date(t.created)) : today());
   return d >= from && (d < today() || !end || d <= end);

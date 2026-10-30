@@ -1041,7 +1041,9 @@ function khRemoveTpl(id) {
 const khN = (n) => (n ? String(n) : 'صفر');
 const KH_UNIT = { week: (n) => plural(n, 'أسبوع واحد', 'أسبوعين', 'أسابيع', 'أسبوعاً'), month: (n) => plural(n, 'شهر واحد', 'شهرين', 'أشهر', 'شهراً'), times: (n) => plural(n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة') };
 // a level's share: a bar, and its number in the unit of the level under it
-const khProg = (x, unit, tail) => (x.target ? `<div class="kh-gprog"><span class="kh-track sm"><i style="width:${Math.min(100, Math.round((x.done / x.target) * 100))}%"></i></span><small>${khN(x.done)} من ${KH_UNIT[unit](x.target)}${tail ? ` ${tail}` : ''}</small></div>` : '');
+// (v151, the owner's answer «ب»: none done is not «صفر», read in a Hijri plan as the month Safar)
+const KH_ZERO = { week: 'لم يتحقق بعد أي أسبوع', month: 'لم يتحقق بعد أي شهر', times: 'لم تُنجز بعد أي مرة' };
+const khProg = (x, unit, tail) => (x.target ? `<div class="kh-gprog"><span class="kh-track sm"><i style="width:${Math.min(100, Math.round((x.done / x.target) * 100))}%"></i></span><small>${x.done ? khN(x.done) : KH_ZERO[unit]} من ${KH_UNIT[unit](x.target)}${tail ? ` ${tail}` : ''}</small></div>` : '');
 const khDoneBadge = (label) => `<span class="kh-tick on">${icon('check')}<span>${label}</span></span>`;
 const khStat = (g) => (g.status !== 'open' ? ` <span class="kh-st ${g.status}">${KH_GSTAT[g.status]}</span>` : '');
 const mgAhead = (g) => { const sp = kgSpan(g); if (!sp || kgClosedOf(g)) return false; for (let m = khMoStart(today()); addDays(m, 14) < sp[1]; m = khMoNext(m)) if (mgActive(g, m)) return true; return false; };
@@ -1123,7 +1125,13 @@ function khMonthHTML() {
 // and time are changed, v144), its title (tapped: its sheet), what was done of it this year; and «★ قصوى» (v146)
 function khChainDay(t, y) {
   const ds = Object.keys(t.completions).filter((d) => t.completions[d] && d >= y && d < khYrNext(y));
-  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
+  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : khBookDaysText(t) || (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
+}
+// (v151) a reading project's book task: its book's reading days (set in its card), not «لمرة»
+function khBookDaysText(t) {
+  const b = t.bookId && getBook(t.bookId);
+  if (!b || isRepeat(t) || !bookSessions(b)) return '';
+  return esc(`أيام قراءته: ${b.rdays.length === 7 ? 'كل يوم' : DAY_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join(' و')}`);
 }
 // a week goal of the chain with its tasks (a year, or a month, gone by is shown, not built on)
 function khChainWeek(w, y, live, keep) {
@@ -1138,7 +1146,7 @@ function khChainHTML(yg, y) {
   const monthNode = (m) => {
     const ws = kgKids(m, 'week'), mx = mgYear(m, y);
     return `<div class="kh-node lv-month"><button type="button" class="kh-nh" data-action="kh-edit-mg" data-v="${m.id}"><small>${esc(khMonthsText(m))}${khStat(m)}</small><b>${esc(m.text)}</b></button>
-      ${mx.target ? `<small class="kh-serve">تحقّق في ${khN(mx.done)} من ${KH_UNIT.month(mx.target)}</small>` : ''}
+      ${mx.target ? `<small class="kh-serve">${mx.done ? `تحقّق في ${khN(mx.done)}` : KH_ZERO.month} من ${KH_UNIT.month(mx.target)}</small>` : ''}
       ${ws.map(weekNode).join('')}
       ${!ws.length && live && mgAhead(m) ? khCont('week', 'أكمل: ثم أسابيعك', ` data-step="2" data-month="${m.id}"`) : ''}</div>`;
   };
@@ -1167,7 +1175,7 @@ function khYearHTML() {
     <p class="note-text explain">من رؤيتك في كل دور: هدف لسنتك، ثم أشهره، ثم أسابيعها، ثم أيامها. والسنة تتحقق بأشهرها.</p>
     ${khShownRoles().map(card).join('')}
     <div class="panel"><div class="row-between"><b>إنجازات السنة${khRoleF() ? ` في «${esc(khRole(khRoleF()).name)}»` : ''}</b><span class="kh-pct ok">${khN(n)}</span></div>
-      <div class="kh-months">${months.map((m, i) => `<button type="button" class="kh-mo${m === khMoStart(today()) ? ' now' : ''}" data-action="kh-gomonth" data-v="${m}"><span>${esc(khMoShort(m))}</span><span class="kh-track sm"><i style="width:${Math.round((counts[i] / max) * 100)}%"></i></span><small>${khN(counts[i])}</small></button>`).join('')}</div></div>
+      <div class="kh-months">${months.map((m, i) => `<button type="button" class="kh-mo${m === khMoStart(today()) ? ' now' : ''}" data-action="kh-gomonth" data-v="${m}"><span>${esc(khMoShort(m))}</span><span class="kh-track sm"><i style="width:${Math.round((counts[i] / max) * 100)}%"></i></span><small>${counts[i] ? khN(counts[i]) : 'لا شيء'}</small></button>`).join('')}</div></div>
   </section>`;
 }
 
@@ -1264,7 +1272,9 @@ function khWizard(o = {}) {
   // (v150, the owner: «بيان المواعيد في خطط فقط»: a book not linked to a year goal has its reading days seen and set here,
   // with its next session; its book page shows them only. A linked book's days are its tasks' in its goal's line)
   // (its next session is kept only for a book being read with pages a session, as syncTopicProject reads it)
-  const bkb = bk && getBook(et.bookId), bkOwn = !!(bkb && !bookGoal(bkb)), bkSch = !!(bkOwn && bkb.status === 'reading' && bkb.rpages > 0), bkDays = bkSch && bkb.rdays.length > 0;
+  // (v151, the owner: «إذا ضغط على الأيام من خطط ظهرت لي الأيام التي اخترتها له… وبإمكاني تعديلها»: a book linked to a year
+  // goal too: its task's card sets its reading days)
+  const bkb = bk && getBook(et.bookId), bkOwn = !!bkb, bkSch = !!(bkOwn && bkb.status === 'reading'), bkDays = bkSch && bkb.rdays.length > 0;
   const wg = kgOf(o.weekId), mg = kgOf(o.monthId || (wg ? wg.parent : '')), yg = kgOf(o.yearId || (mg ? mg.parent : ''));
   const roleId = o.edit === 'year' && yg ? (khRole(yg.roleId) ? yg.roleId : '') : o.roleId || (yg ? kgRoleId(yg) : '') || (khRoles()[0] || {}).id;
   const step = Number(o.step) || 0;

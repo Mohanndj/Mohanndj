@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 150;
+const APP_VERSION = 151;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1249,7 +1249,7 @@ function setKind(kind) {
   // (v150, the owner: «بيان المواعيد في خطط فقط»: its days and time are set in «خطِّط», its title and pages in its book)
   const cb = cur.bookId && getBook(cur.bookId);
   $('fBookNote').textContent = bplan ? 'عنوانها من صفحة الكتاب، وأيامها أيام قراءته في «خطِّط» تُعدَّل هنا.'
-    : cb && bookGoal(cb) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيام قراءته أيام مهامه في «خطِّط».'
+    : cb && bookGoal(cb) && !inReadingProject(cb) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيام قراءته أيام مهامه في «خطِّط».'
     : khInChain(cur) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط».'
     : 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط» حين تربط كتابها برؤية دوره.';
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }

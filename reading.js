@@ -36,6 +36,9 @@ const bookNeedLink = (b) => b.status === 'reading' && (!bookGoal(b) || !kgOf(boo
 const bookPlanTasks = (b) => (bookGoal(b) ? khGoalTasks(bookGoal(b)).filter((x) => isRepeat(x) && !x.sciId && !x.bookId) : []);
 // «قراءة «الواسطية»», «اقرأ الواسطية», «الواسطية»: the same name, without its vowels, quotes, «ال» or a leading «اقرأ»
 const bookBare = (v) => String(v || '').replace(/[ً-ْـ«»"']/g, ' ').trim().replace(/^(اقرأ|اقرا|قراءة|قراءه)\s+(كتاب\s+)?/, '').split(/\s+/).filter(Boolean).map((w) => w.replace(/^ال/, '')).join(' ');
+// (v151) a reading project's book task goes by its book's reading days (set in its card in «خطِّط»), linked to a year goal
+// or not; with none it has no date
+const bookSessions = (b) => b.status === 'reading' && b.rdays.length > 0;
 const bookTitleOf = (b) => (b.rpages ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`);
 
 let readingChanged = false;
@@ -51,6 +54,7 @@ function syncBookGoal(b) {
   // its reading days those of its tasks there (a goal of «any days» has none fixed)
   if (bookGoal(b)) {
     if (g) { endGoal(g); g.kgoal = ''; }
+    if (inReadingProject(b)) return; // (v151: its days are its task's, set in its card in «خطِّط»)
     const days = [...new Set(bookPlanTasks(b).filter((t) => !t.repeat.per).flatMap((t) => t.repeat.days))].sort();
     if (days.join() !== [...b.rdays].sort().join()) { b.rdays = days; readingChanged = true; }
     return;
@@ -103,8 +107,8 @@ function syncTopicProject(p) {
   // a book read in the past is done on the day it was finished, not on the day the project was made
   const readAt = (b) => (!b.end ? null : b.end === today() ? Date.now() : parse(b.end).getTime() + 12 * 3600000);
   for (const b of books) {
-    const sch = scheduled(b) && !bookGoal(b); // (a book in «خطِّط» is read by its tasks there, not by its project task: v140, v141)
-    const title = sch ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`;
+    const sch = bookSessions(b); // (its days, set in its card in «خطِّط», linked to a year goal or not: v151)
+    const title = sch && b.rpages ? `اقرأ ${pagesWord(b.rpages)} من «${b.title}»` : `اقرأ «${b.title}»`;
     const read = b.status === 'read';
     let t = S.tasks.find((x) => x.projectId === p.id && x.bookId === b.id && !isRepeat(x));
     if (t && t.left) { t.left = ''; readingChanged = true; } // the book is back in this project: its task goes on
@@ -202,7 +206,7 @@ function readingSession(t, d) {
   // a session is never in the future: the task lists pass its due date (the next reading day), read today
   const day = d && d < today() ? d : today();
   // (a session that just finished the book can still be unticked)
-  if (!b || isRepeat(t) || !t.projectId || !((scheduled(b) && !bookGoal(b)) || t.completions[day])) return false;
+  if (!b || isRepeat(t) || !t.projectId || !(bookSessions(b) || t.completions[day])) return false;
   if (t.completions[day]) { delete t.completions[day]; undoSession(b, t, day); }
   else { t.completions[day] = Date.now(); startSession(b, t, day); }
   syncReading();
@@ -332,7 +336,7 @@ function bookGoalOptions(b) {
 // the book editor: topic and reading days (a book in «خطِّط»: its days are its tasks' there, shown here, v140, v141)
 function bookReadingFieldsHTML(b) {
   ldraft.rdays = [...b.rdays];
-  const planned = !!bookGoal(b);
+  const planned = !!bookGoal(b) && !inReadingProject(b); // (in a reading project: its days its task's, v151)
   const dayNames = [...new Set(bookPlanTasks(b).map(khDaysText))].join('، ');
   return `<label class="field"><span>الموضوع (اختياري)</span><input type="text" id="lTopic" value="${esc(b.topic)}" list="bookTopicList" autocomplete="off" placeholder="مثل: سيرة، فقه، إدارة"><datalist id="bookTopicList">${bookTopics().map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
     ${bookPlanHTML(b)}
