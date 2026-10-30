@@ -155,7 +155,7 @@ function itemToTask(it) {
   if (it.kind === 'goal' && it.repeat_days && it.repeat_days.length) {
     t.repeat = { days: [...new Set(it.repeat_days.filter((d) => d >= 0 && d <= 6))].sort(), start: it.date || t0, until: it.until || null };
   } else {
-    t.due = it.date || '';
+    t.due = it.date || (hasTime(t) ? timedDue(t) : ''); // (v149) a time with no day: today, or tomorrow when it has passed, as the quick add
   }
   t.target = Math.max(1, it.target || 1);
   t.unit = t.target > 1 ? it.unit || '' : '';

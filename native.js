@@ -96,7 +96,7 @@ const WaiBridge = (() => {
       if (!t.alarms || !t.alarms.length || !hasTime(t)) continue;
       for (let i = 0; i < 8; i++) {
         const d = addDays(d0, i);
-        if (!(isRepeat(t) ? occursOn(t, d) : t.due === d) || doneOn(t, d)) continue;
+        if (!(isRepeat(t) ? occursOn(t, d) : t.from ? d >= t.from && d <= t.due : t.due === d) || doneOn(t, d)) continue; // (any day of its week: each day, v149)
         const m = timeOn(t, d);
         if (m == null) continue;
         for (const off of t.alarms) {

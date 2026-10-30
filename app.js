@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 148;
+const APP_VERSION = 149;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -620,8 +620,9 @@ function smartHTML() {
   </form>`;
 }
 
-function smartToTask(r) {
-  const t0 = today();
+// (v149) `at`: the moment its preview was drawn, so what is saved is the day the preview said (one drawn before midnight)
+function smartToTask(r, at = Date.now()) {
+  const t0 = iso(new Date(at));
   const proj = r.category ? S.projects.find((p) => p.name === r.category) : null;
   const t = normalize({
     id: uid(), kind: r.kind === 'repeat' ? 'goal' : 'task', title: r.title, priority: r.priority,
@@ -637,13 +638,15 @@ function smartToTask(r) {
     t.unit = r.target > 1 ? r.unit : '';
   } else {
     t.due = r.due || '';
-    if (r.autoDue && t.due === t0) {
-      const m = timeOn(t, t0);
-      const now = new Date();
-      if (m != null && m <= now.getHours() * 60 + now.getMinutes()) t.due = addDays(t0, 1);
-    }
+    if (r.autoDue && t.due === t0) t.due = timedDue(t, at);
   }
   return t;
+}
+
+// a time with no day is today, or tomorrow when its hour has passed (the quick add's rule; the add with Claude takes it too, v149)
+function timedDue(t, at = Date.now()) {
+  const now = new Date(at), t0 = iso(now), m = timeOn(t, t0);
+  return m != null && m <= now.getHours() * 60 + now.getMinutes() ? addDays(t0, 1) : t0;
 }
 
 function smartPreviewHTML() {
@@ -653,6 +656,7 @@ function smartPreviewHTML() {
   }
   const q = smartRoute(text);
   if (q) return routePreviewHTML(q);
+  ui.smartAt = Date.now();
   const r = SmartParse.parse(text);
   if (!r.title) return '<div class="parsed"><span class="tag warn">اكتب ما تريد فعله</span></div>';
   const t = smartToTask(r);
@@ -1926,7 +1930,8 @@ function checkAlarms() {
     if (!t.alarms.length || !hasTime(t)) continue;
     // a "day before" alarm belongs to tomorrow's occurrence
     for (const d of [d0, addDays(d0, 1), addDays(d0, 2)]) {
-      const applies = isRepeat(t) ? occursOn(t, d) : t.due === d;
+      // (v149, his answer «١أ») a task «for any day of its week» rings each day of its week at its hour until it is done
+      const applies = isRepeat(t) ? occursOn(t, d) : t.from ? d >= t.from && d <= t.due : t.due === d;
       if (!applies || doneOn(t, d)) continue;
       const m = timeOn(t, d);
       if (m == null) continue;
@@ -2600,9 +2605,11 @@ document.addEventListener('submit', (e) => {
   e.preventDefault();
   const q = smartRoute(ui.smart);
   if (q) { const msg = runRoute(q); ui.smart = ''; render(); toast(msg); return; }
-  const r = SmartParse.parse(ui.smart);
+  // (v149) as its preview read it: a preview drawn before midnight is saved for the day it said
+  const at = ui.smartAt && ui.smartAt <= Date.now() ? ui.smartAt : Date.now();
+  const r = SmartParse.parse(ui.smart, new Date(at));
   if (!r.title) { toast('اكتب ما تريد فعله، مثل: اتصل بأبي بكرة الساعة 5'); return; }
-  const t = smartToTask(r);
+  const t = smartToTask(r, at);
   S.tasks.push(t);
   save();
   ui.smart = '';
