@@ -341,8 +341,8 @@ function bookReadingFieldsHTML(b) {
     <div class="brv-box">
       <b>📅 أيام القراءة</b>
       ${planned ? `<p class="note-text">${esc(dayNames || 'لم تُحدَّد بعد')}: من «خطِّط»، أيام مهامه في هدف هذا الكتاب، وتُعدَّل منها.</p>`
-      : `<p class="note-text explain">اختر أيامه وعدد الصفحات، فيظهر هدفاً في «اليوم» في هذه الأيام فقط ما دام «أقرؤه الآن»، وكل مرة تُنجزه تتقدم صفحتك.</p>
-      <div class="chips" role="group" aria-label="أيام القراءة">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="rd-day" data-v="${d}" aria-pressed="${b.rdays.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div>`}
+      // (v150, the owner: «لا تترك في صفحة الكتب تعديلا للزمن والتاريخ»: its days are set in «خطِّط» only, shown here)
+      : `<p class="note-text">${esc(WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ') || 'لا أيام بعد')}: ${S.tasks.some((t) => t.bookId === b.id && !isRepeat(t) && khInChain(t)) ? 'من «خطِّط»، وتُعدَّل من بطاقة مهمته فيها.' : 'تُحدَّد في «خطِّط» حين تربطه برؤية دوره.'}</p>`}
       <label class="field"><span>الصفحات في كل مرة</span><input type="number" id="lRpages" min="1" inputmode="numeric" value="${b.rpages || ''}" placeholder="مثال: 20"></label>
     </div>`;
 }

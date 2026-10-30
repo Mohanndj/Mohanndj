@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 149;
+const APP_VERSION = 150;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1246,7 +1246,12 @@ function setKind(kind) {
   // (a book's reading goal in «خطِّط»: its days are its plan's, edited here, v140)
   const bplan = !!(cur.bookId && cur.kgoal && isRepeat(cur) && !goalEnded(cur));
   $('fKind').hidden = bk; $('fTitle').readOnly = bk; $('fBookNote').hidden = !cur.bookId; $('fSciNote').hidden = !sci;
-  $('fBookNote').textContent = bplan ? 'عنوانها من صفحة الكتاب، وأيامها أيام قراءته في «خطِّط» تُعدَّل هنا.' : 'عنوانها وأيامها وتاريخها تُعدَّل من صفحة الكتاب.';
+  // (v150, the owner: «بيان المواعيد في خطط فقط»: its days and time are set in «خطِّط», its title and pages in its book)
+  const cb = cur.bookId && getBook(cur.bookId);
+  $('fBookNote').textContent = bplan ? 'عنوانها من صفحة الكتاب، وأيامها أيام قراءته في «خطِّط» تُعدَّل هنا.'
+    : cb && bookGoal(cb) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيام قراءته أيام مهامه في «خطِّط».'
+    : khInChain(cur) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط».'
+    : 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط» حين تربط كتابها برؤية دوره.';
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
   // a science's study days are its plan's (v138): they alone are edited here, and its page in «الدراسة» shows them
   const sd = (sci && !cur.left) || bplan;
@@ -1259,15 +1264,21 @@ function setKind(kind) {
 function chainLock() {
   const cur = (draft.id && getTask(draft.id)) || {};
   draft.lock = !!(draft.id && khInChain(cur) && !cur.bookId && !cur.sciId);
+  // (v150, the owner: «بيان المواعيد في خطط فقط… وفي صفحة المشروع… فقط انعكاس لخطتي»): a project's task not yet in a chain
+  // has no date or time here either (they are set in «خطِّط» once it is tied to its week); a book's task none at all
+  draft.plock = !draft.lock && !cur.bookId && !cur.sciId && draft.kind === 'task' && !!$('fProject').value;
+  const bk = !!cur.bookId, off = draft.lock || draft.plock;
   if (cur.projectId || (draftIsNew && $('fProject').value)) $('fKind').hidden = true;
-  $('fChainNote').hidden = !draft.lock;
-  // (these two are not shown again by the sheet's own fields: the next sheet opened shows them)
-  $('fDue').closest('.field').hidden = draft.lock;
-  $('fTimeMode').closest('.field').hidden = draft.lock;
+  $('fChainNote').hidden = !off && !(bk && khInChain(cur));
+  $('fChainNote').querySelector('[data-action="kh-chain-go"]').hidden = draft.plock;
+  $('fChainWhen').textContent = draft.plock ? (khInChain(cur) ? khWhenText(cur) : 'لم يُحدَّد لها يوم بعد: اربطها بأسبوعها في صفحة مشروعها، ثم يومها ووقتها في «خطِّط».') : khInChain(cur) ? khWhenText(cur) : '';
+  // (these are not shown again by the sheet's own fields: the next sheet opened shows them)
+  $('fDue').closest('.field').hidden = off;
+  $('fTimeMode').closest('.field').hidden = off || bk;
+  if (draft.plock || bk) for (const id of ['clockFields', 'prayerFields']) $(id).hidden = true;
   // (v148) a habit's days and start, and the task's project, are its chain's too
   for (const id of ['hDays', 'hStart', 'fProject']) $(id).closest('.field').hidden = draft.lock;
   if (!draft.lock) return;
-  $('fChainWhen').textContent = khWhenText(cur);
   $('fKind').hidden = true;
   for (const id of ['fRepeatMode', 'repeatFields', 'onceGoalFields', 'clockFields', 'prayerFields']) $(id).hidden = true;
 }
@@ -1556,6 +1567,10 @@ function readDraft() {
     for (const k of ['kind', 'due', 'from', 'repeat', 'time', 'prayer', 'skip', 'habit', 'projectId']) t[k] = existing[k];
     if (h && existing.habit) t.habit = normalizeHabit({ ...existing.habit, identity: h.identity, cue: h.cue, tiny: h.tiny, reward: h.reward, days: h.days });
   }
+  // (v150) a project's task out of a chain keeps the date and time it has (a new one has none); a book's task its time
+  if (draft.plock && draft.kind === 'task') for (const k of ['due', 'from', 'time', 'prayer', 'skip']) t[k] = existing ? existing[k] : k === 'prayer' ? null : k === 'skip' ? {} : '';
+  if (existing && existing.bookId) { t.time = existing.time; t.prayer = existing.prayer; }
+  if (draft.plock || (existing && existing.bookId)) t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
   // a new date: it is no longer «for any day of its week», nor cancelled for its old day
   if (existing && t.due !== existing.due) { t.from = ''; t.skip = {}; }
   return t;
@@ -1588,7 +1603,7 @@ function openTaskBulk(pid, roleId = '') {
     <label class="field"><span>المشروع</span><select id="tbProject"><option value="">بلا مشروع (مهام عامة)</option>${S.projects.map((p) => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
     <label class="field"><span>الدور</span><select id="tbRole">${khRoleOptions(roleId)}</select><small class="hint">مهام المشروع تأخذ دور مشروعها.</small></label>
     <label class="field" id="tbAreaWrap"${roleId === KH_SAW ? '' : ' hidden'}><span>الجانب</span><select id="tbArea">${khAreaOptions('health')}</select></label>
-    <label class="field"><span>التاريخ (اختياري)</span><input type="date" id="tbDue"></label>
+    <label class="field" id="tbDueWrap"${pid ? ' hidden' : ''}><span>التاريخ (اختياري)</span><input type="date" id="tbDue"></label>
     <div class="sheet-actions"><button type="submit" class="primary">أضفها</button></div>`;
   showLib();
   setTimeout(() => $('tbText') && $('tbText').focus(), 50);
@@ -1597,7 +1612,7 @@ const tbCountLine = (n) => (n ? `ستُضاف ${plural(n, 'مهمة واحدة',
 function saveTaskBulk() {
   const lines = stPasteLines($('tbText').value);
   if (!lines.length) { toast('اكتب المهام، كل مهمة في سطر.'); $('tbText').focus(); return false; }
-  const projectId = $('tbProject').value, due = $('tbDue').value, now = Date.now();
+  const projectId = $('tbProject').value, due = projectId ? '' : $('tbDue').value, now = Date.now(); // (a project's tasks: their days in «خطِّط», v150)
   // the first line stays first in «الأحدث»
   const roleId = projectId ? '' : $('tbRole').value;
   S.tasks.push(...lines.map((title, i) => normalize({ kind: 'task', title, projectId, due, roleId, area: roleId === KH_SAW ? ($('tbArea') ? $('tbArea').value : 'health') : '', created: now + lines.length - i })));
@@ -1606,6 +1621,7 @@ function saveTaskBulk() {
   setTimeout(() => toast(`أُضيفت ${plural(lines.length, 'مهمة واحدة', 'مهمتان', 'مهام', 'مهمة')}${p ? ` إلى «${p.name}»` : ''}`), 300);
   return true;
 }
+document.addEventListener('change', (e) => { if (e.target.id === 'tbProject' && $('tbDueWrap')) $('tbDueWrap').hidden = !!e.target.value; });
 document.addEventListener('input', (e) => { if (e.target.id === 'tbText' && $('tbCount')) $('tbCount').textContent = digitsOut(tbCountLine(stPasteLines(e.target.value).length)); });
 
 // notes and steps on an existing task are kept right away
@@ -1653,7 +1669,7 @@ $('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preven
 $('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
 for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue', 'hStart']) $(id).addEventListener('change', updatePrayerHint);
 // a task put in a project is a task: no «هدف» for it (v144)
-$('fProject').addEventListener('change', () => { const cur = (draft.id && getTask(draft.id)) || {}; if (!draft.lock && !cur.bookId && !cur.sciId) $('fKind').hidden = !!$('fProject').value; });
+$('fProject').addEventListener('change', () => { const cur = (draft.id && getTask(draft.id)) || {}; if (!draft.lock && !cur.bookId && !cur.sciId) { $('fKind').hidden = !!$('fProject').value; setTimeMode(draft.timeMode); chainLock(); } });
 
 // ---------- project editor ----------
 const psheet = $('projSheet');
@@ -1694,7 +1710,7 @@ $('projForm').addEventListener('submit', (e) => {
   const name = $('pName').value.trim();
   if (!name) { $('pName').focus(); toast('اكتب اسماً للمشروع.'); return; }
   const existing = getProject(pdraft.id);
-  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: $('pDue').value, roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '', ygoal: $('pYGoal').value });
+  const p = normalizeProject({ ...(existing || { created: Date.now() }), id: pdraft.id, name, color: pdraft.color, desc: $('pDesc').value.trim(), due: existing ? existing.due : '', roleId: $('pRole').value, area: $('pRole').value === KH_SAW ? $('pArea').value : '', ygoal: $('pYGoal').value });
   if (existing) Object.assign(existing, p); else S.projects.push(p);
   if (pdraft.onSaved) pdraft.onSaved(p);
   save();

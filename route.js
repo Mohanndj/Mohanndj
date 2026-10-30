@@ -116,11 +116,13 @@ function closeTodayHTML() {
   const repOpen = repGoals.filter((t) => !t.completions[t0] && !skip.includes(t.id));
   const tg = [
     // (a task in a chain of «خطِّط» is not moved from here: its date is changed there only, v143)
-    ...tasks.map((t) => row(t.title, '', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
-    ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + (khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد')))),
+    // (v150: nor a book's or a project's task: their days are set in «خطِّط» only)
+    ...tasks.map((t) => row(t.title, '', btn('close-done', t.id, 'أتممت') + closeMove(t))),
+    ...onceGoals.map((t) => row(t.title, 'هدف', btn('close-done', t.id, 'أتممت') + closeMove(t))),
     // (a science's task is done by its lessons: its button opens what is left of them, v137)
     ...repOpen.map((t) => row(t.title, isCounted(t) ? `${countOn(t, t0)} من ${t.target}` : khProjTask(t) ? 'مهمة متكررة' : 'هدف متكرر', btn('close-done', t.id, t.sciId ? 'أكمل دروسه' : 'أتممت') + btn('close-skip', t.id, 'لم أفعله'))),
   ];
+  function closeMove(t) { return khInChain(t) ? btn('kh-chain-at', t.id, 'موعدها في «خطِّط»') : t.bookId || t.projectId ? '' : btn('close-tomorrow', t.id, 'للغد') + btn('close-skip', t.id, 'استبعد'); }
   const doneToday = S.tasks.filter((t) => (!isGoal(t) || !isRepeat(t)) && ((t.done && t.doneAt && iso(new Date(t.doneAt)) === t0 && !(t.bookId && Object.keys(t.completions || {}).length)) || (t.bookId && !isRepeat(t) && t.completions && t.completions[t0]))).length + repGoals.filter((t) => t.completions[t0]).length;
   // habits being built
   const habits = S.tasks.filter((t) => isHabit(t) && !goalEnded(t) && occursOn(t, t0));

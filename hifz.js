@@ -101,7 +101,8 @@ function normalizeHPlan(p) {
   return {
     id: p.id || uid(), type: HIFZ_TYPES[p.type] ? p.type : 'other', title: String(p.title || ''), source: String(p.source || ''), text: String(p.text || ''),
     surah: Number(p.surah) || 0, from: Number(p.from) || 0, portion: Math.max(1, Number(p.portion) || 3),
-    days: Array.isArray(p.days) && p.days.length ? p.days.map(Number).filter((d) => d >= 0 && d <= 6) : [0, 1, 2, 3, 4, 5, 6],
+    // (a new plan has no days of its own: they are its tasks' in «خطِّط», v150; a plan saved before always had some)
+    days: Array.isArray(p.days) ? p.days.map(Number).filter((d) => d >= 0 && d <= 6) : [0, 1, 2, 3, 4, 5, 6],
     pos: Math.max(0, Number(p.pos) || 0), log: p.log && typeof p.log === 'object' ? p.log : {}, doneAt: p.doneAt || '', created: p.created || Date.now(),
     ygoal: String(p.ygoal || ''), // «خطِّط» (v142): the year goal this plan is, from the vision down to its days
   };
@@ -239,12 +240,12 @@ function planFieldsHTML(type, portion, days, planned = null) {
       <div class="pl-row"><input type="number" id="plPortion" min="1" max="200" inputmode="numeric" value="${portion}"><b id="plUnit">${UNIT[type][1]}</b></div>
     </div>
     ${planned !== null ? `<div class="field"><span>أيام الحفظ</span><p class="note-text">${esc(planned)}: من «خطِّط»، أيام مهامها في هدف هذه الخطة، وتُعدَّل منها.</p></div>`
-      : `<div class="field"><span>أيام الحفظ</span><div class="chips wrap pl-days" id="plDays">${WEEK_ORDER.map((d) => `<button type="button" class="chip" data-action="hz-plan-day" data-v="${d}" aria-pressed="${days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>`}
+      // (v150, the owner: «بيان المواعيد في خطط فقط»: its days are set there only, shown here; a new plan has none yet)
+      : `<div class="field"><span>أيام الحفظ</span><p class="note-text">${days ? `${esc(days.length === 7 ? 'كل يوم' : WEEK_ORDER.filter((d) => days.includes(d)).map((d) => AR_DAYS[d]).join('، ') || 'لا أيام بعد')}: تُحدَّد في «خطِّط» حين تربطها برؤية دورها.` : 'تُحدَّد في «خطِّط» حين تربط الخطة برؤية دورها بعد إنشائها.'}</p></div>`}
     <p class="note-text" id="plEta"></p>`;
 }
 function savePlan() {
   const p = getPlan(ldraft.id);
-  if (!ldraft.days.length) { toast('اختر يوماً واحداً على الأقل.'); return false; }
   Object.assign(p, { title: $('plTitle').value.trim() || p.title, portion: Math.max(1, parseInt($('plPortion').value, 10) || p.portion), days: [...ldraft.days].sort(), ygoal: $('plGoal').value });
   save();
   // linked now to a year goal whose line is not built yet: its steps open (as a science's do)
@@ -259,7 +260,7 @@ function updatePlanEta() {
   if (ldraft.kind === 'hplan') { const p = getPlan(ldraft.id); total = planUnits(p).length - Math.min(p.pos, planUnits(p).length); }
   else if (ldraft.type === 'poem') total = parsePoem($('hText').value, ldraft.pmode || 'auto').length;
   else total = $('hText').value.split('\n').filter((l) => l.trim()).length;
-  if (!total || !ldraft.days.length) { box.textContent = ldraft.days.length ? '' : 'اختر أيام الحفظ.'; return; }
+  if (!total || !ldraft.days.length) { box.textContent = ''; return; } // (its days are set in «خطِّط», v150)
   const eta = planEta(normalizeHPlan({ text: 'x\n'.repeat(total), type: 'other', portion, days: ldraft.days }));
   box.textContent = `${ldraft.kind === 'hplan' ? 'بقي ' : ''}${unitWord(ldraft.type || 'other', total)} ÷ ${portion} في الجلسة = ${plural(eta.sessions, 'جلسة واحدة', 'جلستان', 'جلسات', 'جلسة')}، ${etaText(eta)}.`;
 }
@@ -311,7 +312,7 @@ function viewHifz() {
 // ---------- editor ----------
 function openHifz(id) {
   const h = id ? getHz(id) : normalizeHifz({ type: hzUi.type || 'quran' });
-  ldraft = { kind: 'hifz', id: h.id, isNew: !id, type: h.type, method: 'plan', days: [0, 1, 2, 3, 4, 5, 6] };
+  ldraft = { kind: 'hifz', id: h.id, isNew: !id, type: h.type, method: 'plan', days: [] };
   $('libForm').innerHTML = `
     <div class="sheet-head"><h2>${id ? 'تعديل النص' : 'نص جديد للحفظ'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -339,7 +340,7 @@ function openHifz(id) {
         <button type="button" data-action="hz-method" data-v="plan" aria-pressed="true">خطة: مقدار في كل جلسة</button>
         <button type="button" data-action="hz-method" data-v="once" aria-pressed="false">النص كله دفعة واحدة</button>
       </div></div>
-      <div id="hPlanW">${planFieldsHTML(h.type, h.type === 'quran' ? 5 : 3, [0, 1, 2, 3, 4, 5, 6])}</div>
+      <div id="hPlanW">${planFieldsHTML(h.type, h.type === 'quran' ? 5 : 3, null)}</div>
     </div>`}
     <label class="field" id="hSourceW"${h.type === 'quran' ? ' hidden' : ''}><span>${h.type === 'poem' ? 'الشاعر' : h.type === 'hadith' ? 'الراوي والمصدر' : 'المصدر'}</span><input type="text" id="hSource" value="${esc(h.source)}" autocomplete="off" placeholder="${h.type === 'hadith' ? 'مثال: عن عمر رضي الله عنه، متفق عليه' : ''}"></label>
     ${id && h.state === 'review' ? `<p class="note-text">في المراجعة | المراجعة القادمة ${esc(dateBoth(h.due, true))} | روجع ${h.reps ? plural(h.reps, 'مرة واحدة', 'مرتين', 'مرات', 'مرة') : 'صفر'}</p>` : ''}
@@ -428,7 +429,6 @@ function saveHifz() {
   // a plan: keep the whole text, and give a set amount per session on the chosen days
   if (!old && ldraft.method === 'plan') {
     const portion = Math.max(1, parseInt($('plPortion').value, 10) || 3);
-    if (!ldraft.days.length) { toast('اختر أيام الحفظ.'); return false; }
     const p = normalizeHPlan({ type, title: title || (type === 'quran' ? `سورة ${SURAHS[q.s - 1]}${q.from > 1 || q.to < AYAT[q.s - 1] ? ` ${q.from}–${q.to}` : ''}` : excerpt(text.split('\n')[0], 30)), source, text, surah: q.s, from: q.from, portion, days: ldraft.days });
     S.hplans.push(p);
     save();

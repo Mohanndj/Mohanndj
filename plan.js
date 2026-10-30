@@ -1261,12 +1261,14 @@ function khWizard(o = {}) {
   // (v148) a reading project's book task: its card picks the day of its next session only (its title, days and pages are
   // its book's, and a task with sessions is never deleted: v131, v133); the owner's answer «أ: قاعدة التسلسل»
   const bk = !!(et && et.bookId && !isRepeat(et));
-  const bkb = bk && getBook(et.bookId), bkDays = !!(bkb && scheduled(bkb) && !bookGoal(bkb)); // (a book with no reading days: no day to pick)
+  // (v150, the owner: «بيان المواعيد في خطط فقط»: a book not linked to a year goal has its reading days seen and set here,
+  // with its next session; its book page shows them only. A linked book's days are its tasks' in its goal's line)
+  const bkb = bk && getBook(et.bookId), bkOwn = !!(bkb && !bookGoal(bkb)), bkDays = !!(bkOwn && bkb.rdays.length);
   const wg = kgOf(o.weekId), mg = kgOf(o.monthId || (wg ? wg.parent : '')), yg = kgOf(o.yearId || (mg ? mg.parent : ''));
   const roleId = o.edit === 'year' && yg ? (khRole(yg.roleId) ? yg.roleId : '') : o.roleId || (yg ? kgRoleId(yg) : '') || (khRoles()[0] || {}).id;
   const step = Number(o.step) || 0;
   ldraft = {
-    kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '', book: bk, bookDays: bkDays,
+    kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '', book: bk, bookDays: bkDays, bkId: bkOwn ? bkb.id : '', bkRdays: bkOwn ? [...bkb.rdays].sort() : [],
     projSel: o.proj || (yg ? (khProjOfGoal(yg) || {}).id || '' : ''),
     sciSel: o.sci || (yg ? (sciOfGoal(yg) || {}).id || '' : ''),
     bookSel: o.book || (yg ? (bookOfGoal(yg) || {}).id || '' : ''),
@@ -1340,7 +1342,7 @@ function khWizDraw() { return khIn((ldraft.yk || '')[0], khWizDraw0); }
 function khWizDraw0() {
   const w = ldraft, edit = w.edit;
   const btns = (next) => (edit
-    ? `<div class="sheet-actions"><button type="submit" class="primary">احفظ</button>${w.book ? '' : '<button type="button" class="danger" data-action="kh-w" data-op="del">حذف</button>'}</div>${edit === 'day' ? (w.book ? `<p class="note-text">${w.bookDays ? 'عنوانها وأيام قراءتها وصفحاتها من صفحة الكتاب؛ واليوم الذي تختاره هنا موعد جلستها التالية.' : 'لا أيام قراءة لكتابها الآن، فلا موعد لجلستها: أيامه تُختار من صفحة الكتاب، أو من مهامه في «خطِّط» إن كان هدف سنة.'}</p>` : '') : `<p class="note-text">${esc(kgDropNote(kgOf(edit === 'year' ? w.yearId : edit === 'month' ? w.monthId : w.weekId)))}</p>`}`
+    ? `<div class="sheet-actions"><button type="submit" class="primary">احفظ</button>${w.book ? '' : '<button type="button" class="danger" data-action="kh-w" data-op="del">حذف</button>'}</div>${edit === 'day' ? (w.book ? `<p class="note-text">${w.bkId ? 'عنوانها وصفحاتها من صفحة الكتاب؛ وأيام قراءته وموعد جلستها التالية ووقتها تُختار هنا.' : 'أيام قراءة كتابها أيام مهامه في هدفه في «خطِّط»، وتُعدَّل من بطاقة كل مهمة منها.'}</p>` : '') : `<p class="note-text">${esc(kgDropNote(kgOf(edit === 'year' ? w.yearId : edit === 'month' ? w.monthId : w.weekId)))}</p>`}`
     : `<div class="sheet-actions"><button type="submit" class="primary">${next}</button>${w.step > w.first ? '<button type="button" class="ghost" data-action="kh-w" data-op="prev">السابق</button>' : ''}${w.step < 3 ? '<button type="button" class="ghost" data-action="kh-w" data-op="later">أكمل لاحقاً</button>' : ''}</div>`);
   const role = esc(khRoleName(w.roleId));
   let body = '';
@@ -1416,6 +1418,7 @@ function khWizDraw0() {
       ${khCtx('week', wg ? `هدف الأسبوع: ${khWeeksText(wg)}` : 'هدف الأسبوع', w.wText)}
       ${w.first === 3 && !w.book ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       ${edit === 'day' ? '' : '<p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>'}
+      ${w.bkId ? `<div class="kh-ask lv-day"><span class="kh-al">أيام قراءته</span>${khDots('bkday', w.bkRdays)}</div>` : ''}
       ${w.once && !(w.book && !w.bookDays) ? `<div class="kh-ask lv-day"><span class="kh-al">${w.book ? 'في أيّ يوم جلستها التالية؟' : 'في أيّ يوم؟'}</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}${w.book ? '' : `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button>`}</div>${w.day || w.book ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
         : edit === 'day' ? '' : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
           <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
@@ -1515,6 +1518,8 @@ function khWizCommit0() {
       // (v148) a reading project's book task: the day picked is its next session (kept as «للغد» keeps it, v90); its time
       // and its mark are its own; its title, days and pages stay its book's
       if (w.book) {
+        const b = getBook(w.bkId);
+        if (b) b.rdays = [...w.bkRdays].sort(); // (v150) its reading days, set here only
         if (w.day && w.bookDays) t.readOn = w.day;
         Object.assign(t, { priority: c.imp ? 'high' : t.priority === 'high' ? 'mid' : t.priority, ...when });
         if (!hasTime(t)) t.alarms = [];
@@ -1767,6 +1772,7 @@ document.addEventListener('click', (e) => {
       if (op === 'cimp') { const c = w.cards[Number(el.dataset.i)]; if (c) c.imp = !c.imp; } // (its importance «قصوى», v146)
       if (op === 'once') w.once = !!v;
       if (op === 'oday') w.day = v;
+      if (op === 'bkday') { const d = Number(v); w.bkRdays = w.bkRdays.includes(d) ? w.bkRdays.filter((x) => x !== d) : [...w.bkRdays, d].sort(); w.bookDays = !!w.bkRdays.length; }
       khWizDraw();
       if (op === 'prev') $('libForm').scrollTop = 0;
       break;

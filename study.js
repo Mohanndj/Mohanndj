@@ -225,7 +225,8 @@ function openSci(id) {
     <div class="grid2"><label class="field"><span>اسم العلم</span><input type="text" id="scName" value="${esc(s.name)}" autocomplete="off" placeholder="مثال: الفقه"></label>
       <label class="field"><span>علامة (اختياري)</span><input type="text" id="scEmoji" value="${esc(s.emoji)}" autocomplete="off" placeholder="📘" data-novoice></label></div>
     ${sciGoal(s) ? `<div class="field"><span>أيام الدراسة</span><p class="note-text">${esc(sciDayName(s) || 'لم تُحدَّد بعد')}: من «خطِّط»، أيام مهامه في هدف هذا العلم، وتُعدَّل منها.</p></div>`
-      : `<div class="field"><span>أيام الدراسة</span><div class="seg seg-wrap" id="scDays" role="group">${WEEK_ORDER.map((d) => `<button type="button" data-action="study-day" data-v="${d}" aria-pressed="${s.days.includes(d)}">${AR_DAYS[d]}</button>`).join('')}</div></div>`}
+      // (v150, the owner: «بيان المواعيد في خطط فقط»: its days are set there only, shown here)
+      : `<div class="field"><span>أيام الدراسة</span><p class="note-text">${esc(sciDayName(s) || 'لا أيام بعد')}: تُحدَّد في «خطِّط» حين تربطه برؤية دوره.</p></div>`}
     <label class="field"><span>الدروس في الجلسة</span><input type="number" id="scPer" min="1" max="10" inputmode="numeric" value="${s.per}" data-novoice></label>
     <label class="field"><span>هدف السنة في «خطِّط»</span><select id="scGoal">${sciGoalOptions(s)}</select></label>
     <div class="field"><span>مراحل الدرس (يكتمل الدرس حين تُنجز كلها)</span><div id="scStages">${stStageRows()}</div><button type="button" class="ghost sm" data-action="study-stage-add">${icon('plus')} مرحلة</button></div>
