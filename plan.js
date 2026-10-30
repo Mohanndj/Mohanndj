@@ -1263,12 +1263,13 @@ function khWizard(o = {}) {
   const bk = !!(et && et.bookId && !isRepeat(et));
   // (v150, the owner: «بيان المواعيد في خطط فقط»: a book not linked to a year goal has its reading days seen and set here,
   // with its next session; its book page shows them only. A linked book's days are its tasks' in its goal's line)
-  const bkb = bk && getBook(et.bookId), bkOwn = !!(bkb && !bookGoal(bkb)), bkDays = !!(bkOwn && bkb.rdays.length);
+  // (its next session is kept only for a book being read with pages a session, as syncTopicProject reads it)
+  const bkb = bk && getBook(et.bookId), bkOwn = !!(bkb && !bookGoal(bkb)), bkSch = !!(bkOwn && bkb.status === 'reading' && bkb.rpages > 0), bkDays = bkSch && bkb.rdays.length > 0;
   const wg = kgOf(o.weekId), mg = kgOf(o.monthId || (wg ? wg.parent : '')), yg = kgOf(o.yearId || (mg ? mg.parent : ''));
   const roleId = o.edit === 'year' && yg ? (khRole(yg.roleId) ? yg.roleId : '') : o.roleId || (yg ? kgRoleId(yg) : '') || (khRoles()[0] || {}).id;
   const step = Number(o.step) || 0;
   ldraft = {
-    kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '', book: bk, bookDays: bkDays, bkId: bkOwn ? bkb.id : '', bkRdays: bkOwn ? [...bkb.rdays].sort() : [],
+    kind: 'khwiz', id: 'x', isNew: true, step, first: step, edit: o.edit || '', roleId, status: yg ? yg.status : 'open', proj: o.proj || '', book: bk, bookDays: bkDays, bkId: bkOwn ? bkb.id : '', bkRdays: bkOwn ? [...bkb.rdays].sort() : [], bkSch, dayPicked: false,
     projSel: o.proj || (yg ? (khProjOfGoal(yg) || {}).id || '' : ''),
     sciSel: o.sci || (yg ? (sciOfGoal(yg) || {}).id || '' : ''),
     bookSel: o.book || (yg ? (bookOfGoal(yg) || {}).id || '' : ''),
@@ -1520,7 +1521,7 @@ function khWizCommit0() {
       if (w.book) {
         const b = getBook(w.bkId);
         if (b) b.rdays = [...w.bkRdays].sort(); // (v150) its reading days, set here only
-        if (w.day && w.bookDays) t.readOn = w.day;
+        if (w.dayPicked && w.day && w.bookDays) t.readOn = w.day; // (a day he picked: not the old schedule's next one)
         Object.assign(t, { priority: c.imp ? 'high' : t.priority === 'high' ? 'mid' : t.priority, ...when });
         if (!hasTime(t)) t.alarms = [];
         save();
@@ -1771,8 +1772,13 @@ document.addEventListener('click', (e) => {
       if (op === 'cper') { const c = w.cards[Number(el.dataset.i)]; if (c) { c.per = Number(v); c.own = true; } }
       if (op === 'cimp') { const c = w.cards[Number(el.dataset.i)]; if (c) c.imp = !c.imp; } // (its importance «قصوى», v146)
       if (op === 'once') w.once = !!v;
-      if (op === 'oday') w.day = v;
-      if (op === 'bkday') { const d = Number(v); w.bkRdays = w.bkRdays.includes(d) ? w.bkRdays.filter((x) => x !== d) : [...w.bkRdays, d].sort(); w.bookDays = !!w.bkRdays.length; }
+      if (op === 'oday') { w.day = v; w.dayPicked = true; }
+      if (op === 'bkday') {
+        const d = Number(v);
+        w.bkRdays = w.bkRdays.includes(d) ? w.bkRdays.filter((x) => x !== d) : [...w.bkRdays, d].sort();
+        w.bookDays = w.bkSch && w.bkRdays.length > 0;
+        if (!w.dayPicked) w.day = ''; // (the next session comes from the new days, unless he picks one)
+      }
       khWizDraw();
       if (op === 'prev') $('libForm').scrollTop = 0;
       break;

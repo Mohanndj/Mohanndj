@@ -1271,7 +1271,8 @@ function chainLock() {
   if (cur.projectId || (draftIsNew && $('fProject').value)) $('fKind').hidden = true;
   $('fChainNote').hidden = !off && !(bk && khInChain(cur));
   $('fChainNote').querySelector('[data-action="kh-chain-go"]').hidden = draft.plock;
-  $('fChainWhen').textContent = draft.plock ? (khInChain(cur) ? khWhenText(cur) : 'لم يُحدَّد لها يوم بعد: اربطها بأسبوعها في صفحة مشروعها، ثم يومها ووقتها في «خطِّط».') : khInChain(cur) ? khWhenText(cur) : '';
+  // (a project's task with a date or time from before: shown as it is; none: where it is set)
+  $('fChainWhen').textContent = draft.plock ? (khInChain(cur) || cur.due || hasTime(cur) ? khWhenText(cur) : 'لم يُحدَّد لها يوم بعد: اربطها بأسبوعها في صفحة مشروعها، ثم يومها ووقتها في «خطِّط».') : khInChain(cur) ? khWhenText(cur) : '';
   // (these are not shown again by the sheet's own fields: the next sheet opened shows them)
   $('fDue').closest('.field').hidden = off;
   $('fTimeMode').closest('.field').hidden = off || bk;
@@ -1669,7 +1670,7 @@ $('fSub').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preven
 $('fNote').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); } });
 for (const id of ['fPrRel', 'fPrName', 'fPrMin', 'fDue', 'fStart', 'fGoalDue', 'hStart']) $(id).addEventListener('change', updatePrayerHint);
 // a task put in a project is a task: no «هدف» for it (v144)
-$('fProject').addEventListener('change', () => { const cur = (draft.id && getTask(draft.id)) || {}; if (!draft.lock && !cur.bookId && !cur.sciId) { $('fKind').hidden = !!$('fProject').value; setTimeMode(draft.timeMode); chainLock(); } });
+$('fProject').addEventListener('change', () => { const cur = (draft.id && getTask(draft.id)) || {}; if (!draft.lock && !cur.bookId && !cur.sciId) { setTimeMode(draft.timeMode); chainLock(); $('fKind').hidden = !!$('fProject').value; } });
 
 // ---------- project editor ----------
 const psheet = $('projSheet');

@@ -242,7 +242,8 @@ async function aiPlanProject(btn, pid) {
     schema: { type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: ITEM_SCHEMA } } },
   }));
   if (!res) return;
-  const tasks = res.items.map((it) => itemToTask({ ...it, kind: 'task', project: p.name }));
+  // (v150, the owner: «في صفحة المشروع… فقط انعكاس لخطتي»: its tasks' days and times are set in «خطِّط», not here)
+  const tasks = res.items.map((it) => Object.assign(itemToTask({ ...it, kind: 'task', project: p.name }), { due: '', from: '', time: '', prayer: null, alarms: [] }));
   openAIPreview(`خطة «${p.name}»`, 'اختر المهام التي تريد إضافتها للمشروع. يمكنك تعديل أي مهمة بعد إضافتها.', tasks);
 }
 
