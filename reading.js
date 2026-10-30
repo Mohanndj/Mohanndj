@@ -124,6 +124,9 @@ function syncTopicProject(p) {
 // keep goals and reading projects in step with the books; saves only when something changed
 function syncReading() {
   readingChanged = false;
+  // (v151, once) a book linked to a year goal and in a reading project: its days were copied from the other recurring tasks
+  // under its goal, never chosen for it; it starts with none, and they are chosen in its task's card in «خطِّط»
+  if (!S.settings.fix151) { S.settings.fix151 = true; readingChanged = true; for (const b of S.books) if (bookGoal(b) && inReadingProject(b)) b.rdays = []; }
   for (const b of S.books) syncBookGoal(b);
   for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t) && !t.repeat.until && !getBook(t.bookId))) endGoal(g);
   for (const p of S.projects.filter((x) => x.topic)) syncTopicProject(p);
@@ -346,7 +349,7 @@ function bookReadingFieldsHTML(b) {
       <b>📅 أيام القراءة</b>
       ${planned ? `<p class="note-text">${esc(dayNames || 'لم تُحدَّد بعد')}: من «خطِّط»، أيام مهامه في هدف هذا الكتاب، وتُعدَّل منها.</p>`
       // (v150, the owner: «لا تترك في صفحة الكتب تعديلا للزمن والتاريخ»: its days are set in «خطِّط» only, shown here)
-      : `<p class="note-text">${esc(WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ') || 'لا أيام بعد')}: ${S.tasks.some((t) => t.bookId === b.id && !isRepeat(t) && khInChain(t)) ? 'من «خطِّط»، وتُعدَّل من بطاقة مهمته فيها.' : 'تُحدَّد في «خطِّط» حين تربطه برؤية دوره.'}</p>`}
+      : `<p class="note-text">${esc(WEEK_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join('، ') || 'لا أيام بعد')}: ${S.tasks.some((t) => t.bookId === b.id && !isRepeat(t) && khInChain(t)) ? 'من «خطِّط»، وتُعدَّل من بطاقة مهمته فيها.' : bookGoal(b) ? 'تُحدَّد في «خطِّط» من بطاقة مهمته حين تربطها بأسبوعها.' : 'تُحدَّد في «خطِّط» حين تربطه برؤية دوره.'}</p>`}
       <label class="field"><span>الصفحات في كل مرة</span><input type="number" id="lRpages" min="1" inputmode="numeric" value="${b.rpages || ''}" placeholder="مثال: 20"></label>
     </div>`;
 }
@@ -362,7 +365,7 @@ function bookKeepFill() {
   if (!box) return;
   const ts = bookKeepTasks(), k = ldraft.planKeep || '';
   box.innerHTML = ts.length ? `<div class="kh-ask"><span class="kh-al">مهامه في «خطِّط» (${ts.length}): ماذا تفعل بها؟</span><div class="seg" role="group"><button type="button" data-action="rd-keep" data-v="del" aria-pressed="${k === 'del'}">احذفها</button><button type="button" data-action="rd-keep" data-v="keep" aria-pressed="${k === 'keep'}">أبقها</button></div>
-    <p class="note-text">${k === 'keep' ? 'تبقى مهامه كما كتبتها، ولا يصنع التطبيق له هدف قراءة.' : k === 'del' ? 'تُحذف مهامه من «خطِّط»، ويعود الكتاب هدف قراءة بأيامه في «اليوم».' : ''}</p></div>` : '';
+    <p class="note-text">${k === 'keep' ? 'تبقى مهامه كما كتبتها، ولا يصنع التطبيق له هدف قراءة.' : k === 'del' ? (inReadingProject({ topic: (($('lTopic') || {}).value || '').trim() }) ? 'تُحذف مهامه من «خطِّط»، وتبقى مهمته في مشروعه القرائي بأيامها.' : 'تُحذف مهامه من «خطِّط»، ويعود الكتاب هدف قراءة بأيامه في «اليوم».') : ''}</p></div>` : '';
 }
 document.addEventListener('change', (e) => { if (e.target.id === 'lGoal' && $('bkKeep')) bookKeepFill(); });
 document.addEventListener('click', (e) => {

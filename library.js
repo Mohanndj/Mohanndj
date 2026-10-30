@@ -530,7 +530,7 @@ function saveLib() {
     const keepTs = bookKeepTasks();
     if (keepTs.length && !ldraft.planKeep) { toast('اختر ما تفعل بمهامه في «خطِّط»: احذفها أو أبقها.'); return false; }
     if (keepTs.length && ldraft.planKeep === 'del') for (const t of keepTs) dropTask(t.id);
-    if (keepTs.length && ldraft.planKeep === 'keep') ldraft.rdays = [];
+    if (keepTs.length && ldraft.planKeep === 'keep' && !(v('lTopic') && topicProject(v('lTopic')))) ldraft.rdays = []; // (in a reading project: its card's days stay, v151)
     const b = normalizeBook({ ...(old || {}), id, title, author: v('lAuthor'), status, start, end, hyear: status === 'read' && !start ? v('lHyear') : '', summary: $('lSummary').value.trim(), pages, page, log, ...rvFields, studyId: $('lStudy') ? $('lStudy').value : old ? old.studyId : '', topic: v('lTopic'), rdays: ldraft.rdays || [], rpages: parseInt(v('lRpages'), 10) || 0, ygoal: $('lGoal') ? $('lGoal').value : old ? old.ygoal : '' });
     if (old) {
       // keep the benefits' book name in sync

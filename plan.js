@@ -678,7 +678,7 @@ function khRepRow(x, t0, k) {
 // the owner: «المربعات المتداخلة التي تظهر في سنتي… ومثلها في أسبوعي لكن دون شهري»
 function khWkBox(x, t0, k) {
   const t = x.t, last = addDays(k, 6);
-  if (x.kind !== 'rep') return khDayBox(t, t.due && t.due >= k && t.due <= last ? t.due : t0 >= k && t0 <= last ? t0 : k, `<div class="kh-side">${khWhyOf(t, t0)}${khImpBtn(t)}</div>`, t.from ? 'لمرة: أي يوم من أسبوعها' : t.due ? `لمرة: ${AR_DAYS[parse(t.due).getDay()]}` : 'لمرة');
+  if (x.kind !== 'rep') return khDayBox(t, t.due && t.due >= k && t.due <= last ? t.due : t0 >= k && t0 <= last ? t0 : k, `<div class="kh-side">${khWhyOf(t, t0)}${khImpBtn(t)}</div>`, khBookDaysText(t) || (t.from ? 'لمرة: أي يوم من أسبوعها' : t.due ? `لمرة: ${AR_DAYS[parse(t.due).getDay()]}` : 'لمرة'));
   return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khDaysText(t))}${hasTime(t) ? ` | ${esc(timeLabel(t, t0))}` : ''}</small><b>${esc(t.title)}</b></button><div class="kh-side">${x.quota ? khQuotaWhy(t) : ''}${khImpBtn(t)}</div>${khDotsRow(x, t0, k)}</div>`;
 }
 // what passed its time and is still not done, in a page's end: «لم تُنجز في وقتها»
@@ -899,14 +899,15 @@ function khBookKeepHTML(w) {
   const cur = khBookLeaving(w);
   if (!cur) return '';
   return `<div class="kh-ask"><span class="kh-al">مهام «${esc(cur.title)}» في «خطِّط» (${bookPlanTasks(cur).length}): ماذا تفعل بها؟</span><div class="seg" role="group">${khWBtn('bkkeep', 'del', 'احذفها', w.bkKeep === 'del')}${khWBtn('bkkeep', 'keep', 'أبقها', w.bkKeep === 'keep')}</div>
-    <p class="note-text">${w.bkKeep === 'keep' ? 'تبقى مهامه كما كتبتها، ولا يصنع التطبيق له هدف قراءة.' : w.bkKeep === 'del' ? 'تُحذف مهامه من «خطِّط»، ويعود الكتاب هدف قراءة بأيامه في «اليوم».' : ''}</p></div>`;
+    <p class="note-text">${w.bkKeep === 'keep' ? 'تبقى مهامه كما كتبتها، ولا يصنع التطبيق له هدف قراءة.' : w.bkKeep === 'del' ? (inReadingProject(cur) ? 'تُحذف مهامه من «خطِّط»، وتبقى مهمته في مشروعه القرائي بأيامها.' : 'تُحذف مهامه من «خطِّط»، ويعود الكتاب هدف قراءة بأيامه في «اليوم».') : ''}</p></div>`;
 }
 const khBookKeepNeed = (w) => (khBookLeaving(w) && !w.bkKeep ? (toast('اختر ما تفعل بمهام الكتاب في «خطِّط»: احذفها أو أبقها.'), true) : false);
 function khSetBook(yg, sel, keep) {
   if (!yg) return;
   const cur = bookOfGoal(yg);
   if (cur && cur.id === sel) return;
-  if (cur && keep) { const ts = bookPlanTasks(cur); if (keep === 'del') for (const t of ts) dropTask(t.id); else if (ts.length) cur.rdays = []; }
+  // (a book in a reading project keeps the days set in its task's card: it has no reading goal of the app's own, v151)
+  if (cur && keep) { const ts = bookPlanTasks(cur); if (keep === 'del') for (const t of ts) dropTask(t.id); else if (ts.length && !inReadingProject(cur)) cur.rdays = []; }
   for (const b of S.books) if (b.ygoal && khLineOf(kgOf(b.ygoal)).includes(yg)) b.ygoal = '';
   const b = sel && getBook(sel);
   if (b) b.ygoal = yg.id;
@@ -1125,13 +1126,13 @@ function khMonthHTML() {
 // and time are changed, v144), its title (tapped: its sheet), what was done of it this year; and «★ قصوى» (v146)
 function khChainDay(t, y) {
   const ds = Object.keys(t.completions).filter((d) => t.completions[d] && d >= y && d < khYrNext(y));
-  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : khBookDaysText(t) || (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
+  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : esc(khBookDaysText(t)) || (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
 }
-// (v151) a reading project's book task: its book's reading days (set in its card), not «لمرة»
+// (v151) a reading project's book task: its book's reading days (set in its card), not «لمرة»; none chosen yet: so it says
 function khBookDaysText(t) {
   const b = t.bookId && getBook(t.bookId);
-  if (!b || isRepeat(t) || !bookSessions(b)) return '';
-  return esc(`أيام قراءته: ${b.rdays.length === 7 ? 'كل يوم' : DAY_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join(' و')}`);
+  if (!b || isRepeat(t) || b.status !== 'reading') return '';
+  return `أيام قراءته: ${!b.rdays.length ? 'لم تُختر بعد' : b.rdays.length === 7 ? 'كل يوم' : DAY_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join(' و')}`;
 }
 // a week goal of the chain with its tasks (a year, or a month, gone by is shown, not built on)
 function khChainWeek(w, y, live, keep) {
@@ -1677,15 +1678,15 @@ function khStatsHTML() {
         <label class="field"><span>إلى</span><select data-kh-st="y2">${R.ys.map((y) => `<option value="${y}"${y === R.y2 ? ' selected' : ''}>${esc(khYrLabel(y))}</option>`).join('')}</select></label></div>`
       : khPeriodNav(R.title, R.label, R.prev, R.next, 'kh-stgo', '')}
     ${khPdfBtn('stats')}
-    <div class="panel kh-stats"><div class="kh-nums kh-n4"><span><b>${khN(X.done)}</b>${X.done === 1 ? 'إنجاز' : 'إنجازات'}</span><span><b>${X.avg === null ? '—' : `${X.avg}٪`}</b>متوسط الأسابيع</span><span><b>${X.pcts.length ? `${khN(X.good)} من ${X.pcts.length}` : '—'}</b>أسابيع بلغت ٧٠٪</span><span><b>${khN(X.life)}</b>في حياتي</span></div></div>
+    <div class="panel kh-stats"><div class="kh-nums kh-n4"><span><b>${khN(X.done)}</b>${X.done === 1 ? 'إنجاز' : 'إنجازات'}</span><span><b>${X.avg === null ? '—' : `${X.avg}٪`}</b>متوسط الأسابيع</span><span><b>${X.pcts.length ? `${X.good ? khN(X.good) : 'لا شيء'} من ${X.pcts.length}` : '—'}</b>أسابيع بلغت ٧٠٪</span><span><b>${khN(X.life)}</b>في حياتي</span></div></div>
     <div class="panel kh-block"><h3>الإنجازات في ${st.mode === 'week' ? 'أيام الأسبوع' : st.mode === 'month' ? 'أسابيع الشهر' : st.mode === 'year' ? 'شهور السنة' : 'السنوات'}</h3>
-      <div class="kh-months">${ser.map((x) => row(esc(x.l), x.v, top(ser.map((y) => y.v)), khN(x.v), 'var(--lv-month)')).join('')}</div></div>
+      <div class="kh-months">${ser.map((x) => row(esc(x.l), x.v, top(ser.map((y) => y.v)), x.v ? khN(x.v) : 'لا شيء', 'var(--lv-month)')).join('')}</div></div>
     <div class="panel kh-block"><h3>الإنجاز في كل دور</h3>
       <div class="kh-months">${X.byRole.map((x) => row(`<span class="kh-tag" style="--rc:${khColor(x.r ? x.r.id : '')}">${esc(x.r ? x.r.name : 'بلا دور')}</span>`, x.n, top(X.byRole.map((y) => y.n)), khN(x.n), khColor(x.r ? x.r.id : ''))).join('')}</div></div>
     <div class="panel kh-block"><h3>شحذ المنشار</h3>
       <div class="kh-months">${X.saw.map((x) => row(KH_AREAS[x.a], x.n, top(X.saw.map((y) => y.n)), khN(x.n), 'var(--lv-life)')).join('')}</div></div>
     ${X.rec.length ? `<div class="panel kh-block"><h3>الالتزام بالأهداف المتكررة</h3>
-      <div class="kh-months">${X.rec.map((x) => row(esc(x.t.title), x.done, x.target, `${khN(x.done)} من ${x.target}`)).join('')}</div></div>` : ''}
+      <div class="kh-months">${X.rec.map((x) => row(esc(x.t.title), x.done, x.target, `${x.done ? khN(x.done) : 'لا شيء'} من ${x.target}`)).join('')}</div></div>` : ''}
   </section>`;
 }
 

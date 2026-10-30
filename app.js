@@ -1251,6 +1251,7 @@ function setKind(kind) {
   $('fBookNote').textContent = bplan ? 'عنوانها من صفحة الكتاب، وأيامها أيام قراءته في «خطِّط» تُعدَّل هنا.'
     : cb && bookGoal(cb) && !inReadingProject(cb) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيام قراءته أيام مهامه في «خطِّط».'
     : khInChain(cur) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط».'
+    : cb && bookGoal(cb) ? 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط» حين تربطها بأسبوعها.'
     : 'عنوانها وصفحاتها من صفحة الكتاب، وأيامها ووقتها في «خطِّط» حين تربط كتابها برؤية دوره.';
   if (bk) { $('taskFields').hidden = true; $('goalFields').hidden = true; }
   // a science's study days are its plan's (v138): they alone are edited here, and its page in «الدراسة» shows them
