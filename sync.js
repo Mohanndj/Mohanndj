@@ -79,7 +79,17 @@ const Sync = (() => {
     return l;
   }
 
-  function mergeList(base = [], local = [], remote = [], noBase = false) {
+  // (v148) what this device recalculates by itself on every redraw (a linked science's, book's or plan's days, a reading task's
+  // date, title and state) is not «edited here»: a thing deleted on the other device («حذف كل البيانات» say) stays deleted
+  const DERIVED = { study: ['days'], hplans: ['days'], books: ['rdays'], tasks: ['title', 'due', 'done', 'doneAt', 'target', 'unit', 'repeat', 'left'] };
+  const bare = (c, x) => {
+    const ks = DERIVED[c];
+    if (!ks || !isObj(x) || (c === 'tasks' && !x.bookId)) return x;
+    const y = { ...x };
+    for (const k of ks) delete y[k];
+    return y;
+  };
+  function mergeList(base = [], local = [], remote = [], noBase = false, c = '') {
     const B = new Map(base.map((x) => [x.id, x]));
     const L = new Map(local.map((x) => [x.id, x]));
     const R = new Map(remote.map((x) => [x.id, x]));
@@ -89,8 +99,8 @@ const Sync = (() => {
       const b = B.get(id), l = L.get(id), r = R.get(id);
       // with no earlier sync to compare (a new device, or reconnecting), the cloud's version wins
       if (l && r) out.push(merge3(b, l, r, noBase));
-      else if (l && !r) { if (!b || !same(l, b)) out.push(l); } // new here, or deleted in cloud but edited here
-      else if (!l && r) { if (!b || !same(r, b)) out.push(r); } // new in cloud, or deleted here but edited in cloud
+      else if (l && !r) { if (!b || !same(bare(c, l), bare(c, b))) out.push(l); } // new here, or deleted in cloud but edited here
+      else if (!l && r) { if (!b || !same(bare(c, r), bare(c, b))) out.push(r); } // new in cloud, or deleted here but edited in cloud
     }
     // keep this device's order, then anything new from the cloud; but when nothing was moved or added here since the
     // last sync, the cloud's order (roles moved ▲▼ on another device)
@@ -120,7 +130,7 @@ const Sync = (() => {
     const noBase = !base;
     // a collection missing from the cloud altogether was written by an older version that does not know it
     // (on another device not updated yet): not a deletion, this device's stays
-    for (const c of COLLECTIONS) out[c] = c in remote ? mergeList(base && base[c], local[c], remote[c], noBase) : local[c];
+    for (const c of COLLECTIONS) out[c] = c in remote ? mergeList(base && base[c], local[c], remote[c], noBase, c) : local[c];
     // «أكلته» of the same day marked on two devices: what either added is kept, what either removed goes
     // (as a whole list, one device's marks were lost)
     if (!noBase && base.mealDone && Array.isArray(remote.mealDone)) {
@@ -146,6 +156,11 @@ const Sync = (() => {
         else S[c] = list;
       }
       S.roles = khWithSaw(S.roles); // «شحذ المنشار» stays, whatever came
+      // (v148) a task whose week goal was deleted on one device while it was edited on the other: a recurring one goes, as
+      // deleting the goal does here (kgDrop), a one-time one stays unlinked; none is left tied to a goal that is not there
+      const goals = new Set(S.kgoals.map((g) => g.id));
+      S.tasks = S.tasks.filter((t) => !t.kgoal || goals.has(t.kgoal) || !isRepeat(t) || t.bookId);
+      for (const t of S.tasks) if (t.kgoal && !goals.has(t.kgoal)) t.kgoal = '';
 
       Object.assign(S.settings, data.settings || {});
       // a setting removed elsewhere (by «حذف كل البيانات») is removed here too

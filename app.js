@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 147;
+const APP_VERSION = 148;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -680,7 +680,8 @@ function viewToday() {
     if (isRepeat(t)) return occursOn(t, d);
     if (t.bookId && t.completions && t.completions[d]) return true; // today's reading session stays, ticked
     if (dueNow(t, d)) return true;
-    return t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
+    // (a book task closed when its book left its project: its session went on with its book, so it is not shown: v148)
+    return !t.left && t.done && t.doneAt && iso(new Date(t.doneAt)) === d;
   });
   items.sort(byTime(d));
   const done = items.filter((t) => doneOn(t, d)).length;
@@ -1259,6 +1260,8 @@ function chainLock() {
   // (these two are not shown again by the sheet's own fields: the next sheet opened shows them)
   $('fDue').closest('.field').hidden = draft.lock;
   $('fTimeMode').closest('.field').hidden = draft.lock;
+  // (v148) a habit's days and start, and the task's project, are its chain's too
+  for (const id of ['hDays', 'hStart', 'fProject']) $(id).closest('.field').hidden = draft.lock;
   if (!draft.lock) return;
   $('fChainWhen').textContent = khWhenText(cur);
   $('fKind').hidden = true;
@@ -1542,7 +1545,13 @@ function readDraft() {
     t.due = $('fDue').value || (hasTime(t) ? today() : '');
   }
   // its schedule in a chain of «خطِّط» is changed there only (v143): edited elsewhere, it stays as it was
-  if (draft.lock && existing) for (const k of ['kind', 'due', 'from', 'repeat', 'time', 'prayer', 'skip', 'habit']) t[k] = existing[k];
+  // (a habit's days and start are its schedule; who it makes you, its cue, its least and its reward are written here: v148.
+  // and its project too is its chain's)
+  if (draft.lock && existing) {
+    const h = t.habit;
+    for (const k of ['kind', 'due', 'from', 'repeat', 'time', 'prayer', 'skip', 'habit', 'projectId']) t[k] = existing[k];
+    if (h && existing.habit) t.habit = normalizeHabit({ ...existing.habit, identity: h.identity, cue: h.cue, tiny: h.tiny, reward: h.reward, days: h.days });
+  }
   // a new date: it is no longer «for any day of its week», nor cancelled for its old day
   if (existing && t.due !== existing.due) { t.from = ''; t.skip = {}; }
   return t;

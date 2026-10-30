@@ -337,6 +337,7 @@ function bookReadingFieldsHTML(b) {
   return `<label class="field"><span>الموضوع (اختياري)</span><input type="text" id="lTopic" value="${esc(b.topic)}" list="bookTopicList" autocomplete="off" placeholder="مثل: سيرة، فقه، إدارة"><datalist id="bookTopicList">${bookTopics().map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
     ${bookPlanHTML(b)}
     <label class="field"><span>هدف السنة في «خطِّط»</span><select id="lGoal">${bookGoalOptions(b)}</select></label>
+    <div id="bkKeep"></div>
     <div class="brv-box">
       <b>📅 أيام القراءة</b>
       ${planned ? `<p class="note-text">${esc(dayNames || 'لم تُحدَّد بعد')}: من «خطِّط»، أيام مهامه في هدف هذا الكتاب، وتُعدَّل منها.</p>`
@@ -346,6 +347,20 @@ function bookReadingFieldsHTML(b) {
     </div>`;
 }
 
+// (v148, the owner's answer «ب: يسألك») the book's year goal changed in its sheet while its tasks are in «خطِّط»: delete
+// them, or keep them (and then no reading goal is made for it: its reading days are emptied, the book is in one place)
+function bookKeepTasks() {
+  const b = ldraft && ldraft.kind === 'book' && getBook(ldraft.id), sel = $('lGoal');
+  return b && sel && bookGoal(b) && sel.value !== b.ygoal ? bookPlanTasks(b) : [];
+}
+function bookKeepFill() {
+  const box = $('bkKeep');
+  if (!box) return;
+  const ts = bookKeepTasks(), k = ldraft.planKeep || '';
+  box.innerHTML = ts.length ? `<div class="kh-ask"><span class="kh-al">مهامه في «خطِّط» (${ts.length}): ماذا تفعل بها؟</span><div class="seg" role="group"><button type="button" data-action="rd-keep" data-v="del" aria-pressed="${k === 'del'}">احذفها</button><button type="button" data-action="rd-keep" data-v="keep" aria-pressed="${k === 'keep'}">أبقها</button></div>
+    <p class="note-text">${k === 'keep' ? 'تبقى مهامه كما كتبتها، ولا يصنع التطبيق له هدف قراءة.' : k === 'del' ? 'تُحذف مهامه من «خطِّط»، ويعود الكتاب هدف قراءة بأيامه في «اليوم».' : ''}</p></div>` : '';
+}
+document.addEventListener('change', (e) => { if (e.target.id === 'lGoal' && $('bkKeep')) bookKeepFill(); });
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action^="rd-"]');
   if (!el) return;
@@ -356,6 +371,7 @@ document.addEventListener('click', (e) => {
     el.setAttribute('aria-pressed', String(ldraft.rdays.includes(d)));
     return;
   }
+  if (action === 'rd-keep') { ldraft.planKeep = v; bookKeepFill(); return; }
   if (action === 'rd-topic') { libUi.bookTopic = v; render(); return; }
   if (action === 'rd-topic-on') {
     if (topicProject(v)) return;
