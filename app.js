@@ -656,10 +656,10 @@ function smartPreviewHTML() {
   }
   const q = smartRoute(text);
   if (q) return routePreviewHTML(q);
-  ui.smartAt = Date.now();
-  const r = SmartParse.parse(text);
+  const at = ui.smartAt = Date.now();
+  const r = SmartParse.parse(text, new Date(at));
   if (!r.title) return '<div class="parsed"><span class="tag warn">اكتب ما تريد فعله</span></div>';
-  const t = smartToTask(r);
+  const t = smartToTask(r, at);
   const d = isRepeat(t) ? t.repeat.start : t.due || today();
   const tags = [`<span class="tag title">${esc(t.title)}</span>`];
   tags.push(`<span class="tag">${isGoal(t) && !khProjTask(t) ? 'هدف متكرر' : isGoal(t) ? 'مهمة متكررة' : 'مهمة'}</span>`);
@@ -2416,9 +2416,10 @@ document.addEventListener('click', (e) => {
     case 'cat': ui.cat = v; render(); break;
     case 'example': ui.smart = v; render(); $('smartIn').focus(); break;
     case 'smart-edit': {
-      const r = SmartParse.parse(ui.smart);
+      const at = ui.smartAt && ui.smartAt <= Date.now() ? ui.smartAt : Date.now(); // (v149) the day its preview said
+      const r = SmartParse.parse(ui.smart, new Date(at));
       if (!r.title) break;
-      openSheet(null, { prefill: smartToTask(r) });
+      openSheet(null, { prefill: smartToTask(r, at) });
       break;
     }
     case 'cal-day': {
