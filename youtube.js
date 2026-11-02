@@ -17,6 +17,15 @@ function viewYoutube() {
   </section>`;
 }
 Object.assign(LibraryViews, { youtube: viewYoutube });
+// (v153, the owner: «إذل فتحت اليوتيوب ما يحتاج هذي الصفحة»: in the app that opens it, its tile in «المزيد» opens
+// YouTube itself, and this page stays for a browser or an older app; before app.js's own click, which would go to it)
+document.addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-tab="youtube"]');
+  if (!tile || !ytCan()) return;
+  e.stopImmediatePropagation();
+  window.WaiNative.openYoutube();
+}, true);
+function ytCan() { const N = window.WaiNative; return !!(N && typeof N.openYoutube === 'function'); }
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[data-action="yt-open"]')) return;
   const N = window.WaiNative;

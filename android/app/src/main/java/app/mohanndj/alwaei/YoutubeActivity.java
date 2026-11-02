@@ -47,11 +47,8 @@ public class YoutubeActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
-        try (InputStream in = getResources().openRawResource(R.raw.yt_noads); Scanner sc = new Scanner(in, "UTF-8").useDelimiter("\\A")) {
-            script = sc.hasNext() ? sc.next() : "";
-        } catch (Exception e) {
-            Log.w(TAG, "script " + e);
-        }
+        // the ads out (v152), then what draws him in (v153: the first page's feed, Shorts, the videos suggested)
+        script = raw(R.raw.yt_noads) + "\n" + raw(R.raw.yt_calm);
         root = new FrameLayout(this);
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -67,6 +64,15 @@ public class YoutubeActivity extends Activity {
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
         if (state == null || web.restoreState(state) == null) web.loadUrl(HOME);
+    }
+
+    private String raw(int id) {
+        try (InputStream in = getResources().openRawResource(id); Scanner sc = new Scanner(in, "UTF-8").useDelimiter("\\A")) {
+            return sc.hasNext() ? sc.next() : "";
+        } catch (Exception e) {
+            Log.w(TAG, "script " + e);
+            return "";
+        }
     }
 
     @Override
@@ -161,7 +167,7 @@ public class YoutubeActivity extends Activity {
             inject(view);
             // a line in the phone's log for checking the build (android/ci-youtube.sh)
             view.postDelayed(() -> view.evaluateJavascript(
-                    "(function(){try{return JSON.stringify({u:location.host,bridge:typeof WaiNative,ad:window.__waiAd||null})}catch(e){return 'error '+e}})()",
+                    "(function(){try{return JSON.stringify({u:location.host,bridge:typeof WaiNative,ad:window.__waiAd||null,calm:window.__waiCalm||null})}catch(e){return 'error '+e}})()",
                     r -> Log.i(TAG, "page " + r + " blocked " + blocked)), 8000);
         }
 

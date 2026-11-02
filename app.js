@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 152;
+const APP_VERSION = 153;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2805,6 +2805,7 @@ function restoreWhere() {
   if (w && w.tab === 'goals') w.tab = 'plan'; // «الأهداف» became part of «خطِّط» (v98)
   if (w && w.tab === 'stats') { w.tab = 'plan'; w.kh = 'stats'; } // and «الإحصائيات» its «إحصائياتي» (v99)
   if (!w || !VIEWS[w.tab]) return null;
+  if (w.tab === 'youtube' && ytCan()) w.tab = 'more'; // (its tile opens YouTube itself in the app, v153)
   ui.tab = w.tab;
   ui.project = w.project || '';
   if (w.sci) studyUi.sci = w.sci;

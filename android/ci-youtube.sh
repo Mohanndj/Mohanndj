@@ -43,4 +43,6 @@ im.thumbnail((360, 720))
 b = io.BytesIO(); im.save(b, "JPEG", quality=60)
 print("YTSHOT " + base64.b64encode(b.getvalue()).decode())
 PY
+# (v153: what draws him in hidden: the first page a search box, no Shorts, no videos suggested)
+echo "$LOG" | grep -q 'calm\\":{\\"home\\":true' || warn "the calm script is not in the first page"
 echo "youtube: checked"
