@@ -53,9 +53,9 @@ async function wrFromDocx(file) {
       else if (L === 'szCs' || (L === 'sz' && !kid(rPr, 'szCs'))) into.sz = Number(val(n)) || into.sz; // (Arabic text's own size first)
       else if (L === 'highlight') into.hi = WR_HL[val(n)] || '';
       else if (L === 'shd') { const f = n.getAttributeNS(WR_W, 'fill') || ''; if (/^[0-9a-f]{6}$/i.test(f)) into.hi = f; }
-      if (into.hi && /^(f[0-9a-f]){3}$/i.test(into.hi)) into.hi = ''; // (a white or near-white shade is the page's own)
       else if (L === 'rFonts') into.font = n.getAttributeNS(WR_W, 'cs') || n.getAttributeNS(WR_W, 'ascii') || into.font;
     }
+    if (into.hi && /^(f[0-9a-f]){3}$/i.test(into.hi)) into.hi = ''; // (a white or near-white shade is the page's own)
     return into;
   };
   // the look a style gives its runs (the farthest base first, so the nearer one wins)
@@ -76,25 +76,34 @@ async function wrFromDocx(file) {
   };
   const styleName = (p) => chain(pStyleId(p)).map((s) => s.name);
 
-  // lists: a numbered paragraph's kind from numbering.xml (a bullet, or a number)
+  // lists: a numbered paragraph's kind from numbering.xml (a bullet, or a number), each level's first number, and the count
+  // it shares (lists of one pattern count on together, as in Word, unless one starts again)
   const lists = {};
   if (P.numbering) {
     const abs = {};
     for (const a of kids(P.numbering.documentElement, 'abstractNum')) {
       const lvls = {};
-      for (const l of kids(a, 'lvl')) lvls[l.getAttributeNS(WR_W, 'ilvl')] = val(kid(l, 'numFmt'));
+      for (const l of kids(a, 'lvl')) lvls[l.getAttributeNS(WR_W, 'ilvl')] = { fmt: val(kid(l, 'numFmt')), start: Number(val(kid(l, 'start'))) || 1 };
       abs[a.getAttributeNS(WR_W, 'abstractNumId')] = lvls;
     }
-    for (const n of kids(P.numbering.documentElement, 'num')) lists[n.getAttributeNS(WR_W, 'numId')] = abs[val(kid(n, 'abstractNumId'))] || {};
+    for (const n of kids(P.numbering.documentElement, 'num')) {
+      const id = n.getAttributeNS(WR_W, 'numId'), aid = val(kid(n, 'abstractNumId')), lvls = { ...(abs[aid] || {}) };
+      let own = false;
+      for (const o of kids(n, 'lvlOverride')) {
+        const k = o.getAttributeNS(WR_W, 'ilvl'), so = kid(o, 'startOverride');
+        if (so) { own = true; lvls[k] = { ...(lvls[k] || { fmt: 'decimal' }), start: Number(val(so)) || 1 }; }
+      }
+      lists[id] = { lvls, count: own ? `n${id}` : `a${aid}` };
+    }
   }
   const listOf = (p) => {
     const np = pSetting(p, 'numPr');
     if (!np) return '';
     const id = val(kid(np, 'numId'));
     if (!id || id === '0') return '';
-    const fmt = (lists[id] || {})[val(kid(np, 'ilvl')) || '0'] || 'decimal';
-    const kind = fmt === 'bullet' ? 'ul' : fmt === 'none' ? '' : 'ol';
-    return kind && { kind, id, lvl: Math.min(6, Number(val(kid(np, 'ilvl'))) || 0) };
+    const L = lists[id] || { lvls: {}, count: `n${id}` }, lv = L.lvls[val(kid(np, 'ilvl')) || '0'] || { fmt: 'decimal', start: 1 };
+    const kind = lv.fmt === 'bullet' ? 'ul' : lv.fmt === 'none' ? '' : 'ol';
+    return kind && { kind, id: L.count, start: lv.start, lvl: Math.min(6, Number(val(kid(np, 'ilvl'))) || 0) };
   };
 
   // the footnotes (and endnotes, which come in as footnotes): plain text, a line for each paragraph
@@ -208,7 +217,7 @@ async function wrFromDocx(file) {
       if (look.color) st.push(`color:#${look.color}`);
       if (look.hi) st.push(`background-color:#${look.hi}`);
       const f = (look.font || '').trim();
-      if (f && WR_FONT_SET.has(f)) { if (f !== 'Amiri') st.push(`font-family:"${f}"`); } else if (f) dropped.fonts.add(f);
+      if (f && WR_FONT_SET.has(f)) { if (f !== 'Amiri') st.push(`font-family:'${f}'`); } else if (f) dropped.fonts.add(f);
       const em = look.sz ? Math.round((look.sz / baseSz) * 100) / 100 : 1;
       if (em !== 1 && em >= 0.5 && em <= 4) st.push(`font-size:${em}em`);
       if (st.length) { open += `<span style="${st.join(';')}">`; close = `</span>${close}`; }
@@ -348,10 +357,10 @@ async function wrFromDocx(file) {
     for (const b of items) {
       if (b.kind === 'p' && b.list && !isSub(b)) {
         const L = b.list, key = `${L.kind}|${L.id}|${L.lvl}`, cn = counts[L.id] || (counts[L.id] = []);
-        cn[L.lvl] = (cn[L.lvl] || 0) + 1; cn.length = L.lvl + 1;
+        cn[L.lvl] = (cn[L.lvl] || L.start - 1) + 1; cn.length = L.lvl + 1;
         if (list !== key) {
           if (list) h += `</${list.split('|')[0]}>`;
-          h += L.kind === 'ol' && cn[L.lvl] > 1 ? `<ol start="${cn[L.lvl]}">` : `<${L.kind}>`; list = key;
+          h += L.kind === 'ol' && cn[L.lvl] !== 1 ? `<ol start="${cn[L.lvl]}">` : `<${L.kind}>`; list = key;
         }
         h += `<li${L.lvl ? ` data-ind="${L.lvl}"` : ''}>${b.html}</li>`; lastEmpty = false; continue;
       }
