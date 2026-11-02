@@ -62,7 +62,7 @@ const WR_KINDS = {
   post: { tab: 'المنشورات', one: 'منشور', none: 'منشور', pub: 'منشور ✓' },
 };
 
-const wrUi = { list: null, loading: false, book: '', armed: '', find: '', tab: (() => { try { const t = localStorage.getItem('mahami-wrtab'); return WR_KINDS[t] ? t : 'book'; } catch { return 'book'; } })() };
+const wrUi = { list: null, loading: false, book: '', armed: '', find: '', imp: null, tab: (() => { try { const t = localStorage.getItem('mahami-wrtab'); return WR_KINDS[t] ? t : 'book'; } catch { return 'book'; } })() };
 const wrBook = (id) => (wrUi.list || []).find((b) => b.id === id);
 function wrLoad() {
   if (wrUi.loading) return;
@@ -247,6 +247,7 @@ const wrNum = (n) => digitsOut(n);
 function viewWriting() {
   if (!wrUi.list) { wrLoad(); return `${moreCrumb()}<section class="panel"><p class="note-text">يُفتح…</p></section>`; }
   WrCloud.pull(); // (once: what is in the cloud and not here, or newer there, comes back)
+  if (wrUi.imp) return wrImpHTML(); // (v158: a book from a Word file, its preview first)
   const b = wrUi.book && wrBook(wrUi.book);
   if (wrUi.book && !b) wrUi.book = '';
   return b ? wrBookHTML(b) : wrListHTML();
@@ -264,7 +265,8 @@ function wrTabsHTML() {
 function wrListHTML() {
   const k = wrUi.tab, K = WR_KINDS[k], l = wrOf(k);
   const form = k === 'book'
-    ? `<form class="wr-new" data-wr-form="book"><input name="t" placeholder="عنوان كتاب جديد" aria-label="عنوان كتاب جديد" autocomplete="off"><button type="submit" class="primary">${icon('plus')} كتاب جديد</button></form>`
+    ? `<form class="wr-new" data-wr-form="book"><input name="t" placeholder="عنوان كتاب جديد" aria-label="عنوان كتاب جديد" autocomplete="off"><button type="submit" class="primary">${icon('plus')} كتاب جديد</button></form>
+      <button type="button" class="ghost wr-imp-btn" data-action="wr-imp-pick">${icon('sheet')} أدخل كتاباً من وورد</button><input type="file" id="wrDocxIn" accept=".docx,.dotx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>`
     : `<form class="wr-new" data-wr-form="${k}"><input name="t" placeholder="${k === 'article' ? 'عنوان مقالة جديدة' : 'عنوان المنشور (اختياري)'}" aria-label="${k === 'article' ? 'عنوان مقالة جديدة' : 'عنوان المنشور'}" autocomplete="off"><button type="submit" class="primary">${icon('plus')} ${k === 'article' ? 'مقالة جديدة' : 'منشور جديد'}</button></form>`;
   const when = (b) => `آخر تعديل: ${esc(relDate(iso(new Date(b.updated))))}`;
   const row = (b) => {

@@ -2245,3 +2245,12 @@ li.sel .sel-box { background: var(--high); }
 #wrEditor.wr-focus #wrStatus { display: none; }
 #wrEditor.wr-focus .wr-tm { pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
 #wrEditor.wr-focus .wr-body { padding-top: 28px; padding-bottom: 120px; }
+
+/* v158: a book from a Word file */
+.wr-imp-btn { margin: 0 0 12px; }
+.wr-imp-chs { display: grid; gap: 6px; margin: 8px 0 12px; }
+.wr-imp-ch { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.wr-imp-ch input { width: 20px; height: 20px; margin-top: 3px; }
+.wr-imp-ch span { display: grid; gap: 2px; }
+.wr-imp-ch small { color: var(--muted); }
+.wr-imp-gone { margin: 6px 0 14px; padding-inline-start: 1.2em; color: var(--muted); font-size: .9rem; display: grid; gap: 4px; }

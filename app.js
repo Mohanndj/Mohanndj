@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 157;
+const APP_VERSION = 158;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2769,6 +2769,7 @@ window.addEventListener('popstate', () => {
   if (closeTopLayer()) { armBack(); return; }
   if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }
   if (ui.tab === 'plan' && khUi.review) { khUi.review = ''; render(); armBack(); return; }
+  if (ui.tab === 'writing' && wrUi.imp) { wrUi.imp = null; render(); armBack(); return; } // a Word file's preview: back to the books (v158)
   if (ui.tab === 'writing' && wrUi.book) { wrUi.book = ''; render(); armBack(); return; } // a book of «مؤلفاتي»: back to its list (v154)
   if (MORE_TABS.includes(ui.tab) && ui.tab !== 'more') { go('more'); armBack(); return; }
   if (ui.tab !== 'today') { go('today'); armBack(); return; }
