@@ -1006,6 +1006,8 @@ document.addEventListener('input', (e) => {
       }
     }
     wrRenumber(); wrDirty();
+    // (typing ends the trying: an open palette goes, and the bubble with a selection gone; a tool's own change, «format…», does not)
+    if (/^(insert(Text|Paragraph|LineBreak|ReplacementText|CompositionText|FromPaste)|delete)/.test(e.inputType || '')) { wrPopsClose(); wrBubble(); }
   }
   else if (e.target.id === 'wrTitle') wrDirty();
   else if (e.target.matches && e.target.matches('#wrNotes textarea')) { wrState.ch.notes[e.target.dataset.fn] = e.target.value; wrDirty(); }
