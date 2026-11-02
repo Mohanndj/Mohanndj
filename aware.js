@@ -506,9 +506,10 @@ function awareStats(P) {
   const sess = S.sessions.filter((x) => inP(sessionDay(x)));
   const fMs = sum(sess, (x) => x.ms);
   const byTask = {};
-  for (const x of sess) { const e = byTask[x.taskId] || (byTask[x.taskId] = { ms: 0, n: 0 }); e.ms += x.ms; e.n++; }
+  // (a writing session of «مؤلفاتي»'s timer, v156, has no task: its name is its label)
+  for (const x of sess) { const k = x.taskId || `l:${x.label || ''}`; const e = byTask[k] || (byTask[k] = { ms: 0, n: 0 }); e.ms += x.ms; e.n++; }
   add('focus', { title: 'وقت التركيز', icon: '⏱️' }, 'timer', null, [fMs && `ركّزت ${fmtDur(fMs)} في ${plural(sess.length, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')}`],
-    Object.entries(byTask).sort((a, b) => b[1].ms - a[1].ms).map(([id, e]) => `${(getTask(id) || {}).title || 'مهمة محذوفة'}: ${fmtDur(e.ms)} (${plural(e.n, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')})`));
+    Object.entries(byTask).sort((a, b) => b[1].ms - a[1].ms).map(([id, e]) => `${(getTask(id) || {}).title || (id.startsWith('l:') && id.slice(2)) || 'مهمة محذوفة'}: ${fmtDur(e.ms)} (${plural(e.n, 'جلسة واحدة', 'جلستين', 'جلسات', 'جلسة')})`));
 
   // 🔔 التذكيرات (facts only): what was added and what was done in the period
   const remNew = S.reminders.filter((x) => inP(dayOfTs(x.created)));

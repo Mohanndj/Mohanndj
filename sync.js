@@ -9,7 +9,7 @@ const Sync = (() => {
   const DESC = 'Mahami app data — بيانات تطبيق مهامي (لا تعدّل هذا الملف يدوياً)';
   const API = 'https://api.github.com';
   const COLLECTIONS = ['tasks', 'projects', 'memos', 'books', 'benefits', 'sessions', 'inspire', 'archive', 'ideas', 'journal', 'jtemplates', 'hifz', 'hplans', 'finPlans', 'finDebts', 'finRights', 'finProjects', 'finTx', 'cvs', 'meals', 'mealDone', 'shop', 'lists', 'fines', 'reports', 'subs', 'later', 'weeks', 'people', 'decisions', 'quits', 'reminders', 'study', 'kunnasha', 'roles', 'kgoals'];
-  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook', 'closeSkip', 'decTpl', 'benCats', 'benApps', 'benGo', 'benRecShare', 'calType'];
+  const SETTINGS_KEYS = ['name', 'accent', 'theme', 'size', 'font', 'digits', 'hijri', 'sound', 'prayer', 'readingGoal', 'voice', 'finActive', 'currency', 'health', 'payDay', 'todayOrder', 'todayHidden', 'moreOrder', 'smartMode', 'closeAt', 'closed', 'explain', 'pin', 'askTime', 'moreLook', 'closeSkip', 'decTpl', 'benCats', 'benApps', 'benGo', 'benRecShare', 'calType', 'wrKey'];
 
   let cfg = load();
   let busy = false;
@@ -327,6 +327,8 @@ const Sync = (() => {
 
   return {
     schedule, syncNow, settingsHTML, connected: () => !!cfg.token,
+    // (v156) for «مؤلفاتي»'s own cloud: his GitHub key's requests, linked, and synced once (its lock's key is in his settings)
+    api: (path, opts) => gh(path, opts), linked: () => !!(cfg.token && cfg.gistId), synced: () => !!cfg.lastSync,
     start: () => { if (cfg.token) setTimeout(syncNow, 1200); },
     _merge: merge, // exposed for tests
   };

@@ -2193,3 +2193,55 @@ li.sel .sel-box { background: var(--high); }
 .wr-note textarea { width: 100%; min-height: 2.6em; resize: vertical; }
 .wr-find input { flex: 1 1 120px; min-width: 0; }
 .wr-find small { width: 100%; color: var(--muted); }
+
+/* v156: «مؤلفاتي» — three tabs, all the tools, focus mode with a bubble and a floating button, a focus timer */
+.wr-tabs { margin: 4px 0 8px; }
+.wr-tabs button { padding: 7px 4px; min-width: 0; }
+.wr-item { display: grid; gap: 6px; }
+.wr-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.wr-st[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.wr-cloud { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.wr-cloud .note-text { margin: 0; flex: 1 1 200px; }
+.wr-body u { text-decoration: underline; }
+.wr-body s { text-decoration: line-through; }
+.wr-body sup.fn { font-size: .62em; }
+.wr-body [data-ind="1"] { margin-inline-start: 1.5em; } .wr-body [data-ind="2"] { margin-inline-start: 3em; } .wr-body [data-ind="3"] { margin-inline-start: 4.5em; }
+.wr-body [data-ind="4"] { margin-inline-start: 6em; } .wr-body [data-ind="5"] { margin-inline-start: 7.5em; } .wr-body [data-ind="6"] { margin-inline-start: 9em; }
+@counter-style wr-ar { system: extends arabic-indic; suffix: "- "; }
+@counter-style wr-num { system: extends decimal; suffix: "- "; }
+.wr-body ol { list-style: wr-num; }
+.wr-arabic .wr-body ol { list-style: wr-ar; }
+.wr-body img { display: block; max-width: 100%; height: auto; margin: .6em auto; border-radius: 6px; }
+.wr-body table.wr-tbl { width: 100%; border-collapse: collapse; margin: .6em 0; table-layout: fixed; }
+.wr-body table.wr-tbl td, .wr-body table.wr-tbl th { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; overflow-wrap: anywhere; }
+.wr-body table.wr-tbl p { margin: 0; }
+.wr-body .pgbreak { margin: 1em 0; padding: 2px 0; border-top: 2px dashed var(--accent); color: var(--accent); font-size: .78rem; text-align: center; user-select: none; }
+.wr-body hr { border: 0; border-top: 1px solid var(--muted); margin: 1em 0; }
+.wr-pal { align-items: center; }
+.wr-fonts { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; max-width: 100%; }
+.wr-fonts button { flex: none; padding: 6px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); color: var(--fg); font-size: 1.05rem; }
+.wr-num { display: inline-flex; gap: 6px; align-items: center; font-size: .9rem; }
+.wr-num input { width: 3.2em; text-align: center; }
+.wr-note { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; margin-bottom: 8px; }
+.wr-note .ghost.sm { margin-top: 4px; }
+.wr-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wr-tm { flex: none; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.wr-tm.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.wr-tmpop { position: fixed; inset-inline-end: 12px; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: grid; gap: 8px; width: min(300px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.wr-tm-own { display: flex; gap: 8px; }
+.wr-tm-own input { flex: 1; min-width: 0; }
+.wr-bubble, .wr-fabmenu, .wr-float { position: fixed; z-index: 4; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.wr-bubble { display: flex; gap: 2px; padding: 4px; max-width: calc(100% - 16px); overflow-x: auto; scrollbar-width: none; }
+.wr-bubble[hidden], .wr-fabmenu[hidden], .wr-float[hidden], .wr-tmpop[hidden] { display: none; }
+.wr-bubble button, .wr-fabmenu button { flex: none; min-width: 38px; height: 38px; padding: 0 8px; border-radius: 8px; color: var(--fg); display: grid; place-items: center; font-size: .95rem; }
+.wr-bubble button svg, .wr-fabmenu button svg { width: 18px; height: 18px; }
+.wr-fab { display: none; position: fixed; inset-inline-start: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 4; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.4rem; box-shadow: 0 6px 18px rgba(0,0,0,.22); }
+.wr-fabmenu { inset-inline-start: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 24px)); display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
+.wr-fabmenu .wr-unfocus { flex: 1 1 100%; background: var(--accent-soft); color: var(--accent); }
+.wr-float { inset-inline: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; align-items: center; }
+#wrEditor.wr-focus .me-head, #wrEditor.wr-focus #wrTools, #wrEditor.wr-focus #wrPal { display: none; }
+#wrEditor.wr-focus .wr-fab { display: grid; place-items: center; }
+#wrEditor.wr-focus .wr-foot { position: fixed; inset-inline: 0; bottom: 0; border: 0; background: transparent; pointer-events: none; justify-content: flex-end; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+#wrEditor.wr-focus #wrStatus { display: none; }
+#wrEditor.wr-focus .wr-tm { pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+#wrEditor.wr-focus .wr-body { padding-top: 28px; padding-bottom: 120px; }

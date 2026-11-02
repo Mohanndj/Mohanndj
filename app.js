@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 155;
+const APP_VERSION = 156;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2318,7 +2318,7 @@ function viewTimer() {
     ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
       : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
   </section>
-  ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} | ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} | ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
+  ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || x.label || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} | ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} | ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;
 }
 
 let timerArmed = false;
@@ -2620,9 +2620,9 @@ document.addEventListener('click', (e) => {
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
-        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats']) delete S.settings[k];
+        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats', 'wrKey']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
-        try { if (typeof WBooks !== 'undefined') { WBooks.forget(); indexedDB.deleteDatabase('mahami-writing'); wrUi.list = null; wrUi.book = ''; } } catch {}
+        try { if (typeof WBooks !== 'undefined') { WrCloud.wipe(); WBooks.forget(); indexedDB.deleteDatabase('mahami-writing'); wrUi.list = null; wrUi.book = ''; } } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
       break;
@@ -2751,7 +2751,7 @@ function closeTopLayer() {
   if ($('libSheet').open) { const back = ldraft && ldraft.back; closeLib(); libBack(back); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }
-  if (typeof wrState !== 'undefined' && wrState) { wrClose(); return true; } // a chapter of «مؤلفاتي» (v154), under any window opened on it
+  if (typeof wrState !== 'undefined' && wrState) { if (!wrPopsClose()) wrClose(); return true; } // a chapter of «مؤلفاتي» (v154), under any window opened on it (a palette of its own first, v156)
   return false;
 }
 window.addEventListener('popstate', () => {
