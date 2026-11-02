@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 153;
+const APP_VERSION = 154;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1086,7 +1086,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), habits: viewHabits, plan: viewPlan,
   settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'youtube'];
+const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'youtube', 'writing'];
 
 function render() {
   const view = $('view');
@@ -1983,8 +1983,11 @@ function checkAlarms() {
 }
 
 // ---------- backup ----------
-function exportData() {
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, settings: S.settings }, null, 2);
+async function exportData() {
+  // the books he writes (v154) are in this device's big store, not in S
+  let writing = [];
+  try { if (typeof WBooks !== 'undefined') writing = await WBooks.all(); } catch {}
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, writing, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 // the Android app's file (v112): from the site itself, saved as a backup is (a link to GitHub stopped at «جارٍ التنزيل»)
@@ -2022,6 +2025,11 @@ function importData(file) {
       // photos stay on this device; imported phrases are added to them
       S.inspire = [...S.inspire.filter((x) => x.type === 'image'), ...(Array.isArray(data.inspire) ? data.inspire : []).filter((x) => x.type !== 'image').map(normalizeInspire)];
       if (data.settings) Object.assign(S.settings, data.settings);
+      // the books he writes (v154): each one in the file is put back, the newer of the two kept; none here is removed
+      if (Array.isArray(data.writing) && typeof WBooks !== 'undefined') {
+        WBooks.all().then((have) => Promise.all(data.writing.map(normalizeWBook).filter((b) => { const h = have.find((x) => x.id === b.id); return !h || b.updated >= h.updated; }).map(WBooks.put)))
+          .then(() => { wrUi.list = null; if (ui.tab === 'writing') render(); }).catch(() => toast('تعذّر استيراد مؤلفاتك'));
+      }
       save();
       applyTheme();
       render();
@@ -2614,6 +2622,7 @@ document.addEventListener('click', (e) => {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
+        try { if (typeof WBooks !== 'undefined') { WBooks.forget(); indexedDB.deleteDatabase('mahami-writing'); wrUi.list = null; wrUi.book = ''; } } catch {}
         save(); render(); toast('حُذفت كل البيانات');
       }
       break;
@@ -2735,6 +2744,7 @@ function stayInApp() {
 }
 function closeTopLayer() {
   if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
+  if (typeof wrState !== 'undefined' && wrState) { wrClose(); return true; }
   if (typeof jstate !== 'undefined' && jstate) { closeJournal(); return true; }
   if (typeof hzs !== 'undefined' && hzs) { closeStudy(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
@@ -2759,6 +2769,7 @@ window.addEventListener('popstate', () => {
   if (closeTopLayer()) { armBack(); return; }
   if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }
   if (ui.tab === 'plan' && khUi.review) { khUi.review = ''; render(); armBack(); return; }
+  if (ui.tab === 'writing' && wrUi.book) { wrUi.book = ''; render(); armBack(); return; } // a book of «مؤلفاتي»: back to its list (v154)
   if (MORE_TABS.includes(ui.tab) && ui.tab !== 'more') { go('more'); armBack(); return; }
   if (ui.tab !== 'today') { go('today'); armBack(); return; }
   askExit(); // not re-armed: pressing back again leaves the app

@@ -2169,3 +2169,27 @@ li.sel .sel-box { background: var(--high); }
 .kh-rolef .chip { display: inline-flex; align-items: center; gap: 6px; }
 .kh-rolef .chip[aria-pressed="true"] { border-color: var(--rc, var(--accent)); color: var(--rc, var(--accent)); }
 .kh-rdot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); flex: none; }
+
+/* «مؤلفاتي» (v154): books of chapters written in a full-screen editor */
+.wr-new { display: flex; gap: 8px; margin: 8px 0 12px; }
+.wr-new input { flex: 1; min-width: 0; }
+.wr-books, .wr-chs { display: grid; gap: 8px; }
+.wr-book, .wr-ch-open { display: grid; gap: 4px; text-align: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); width: 100%; }
+.wr-book b, .wr-ch-open b { font-size: 1.05rem; overflow-wrap: anywhere; }
+.wr-ch-open small { color: var(--muted); }
+.wr-ch { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }
+.wr-ch .icon-btn[disabled] { opacity: .3; }
+.wr-ch .ghost.sm { color: var(--high); }
+.wr-scroll { flex: 1; overflow-y: auto; }
+.wr-body { flex: none; overflow: visible; min-height: 55vh; text-align: justify; }
+.wr-body h2 { text-align: center; }
+.wr-body p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .6em 1.2em; }
+.wr-body sup.fn { color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 2px; user-select: none; }
+.wr-notes { padding: 0 max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--line); }
+.wr-notes:empty { display: none; }
+.wr-notes h3 { font-size: 1rem; margin: 12px 0 8px; color: var(--muted); }
+.wr-note { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; margin-bottom: 8px; }
+.wr-note b { color: var(--accent); padding-top: 8px; }
+.wr-note textarea { width: 100%; min-height: 2.6em; resize: vertical; }
+.wr-find input { flex: 1 1 120px; min-width: 0; }
+.wr-find small { width: 100%; color: var(--muted); }
