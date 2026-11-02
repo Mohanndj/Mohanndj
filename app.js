@@ -1986,7 +1986,7 @@ function checkAlarms() {
 async function exportData() {
   // the books he writes (v154) are in this device's big store, not in S
   let writing = [];
-  try { if (typeof WBooks !== 'undefined') writing = await WBooks.all(); } catch {}
+  try { if (typeof WBooks !== 'undefined') writing = await WBooks.all(); } catch { toast('تنبيه: تعذّرت قراءة «مؤلفاتي»، فلم تدخل في هذه النسخة'); }
   const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, writing, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
@@ -2744,7 +2744,6 @@ function stayInApp() {
 }
 function closeTopLayer() {
   if (typeof mstate !== 'undefined' && mstate) { closeMemo(); return true; }
-  if (typeof wrState !== 'undefined' && wrState) { wrClose(); return true; }
   if (typeof jstate !== 'undefined' && jstate) { closeJournal(); return true; }
   if (typeof hzs !== 'undefined' && hzs) { closeStudy(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
@@ -2752,6 +2751,7 @@ function closeTopLayer() {
   if ($('libSheet').open) { const back = ldraft && ldraft.back; closeLib(); libBack(back); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }
+  if (typeof wrState !== 'undefined' && wrState) { wrClose(); return true; } // a chapter of «مؤلفاتي» (v154), under any window opened on it
   return false;
 }
 window.addEventListener('popstate', () => {

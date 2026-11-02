@@ -63,6 +63,8 @@ function wrSave(b) {
 // ---------- text helpers ----------
 // what a chapter keeps: paragraphs, two levels of headings, a verse box, a quotation, bold, italic, line breaks and
 // footnote marks; anything else pasted (Word's own markup) keeps its text only
+const WR_BLOCK = /^(P|DIV|H[1-6]|BLOCKQUOTE|LI|TD|TH|DD|DT|CENTER|PRE|ADDRESS|FIGCAPTION|SECTION|ARTICLE|TR)$/;
+const WR_HASBLOCK = 'p, div, h1, h2, h3, h4, h5, h6, blockquote, li, td, th, dd, dt, center, pre, address, figcaption, tr, table';
 const WR_DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'IMG', 'SVG', 'VIDEO', 'AUDIO', 'META', 'LINK', 'TITLE', 'XML']);
 function wrClean(html) {
   const tpl = document.createElement('template');
@@ -77,6 +79,7 @@ function wrClean(html) {
         out.append(s); continue;
       }
       if (n.nodeName === 'BR') { out.append(document.createElement('br')); continue; }
+      if (WR_BLOCK.test(n.nodeName) && out.textContent && !/\s$/.test(out.textContent)) out.append(' '); // (blocks met inside a line: words stay apart)
       const st = n.style || {};
       const bold = n.nodeName === 'B' || n.nodeName === 'STRONG' || st.fontWeight === 'bold' || Number(st.fontWeight) >= 600;
       const ital = n.nodeName === 'I' || n.nodeName === 'EM' || st.fontStyle === 'italic';
@@ -100,13 +103,13 @@ function wrClean(html) {
     for (const n of [...node.childNodes]) {
       if (n.nodeType === 1 && WR_DROP.has(n.nodeName)) continue;
       const name = n.nodeType === 1 ? n.nodeName : '';
-      if (/^(P|DIV|H[1-6]|BLOCKQUOTE|LI|TR|SECTION|ARTICLE)$/.test(name) && !n.querySelector('p, div, h1, h2, h3, h4, h5, h6, blockquote, li, tr')) {
+      if (WR_BLOCK.test(name) && name !== 'TR' && !n.querySelector(WR_HASBLOCK)) {
         flush();
         if (name === 'H1' || name === 'H2') block('h2', '', n);
         else if (/^H[3-6]$/.test(name)) block('h3', '', n);
         else if (name === 'BLOCKQUOTE') block('blockquote', '', n);
         else block('p', n.classList.contains('ayah') ? 'ayah' : '', n);
-      } else if (/^(DIV|BLOCKQUOTE|UL|OL|LI|TABLE|TBODY|THEAD|TR|TD|SECTION|ARTICLE|BODY|HTML|FONT|SPAN)$/.test(name) && n.querySelector('p, div, h1, h2, h3, h4, h5, h6, blockquote, li, tr')) {
+      } else if (name && (/^(UL|OL|DL|TABLE|TBODY|THEAD|TFOOT|TR|BODY|HTML)$/.test(name) || n.querySelector(WR_HASBLOCK))) {
         flush(); walk(n);
       } else {
         if (!loose) loose = document.createElement('p');
@@ -236,7 +239,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------- the editor (a full-screen window like the notes', so the page redrawing never touches it) ----------
-let wrState = null; // { book, ch, timer, dirty, found }
+let wrState = null; // { book, ch, timer, dirty, hist, hi, htimer }
 function wrDialog() {
   let d = $('wrEditor');
   if (d) return d;
@@ -288,15 +291,17 @@ function wrEdit(b, chId, find) {
   const c = b.chapters.find((x) => x.id === chId);
   if (!c) return;
   const d = wrDialog();
-  wrState = { book: b, ch: c, timer: null, dirty: false };
+  wrState = { book: b, ch: c, timer: null, dirty: false, hist: [], hi: -1, htimer: null };
   $('wrTitle').value = c.title;
   $('wrBody').innerHTML = c.html;
+  $('wrNotes').innerHTML = '';
   $('wrFind').hidden = !find;
   $('wrQ').value = find || '';
   $('wrR').value = '';
   $('wrFound').textContent = '';
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch {}
   wrRenumber();
+  wrMark();
   wrStatus('');
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   $('wrScroll').scrollTop = 0;
@@ -307,7 +312,9 @@ function wrEdit(b, chId, find) {
 function wrClose(fromEvent) {
   if (!wrState) return;
   wrSaveNow();
+  clearTimeout(wrState.htimer);
   wrState = null;
+  try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {} // (the notes' editor as it was)
   const d = $('wrEditor');
   if (!fromEvent && d) { if (typeof d.close === 'function') { if (d.open) d.close(); } else d.removeAttribute('open'); }
   render();
@@ -318,8 +325,56 @@ function wrStatus(s) {
   const c = wrState.ch;
   $('wrStatus').textContent = `الكلمات: الفصل ${wrNum(wrWords(wrPlain($('wrBody').innerHTML)))} | الكتاب ${wrNum(wrBookWords(wrState.book) - wrChWords(c) + wrWords(wrPlain($('wrBody').innerHTML)))}${s ? ` | ${s}` : ''}`;
 }
+// the editor keeps its own history of the chapter (text, footnotes and the cursor), so «تراجع» also undoes
+// a «استبدل الكل», a footnote or a verse box, which the browser's own undo does not know
+function wrCaret() {
+  const sel = getSelection(), body = $('wrBody');
+  if (!sel.rangeCount || !body.contains(sel.anchorNode)) return -1;
+  const r = document.createRange(); r.selectNodeContents(body); r.setEnd(sel.anchorNode, sel.anchorOffset);
+  return r.toString().length;
+}
+function wrSetCaret(n) {
+  if (n < 0) return;
+  const w = document.createTreeWalker($('wrBody'), NodeFilter.SHOW_TEXT);
+  while (w.nextNode()) {
+    const t = w.currentNode;
+    if (n <= t.textContent.length) { const r = document.createRange(); r.setStart(t, n); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); return; }
+    n -= t.textContent.length;
+  }
+}
+function wrMark() {
+  if (!wrState) return;
+  clearTimeout(wrState.htimer);
+  const snap = { html: $('wrBody').innerHTML, notes: JSON.stringify(wrState.ch.notes), caret: wrCaret() };
+  const cur = wrState.hist[wrState.hi];
+  if (cur && cur.html === snap.html && cur.notes === snap.notes) { cur.caret = snap.caret; return; }
+  wrState.hist = wrState.hist.slice(0, wrState.hi + 1);
+  wrState.hist.push(snap);
+  if (wrState.hist.length > 60) wrState.hist.shift();
+  wrState.hi = wrState.hist.length - 1;
+}
+function wrHistory(step) {
+  if (!wrState) return;
+  wrMark();
+  const i = wrState.hi + step;
+  if (i < 0 || i >= wrState.hist.length) return;
+  wrState.hi = i;
+  const snap = wrState.hist[i];
+  $('wrBody').innerHTML = snap.html;
+  wrState.ch.notes = JSON.parse(snap.notes);
+  $('wrNotes').innerHTML = '';
+  wrRenumber();
+  $('wrBody').focus();
+  wrSetCaret(snap.caret);
+  wrState.dirty = true;
+  clearTimeout(wrState.timer);
+  wrState.timer = setTimeout(wrSaveNow, 700);
+  wrStatus('يحفظ…');
+}
 function wrDirty() {
   if (!wrState) return;
+  clearTimeout(wrState.htimer);
+  wrState.htimer = setTimeout(wrMark, 500);
   wrState.dirty = true;
   clearTimeout(wrState.timer);
   wrState.timer = setTimeout(wrSaveNow, 700);
@@ -375,7 +430,9 @@ function wrBlock() {
 function wrCmd(cmd) {
   const body = $('wrBody');
   body.focus();
-  if (cmd === 'undo' || cmd === 'redo' || cmd === 'bold' || cmd === 'italic') { try { document.execCommand('styleWithCSS', false, false); } catch {} document.execCommand(cmd); }
+  if (cmd === 'undo' || cmd === 'redo') { wrHistory(cmd === 'undo' ? -1 : 1); return; }
+  wrMark(); // (what was typed before this change is one step of «تراجع»)
+  if (cmd === 'bold' || cmd === 'italic') { try { document.execCommand('styleWithCSS', false, false); } catch {} document.execCommand(cmd); }
   else if (cmd === 'h2' || cmd === 'h3' || cmd === 'p' || cmd === 'quote') {
     const want = cmd === 'quote' ? 'blockquote' : cmd;
     const blk = wrBlock();
@@ -409,6 +466,7 @@ function wrCmd(cmd) {
     if (ta) setTimeout(() => { ta.focus(); ta.scrollIntoView({ block: 'center' }); }, 30);
   }
   wrDirty();
+  wrMark();
 }
 
 // find and replace in this chapter (a match inside one stretch of text)
@@ -445,11 +503,12 @@ function wrReplace(all) {
     wrFindNext();
     return;
   }
+  wrMark();
   let n = 0;
   for (const t of wrTextNodes()) { const k = wrCount(t.textContent, q); if (k) { n += k; t.textContent = t.textContent.split(q).join(r); } }
   for (const ta of $('wrNotes').querySelectorAll('textarea')) { const k = wrCount(ta.value, q); if (k) { n += k; ta.value = ta.value.split(q).join(r); wrState.ch.notes[ta.dataset.fn] = ta.value; } }
   $('wrFound').textContent = n ? `استُبدل ${wrNum(n)} مرة في هذا الفصل` : 'لم يوجد في هذا الفصل';
-  if (n) wrDirty();
+  if (n) { wrDirty(); wrMark(); }
 }
 
 // the toolbar keeps the cursor in the text
@@ -487,6 +546,11 @@ document.addEventListener('keydown', (e) => {
   if (!wrState) return;
   if (e.target.id === 'wrTitle' && e.key === 'Enter') { e.preventDefault(); $('wrBody').focus(); }
   if ((e.target.id === 'wrQ' || e.target.id === 'wrR') && e.key === 'Enter') { e.preventDefault(); wrFindNext(); }
+  if (e.target.id === 'wrBody' && (e.ctrlKey || e.metaKey) && /^[zy]$/i.test(e.key)) { e.preventDefault(); wrHistory(e.key.toLowerCase() === 'y' || e.shiftKey ? 1 : -1); }
+});
+document.addEventListener('beforeinput', (e) => {
+  if (!wrState || e.target.id !== 'wrBody') return;
+  if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { e.preventDefault(); wrHistory(e.inputType === 'historyUndo' ? -1 : 1); }
 });
 // pasted text keeps only what a chapter keeps (Word's own markup goes)
 document.addEventListener('paste', (e) => {
@@ -495,7 +559,10 @@ document.addEventListener('paste', (e) => {
   const text = e.clipboardData && e.clipboardData.getData('text/plain');
   if (!html && !text) return;
   e.preventDefault();
-  const clean = html ? wrClean(html) : (text || '').split(/\r?\n/).map((l) => `<p>${esc(l) || '<br>'}</p>`).join('');
+  const plain = () => (text || '').split(/\r?\n/).map((l) => `<p>${esc(l) || '<br>'}</p>`).join('');
+  let clean = html ? wrClean(html) : '';
+  if (!clean.replace(/<[^>]+>/g, '').trim() && !/sup class="fn"/.test(clean)) clean = plain(); // (markup that cleans to nothing: its plain text)
+  wrMark();
   document.execCommand('insertHTML', false, clean);
   wrRenumber();
   wrDirty();
@@ -524,7 +591,7 @@ function wrDocx(b) {
   const para = (style, inner, extra = '') => `<w:p><w:pPr><w:pStyle w:val="${style}"/>${extra}<w:bidi/></w:pPr>${inner}</w:p>`;
   let body = para('Title', run(b.title || 'كتاب بلا عنوان', {}));
   b.chapters.forEach((ch, idx) => {
-    body += para('Heading1', run(ch.title || `فصل ${idx + 1}`, {}), '<w:pageBreakBefore/>');
+    body += para('Heading1', run(ch.title || `فصل ${wrNum(idx + 1)}`, {}), '<w:pageBreakBefore/>');
     const tpl = document.createElement('template');
     tpl.innerHTML = wrClean(ch.html);
     for (const el of tpl.content.children) {
@@ -583,7 +650,7 @@ ${pstyle('FootnoteText', 'footnote text', sz(24), '<w:spacing w:after="0" w:line
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
 </Relationships>` },
     { name: 'word/settings.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:settings xmlns:w="${W}"><w:defaultTabStop w:val="720"/><w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr><w:compat><w:doNotExpandShiftReturn/></w:compat><w:themeFontLang w:val="en-US" w:bidi="ar-SA"/></w:settings>` },
+<w:settings xmlns:w="${W}"><w:defaultTabStop w:val="720"/><w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr><w:compat><w:doNotExpandShiftReturn/><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat><w:themeFontLang w:val="en-US" w:bidi="ar-SA"/></w:settings>` },
     { name: 'word/styles.xml', data: styles },
     { name: 'word/footnotes.xml', data: footnotes },
     { name: 'word/document.xml', data: doc },
