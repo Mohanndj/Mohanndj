@@ -21,14 +21,14 @@ async function wrDocxRead(file) {
   return { doc: xml('word/document.xml'), styles: xml('word/styles.xml'), numbering: xml('word/numbering.xml'), foot: xml('word/footnotes.xml'), end: xml('word/endnotes.xml'), rels: xml('word/_rels/document.xml.rels'), core: xml('docProps/core.xml'), files };
 }
 
-// the Word file → { title, chapters: [{ title, html, notes }], front: [lines before the first chapter], dropped: {...} }
+// the Word file → { title, chapters: [{ title, html, notes }], dropped: {...} }
 async function wrFromDocx(file) {
   const P = await wrDocxRead(file);
   const kids = (el, name) => (el ? [...el.childNodes].filter((n) => n.nodeType === 1 && (!name || n.localName === name)) : []);
   const kid = (el, name) => kids(el, name)[0] || null;
   const val = (el) => (el ? el.getAttributeNS(WR_W, 'val') || el.getAttribute('w:val') || '' : '');
   const on = (el) => !!el && !/^(0|false|off|none)$/.test(val(el));
-  const dropped = { comments: 0, textbox: 0, toc: 0, header: 0, deep: 0, images: 0, endnotes: 0, fonts: new Set() };
+  const dropped = { comments: 0, textbox: 0, toc: 0, header: 0, deep: 0, images: 0, endnotes: 0, math: 0, sym: 0, fonts: new Set(), symbols: new Set() };
 
   // styles: each one's run look and paragraph settings, following «basedOn»
   const styles = {};
@@ -36,6 +36,10 @@ async function wrFromDocx(file) {
     const id = s.getAttributeNS(WR_W, 'styleId') || s.getAttribute('w:styleId');
     styles[id] = { name: (val(kid(s, 'name')) || '').toLowerCase(), based: val(kid(s, 'basedOn')), rPr: kid(s, 'rPr'), pPr: kid(s, 'pPr') };
   }
+  // (a paragraph without a style of its own takes the default one, «Normal» in most files)
+  const defPara = kids(P.styles && P.styles.documentElement, 'style').find((s) => s.getAttributeNS(WR_W, 'type') === 'paragraph' && /^(1|true|on)$/.test(s.getAttributeNS(WR_W, 'default') || ''));
+  const defParaId = defPara ? defPara.getAttributeNS(WR_W, 'styleId') || '' : '';
+  const pStyleId = (p) => val(kid(kid(p, 'pPr'), 'pStyle')) || defParaId;
   const chain = (id) => { const out = []; for (let k = 0; id && styles[id] && k < 20; k++) { out.push(styles[id]); id = styles[id].based; } return out; };
   const runLook = (rPr, into = {}) => {
     if (!rPr) return into;
@@ -49,6 +53,7 @@ async function wrFromDocx(file) {
       else if (L === 'szCs' || (L === 'sz' && !kid(rPr, 'szCs'))) into.sz = Number(val(n)) || into.sz; // (Arabic text's own size first)
       else if (L === 'highlight') into.hi = WR_HL[val(n)] || '';
       else if (L === 'shd') { const f = n.getAttributeNS(WR_W, 'fill') || ''; if (/^[0-9a-f]{6}$/i.test(f)) into.hi = f; }
+      if (into.hi && /^(f[0-9a-f]){3}$/i.test(into.hi)) into.hi = ''; // (a white or near-white shade is the page's own)
       else if (L === 'rFonts') into.font = n.getAttributeNS(WR_W, 'cs') || n.getAttributeNS(WR_W, 'ascii') || into.font;
     }
     return into;
@@ -59,16 +64,17 @@ async function wrFromDocx(file) {
   const pSetting = (p, name) => {
     const own = kid(kid(p, 'pPr'), name);
     if (own) return own;
-    for (const s of chain(val(kid(kid(p, 'pPr'), 'pStyle')))) { const e = kid(s.pPr, name); if (e) return e; }
+    for (const s of chain(pStyleId(p))) { const e = kid(s.pPr, name); if (e) return e; }
     return null;
   };
   // a paragraph's heading level: «heading N», «Title», or its outline level (0 is the first)
   const levelOf = (p) => {
-    for (const s of chain(val(kid(kid(p, 'pPr'), 'pStyle')))) { const m = /^heading (\d)$/.exec(s.name); if (m) return Number(m[1]); if (s.name === 'title') return 0; }
+    if (chain(pStyleId(p)).some((s) => s.name === 'toc heading')) return null; // (Word's «المحتويات» over its own contents)
+    for (const s of chain(pStyleId(p))) { const m = /^heading (\d)$/.exec(s.name); if (m) return Number(m[1]); if (s.name === 'title') return 0; }
     const o = pSetting(p, 'outlineLvl');
     return o && val(o) !== '' && Number(val(o)) < 9 ? Number(val(o)) + 1 : null;
   };
-  const styleName = (p) => chain(val(kid(kid(p, 'pPr'), 'pStyle'))).map((s) => s.name);
+  const styleName = (p) => chain(pStyleId(p)).map((s) => s.name);
 
   // lists: a numbered paragraph's kind from numbering.xml (a bullet, or a number)
   const lists = {};
@@ -87,7 +93,8 @@ async function wrFromDocx(file) {
     const id = val(kid(np, 'numId'));
     if (!id || id === '0') return '';
     const fmt = (lists[id] || {})[val(kid(np, 'ilvl')) || '0'] || 'decimal';
-    return fmt === 'bullet' ? 'ul' : fmt === 'none' ? '' : 'ol';
+    const kind = fmt === 'bullet' ? 'ul' : fmt === 'none' ? '' : 'ol';
+    return kind && { kind, id, lvl: Math.min(6, Number(val(kid(np, 'ilvl'))) || 0) };
   };
 
   // the footnotes (and endnotes, which come in as footnotes): plain text, a line for each paragraph
@@ -97,8 +104,10 @@ async function wrFromDocx(file) {
     for (const f of xmlDoc.getElementsByTagNameNS(WR_W, tag)) {
       const id = f.getAttributeNS(WR_W, 'id');
       if (Number(id) <= 0 || f.getAttributeNS(WR_W, 'type')) continue;
-      out[id] = [...f.getElementsByTagNameNS(WR_W, 'p')].map((p) => [...p.getElementsByTagNameNS(WR_W, 't')].map((t) => t.textContent).join(''))
-        .join('\n').replace(/^\s*‏?\(\s*\)?‏?\s*/, '').replace(/^\s*\)‏?\s*/, '').trim(); // (the app's own «(١)» around the number)
+      // (the number's own place marked, so only the app's «(١)» around it is taken, not a «(» the note begins with)
+      out[id] = [...f.getElementsByTagNameNS(WR_W, 'p')].map((p) => [...p.getElementsByTagNameNS('*', '*')]
+        .map((e) => (e.localName === 'footnoteRef' || e.localName === 'endnoteRef' ? '\u0001' : e.localName === 't' && e.parentNode.localName === 'r' ? e.textContent : e.localName === 'tab' || e.localName === 'br' ? ' ' : '')).join(''))
+        .join('\n').replace(/^\s*‏?\(\s*\u0001\s*\)‏?/, '').replace(/\u0001/g, '').trim();
     }
     return out;
   };
@@ -115,17 +124,21 @@ async function wrFromDocx(file) {
   const allParas = [...body.getElementsByTagNameNS(WR_W, 'p')];
   const effLook = (p, r) => {
     const rp = kid(r, 'rPr');
-    const base = { ...defLook, ...styleLook(val(kid(kid(p, 'pPr'), 'pStyle'))) };
+    const base = { ...defLook, ...styleLook(pStyleId(p)) };
     const ch = rp ? styleLook(val(kid(rp, 'rStyle'))) : {};
     return runLook(rp, { ...base, ...ch });
   };
-  for (const p of allParas) for (const r of p.getElementsByTagNameNS(WR_W, 'r')) {
-    const t = [...r.getElementsByTagNameNS(WR_W, 't')].map((x) => x.textContent).join('');
-    if (!t.trim()) continue;
-    const sz = effLook(p, r).sz || 24;
-    sizeCount[sz] = (sizeCount[sz] || 0) + t.length;
+  const headCount = {}; // (a heading's size is the text's only when there is nothing but headings)
+  for (const p of allParas) {
+    const into = levelOf(p) == null ? sizeCount : headCount;
+    for (const r of p.getElementsByTagNameNS(WR_W, 'r')) {
+      const t = [...r.getElementsByTagNameNS(WR_W, 't')].map((x) => x.textContent).join('');
+      if (!t.trim()) continue;
+      const sz = effLook(p, r).sz || 24;
+      into[sz] = (into[sz] || 0) + t.length;
+    }
   }
-  const baseSz = Number(Object.entries(sizeCount).sort((a, c) => c[1] - a[1])[0]?.[0]) || 24;
+  const baseSz = Number(Object.entries(Object.keys(sizeCount).length ? sizeCount : headCount).sort((a, c) => c[1] - a[1])[0]?.[0]) || 24;
 
   // a paragraph → its HTML (runs, footnotes, pictures, breaks), and what it says about itself
   const esc2 = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -136,16 +149,30 @@ async function wrFromDocx(file) {
     for (const n of kids(node)) {
       const L = n.localName;
       if (L === 'del' || L === 'moveFrom' || L === 'pPr' || L === 'commentRangeStart' || L === 'commentRangeEnd' || L === 'proofErr' || L === 'bookmarkStart' || L === 'bookmarkEnd') continue;
-      if (L === 'ins' || L === 'moveTo' || L === 'hyperlink' || L === 'smartTag' || L === 'customXml' || L === 'fldSimple') { h += runsHTML(p, n, info); continue; }
+      if (L === 'ins' || L === 'moveTo' || L === 'hyperlink' || L === 'smartTag' || L === 'customXml' || L === 'fldSimple' || L === 'dir' || L === 'bdo') { h += runsHTML(p, n, info); continue; }
+      if (L === 'AlternateContent') { h += runsHTML(p, kid(n, 'Choice') || kid(n, 'Fallback') || n, info); continue; }
+      if (L === 'oMath' || L === 'oMathPara') { // (an equation: its text kept, in one line)
+        const t = [...n.getElementsByTagName('*')].filter((e) => e.localName === 't').map((e) => e.textContent).join('');
+        if (t) { h += esc2(t); info.text += t; info.seen = true; info.bold.push(false); info.sizes.push(baseSz); dropped.math++; }
+        continue;
+      }
       if (L === 'sdt') { h += runsHTML(p, kid(n, 'sdtContent') || n, info); continue; }
       if (L !== 'r') continue;
       const look = effLook(p, n);
-      let inner = '';
+      let inner = '', said = '';
       for (const c of kids(n)) {
         const C = c.localName;
-        if (C === 't') inner += esc2(c.textContent);
-        else if (C === 'tab' || C === 'ptab') inner += ' ';
-        else if (C === 'br') { if (c.getAttributeNS(WR_W, 'type') === 'page' || c.getAttributeNS(WR_W, 'type') === 'column') breakAfter = true; else inner += '<br>'; }
+        if (C === 't') { inner += esc2(c.textContent); said += c.textContent; if (c.textContent.trim()) info.seen = true; }
+        else if (C === 'tab' || C === 'ptab') { inner += ' '; said += ' '; }
+        else if (C === 'br' || C === 'cr') {
+          // (a page break before any of the paragraph's text goes before it, else after it)
+          if (C === 'br' && /^(page|column)$/.test(c.getAttributeNS(WR_W, 'type'))) { if (info.seen) breakAfter = true; else info.breakBefore = true; }
+          else { inner += '<br>'; said += ' '; }
+        } else if (C === 'sym') { // (a symbol from a font: kept when it is a letter of its own, not a picture of the font's)
+          const ch = parseInt(c.getAttributeNS(WR_W, 'char') || '', 16);
+          if (ch && !(ch >= 0xe000 && ch <= 0xf8ff)) { const t = String.fromCodePoint(ch); inner += esc2(t); said += t; info.seen = true; }
+          else { dropped.sym++; dropped.symbols.add(c.getAttributeNS(WR_W, 'font') || ''); }
+        }
         else if (C === 'footnoteReference' || C === 'endnoteReference') {
           const id = c.getAttributeNS(WR_W, 'id'), text = C === 'footnoteReference' ? feet[id] : ends[id];
           if (text == null) continue;
@@ -158,14 +185,18 @@ async function wrFromDocx(file) {
           const vimg = [...c.getElementsByTagName('*')].find((e) => e.localName === 'imagedata');
           const rid = blip ? blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed') : vimg ? vimg.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') : '';
           const target = rels[rid] && `word/${rels[rid].replace(/^\.?\//, '').replace(/^word\//, '')}`;
-          if (target && P.files[target]) { const key = `wrimg${images.length}`; images.push({ key, bytes: P.files[target], ext: (target.split('.').pop() || '').toLowerCase() }); inner += `<img data-key="${key}">`; info.images++; }
+          if (target && P.files[target]) { // (one picture used again is made smaller once)
+            let im = images.find((x) => x.target === target);
+            if (!im) { im = { key: `wrimg${images.length}`, target, bytes: P.files[target], ext: (target.split('.').pop() || '').toLowerCase() }; images.push(im); }
+            inner += `<img data-key="${im.key}">`; info.images++;
+          }
           else dropped.images++;
         }
       }
       if (!inner) continue;
-      info.text += n.textContent;
-      if (look.b) info.bold.push(!!look.b); else info.bold.push(false);
-      info.sizes.push(look.sz || baseSz);
+      info.text += said;
+      // (a run of spaces only, or of a footnote's mark only, says nothing of the line's boldness or size)
+      if (said.trim()) { info.bold.push(!!look.b); info.sizes.push(look.sz || baseSz); }
       // the look kept: marks, a colour, a highlight, a font of the app's, a size apart from the text's
       let open = '', close = '';
       const wrap = (tag) => { open += `<${tag}>`; close = `</${tag}>${close}`; };
@@ -198,8 +229,11 @@ async function wrFromDocx(file) {
   const paraBlock = (p) => {
     const info = { text: '', bold: [], sizes: [], notes: 0, images: 0 };
     breakAfter = false;
+    if (styleName(p).some((n) => /^toc( \d| heading)$/.test(n))) { dropped.toc++; return; } // (Word's own contents, and its heading)
     if (pSetting(p, 'pageBreakBefore') && on(pSetting(p, 'pageBreakBefore'))) blocks.push({ kind: 'break' });
-    const html = runsHTML(p, p, info).replace(/‏\(\s*(<sup class="fn"[^>]*>\*<\/sup>)\s*\)‏/g, '$1'); // (the app's own «(١)»)
+    let html = runsHTML(p, p, info);
+    if (info.breakBefore) blocks.push({ kind: 'break' });
+    html = html.replace(/‏\(\s*(<sup class="fn"[^>]*>\*<\/sup>)\s*\)‏/g, '$1'); // (the app's own «(١)»)
     const names = styleName(p);
     blocks.push({
       kind: 'p', html, text: info.text.replace(/\s+/g, ' ').trim(), level: levelOf(p), list: listOf(p), jc: jcOf(p),
@@ -209,16 +243,25 @@ async function wrFromDocx(file) {
     if (breakAfter || kid(kid(p, 'pPr'), 'sectPr')) blocks.push({ kind: 'break' });
   };
   const tableBlock = (tbl) => {
-    let h = '<table class="wr-tbl"><tbody>';
+    let h = '<table class="wr-tbl"><tbody>', text = '';
+    // (a cell's paragraphs, and a table inside it as lines of its own, so none of its text is lost)
+    const cellParas = (node, out) => {
+      for (const n of kids(node)) {
+        if (n.localName === 'p') {
+          const info = { text: '', bold: [], sizes: [], notes: 0, images: 0 };
+          out.push(`<p>${runsHTML(n, n, info) || '<br>'}</p>`); text += ` ${info.text}`;
+        } else if (n.localName === 'tbl') { for (const tr of kids(n, 'tr')) for (const tc of kids(tr, 'tc')) cellParas(tc, out); }
+        else if (n.localName === 'sdt') cellParas(kid(n, 'sdtContent') || n, out);
+        else if (n.localName === 'customXml') cellParas(n, out);
+      }
+      return out;
+    };
     for (const tr of kids(tbl, 'tr')) {
       h += '<tr>';
-      for (const tc of kids(tr, 'tc')) {
-        const cell = kids(tc).filter((n) => n.localName === 'p').map((p) => { const info = { text: '', bold: [], sizes: [], notes: 0, images: 0 }; return `<p>${runsHTML(p, p, info) || '<br>'}</p>`; }).join('');
-        h += `<td>${cell || '<br>'}</td>`;
-      }
+      for (const tc of kids(tr, 'tc')) h += `<td>${cellParas(tc, []).join('') || '<br>'}</td>`;
       h += '</tr>';
     }
-    blocks.push({ kind: 'table', html: `${h}</tbody></table>`, text: tbl.textContent });
+    blocks.push({ kind: 'table', html: `${h}</tbody></table>`, text: text.replace(/\s+/g, ' ').trim() });
   };
   const walk = (node) => {
     for (const n of kids(node)) {
@@ -255,9 +298,8 @@ async function wrFromDocx(file) {
   // the book's title: a «Title» paragraph, else the largest line before the first chapter, else the file's name
   const firstCh = blocks.findIndex((b) => b.kind === 'p' && isChapter(b));
   const front = (firstCh < 0 ? [] : blocks.slice(0, firstCh)).filter((b) => b.kind === 'p' && !b.empty);
-  const titled = blocks.find((b) => b.kind === 'p' && b.level === 0 && b.text);
-  let title = titled ? titled.text : front.length ? front.slice().sort((a, c) => c.size - a.size)[0].text : '';
-  if (!title) title = file.name.replace(/\.(docx|dotx)$/i, '');
+  const titleBlock = blocks.find((b) => b.kind === 'p' && b.level === 0 && b.text) || (front.length ? front.slice().sort((a, c) => c.size - a.size)[0] : null);
+  const title = (titleBlock && titleBlock.text) || file.name.replace(/\.(docx|dotx)$/i, '');
   const chapters = [];
   let cur = null; // (a short line just before a chapter's title, «الباب الأول», joins it)
   const blockHTML = (b) => {
@@ -272,24 +314,32 @@ async function wrFromDocx(file) {
     if (b.quote) return `<blockquote${style}>${b.html}</blockquote>`;
     return `<p${style}>${b.html || '<br>'}</p>`;
   };
-  for (let k = firstCh < 0 ? 0 : firstCh; k < blocks.length; k++) {
+  for (let k = 0; k < blocks.length; k++) {
     const b = blocks[k];
     if (b.kind === 'p' && isChapter(b)) {
       // the short line before it, after the last break (only empty lines between), is part of its title
       let j = k - 1; while (j >= 0 && blocks[j].kind === 'p' && blocks[j].empty) j--;
       let lead = '';
-      if (j >= 0 && blocks[j].kind === 'p' && !isChapter(blocks[j]) && blocks[j].text.split(' ').length <= 4 && blocks[j].jc === 'center' && cur && cur.items[cur.items.length - 1] === blocks[j]) {
+      const at = cur ? cur.items.lastIndexOf(blocks[j]) : -1;
+      if (j >= 0 && blocks[j].kind === 'p' && !isChapter(blocks[j]) && blocks[j].text.split(' ').length <= 4 && blocks[j].jc === 'center' && at >= 0 && cur.items.slice(at + 1).every((x) => x.kind === 'p' && x.empty)) {
         let i2 = j - 1; while (i2 >= 0 && blocks[i2].kind === 'p' && blocks[i2].empty) i2--;
         if (i2 < 0 || blocks[i2].kind === 'break') { lead = blocks[j].text; cur.items.splice(cur.items.indexOf(blocks[j]), 1); }
       }
       cur = { title: lead ? `${lead}: ${b.text}` : b.text, items: [] };
       chapters.push(cur);
+      // (a footnote or a picture on the title itself opens the chapter's text, so it is not lost)
+      const keep = (b.html.match(/<sup class="fn"[^>]*>\*<\/sup>|<img data-key="[^"]+">/g) || []).join(' ');
+      if (keep) cur.items.push({ kind: 'p', html: keep, text: '', jc: '', empty: false });
       continue;
     }
+    if (b === titleBlock) continue; // (the book's title is its name, not a line of it)
+    // (what comes before the first chapter is a chapter of its own, «بداية الكتاب»)
     if (!cur) { cur = { title: 'بداية الكتاب', items: [] }; chapters.push(cur); }
     cur.items.push(b);
   }
-  // each chapter's HTML: lists gathered, no break or empty line at its edges, one empty line at most in a row
+  // each chapter's HTML: lists gathered (a list's numbers carried on after a break in it, a deeper level a list of its own,
+  // indented), no break or empty line at its edges, one empty line at most in a row
+  const counts = {};
   for (const c of chapters) {
     const items = c.items.slice();
     while (items.length && (items[0].kind === 'break' || (items[0].kind === 'p' && items[0].empty))) items.shift();
@@ -297,14 +347,19 @@ async function wrFromDocx(file) {
     let h = '', list = '', lastEmpty = false;
     for (const b of items) {
       if (b.kind === 'p' && b.list && !isSub(b)) {
-        if (list !== b.list) { if (list) h += `</${list}>`; h += `<${b.list}>`; list = b.list; }
-        h += `<li>${b.html}</li>`; lastEmpty = false; continue;
+        const L = b.list, key = `${L.kind}|${L.id}|${L.lvl}`, cn = counts[L.id] || (counts[L.id] = []);
+        cn[L.lvl] = (cn[L.lvl] || 0) + 1; cn.length = L.lvl + 1;
+        if (list !== key) {
+          if (list) h += `</${list.split('|')[0]}>`;
+          h += L.kind === 'ol' && cn[L.lvl] > 1 ? `<ol start="${cn[L.lvl]}">` : `<${L.kind}>`; list = key;
+        }
+        h += `<li${L.lvl ? ` data-ind="${L.lvl}"` : ''}>${b.html}</li>`; lastEmpty = false; continue;
       }
-      if (list) { h += `</${list}>`; list = ''; }
+      if (list) { h += `</${list.split('|')[0]}>`; list = ''; }
       if (b.kind === 'p' && b.empty) { if (lastEmpty) continue; lastEmpty = true; } else lastEmpty = false;
       h += blockHTML(b);
     }
-    if (list) h += `</${list}>`;
+    if (list) h += `</${list.split('|')[0]}>`;
     c.html = h;
     c.words = wrWords(c.items.filter((b) => b.kind !== 'break').map((b) => b.text || '').join(' '));
     c.notes = {};
@@ -316,6 +371,7 @@ async function wrFromDocx(file) {
   for (const c of empty) chapters.splice(chapters.indexOf(c), 1);
   dropped.emptyChapters = empty.map((c) => c.title);
   // the pictures, made smaller (1200 points wide at most) and kept in the text
+  const srcs = {};
   for (const im of images) {
     let src = '';
     try {
@@ -328,20 +384,24 @@ async function wrFromDocx(file) {
       URL.revokeObjectURL(url);
       src = `<img src="${cv.toDataURL('image/jpeg', 0.85)}" data-w="${w}" data-h="${hh}" alt="">`;
     } catch { dropped.images++; }
-    for (const c of chapters) c.html = c.html.replace(`<img data-key="${im.key}">`, src);
+    srcs[im.key] = src;
   }
-  return { title, chapters, front: front.map((b) => b.text).filter((t) => t && t !== title), dropped: { ...dropped, fonts: [...dropped.fonts] } };
+  if (images.length) for (const c of chapters) c.html = c.html.replace(/<img data-key="(wrimg\d+)">/g, (x, k) => srcs[k] || '');
+  return { title, chapters, dropped: { ...dropped, fonts: [...dropped.fonts], symbols: [...dropped.symbols].filter(Boolean) } };
 }
 
 // ---------- the preview, then the book ----------
 async function wrImport(file) {
-  wrUi.imp = { busy: true, name: file.name };
+  const busy = { busy: true, name: file.name };
+  wrUi.imp = busy;
   render();
   try {
     const r = await wrFromDocx(file);
+    if (wrUi.imp !== busy) return; // («رجوع» while it read: nothing to show)
     if (!r.chapters.length) throw new Error('empty');
     wrUi.imp = { ...r, keep: r.chapters.map(() => true), name: file.name };
   } catch (e) {
+    if (wrUi.imp !== busy) return;
     wrUi.imp = { err: e.message === 'old' ? 'هذا ملف وورد قديم (‎.doc‎) أو مقفل بكلمة سر. افتحه في وورد أو مستندات قوقل واحفظه بصيغة ‎.docx‎ ثم أدخله.'
       : e.message === 'notword' ? 'هذا ليس ملف وورد (‎.docx‎).' : e.message === 'empty' ? 'لم يُوجد في الملف نص.' : 'تعذّرت قراءة الملف.', name: file.name };
   }
@@ -367,7 +427,6 @@ function wrImpHTML() {
   const tbls = chs.reduce((n, c) => n + (c.html.match(/<table/g) || []).length, 0);
   const size = chs.reduce((n, c) => n + c.html.length, 0);
   const gone = [
-    m.front.length && `ما قبل الفصل الأول: ${m.front.map((t) => `«${esc(excerpt(t, 40))}»`).join('، ')} (وعنوان الكتاب أُخذ منه)`,
     d.toc && 'فهرس وورد الآلي (يصنع التطبيق فهرسه)',
     d.emptyChapters.length && `فصل بلا نص: ${d.emptyChapters.map((t) => `«${esc(t)}»`).join('، ')}`,
     d.header && 'رأس الصفحة وتذييلها',
@@ -377,6 +436,8 @@ function wrImpHTML() {
     d.deep && 'عناوين أعمق من «فرعي» صارت «فرعي»',
     d.endnotes && `الحواشي الختامية صارت حواشي سفلية: ${wrNum(d.endnotes)}`,
     d.fonts.length && `خطوط ليست في التطبيق صارت خط المحرر: ${d.fonts.map(esc).join('، ')}`,
+    d.sym && `رموز من خطوط خاصة لا تُقرأ حروفاً: ${wrNum(d.sym)}${d.symbols.length ? ` (${d.symbols.map(esc).join('، ')})` : ''}`,
+    d.math && `المعادلات صارت نصاً في سطر: ${wrNum(d.math)}`,
     'الغامق والمائل داخل الحاشية، وتباعد الأسطر وإزاحة أول السطر',
   ].filter(Boolean);
   return `${head}
@@ -393,6 +454,7 @@ function wrImpHTML() {
     <div class="btn-row"><button type="button" class="primary" data-action="wr-imp-go">أدخله</button><button type="button" class="ghost" data-action="wr-imp-x">إلغاء</button></div>
   </section>`;
 }
+document.addEventListener('input', (e) => { if (e.target.id === 'wrImpTitle' && wrUi.imp && wrUi.imp.chapters) wrUi.imp.title = e.target.value; });
 document.addEventListener('change', (e) => {
   if (e.target.id === 'wrDocxIn' && e.target.files && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; wrImport(f); }
   else if (e.target.dataset && e.target.dataset.wrImp != null && wrUi.imp && wrUi.imp.keep) { wrUi.imp.keep[Number(e.target.dataset.wrImp)] = e.target.checked; render(); }

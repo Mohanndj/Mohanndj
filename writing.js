@@ -192,6 +192,8 @@ function wrSafe(html) {
     if (/^(UL|OL|TABLE|TBODY|THEAD|TFOOT|TR)$/.test(N)) {
       const el = document.createElement(/^(THEAD|TFOOT)$/.test(N) ? 'tbody' : N.toLowerCase());
       if (N === 'TABLE') el.className = 'wr-tbl';
+      const st0 = Number(n.getAttribute('start')); // (a numbered list carried on from before, as Word had it)
+      if (N === 'OL' && st0 > 1 && st0 < 1e5) el.setAttribute('start', String(Math.round(st0)));
       return kids(n, el);
     }
     // inline: its marks, each one element (bold, italic, underline, strike), and a span for its colour, highlight, font, size
@@ -1178,7 +1180,7 @@ function wrDocx(b) {
     if (N === 'DIV' && el.classList.contains('pgbreak')) return '<w:p><w:pPr><w:bidi/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>';
     if (N === 'HR') return para('Normal', '', '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>');
     if (N === 'UL' || N === 'OL') return [...el.children].filter((li) => li.nodeName === 'LI').map((li, i) => {
-      const lead = N === 'UL' ? '• ' : `${wrNum(i + 1)}- `, ind = 567 * (1 + (Number(li.dataset.ind) || 0));
+      const lead = N === 'UL' ? '• ' : `${wrNum((Number(el.getAttribute('start')) || 1) + i)}- `, ind = 567 * (1 + (Number(li.dataset.ind) || 0));
       return para('Normal', run(lead, { base: 32 }) + runs(li, { base: 32 }, ch), `<w:ind w:left="${ind}" w:hanging="283"/>${pprOf(li).replace(/<w:ind[^>]*\/>/, '')}`);
     }).join('');
     if (N === 'TABLE') {
