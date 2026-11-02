@@ -1369,6 +1369,7 @@ const WrCloud = (() => {
   async function pull() {
     if (pulled || busy || !ready() || !navigator.onLine || !wrUi.list || Date.now() < retry) return;
     pulled = true;
+    busy = true; // (no upload meanwhile: a deletion asked while it reads stays asked)
     try {
       const id = await gist();
       const g = await Sync.api(`/gists/${id}`);
@@ -1395,7 +1396,8 @@ const WrCloud = (() => {
       refresh();
       soon(2000); // (what is newer here goes up)
       wait = 0; retry = 0;
-    } catch (e) { pulled = false; fail(e); refresh(); } // (asked again after «retry», not on the redraw)
+    } catch (e) { pulled = false; busy = false; fail(e); refresh(); } // (asked again after «retry», not on the redraw)
+    finally { busy = false; }
   }
   function html() {
     if (!linked()) return `<div class="wr-cloud"><p class="note-text">☁️ السحابة: غير مربوطة. اربط «المزامنة» في «الإعدادات» ليُحفظ ما تكتبه في حسابك مقفلاً، فلا يضيع.</p><button type="button" class="ghost sm" data-action="wr-cloud-set">افتح «الإعدادات»</button></div>`;
