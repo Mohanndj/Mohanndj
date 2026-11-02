@@ -31,8 +31,9 @@ adb shell dumpsys activity activities | grep -iE 'topResumedActivity' | head -2
 LOG=$(adb logcat -d -s WaiYT:* | grep 'page ' | tail -3)
 echo "$LOG"
 echo "$LOG" | grep -q 'youtube' || warn "YouTube's page was not reached"
-echo "$LOG" | grep -q '"bridge":"undefined"' || { echo "::error::youtube: the app's bridge is in YouTube's page"; exit 1; }
-echo "$LOG" | grep -q '"ad":{' || warn "the ad script is not in the page"
+# (the page's answer is logged as JSON text, its quotes escaped, as ci-smoke.sh reads it)
+echo "$LOG" | grep -q 'bridge\\":\\"undefined' || { echo "::error::youtube: the app's bridge is in YouTube's page"; exit 1; }
+echo "$LOG" | grep -q 'ad\\":{' || warn "the ad script is not in the page"
 adb exec-out screencap -p > yt.png
 python3 - <<'PY'
 import base64, io

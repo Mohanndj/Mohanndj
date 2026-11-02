@@ -29,9 +29,10 @@
   // the ads shown in the page (the list, the search, under the video)
   var CSS = 'ytm-promoted-sparkles-web-renderer,ytm-promoted-sparkles-text-search-renderer,ytm-companion-ad-renderer,ytm-companion-slot,'
     + 'ytm-ad-slot-renderer,ad-slot-renderer,ytm-promoted-video-renderer,ytm-display-ad-renderer,ytm-in-feed-ad-layout-renderer,'
-    + 'ytm-banner-promo-renderer,ytm-statement-banner-renderer,ytm-rich-item-renderer:has(ytm-ad-slot-renderer),'
-    + 'ytm-item-section-renderer:has(ytm-ad-slot-renderer),.ytp-ad-overlay-container,.ytp-ad-module,.ytp-ad-image-overlay,'
-    + '#player-ads,.ad-container,.masthead-ad{display:none!important}';
+    + 'ytm-banner-promo-renderer,ytm-statement-banner-renderer,.ytp-ad-overlay-container,.ytp-ad-module,.ytp-ad-image-overlay,'
+    + '#player-ads,.ad-container,.masthead-ad{display:none!important}'
+    // (in a rule of their own: a WebView that does not know «:has» drops only this one)
+    + 'ytm-rich-item-renderer:has(ytm-ad-slot-renderer),ytm-item-section-renderer:has(ytm-ad-slot-renderer){display:none!important}';
   function css() {
     if (document.getElementById('wai-noads') || !(document.head || document.documentElement)) return;
     var s = document.createElement('style');
@@ -47,10 +48,13 @@
     var ad = document.querySelector('.ad-showing, .ad-interrupting');
     var skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-slot button, .ytp-ad-skip-button-container button');
     if (skip) { skip.click(); st.skip++; }
-    var v = (ad && ad.querySelector('video')) || document.querySelector('video');
-    if (ad && v) {
+    // (the ad and the video play in the same player: only while the ad's own marks are shown in it, so the video itself
+    // is never run to its end)
+    var v = ad && ad.querySelector('video');
+    var mark = ad && ad.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytp-ad-preview-container, .ytp-ad-text, .ytp-ad-badge, .ytp-ad-simple-ad-badge, .ad-simple-attributed-string');
+    if (v && mark) {
       if (!v.muted) { v.muted = true; muted = true; }
       if (isFinite(v.duration) && v.duration > 0 && v.currentTime < v.duration - 0.1) { v.currentTime = v.duration; st.skip++; }
-    } else if (muted && v) { v.muted = false; muted = false; }
+    } else if (muted && !ad) { var pv = document.querySelector('video'); if (pv) pv.muted = false; muted = false; }
   }, 400);
 })();

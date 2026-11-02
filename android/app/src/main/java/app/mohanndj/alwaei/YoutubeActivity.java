@@ -79,6 +79,7 @@ public class YoutubeActivity extends Activity {
     protected void onPause() {
         super.onPause();
         web.onPause();
+        CookieManager.getInstance().flush(); // (signed in, he stays so though Android stops the app)
     }
 
     @Override
