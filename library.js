@@ -181,6 +181,7 @@ function moreTiles() {
     ['archive', 'archive', 'الأرشيف', S.archive.length ? `لم تعد إليها: ${S.archive.filter((a) => !a.revisitedAt).length}` : ''],
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `عبارات وصور: ${S.inspire.length}` : ''],
     ['report', 'sheet', 'التقارير', ''],
+    ['youtube', 'play', 'يوتيوب', ''], // (v152: YouTube with its ads blocked, in the Android app)
   ];
 }
 function viewMore() {

@@ -5,7 +5,7 @@
 // offers «حدّث الآن» (app.js). The manifest still comes from the site first (the phone reads it for the icon).
 importScripts('timer-shared.js');
 
-const VERSION = 151;
+const VERSION = 152;
 const CACHE = `mahami-v${VERSION}`;
 const ASSETS = [
   './',
@@ -28,6 +28,7 @@ const ASSETS = [
   './decisions.js',
   './quits.js',
   './reminders.js',
+  './youtube.js',
   './study.js',
   './quiz.js',
   './kunnasha.js', './benplus.js', './plan.js', './planprint.js',

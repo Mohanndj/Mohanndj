@@ -667,6 +667,13 @@ public class MainActivity extends Activity {
             return Notifs.overApps(MainActivity.this) ? "ok" : "denied";
         }
 
+        // v152: «يوتيوب» in «المزيد»: YouTube in a window of its own, its ads blocked (YoutubeActivity, no bridge there)
+        @JavascriptInterface
+        public void openYoutube() {
+            if (!allowed()) return;
+            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, YoutubeActivity.class)));
+        }
+
         // …and the phone's page where «الظهور فوق التطبيقات الأخرى» is given to this app
         @JavascriptInterface
         public void overlaySettings() {
