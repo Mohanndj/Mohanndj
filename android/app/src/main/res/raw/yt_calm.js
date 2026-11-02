@@ -37,13 +37,22 @@
   }
   function homeBox() {
     if (document.getElementById('wai-home') || !document.body) return;
-    var d = document.createElement('div');
+    // (built element by element: YouTube's pages refuse HTML written as text («Trusted Types»), which left no box at all)
+    var d = document.createElement('div'), f = document.createElement('form'), i = document.createElement('input'), b = document.createElement('button');
     d.id = 'wai-home';
-    d.innerHTML = '<form><input type="search" name="q" placeholder="ابحث في يوتيوب" aria-label="ابحث في يوتيوب" autocomplete="off">'
-      + '<button type="submit">ابحث</button></form>';
-    d.querySelector('form').addEventListener('submit', function (e) {
+    i.type = 'search';
+    i.name = 'q';
+    i.placeholder = 'ابحث في يوتيوب';
+    i.setAttribute('aria-label', 'ابحث في يوتيوب');
+    i.autocomplete = 'off';
+    b.type = 'submit';
+    b.textContent = 'ابحث';
+    f.appendChild(i);
+    f.appendChild(b);
+    d.appendChild(f);
+    f.addEventListener('submit', function (e) {
       e.preventDefault();
-      var q = d.querySelector('input').value.trim();
+      var q = i.value.trim();
       if (q) location.href = '/results?search_query=' + encodeURIComponent(q);
     });
     document.body.appendChild(d);
@@ -84,6 +93,7 @@
     var busy = searchAt === location.href
       || [].some.call(document.querySelectorAll('[role="dialog"], ytm-bottom-sheet-renderer, bottom-sheet-container'), seen);
     document.documentElement.classList.toggle('wai-busy', busy);
+    st.busy = busy; // (in the build's log: the box kept out of the way, not missing)
     // (for the build's check: the box is the thing seen in its middle)
     if (box && home && !busy) { var r = box.getBoundingClientRect(), at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); st.box = !!at && box.contains(at); }
     var auto = document.querySelector('.ytm-autonav-toggle-button-container[aria-pressed="true"], button.ytp-autonav-toggle-button[aria-checked="true"], .ytp-autonav-toggle-button[aria-checked="true"]');
@@ -94,7 +104,7 @@
       if (moved) { st.next++; history.back(); }
     }
   }
-  function safe() { try { tick(); } catch (e) {} }
+  function safe() { try { tick(); } catch (e) { st.err = String(e && e.message || e).slice(0, 120); } } // (in the build's log)
   safe();
   setInterval(safe, 400);
 })();
