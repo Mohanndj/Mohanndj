@@ -2308,14 +2308,14 @@ function viewTimer() {
   const todays = S.sessions.filter((x) => sessionDay(x) === t0);
   const todayMs = todays.reduce((n, x) => n + x.ms, 0);
   const byTask = {};
-  for (const x of todays) byTask[x.taskId] = (byTask[x.taskId] || 0) + x.ms;
+  for (const x of todays) { const k = x.taskId || `l:${x.label || ''}`; byTask[k] = (byTask[k] || 0) + x.ms; } // (a writing session, v156: by its label)
   const rows = Object.entries(byTask).sort((a, b) => b[1] - a[1]);
   const max = rows.length ? rows[0][1] : 1;
   const recent = S.sessions.slice(-8).reverse();
   return `${card}
   <section class="panel">
     <div class="section-head"><h2>وقتك اليوم</h2><b class="num">${todayMs ? fmtDur(todayMs) : 'صفر'}</b></div>
-    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
+    ${rows.length ? `<ul class="hbars">${rows.map(([id, ms]) => hbar(esc((getTask(id) || {}).title || (id.startsWith('l:') && id.slice(2)) || 'مهمة محذوفة'), fmtDur(ms), (ms / max) * 100)).join('')}</ul>`
       : '<p class="note-text">ابدأ المؤقت لأي مهمة، وسيُسجَّل وقتها هنا وفي الإحصائيات.</p>'}
   </section>
   ${recent.length ? `<section class="panel"><h2>آخر الجلسات</h2><ul class="sessions">${recent.map((x) => `<li><span>${esc((getTask(x.taskId) || {}).title || x.label || 'مهمة محذوفة')}</span><span class="num">${esc(relDate(sessionDay(x)))} | ${esc(fmtTime(hmOf(new Date(x.start).getHours() * 60 + new Date(x.start).getMinutes())))} | ${fmtDur(x.ms)}</span></li>`).join('')}</ul></section>` : ''}`;

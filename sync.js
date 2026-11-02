@@ -329,6 +329,7 @@ const Sync = (() => {
     schedule, syncNow, settingsHTML, connected: () => !!cfg.token,
     // (v156) for «مؤلفاتي»'s own cloud: his GitHub key's requests, linked, and synced once (its lock's key is in his settings)
     api: (path, opts) => gh(path, opts), linked: () => !!(cfg.token && cfg.gistId), synced: () => !!cfg.lastSync,
+    inCloud: (k) => !!(cfg.base && cfg.base.settings && k in S.settings && same(cfg.base.settings[k], S.settings[k])), // (a setting as last written to the cloud)
     start: () => { if (cfg.token) setTimeout(syncNow, 1200); },
     _merge: merge, // exposed for tests
   };

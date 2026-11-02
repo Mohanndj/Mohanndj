@@ -486,8 +486,8 @@ function wrFonts() {
   }
 }
 const wrFocusOn = () => { try { return localStorage.getItem('mahami-wrfocus') === '1'; } catch { return false; } };
-function wrSetFocus(on) {
-  try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
+function wrSetFocus(on, once) {
+  if (!once) try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
   $('wrEditor').classList.toggle('wr-focus', on);
   wrPopsClose();
   wrBubble();
@@ -498,7 +498,7 @@ function wrEdit(b, chId, find) {
   if (!c) return;
   const d = wrDialog();
   wrFonts();
-  wrState = { book: b, ch: c, timer: null, dirty: false, hist: [], hi: -1, htimer: null, range: null };
+  wrState = { book: b, ch: c, timer: null, dirty: false, hist: [], hi: -1, htimer: null, range: null, others: wrBookWords(b) - wrChWords(c) };
   const one = b.kind !== 'book';
   $('wrTitle').value = one ? b.title : c.title;
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
@@ -536,10 +536,16 @@ function wrClose(fromEvent) {
   render();
 }
 
+// the words in the editor, from its text alone (its pictures' data and markup left aside: a chapter with photos stays quick)
+function wrBodyWords() {
+  const w = document.createTreeWalker($('wrBody'), NodeFilter.SHOW_TEXT), parts = [];
+  while (w.nextNode()) if (!w.currentNode.parentNode.closest('sup.fn, .pgbreak')) parts.push(w.currentNode.textContent);
+  return wrWords(parts.join(' '));
+}
 function wrStatus(s) {
   if (!wrState) return;
-  const c = wrState.ch, b = wrState.book, n = wrWords(wrPlain($('wrBody').innerHTML));
-  const words = b.kind === 'book' ? `الكلمات: الفصل ${wrNum(n)} | الكتاب ${wrNum(wrBookWords(b) - wrChWords(c) + n)}`
+  const b = wrState.book, n = wrBodyWords();
+  const words = b.kind === 'book' ? `الكلمات: الفصل ${wrNum(n)} | الكتاب ${wrNum(wrState.others + n)}`
     : b.kind === 'article' ? `الكلمات: ${wrNum(n)} | وقت القراءة: ${wrNum(wrReadMin(n))} د` : `الكلمات: ${wrNum(n)}`;
   $('wrStatus').textContent = `${words}${s ? ` | ${s}` : ''}`;
 }
@@ -568,7 +574,8 @@ function wrMark() {
   if (cur && cur.html === snap.html && cur.notes === snap.notes) { cur.caret = snap.caret; return; }
   wrState.hist = wrState.hist.slice(0, wrState.hi + 1);
   wrState.hist.push(snap);
-  if (wrState.hist.length > 60) wrState.hist.shift();
+  const most = snap.html.length > 2e6 ? 8 : snap.html.length > 5e5 ? 20 : 60; // (fewer steps kept for a chapter heavy with pictures)
+  while (wrState.hist.length > most) wrState.hist.shift();
   wrState.hi = wrState.hist.length - 1;
 }
 function wrHistory(step) {
@@ -595,7 +602,7 @@ function wrDirty() {
   wrState.htimer = setTimeout(wrMark, 500);
   wrState.dirty = true;
   clearTimeout(wrState.timer);
-  wrState.timer = setTimeout(wrSaveNow, 700);
+  wrState.timer = setTimeout(wrSaveNow, wrState.hist.length && wrState.hist[wrState.hi] && wrState.hist[wrState.hi].html.length > 1e6 ? 2500 : 700);
   wrStatus('يحفظ…');
 }
 function wrSaveNow() {
@@ -973,7 +980,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
   else if (a === 'tm') { const p = $('wrTmPop'), show = p.hidden; wrPopsClose(); if (show) { p.innerHTML = wrTmPopHTML(); p.hidden = false; } }
   else if (a === 'fndel') wrNoteDel(t);
-  else if (a === 'find') { $('wrFabMenu').hidden = true; const f = $('wrFind'); f.hidden = !f.hidden; if (!f.hidden) { if ($('wrEditor').classList.contains('wr-focus')) wrSetFocus(false); const s = getSelection().toString(); if (s && s.length < 80) $('wrQ').value = s; $('wrQ').focus(); } }
+  else if (a === 'find') { $('wrFabMenu').hidden = true; const f = $('wrFind'); f.hidden = !f.hidden; if (!f.hidden) { if ($('wrEditor').classList.contains('wr-focus')) wrSetFocus(false, true); /* (this time only: focus stays his choice) */ const s = getSelection().toString(); if (s && s.length < 80) $('wrQ').value = s; $('wrQ').focus(); } }
   else if (a === 'next') wrFindNext();
   else if (a === 'rep') wrReplace(false);
   else if (a === 'repall') wrReplace(true);
@@ -1169,8 +1176,15 @@ function wrDocx(b) {
       const bd = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((k) => `<w:${k} w:val="single" w:sz="4" w:space="0" w:color="999999"/>`).join('');
       return `<w:tbl><w:tblPr><w:bidiVisual/><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>${bd}</w:tblBorders></w:tblPr><w:tblGrid>${`<w:gridCol w:w="${cw}"/>`.repeat(cols)}</w:tblGrid>`
         + rows.map((r) => `<w:tr>${[...r.children].map((c) => {
-          const ps = [...c.children].filter((k) => /^(P|H2|H3|BLOCKQUOTE)$/.test(k.nodeName));
-          const inner = ps.length ? ps.map((k) => para(styleOf(k), runs(k, { base: BASE[styleOf(k)] }, ch), pprOf(k))).join('') : para('Normal', runs(c, { base: 32 }, ch), pprOf(c));
+          // (its paragraphs, lists and the text between them, each kept: loose lines gather in a paragraph)
+          let inner = '', loose = document.createElement('div');
+          const flush = () => { if (loose.childNodes.length) inner += para('Normal', runs(loose, { base: 32 }, ch), pprOf(c)); loose = document.createElement('div'); };
+          for (const k of [...c.childNodes]) {
+            if (k.nodeType === 1 && /^(P|H2|H3|BLOCKQUOTE|UL|OL|HR|TABLE)$/.test(k.nodeName)) { flush(); inner += k.nodeName === 'TABLE' ? para('Normal', runs(k, { base: 32 }, ch)) : block(k, ch); }
+            else loose.append(k.cloneNode(true));
+          }
+          flush();
+          if (!inner) inner = para('Normal', '');
           return `<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/></w:tcPr>${inner}</w:tc>`;
         }).join('')}</w:tr>`).join('') + '</w:tbl><w:p><w:pPr><w:bidi/></w:pPr></w:p>';
     }
@@ -1255,8 +1269,8 @@ function wrDocxSave(b) {
 const WrCloud = (() => {
   const KEY = 'mahami-wrcloud';
   const DESC = 'Mahami writing — مؤلفاتي في الوعي الشخصي (مقفلة؛ لا تعدّلها يدوياً)';
-  let st = (() => { try { return { sent: {}, gone: [], ...JSON.parse(localStorage.getItem(KEY)) }; } catch { return { sent: {}, gone: [] }; } })();
-  let timer = 0, busy = false, pulled = false;
+  let st = (() => { try { return { sent: {}, gone: [], big: [], ...JSON.parse(localStorage.getItem(KEY)) }; } catch { return { sent: {}, gone: [], big: [] }; } })();
+  let timer = 0, busy = false, pulled = false, retry = 0, wait = 0;
   const store = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} };
   const linked = () => typeof Sync !== 'undefined' && Sync.linked && Sync.linked();
   const ready = () => linked() && Sync.synced(); // (after a first sync, so the key in the cloud is known here)
@@ -1295,14 +1309,29 @@ const WrCloud = (() => {
       if (l.length < 100) break;
     }
     const g = await Sync.api('/gists', { method: 'POST', body: JSON.stringify({ description: DESC, public: false, files: { 'README.txt': { content: 'مؤلفات تطبيق «الوعي الشخصي»، مقفلة. لا تعدّلها يدوياً.' } } }) });
-    st.gist = g.id; store();
+    st.gist = g.id; st.sent = {}; st.gone = []; store(); // (a new place: nothing of his is there yet)
     return g.id;
   }
   const refresh = () => { if (ui.tab === 'writing' && !wrState && !wrUi.book) render(); };
-  const fail = (e) => { st.err = (e && e.message) || 'error'; if (st.err === 'notfound') st.gist = ''; store(); };
+  // a failure is retried later, a minute and then longer (never at once: the page redrawn would ask again and again);
+  // its gist gone (deleted, or another GitHub account linked): everything goes up again to a new one
+  const fail = (e) => {
+    st.err = (e && e.message) || 'error';
+    if (st.err === 'notfound') { st.gist = ''; st.sent = {}; st.gone = []; }
+    store();
+    wait = Math.min(wait ? wait * 2 : 60000, 1800000);
+    retry = Date.now() + wait;
+    if (st.err !== 'auth') soon(wait);
+  };
   async function push() {
     if (busy || !ready()) return;
     if (!navigator.onLine) { st.err = 'offline'; store(); return; }
+    // the lock's key reaches the cloud with his settings before anything locked with it does (else a phone lost before
+    // the next sync would leave what was sent unreadable); a key changed (a backup brought in) locks everything again
+    if (!S.settings.wrKey) await key(true);
+    if (!Sync.inCloud('wrKey')) { Promise.resolve(Sync.syncNow()).then((done) => { if (done && Sync.inCloud('wrKey')) soon(300); }); wait = Math.min(wait ? wait * 2 : 5000, 1800000); soon(wait); return; }
+    const kid = S.settings.wrKey.slice(0, 8);
+    if (st.kid !== kid) { st.kid = kid; st.sent = {}; store(); }
     busy = true;
     let more = false;
     try {
@@ -1313,6 +1342,8 @@ const WrCloud = (() => {
       for (const b of list) {
         if (st.sent[b.id] === b.updated) continue;
         const c = await seal(b);
+        if (c.length > 9e6) { if (!st.big.includes(b.id)) st.big.push(b.id); continue; } // (GitHub gives back a file this large only by «git»)
+        st.big = st.big.filter((x) => x !== b.id);
         if (size && size + c.length > 6e6) { more = true; break; } // (a few works a time when they are large)
         files[`w-${b.id}.json`] = { content: c }; sent[b.id] = b.updated; size += c.length;
       }
@@ -1322,7 +1353,9 @@ const WrCloud = (() => {
       Object.assign(st.sent, sent);
       for (const g of gone) delete st.sent[g];
       st.gone = st.gone.filter((g) => !gone.includes(g));
-      st.at = Date.now(); st.err = '';
+      // a work deleted here while it was going up: it goes from there too
+      for (const w of Object.keys(sent)) if (wrUi.list && !wrUi.list.some((b) => b.id === w)) { st.gone.push(w); more = true; }
+      st.at = Date.now(); st.err = ''; wait = 0; retry = 0;
       store();
     } catch (e) { fail(e); more = false; }
     finally { busy = false; refresh(); }
@@ -1334,12 +1367,15 @@ const WrCloud = (() => {
     timer = setTimeout(push, ms);
   }
   async function pull() {
-    if (pulled || busy || !ready() || !navigator.onLine || !wrUi.list) return;
+    if (pulled || busy || !ready() || !navigator.onLine || !wrUi.list || Date.now() < retry) return;
     pulled = true;
     try {
       const id = await gist();
       const g = await Sync.api(`/gists/${id}`);
       let back = 0, bad = 0;
+      // a work counted as sent whose file is not there (deleted on GitHub): it goes up again
+      for (const w of Object.keys(st.sent)) if (!(g.files || {})[`w-${w}.json`]) delete st.sent[w];
+      st.gone = st.gone.filter((w) => (g.files || {})[`w-${w}.json`]); // (only what is there can be deleted there)
       for (const [name, f] of Object.entries(g.files || {})) {
         const m = /^w-(.+)\.json$/.exec(name);
         if (!m || st.gone.includes(m[1]) || (wrState && wrState.book.id === m[1])) continue;
@@ -1358,17 +1394,20 @@ const WrCloud = (() => {
       if (back) { wrUi.list.sort((a, c) => c.updated - a.updated); toast(`عاد من السحابة: ${back}`); }
       refresh();
       soon(2000); // (what is newer here goes up)
-    } catch (e) { pulled = false; fail(e); refresh(); }
+      wait = 0; retry = 0;
+    } catch (e) { pulled = false; fail(e); refresh(); } // (asked again after «retry», not on the redraw)
   }
   function html() {
     if (!linked()) return `<div class="wr-cloud"><p class="note-text">☁️ السحابة: غير مربوطة. اربط «المزامنة» في «الإعدادات» ليُحفظ ما تكتبه في حسابك مقفلاً، فلا يضيع.</p><button type="button" class="ghost sm" data-action="wr-cloud-set">افتح «الإعدادات»</button></div>`;
     if (!Sync.synced()) return '<p class="note-text wr-cloud">☁️ السحابة: تنتظر أول مزامنة.</p>';
-    const left = (wrUi.list || []).filter((b) => st.sent[b.id] !== b.updated).length + st.gone.length;
+    const left = (wrUi.list || []).filter((b) => st.sent[b.id] !== b.updated && !st.big.includes(b.id)).length + st.gone.length;
     const msg = st.err === 'offline' ? 'لا إنترنت الآن: يُرفع ما كتبته حين يعود.'
+      : st.err === 'auth' ? 'رمز GitHub لم يعد صالحاً: أعد ربط «المزامنة».'
       : st.err ? 'تعذّر الرفع، يُعاد بعد قليل.'
       : left ? `لم يُرفع بعد: ${wrNum(left)}`
       : `محفوظ في السحابة ✓${st.at ? ` | آخر رفع: ${esc(relDate(iso(new Date(st.at))))} ${esc(fmtTime(hmOf(new Date(st.at).getHours() * 60 + new Date(st.at).getMinutes())))}` : ''}`;
-    return `<div class="wr-cloud"><p class="note-text">☁️ ${msg}${st.bad ? ` | لم يُفتح من السحابة: ${wrNum(st.bad)}` : ''}</p>${left || st.err ? '<button type="button" class="ghost sm" data-action="wr-cloud-now">ارفع الآن</button>' : ''}</div>`;
+    const big = st.big.map((w) => wrBook(w)).filter(Boolean).map((b) => `«${esc(b.title || WR_KINDS[b.kind].none)}»`);
+    return `<div class="wr-cloud"><p class="note-text">☁️ ${msg}${st.bad ? ` | لم يُفتح من السحابة: ${wrNum(st.bad)}` : ''}${big.length ? ` | أكبر من أن يُرفع (صوره كثيرة): ${big.join('، ')}` : ''}</p>${left || st.err ? '<button type="button" class="ghost sm" data-action="wr-cloud-now">ارفع الآن</button>' : ''}</div>`;
   }
   // a work deleted here goes from the cloud too
   function gone(id) { if (st.sent[id] != null && !st.gone.includes(id)) st.gone.push(id); delete st.sent[id]; store(); soon(3000); }
@@ -1376,10 +1415,10 @@ const WrCloud = (() => {
   function wipe() {
     const id = st.gist;
     if (id && linked()) Sync.api(`/gists/${id}`, { method: 'DELETE' }).catch(() => {});
-    st = { sent: {}, gone: [] }; pulled = false;
+    st = { sent: {}, gone: [], big: [] }; pulled = false;
     try { localStorage.removeItem(KEY); } catch {}
   }
-  window.addEventListener('online', () => soon(3000));
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') soon(5000); });
+  window.addEventListener('online', () => { retry = 0; wait = 0; soon(3000); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() >= retry) soon(5000); });
   return { soon, pull, html, gone, wipe, _st: () => st };
 })();
