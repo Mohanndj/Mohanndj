@@ -61,7 +61,7 @@ for i in $(seq 1 12); do
   sleep 25
 done
 [ "$(page 'APP_VERSION')" -ge "$WANT" ] 2>/dev/null || fail "the site's version $WANT is not published yet"
-# some tasks for today (one late, a goal counted, one only for tomorrow)
+# some tasks for today (one whose day passed, a goal counted, one only for tomorrow)
 page "(() => { const d = today(); S.settings.remShown = Date.now() + 1e9;
   S.tasks.push(normalize({ id: 'w1', title: 'اجتماع الفريق', due: d, time: '09:30' }), normalize({ id: 'w2', title: 'مراجعة التقرير', due: addDays(d, -2) }),
     normalize({ id: 'w3', kind: 'goal', title: 'شرب الماء', repeat: { days: [0, 1, 2, 3, 4, 5, 6], start: d, until: null }, target: 8, unit: 'أكواب' }),
@@ -105,9 +105,11 @@ print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.g
   adb shell input tap $B
 }
 look w1
-grep -q 'اجتماع الفريق' w1.xml && grep -q 'مراجعة التقرير' w1.xml && grep -q 'شرب الماء' w1.xml && grep -q 'المشي' w1.xml && grep -q 'شراء هدية' w1.xml || fail "today's tasks are not all shown"
+grep -q 'اجتماع الفريق' w1.xml && grep -q 'شرب الماء' w1.xml && grep -q 'المشي' w1.xml && grep -q 'شراء هدية' w1.xml || fail "today's tasks are not all shown"
 grep -q 'لغد فقط' w1.xml && fail "tomorrow's task is shown today"
-grep -q 'متأخرة' w1.xml || fail "the late task is not marked late"
+# (v146, the owner: what passed its day is not in «اليوم» nor in this widget, and nothing is marked «متأخرة»)
+grep -q 'مراجعة التقرير' w1.xml && fail "a task whose day passed is shown"
+grep -q 'متأخرة' w1.xml && fail "a task is marked late"
 press w1 'شراء هدية'
 sleep 5
 look w2
