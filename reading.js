@@ -124,9 +124,8 @@ function syncTopicProject(p) {
 // keep goals and reading projects in step with the books; saves only when something changed
 function syncReading() {
   readingChanged = false;
-  // (v151, once) a book linked to a year goal and in a reading project: its days were copied from the other recurring tasks
-  // under its goal, never chosen for it; it starts with none, and they are chosen in its task's card in «خطِّط»
-  if (!S.settings.fix151) { S.settings.fix151 = true; readingChanged = true; for (const b of S.books) if (bookGoal(b) && inReadingProject(b)) b.rdays = []; }
+  // (v155) v151's one-time step that emptied a linked book's reading days in a reading project is gone: the owner's
+  // «براهين وجود الله» lost the days he had for it, and no step of the app empties a book's days by itself
   for (const b of S.books) syncBookGoal(b);
   for (const g of S.tasks.filter((t) => t.bookId && isRepeat(t) && !t.repeat.until && !getBook(t.bookId))) endGoal(g);
   for (const p of S.projects.filter((x) => x.topic)) syncTopicProject(p);
