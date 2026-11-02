@@ -5,13 +5,13 @@
 // videos suggested, nor another one started by itself. Searching, watching, channels and subscriptions are untouched.
 (function () {
   if (window.__waiCalm) return;
-  var st = window.__waiCalm = { home: false, shorts: 0, next: 0 };
+  var st = window.__waiCalm = { home: false, box: false, shorts: 0, next: 0 };
   var CSS =
     // (أ) the first page: its feed and its topics, with a search box of ours in their place
     'html.wai-home ytm-rich-grid-renderer,html.wai-home ytm-section-list-renderer,html.wai-home ytm-feed-filter-chip-bar-renderer,'
     + 'html.wai-home ytm-chip-cloud-renderer,html.wai-home ytm-rich-item-renderer,html.wai-home ytm-rich-section-renderer{display:none!important}'
-    + '#wai-home{display:none}html.wai-home #wai-home{display:block}'
-    + '#wai-home{position:fixed;left:16px;right:16px;top:28%;z-index:1;direction:rtl;font:16px/1.6 Roboto,Arial,sans-serif;color:#0f0f0f}'
+    + '#wai-home{display:none}html.wai-home:not(.wai-busy) #wai-home{display:block}'
+    + '#wai-home{position:fixed;left:16px;right:16px;top:28%;z-index:2147483000;direction:rtl;font:16px/1.6 Roboto,Arial,sans-serif;color:#0f0f0f}'
     + '#wai-home form{display:flex;gap:8px}#wai-home input{flex:1;min-width:0;font-size:17px;padding:12px 16px;border:1px solid #ccc;border-radius:24px;background:#f2f2f2;color:#0f0f0f}'
     + '#wai-home button{font-size:16px;padding:0 18px;border:0;border-radius:24px;background:#0f0f0f;color:#fff}'
         // (ب) Shorts: their button below, and their rows in every page
@@ -58,6 +58,11 @@
   document.addEventListener('ended', function (e) {
     if (e.target && e.target.tagName === 'VIDEO' && !document.querySelector('.ad-showing')) { ended = Date.now(); endedAt = location.href; touched = false; }
   }, true);
+  var searchAt = '';
+  function seen(e) { // (shown on the screen, not only kept in the page closed)
+    var r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).opacity !== '0';
+  }
   function tick() {
     if (!document.documentElement) return; // (run at a page's very start, before it has any)
     if (!/(^|\.)youtube\.com$/.test(location.hostname)) return; // (Google's sign-in pages are left as they are)
@@ -71,6 +76,16 @@
     document.documentElement.classList.toggle('wai-home', home);
     document.documentElement.classList.toggle('wai-watch', p === '/watch');
     if (home) homeBox();
+    // (above YouTube's page, so out of the way while a menu or a dialog of its own is seen, and once its own search was
+    // opened, until the page changes: its suggestions stay open after its field loses the cursor)
+    var box = document.getElementById('wai-home'), ae = document.activeElement;
+    if (!home) searchAt = '';
+    if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !(box && box.contains(ae))) searchAt = location.href;
+    var busy = searchAt === location.href
+      || [].some.call(document.querySelectorAll('[role="dialog"], ytm-bottom-sheet-renderer, bottom-sheet-container'), seen);
+    document.documentElement.classList.toggle('wai-busy', busy);
+    // (for the build's check: the box is the thing seen in its middle)
+    if (box && home && !busy) { var r = box.getBoundingClientRect(), at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); st.box = !!at && box.contains(at); }
     var auto = document.querySelector('.ytm-autonav-toggle-button-container[aria-pressed="true"], button.ytp-autonav-toggle-button[aria-checked="true"], .ytp-autonav-toggle-button[aria-checked="true"]');
     if (auto && autoAt !== location.href) { autoAt = location.href; auto.click(); st.next++; }
     if (ended && location.href !== endedAt) {

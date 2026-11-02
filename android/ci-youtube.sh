@@ -45,4 +45,5 @@ print("YTSHOT " + base64.b64encode(b.getvalue()).decode())
 PY
 # (v153: what draws him in hidden: the first page a search box, no Shorts, no videos suggested)
 echo "$LOG" | grep -q 'calm\\":{\\"home\\":true' || warn "the calm script is not in the first page"
+echo "$LOG" | grep -q 'box\\":true' || warn "the search box is not seen on the first page"
 echo "youtube: checked"
