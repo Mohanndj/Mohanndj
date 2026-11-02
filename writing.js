@@ -959,7 +959,9 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
-  const style = (fn) => { wrBack(); wrMark(); fn(); wrPopsClose(); wrRenumber(); wrDirty(); wrMark(); wrBubble(); };
+  // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
+  // palette stays open with the text still selected, to try one after another; the table's closes)
+  const style = (fn, close) => { wrBack(); wrMark(); fn(); if (close) wrPopsClose(); wrRenumber(); wrDirty(); wrMark(); wrBubble(); };
   if (t.dataset.wcolor !== undefined) { const c = t.dataset.wcolor; style(() => { if (c) wrExec('foreColor', c, true); else { wrExec('foreColor', '#010203', true); wrUnstyle('color', (sp) => /rgb\(1, 2, 3\)|#010203/i.test(sp.style.color || sp.getAttribute('color') || '')); } }); return; }
   if (t.dataset.whi !== undefined) { const c = t.dataset.whi; style(() => { if (c) wrExec('hiliteColor', c, true); else { wrExec('hiliteColor', '#010203', true); wrUnstyle('backgroundColor', (sp) => /rgb\(1, 2, 3\)/.test(sp.style.backgroundColor)); } }); return; }
   if (t.dataset.wfont !== undefined) { const f = t.dataset.wfont; style(() => { if (f) wrExec('fontName', f, true); else { wrExec('fontName', 'wr-reset', true); wrUnstyle('fontFamily', (sp) => /wr-reset/.test(sp.style.fontFamily || sp.getAttribute('face') || '')); } }); return; }
@@ -968,7 +970,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.wtbl) {
     const op = t.dataset.wtbl, rd = (id, d) => Math.min(20, Math.max(1, Math.round(num(($(id) || {}).value || '')) || d));
     const rows = rd('wrTr', 3), cols = rd('wrTc', 2);
-    style(() => wrTable(op, rows, cols));
+    style(() => wrTable(op, rows, cols), true);
     return;
   }
   if (t.dataset.wtm) { wrTm(t.dataset.wtm); return; }
@@ -1096,7 +1098,7 @@ function wrDocx(b) {
   const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
   const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const x = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-  const F = 'Traditional Arabic';
+  const F = 'Amiri'; // (v157: the editor's own font, so the file reads as it was written; Traditional Arabic is not on a phone)
   const notes = [], media = [];
   // (Word reads a paragraph's settings in the schema's order only: bidi stands after the borders and before the spacing)
   const PPR = ['pStyle', 'keepNext', 'pageBreakBefore', 'pBdr', 'bidi', 'spacing', 'ind', 'jc', 'outlineLvl'];
@@ -1127,7 +1129,11 @@ function wrDocx(b) {
       + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
   };
   // a footnote mark between small parentheses «(١)», numbered in its chapter as in the editor (Word's own number left aside)
-  let chNote = 0;
+  // (v157) a footnote's number is Word's own (in Arabic digits when the app shows them, from one in each chapter), between
+  // small parentheses: a mark of the app's own text («customMarkFollows») came out «1(١)» where Word's own number is shown too
+  const FR = '<w:rPr><w:rStyle w:val="FootnoteReference"/><w:rtl/></w:rPr>';
+  // (the parentheses held on the right by a right-to-left mark, so a footnote's number at a line's start reads «(١)» not «()١»)
+  const NF = S.settings.digits === 'arab' ? 'hindiNumbers' : 'decimal';
   const runs = (node, f, ch) => [...node.childNodes].map((n) => {
     if (n.nodeType === 3) return n.textContent ? run(n.textContent, f) : '';
     if (n.nodeType !== 1) return '';
@@ -1135,8 +1141,8 @@ function wrDocx(b) {
     if (N === 'BR') return '<w:r><w:br/></w:r>';
     if (N === 'IMG') return pic(n);
     if (N === 'SUP' && n.classList.contains('fn')) {
-      notes.push({ t: ch.notes[n.dataset.fn] || '', mark: `(${wrNum(++chNote)})` });
-      return `<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:rtl/></w:rPr><w:footnoteReference w:customMarkFollows="1" w:id="${notes.length}"/><w:t>${notes[notes.length - 1].mark}</w:t></w:r>`;
+      notes.push(ch.notes[n.dataset.fn] || '');
+      return `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteReference w:id="${notes.length}"/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r>`;
     }
     const st = n.style || {}, g = { ...f };
     if (N === 'B' || N === 'STRONG') g.b = true;
@@ -1191,32 +1197,40 @@ function wrDocx(b) {
     const style = styleOf(el);
     return para(style, runs(el, { base: BASE[style] }, ch), pprOf(el));
   };
+  function sect(first) {
+    return `<w:sectPr>${first ? '<w:footerReference w:type="first" r:id="rIdF2"/>' : ''}<w:footerReference w:type="default" r:id="rIdF1"/>`
+      + `<w:footnotePr><w:numFmt w:val="${NF}"/><w:numStart w:val="1"/><w:numRestart w:val="eachSect"/></w:footnotePr><w:type w:val="continuous"/>`
+      + '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>'
+      + `<w:pgNumType w:fmt="${NF}"/>${first ? '<w:titlePg/>' : ''}<w:bidi/></w:sectPr>`;
+  }
   let body = para('Title', run(b.title || 'كتاب بلا عنوان', {}));
   b.chapters.forEach((ch, idx) => {
-    chNote = 0;
     body += para('Heading1', run(ch.title || `فصل ${wrNum(idx + 1)}`, {}), '<w:pageBreakBefore/>');
     const tpl = document.createElement('template');
     tpl.innerHTML = wrSafe(ch.html);
     for (const el of tpl.content.children) body += block(el, ch);
+    // (each chapter a section of its own, so its footnotes start again from one; its first page is its heading's)
+    if (idx < b.chapters.length - 1) body += `<w:p><w:pPr><w:bidi/>${sect(idx === 0)}</w:pPr></w:p>`;
   });
-  const sect = '<w:sectPr><w:footnotePr><w:numFmt w:val="decimal"/></w:footnotePr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/><w:bidi/></w:sectPr>';
-  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sect}</w:body></w:document>`;
-  const fnPara = (inner, mark) => `<w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/></w:pPr>${mark ? `<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:rtl/></w:rPr><w:t>${mark}</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sect(b.chapters.length < 2)}</w:body></w:document>`;
+  // (v157) the page: A4, its number at the foot on the right (in the app's digits), none on the title page
+  const ftr = (inner) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:ftr xmlns:w="${W}"><w:p><w:pPr><w:bidi/></w:pPr>${inner}</w:p></w:ftr>`;
+  const fnPara = (inner, first) => `<w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/></w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
   const footnotes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:footnotes xmlns:w="${W}">`
     + '<w:footnote w:type="separator" w:id="-1"><w:p><w:pPr><w:bidi/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>'
     + '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:bidi/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>'
-    + notes.map((nt, i) => `<w:footnote w:id="${i + 1}">${(nt.t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, {}), k ? '' : nt.mark)).join('')}</w:footnote>`).join('')
+    + notes.map((t, i) => `<w:footnote w:id="${i + 1}">${(t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, {}), !k)).join('')}</w:footnote>`).join('')
     + '</w:footnotes>';
   const pstyle = (id, name, rpr, ppr, extra = '') => `<w:style w:type="paragraph"${id === 'Normal' ? ' w:default="1"' : ''} w:styleId="${id}"><w:name w:val="${name}"/>${id === 'Normal' ? '' : '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'}${extra}<w:qFormat/><w:pPr>${ordered(ppr)}</w:pPr><w:rPr>${rpr}<w:rtl/></w:rPr></w:style>`;
   const sz = (n) => `<w:sz w:val="${n}"/><w:szCs w:val="${n}"/>`;
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles xmlns:w="${W}">
 <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${F}" w:hAnsi="${F}" w:cs="${F}" w:eastAsia="${F}"/>${sz(32)}<w:lang w:val="ar-SA" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:bidi/><w:spacing w:after="120" w:line="300" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
 ${pstyle('Normal', 'Normal', '', '<w:jc w:val="both"/>')}
-${pstyle('Title', 'Title', `<w:b/><w:bCs/>${sz(56)}`, '<w:spacing w:before="2400" w:after="480"/><w:jc w:val="center"/>')}
-${pstyle('Heading1', 'heading 1', `<w:b/><w:bCs/>${sz(44)}`, '<w:keepNext/><w:spacing w:before="240" w:after="240"/><w:jc w:val="center"/><w:outlineLvl w:val="0"/>')}
+${pstyle('Title', 'Title', `<w:b/><w:bCs/>${sz(56)}`, '<w:spacing w:before="2400" w:after="480"/>')}
+${pstyle('Heading1', 'heading 1', `<w:b/><w:bCs/>${sz(44)}`, '<w:keepNext/><w:spacing w:before="240" w:after="240"/><w:outlineLvl w:val="0"/>')}
 ${pstyle('Heading2', 'heading 2', `<w:b/><w:bCs/>${sz(38)}`, '<w:keepNext/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="1"/>')}
 ${pstyle('Heading3', 'heading 3', `<w:b/><w:bCs/>${sz(34)}`, '<w:keepNext/><w:spacing w:before="180" w:after="80"/><w:outlineLvl w:val="2"/>')}
-${pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${sz(34)}`, '<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:left w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:right w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="567" w:right="567"/><w:jc w:val="center"/>')}
+${pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${sz(34)}`, '<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:left w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:right w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="567" w:right="567"/>')}
 ${pstyle('Quote', 'Quote', `<w:color w:val="444444"/>`, '<w:spacing w:before="120" w:after="120"/><w:ind w:left="567" w:right="567"/><w:jc w:val="both"/>')}
 ${pstyle('FootnoteText', 'footnote text', sz(24), '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="both"/>', '')}
 <w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>
@@ -1232,6 +1246,8 @@ ${pstyle('FootnoteText', 'footnote text', sz(24), '<w:spacing w:after="0" w:line
 <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
 <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>` },
     { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1246,6 +1262,8 @@ ${pstyle('FootnoteText', 'footnote text', sz(24), '<w:spacing w:after="0" w:line
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+<Relationship Id="rIdF1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+<Relationship Id="rIdF2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>
 ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i + 1}.${m.ext}"/>`).join('\n')}
 </Relationships>` },
     { name: 'word/settings.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1253,6 +1271,8 @@ ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.op
     { name: 'word/styles.xml', data: styles },
     { name: 'word/footnotes.xml', data: footnotes },
     { name: 'word/document.xml', data: doc },
+    { name: 'word/footer1.xml', data: ftr('<w:fldSimple w:instr=" PAGE "><w:r><w:rPr><w:rtl/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>') },
+    { name: 'word/footer2.xml', data: ftr('') },
     ...media.map((m) => ({ name: m.name, data: m.data })),
   ];
   return new Blob([Xlsx.zip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
