@@ -1,6 +1,6 @@
 // v153, the owner: «أريد اليوتيوب أن يفتح بصورة لا تجذبني إليه وفي الوقت ذاته لا تعرقل الاستفادة», and his choices
 // «أ: اقتراحات الصفحة الأولى»، «ب: المقاطع القصيرة Shorts»، «ج: المقترح تحت الفيديو وبعده». Run in YouTube's page inside
-// the app (YoutubeActivity) after yt_noads.js, once a page: the first page is a search box alone (YouTube's own bar
+// the app (YtPanel, v160) after yt_noads.js, once a page: the first page is a search box alone (YouTube's own bar
 // below, his subscriptions among it, as it was), no Shorts anywhere (a link to one plays it as a plain video), and under a video and after it no
 // videos suggested, nor another one started by itself. Searching, watching, channels and subscriptions are untouched.
 (function () {

@@ -23,7 +23,12 @@ import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
+import android.app.PictureInPictureParams;
+import android.content.res.Configuration;
+import android.util.Rational;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.webkit.ConsoleMessage;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
@@ -69,6 +74,10 @@ public class MainActivity extends Activity {
     static volatile MainActivity live;
     static volatile boolean visible;
     private volatile boolean pageReady; // the page has started and asked for what happened while it was closed
+    // v160: «يوتيوب» over the app's page (YtPanel): whole, small over the app's pages, or in the phone's small window
+    private YtPanel yt;
+    private FrameLayout root;
+    private boolean resumed, pipExit;
     private SpeechRecognizer speech;
     private String[] speechWait; // a dictation waiting for the microphone's permission: {lang, interim}
 
@@ -78,7 +87,10 @@ public class MainActivity extends Activity {
         // a test build only (never the one published): GitHub's widget check fills its page (android/ci-widget.sh)
         if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
         web = new WebView(this);
-        setContentView(web);
+        root = new FrameLayout(this);
+        root.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        yt = new YtPanel(this, root, this::ytChanged);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -106,6 +118,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (live == this) live = null;
+        yt.destroy();
         if (speech != null) speech.destroy();
         super.onDestroy();
     }
@@ -137,6 +150,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        resumed = false;
         visible = false;
         web.onPause();
     }
@@ -144,8 +158,69 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        visible = true;
+        resumed = true;
+        pipExit = false;
         web.onResume();
+        yt.resume();
+        ytChanged();
+    }
+
+    // v160: the app out of sight: YouTube's video stopped (its place kept), unless it goes on in the small window; and
+    // the small window closed («×» on it) closes YouTube too
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (isInPictureInPictureMode()) return;
+        if (pipExit) { pipExit = false; yt.close(); }
+        else yt.pause();
+    }
+
+    /** YouTube shown, made small or whole, or closed: the app's page hidden behind it when it is whole (so the page
+     *  knows it is not seen, and the app itself rings an alarm, as when YouTube was a window of its own). */
+    private void ytChanged() {
+        boolean whole = yt.state == YtPanel.FULL || yt.pip;
+        web.setVisibility(yt.pip ? View.GONE : whole ? View.INVISIBLE : View.VISIBLE);
+        visible = resumed && !whole;
+        pipParams();
+    }
+
+    // the phone's small window: the video's 16:9; on Android 12 and later it comes by itself when he leaves the app
+    // with a video playing (else from onUserLeaveHint)
+    void pipParams() {
+        if (Build.VERSION.SDK_INT < 26 || yt == null) return;
+        try {
+            PictureInPictureParams.Builder b = new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9));
+            if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(yt.isOpen() && yt.playing);
+            setPictureInPictureParams(b.build());
+        } catch (Exception e) {
+            Log.w(TAG, "pip " + e);
+        }
+    }
+
+    private boolean toPip() {
+        if (Build.VERSION.SDK_INT < 26 || !yt.isOpen() || !yt.playing) return false;
+        try {
+            return enterPictureInPictureMode(new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build());
+        } catch (Exception e) {
+            Log.w(TAG, "pip " + e);
+            return false;
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (Build.VERSION.SDK_INT < 31) toPip();
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean in, Configuration c) {
+        super.onPictureInPictureModeChanged(in, c);
+        yt.pip = in;
+        if (!in) pipExit = true; // (made whole again: onResume follows; closed: onStop)
+        yt.layout();
+        ytChanged();
+        Log.i(YtPanel.TAG, "pip " + in);
     }
 
     // back: the page's own steps (it closes what is open, then goes to «اليوم»); with none left, the app goes to
@@ -153,8 +228,9 @@ public class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        if (yt.back()) return; // (YouTube whole: its steps; a video playing goes small over the app's pages)
         if (web.canGoBack()) web.goBack();
-        else moveTaskToBack(true);
+        else if (!toPip()) moveTaskToBack(true); // (leaving the app with a video playing: the small window)
     }
 
     private String versionName() {
@@ -667,11 +743,12 @@ public class MainActivity extends Activity {
             return Notifs.overApps(MainActivity.this) ? "ok" : "denied";
         }
 
-        // v152: «يوتيوب» in «المزيد»: YouTube in a window of its own, its ads blocked (YoutubeActivity, no bridge there)
+        // v152: «يوتيوب» in «المزيد»: YouTube, its ads blocked (v160: over the app's page in a WebView of its own, YtPanel,
+        // no bridge there; made whole again if it is small)
         @JavascriptInterface
         public void openYoutube() {
             if (!allowed()) return;
-            runOnUiThread(() -> startActivity(new Intent(MainActivity.this, YoutubeActivity.class)));
+            runOnUiThread(() -> yt.open());
         }
 
         // …and the phone's page where «الظهور فوق التطبيقات الأخرى» is given to this app

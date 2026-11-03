@@ -41,6 +41,8 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|locale|layoutDirection"
             android:exported="true"
             android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -61,13 +63,6 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale" />
-
-        <!-- v152: YouTube inside the app with its ads blocked («يوتيوب» in «المزيد»); the app's own only -->
-        <activity
-            android:name=".YoutubeActivity"
-            android:exported="false"
-            android:label="يوتيوب"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|locale|layoutDirection" />
 
         <!-- an alarm's time, its quiet copy, the buttons of the notifications: the app's own only -->
         <receiver android:name=".AlarmReceiver" android:exported="false" />

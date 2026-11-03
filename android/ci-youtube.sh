@@ -46,4 +46,41 @@ PY
 # (v153: what draws him in hidden: the first page a search box, no Shorts, no videos suggested)
 echo "$LOG" | grep -q 'calm\\":{\\"home\\":true' || warn "the calm script is not in the first page"
 echo "$LOG" | grep -q 'box\\":true' || warn "the search box is not seen on the first page"
+# (v160: each video's place and the list «للاستماع» in the page; a video playing goes small over the app's pages on back,
+# and into the phone's small window when the app is left; the app's page hidden while YouTube is whole)
+echo "$LOG" | grep -q 'keep\\":{' || warn "the keep script is not in the page"
+echo "the app's page while YouTube is whole: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
+shot() { adb exec-out screencap -p > s.png; python3 - "$1" <<'PY'
+import base64, io, sys
+from PIL import Image
+im = Image.open("s.png").convert("RGB"); im.thumbnail((360, 720))
+b = io.BytesIO(); im.save(b, "JPEG", quality=60)
+print(sys.argv[1] + " " + base64.b64encode(b.getvalue()).decode())
+PY
+}
+YT=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'youtube.com' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
+[ -n "$YT" ] || warn "YouTube's page has no debugging address"
+python3 android/ci-cdp.py "$YT" "location.href='/watch?v=dQw4w9WgXcQ', 1" > /dev/null
+sleep 25
+# (the phone's own tap on the player starts it, as his finger would)
+SIZE=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); W=${SIZE%x*}
+adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
+python3 android/ci-cdp.py "$YT" "(function(){var b=document.querySelector('.ytp-large-play-button,.ytmVideoPlayerOverlayPlayButton,button[aria-label*=Play]');if(b)b.click();var v=document.querySelector('video');return v?v.play().then(function(){return 'play'},function(e){return 'no '+e}):'no video'})()"
+sleep 20
+echo "the video: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?{t:v.currentTime,paused:v.paused,ad:!!document.querySelector('.ad-showing')}:null})()")"
+echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('wai-pos')")"
+shot VIDEOSHOT
+adb shell input keyevent KEYCODE_BACK; sleep 4
+adb logcat -d -s WaiYT:* | grep -E 'state|pip' | tail -3
+echo "small over the app: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {mini:document.documentElement.classList.contains('wai-mini'),w:innerWidth,h:innerHeight,t:v&&v.currentTime,paused:v&&v.paused}})()")"
+echo "the app's page with YouTube small: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
+shot MINISHOT
+adb shell input keyevent KEYCODE_HOME; sleep 6
+adb logcat -d -s WaiYT:* | grep -E 'pip' | tail -2
+adb shell dumpsys activity activities | grep -iE 'pinned|windowingMode=pinned' | head -3
+echo "in the small window: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused,w:innerWidth}})()")"
+sleep 8
+echo "…and later: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
+shot PIPSHOT
+adb logcat -d | grep -E 'pip true' -q || warn "the small window over everything did not come"
 echo "youtube: checked"

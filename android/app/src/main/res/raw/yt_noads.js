@@ -1,4 +1,4 @@
-// v152, the owner: «أريد أن أضيف شيئا كاليوتيوب يحجب عني الإعلانات». Run in YouTube's page inside the app (YoutubeActivity),
+// v152, the owner: «أريد أن أضيف شيئا كاليوتيوب يحجب عني الإعلانات». Run in YouTube's page inside the app (YtPanel, v160),
 // at each page start and finish (it runs once a page): the ads are taken out of the player's data before it reads them,
 // what is left of them on the page is hidden, and a video ad that still starts is skipped (or run to its end, muted)
 (function () {
