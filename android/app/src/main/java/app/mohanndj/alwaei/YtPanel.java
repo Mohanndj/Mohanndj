@@ -136,6 +136,8 @@ final class YtPanel {
         shrink.setOnClickListener(v -> setState(ICON));
         FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.END);
         sl.setMargins(dp(4), dp(4), dp(40), dp(4));
+        sl.setMarginStart(dp(4)); // (beside «×», not on it, in the app's right-to-left too)
+        sl.setMarginEnd(dp(40));
         box.addView(shrink, sl);
         box.setElevation(dp(8));
         root.addView(box);
@@ -219,7 +221,7 @@ final class YtPanel {
 
     // the video started again if it stopped (not if it ended), within a moment of a new size only
     private void playAgain() {
-        if (web == null || System.currentTimeMillis() > resumeUntil) return;
+        if (web == null || System.currentTimeMillis() > resumeUntil || (state == FULL && !pip)) return; // (whole: his own pause stays)
         web.evaluateJavascript("(function(){try{var v=document.querySelector('video');if(v&&v.paused&&!v.ended&&v.currentTime>0){v.play().catch(function(){});return 1}}catch(e){}return 0})()",
                 r -> { if ("1".equals(r)) Log.i(TAG, "played again"); });
     }
@@ -241,6 +243,12 @@ final class YtPanel {
             icon.setBackground(dot);
             icon.setElevation(dp(10));
             root.addView(icon, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
+            // (the screen turned or made smaller: kept on it)
+            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+                if (icon == null || icon.getVisibility() != View.VISIBLE) return;
+                icon.setX(Math.max(0, Math.min(r - l - icon.getWidth(), icon.getX())));
+                icon.setY(Math.max(0, Math.min(b - t - icon.getHeight(), icon.getY())));
+            });
             final float[] at = new float[4];
             final boolean[] moved = new boolean[1];
             final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
@@ -257,7 +265,8 @@ final class YtPanel {
                         v.setY(Math.max(0, Math.min(root.getHeight() - v.getHeight(), at[3] + dy)));
                         return true;
                     case android.view.MotionEvent.ACTION_UP:
-                        if (moved[0]) {
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        if (moved[0] || e.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) {
                             act.getSharedPreferences("yt", 0).edit().putFloat("ix", v.getX() / Math.max(1, root.getWidth()))
                                     .putFloat("iy", v.getY() / Math.max(1, root.getHeight())).apply();
                         } else setState(MINI);
@@ -293,6 +302,7 @@ final class YtPanel {
         web = null;
         root.removeCallbacks(poller);
         playing = false;
+        resumeUntil = 0;
         CookieManager.getInstance().flush();
         state = HIDDEN;
         w.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave();(function(){var v=document.querySelector('video');if(v)v.pause()})()", null);
@@ -320,6 +330,7 @@ final class YtPanel {
 
     /** The app out of sight without the small window: the video stopped, its place kept. */
     void pause() {
+        resumeUntil = 0; // (stopped: never started again by itself)
         if (web == null) return;
         web.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave();(function(){var v=document.querySelector('video');if(v)v.pause()})()", null);
         web.onPause();
