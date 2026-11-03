@@ -495,6 +495,7 @@ function wrSetFocus(on, once) {
   $('wrEditor').classList.toggle('wr-focus', on);
   wrPopsClose();
   wrBubble();
+  if (typeof Voice !== 'undefined' && Voice.place) Voice.place(); // v162: the mic follows the timer's new place
 }
 
 function wrEdit(b, chId, find) {
