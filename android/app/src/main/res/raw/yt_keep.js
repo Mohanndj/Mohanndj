@@ -36,6 +36,8 @@
     if (!id || !v || !restored || ad()) return;
     var d = v.duration, t = v.currentTime;
     if (!(d > 0) || !isFinite(d)) return;
+    // (the player already holds the next video, or an ad, while the page still names this one: nothing saved for it)
+    if (had.src && (v.currentSrc !== had.src || Math.abs(d - had.d) > 1)) return;
     var done = v.ended || t >= d - 20 || t >= d * 0.95;
     if (!done && t < 5) return; // (just started: what was kept stays)
     if (!force && !done && Date.now() - lastSave < 3000) return;

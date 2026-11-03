@@ -133,6 +133,8 @@ final class YtPanel {
     }
 
     // is a video playing? (asked of the page each second while it is open: a video playing goes small, not stopped)
+    private final Runnable poller = this::poll;
+
     private void poll() {
         if (web == null) return;
         web.evaluateJavascript("(function(){try{var v=document.querySelector('video');return !!(v&&!v.paused&&!v.ended&&v.currentTime>0)}catch(e){return false}})()",
@@ -141,7 +143,8 @@ final class YtPanel {
                     playing = "true".equals(r);
                     if (was != playing && act instanceof MainActivity) ((MainActivity) act).pipParams();
                 });
-        web.postDelayed(this::poll, 1000);
+        root.removeCallbacks(poller);
+        root.postDelayed(poller, 1000);
     }
 
     void setState(int s) {
@@ -191,7 +194,9 @@ final class YtPanel {
         hideFull();
         WebView w = web;
         web = null;
+        root.removeCallbacks(poller);
         playing = false;
+        CookieManager.getInstance().flush();
         state = HIDDEN;
         w.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave();(function(){var v=document.querySelector('video');if(v)v.pause()})()", null);
         if (box != null) box.setVisibility(View.GONE);
@@ -228,6 +233,8 @@ final class YtPanel {
     }
 
     void destroy() {
+        root.removeCallbacks(poller);
+        if (box != null) root.removeView(box);
         if (web != null) web.destroy();
         web = null;
     }

@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
     // v160: «يوتيوب» over the app's page (YtPanel): whole, small over the app's pages, or in the phone's small window
     private YtPanel yt;
     private FrameLayout root;
-    private boolean resumed, pipExit;
+    private boolean resumed, stopped, launching;
     private SpeechRecognizer speech;
     private String[] speechWait; // a dictation waiting for the microphone's permission: {lang, interim}
 
@@ -159,20 +159,32 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
-        pipExit = false;
+        launching = false;
         web.onResume();
         yt.resume();
         ytChanged();
     }
 
-    // v160: the app out of sight: YouTube's video stopped (its place kept), unless it goes on in the small window; and
-    // the small window closed («×» on it) closes YouTube too
+    // v160: the app out of sight (left without the small window, the screen turned off, or the small window closed):
+    // YouTube's video stopped, its place kept; no sound without a window. (In the small window the app is only paused.)
+    @Override
+    protected void onStart() {
+        super.onStart();
+        stopped = false;
+    }
+
     @Override
     protected void onStop() {
         super.onStop();
-        if (isInPictureInPictureMode()) return;
-        if (pipExit) { pipExit = false; yt.close(); }
-        else yt.pause();
+        stopped = true;
+        yt.pause();
+    }
+
+    // the app's own windows (choosing a file, sharing, printing, a settings page): not a leaving for the small window
+    @Override
+    public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
+        launching = true;
+        super.startActivityForResult(intent, requestCode, options);
     }
 
     /** YouTube shown, made small or whole, or closed: the app's page hidden behind it when it is whole (so the page
@@ -210,14 +222,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT < 31) toPip();
+        if (Build.VERSION.SDK_INT < 31 && !launching) toPip();
     }
 
     @Override
     public void onPictureInPictureModeChanged(boolean in, Configuration c) {
         super.onPictureInPictureModeChanged(in, c);
         yt.pip = in;
-        if (!in) pipExit = true; // (made whole again: onResume follows; closed: onStop)
+        // (closed: Android stops the app before it says the small window is gone; made whole again: it was not stopped)
+        if (!in && stopped) yt.close();
         yt.layout();
         ytChanged();
         Log.i(YtPanel.TAG, "pip " + in);
