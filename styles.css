@@ -2240,6 +2240,17 @@ li.sel .sel-box { background: var(--high); }
 .wr-fabmenu { inset-inline-start: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100% - 24px)); display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
 .wr-fabmenu .wr-unfocus { flex: 1 1 100%; background: var(--accent-soft); color: var(--accent); }
 .wr-float { inset-inline: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; align-items: center; }
+/* v163: the editor's page colours («لون الصفحة»), the app's own when none is chosen */
+#wrEditor.wr-th-paper { --bg: #ece2cc; --card: #f7f0e1; --fg: #3a2e20; --muted: #7a6a55; --line: #e0d3b8; --accent-soft: #eadfc4; color-scheme: light; }
+#wrEditor.wr-th-night { --bg: #16181a; --card: #1f2225; --fg: #d6d1c7; --muted: #8d8981; --line: #2e3236; --accent-soft: #24332f; color-scheme: dark; }
+#wrEditor.wr-th-green { --bg: #d9e9e1; --card: #e9f4ee; --fg: #1c2a25; --muted: #56685f; --line: #cbdfd5; --accent-soft: #d3e8de; color-scheme: light; }
+#wrEditor[class*="wr-th-"] { background: var(--card); color: var(--fg); }
+#wrEditor.wr-th-night .wr-body [style*="background-color"] { color: #1c1c1c; }
+.wr-thb { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: #16211e; font-size: .9rem; }
+.wr-thb[data-th="paper"] { background: #f7f0e1; color: #3a2e20; border-color: #e0d3b8; }
+.wr-thb[data-th="night"] { background: #1f2225; color: #d6d1c7; border-color: #2e3236; }
+.wr-thb[data-th="green"] { background: #e9f4ee; color: #1c2a25; border-color: #cbdfd5; }
+.wr-thb.on { outline: 3px solid var(--accent); outline-offset: 1px; }
 #wrEditor.wr-focus .me-head, #wrEditor.wr-focus #wrTools, #wrEditor.wr-focus #wrPal { display: none; }
 #wrEditor.wr-focus .wr-fab { display: grid; place-items: center; }
 #wrEditor.wr-focus .wr-foot { position: fixed; inset-inline: 0; bottom: 0; border: 0; background: transparent; pointer-events: none; justify-content: flex-end; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }

@@ -411,7 +411,7 @@ let wrState = null; // { book, ch, timer, dirty, hist, hi, htimer, range }
 const WR_SVG = {
   close: '<path d="M9 18l6-6-6-6"/>', find: '<path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5"/>',
   undo: '<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>', redo: '<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
-  focus: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', copy: '<path d="M9 9h11v11H9zM5 15H4V4h11v1"/>',
+  focus: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>', copy: '<path d="M9 9h11v11H9zM5 15H4V4h11v1"/>',
 };
 const wrSvg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${WR_SVG[k]}</svg>`;
 // the tools: [command, its face, its name]; «pal:…» opens a palette under the bar (or above, in focus)
@@ -443,6 +443,7 @@ function wrDialog() {
       <button type="button" class="icon-btn" data-wr="close" aria-label="رجوع وحفظ">${wrSvg('close')}</button>
       <input id="wrTitle" placeholder="عنوان الفصل" aria-label="العنوان" autocomplete="off">
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
+      <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
       <button type="button" class="icon-btn" data-wr="find" aria-label="بحث واستبدال">${wrSvg('find')}</button>
       <button type="button" class="icon-btn" data-wr="focus" aria-label="وضع التركيز">${wrSvg('focus')}</button>
     </div>
@@ -489,6 +490,16 @@ function wrFonts() {
     document.head.append(l);
   }
 }
+// v163 («ألوان للصفحة تريح العين»، his choice: a button to pick from): the editor's page colours, kept on this device
+const WR_THEMES = [['', 'كالتطبيق'], ['paper', 'ورقي دافئ'], ['night', 'ليلي هادئ'], ['green', 'أخضر فاتح']];
+const wrThemeOf = () => { try { const v = localStorage.getItem('mahami-wrtheme') || ''; return WR_THEMES.some(([k]) => k === v) ? v : ''; } catch { return ''; } };
+function wrSetTheme(v) {
+  try { localStorage.setItem('mahami-wrtheme', v); } catch {}
+  const d = $('wrEditor');
+  if (!d) return;
+  for (const [k] of WR_THEMES) if (k) d.classList.toggle(`wr-th-${k}`, k === v);
+  for (const b of d.querySelectorAll('[data-wtheme]')) b.classList.toggle('on', b.dataset.wtheme === v);
+}
 const wrFocusOn = () => { try { return localStorage.getItem('mahami-wrfocus') === '1'; } catch { return false; } };
 function wrSetFocus(on, once) {
   if (!once) try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
@@ -522,6 +533,7 @@ function wrEdit(b, chId, find) {
   wrTmShow();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   d.classList.toggle('wr-focus', wrFocusOn());
+  wrSetTheme(wrThemeOf());
   wrPopsClose();
   $('wrScroll').scrollTop = 0;
   if (find) setTimeout(() => wrFindNext(), 50);
@@ -883,6 +895,7 @@ function wrPalHTML(k) {
   if (k === 'color') return NOTE_COLORS.map(([c, n]) => `<button type="button" class="pal" data-wcolor="${c}" title="${n}" aria-label="لون ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : 'أ'}</button>`).join('');
   if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-whi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-wfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
+  if (k === 'theme') { const on = wrThemeOf(); return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join(''); }
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-walign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-wlh="${v}">${n}</button>`).join('');
   if (k === 'table') return wrCell()
@@ -975,14 +988,14 @@ function wrReplace(all) {
 // the tools keep the cursor (and the selection) in the text
 document.addEventListener('pointerdown', (e) => {
   if (!wrState) return;
-  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab')) e.preventDefault();
+  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab, [data-wr="theme"]')) e.preventDefault();
   // a tap elsewhere closes what floats (not a tap in it, nor on what opens it)
-  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn')) wrPopsClose();
+  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn, [data-wr="theme"]')) wrPopsClose();
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1000,9 +1013,11 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.wtm) { wrTm(t.dataset.wtm); return; }
+  if (t.dataset.wtheme !== undefined) { wrSetTheme(t.dataset.wtheme); return; } // (the palette stays open, to try one after another)
   if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
   if (a === 'close') wrClose();
+  else if (a === 'theme') wrPal('theme');
   else if (a === 'copy') { wrSaveNow(); wrCopy(wrState.book); }
   else if (a === 'focus') { $('wrFabMenu').hidden = true; wrSetFocus(!$('wrEditor').classList.contains('wr-focus')); }
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
