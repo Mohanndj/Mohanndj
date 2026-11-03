@@ -54,7 +54,8 @@ final class YtPanel {
     private WebView web;
     private View cover;
     private TextView close;
-    private View full; // a video on the whole screen
+    private View full; // a video on the whole screen (YouTube's own button, or the page made small and wide)
+    private boolean fullInBox; // …kept inside the small window
     private WebChromeClient.CustomViewCallback fullCb;
     private String script = "";
     private int blocked;
@@ -164,7 +165,7 @@ final class YtPanel {
         if (state == HIDDEN) {
             box.setVisibility(View.GONE);
         } else {
-            box.setVisibility(full != null ? View.GONE : View.VISIBLE); // (a video on the whole screen stays so, in the small window too)
+            box.setVisibility(full != null && !fullInBox ? View.GONE : View.VISIBLE); // (a video on the whole screen stays so)
             if (small) {
                 // (at the bottom on the left, above the app's bar below, the video's own 16:9)
                 int w = Math.max(dp(170), Math.round(root.getWidth() * 0.5f));
@@ -176,7 +177,7 @@ final class YtPanel {
             }
             box.setLayoutParams(lp);
             box.bringToFront();
-            if (full != null) full.bringToFront();
+            if (full != null && !fullInBox) full.bringToFront();
         }
         cover.setVisibility(small ? View.VISIBLE : View.GONE);
         close.setVisibility(small ? View.VISIBLE : View.GONE);
@@ -309,11 +310,15 @@ final class YtPanel {
 
     void hideFull() {
         if (full == null) return;
-        root.removeView(full);
+        if (full.getParent() instanceof ViewGroup) ((ViewGroup) full.getParent()).removeView(full);
+        boolean whole = !fullInBox;
         full = null;
+        fullInBox = false;
         if (box != null) box.setVisibility(state == HIDDEN ? View.GONE : View.VISIBLE);
-        act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
-        act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        if (whole) {
+            act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
         if (fullCb != null) fullCb.onCustomViewHidden();
         fullCb = null;
     }
@@ -322,9 +327,17 @@ final class YtPanel {
         // a video on the whole screen
         @Override
         public void onShowCustomView(View view, CustomViewCallback c) {
-            if (full != null || state != FULL) { c.onCustomViewHidden(); return; }
+            Log.i(TAG, "whole screen asked, state " + state + (pip ? " pip" : ""));
+            if (full != null || box == null) { c.onCustomViewHidden(); return; }
             full = view;
             fullCb = c;
+            if (state != FULL || pip) {
+                // (small and wide, YouTube may put its video on the whole screen by itself: it stays in the small window,
+                // refusing it stops the video)
+                fullInBox = true;
+                box.addView(view, 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                return;
+            }
             box.setVisibility(View.GONE);
             root.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);

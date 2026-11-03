@@ -26,6 +26,9 @@
   // ---- each video's place ----
   var cur = '', first = true, changedAt = 0, metaAt = 0, adAt = 0, restored = false, lastSave = 0, navTitle = '', had = { src: '', d: 0 }, old = had;
   document.addEventListener('loadedmetadata', function (e) { if (e.target && e.target.tagName === 'VIDEO') metaAt = Date.now(); }, true);
+  // (for the build's check: what paused the video, and YouTube's own whole screen)
+  document.addEventListener('pause', function (e) { if (e.target && e.target.tagName === 'VIDEO') { st.pauses = (st.pauses || 0) + 1; st.lastPause = { mini: st.mini, w: innerWidth, h: innerHeight, fs: !!document.fullscreenElement, hidden: document.hidden }; } }, true);
+  document.addEventListener('fullscreenchange', function () { st.fs = (st.fs || 0) + 1; }, true);
   function title() {
     var t = (document.title || '').replace(/\s*[-–]\s*YouTube\s*$/i, '').trim();
     // (after moving to another video the page's title changes a moment later: the old one is not taken for the new)

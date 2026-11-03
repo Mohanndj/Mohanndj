@@ -192,6 +192,10 @@ public class MainActivity extends Activity {
     private void ytChanged() {
         boolean whole = yt.state == YtPanel.FULL || yt.pip;
         web.setVisibility(yt.pip ? View.GONE : whole ? View.INVISIBLE : View.VISIBLE);
+        // (the page told it is out of sight, as when YouTube was a window of its own: so it does not ring an alarm
+        // behind YouTube, the app does)
+        if (whole) web.onPause();
+        else if (resumed) web.onResume();
         visible = resumed && !whole;
         pipParams();
     }

@@ -74,13 +74,19 @@ adb shell input keyevent KEYCODE_BACK; sleep 4
 adb logcat -d -s WaiYT:* | grep -E 'state|pip' | tail -3
 echo "small over the app: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {mini:document.documentElement.classList.contains('wai-mini'),w:innerWidth,h:innerHeight,t:v&&v.currentTime,paused:v&&v.paused}})()")"
 echo "the app's page with YouTube small: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
+echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
+adb logcat -d -s WaiYT:* | grep -E 'whole screen' | tail -3
 shot MINISHOT
+# (if it paused going small, started again here, to see the small window over everything)
+python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v&&v.paused?v.play().then(function(){return 'played again'},function(e){return 'no '+e}):'playing'})()"
+sleep 4
 adb shell input keyevent KEYCODE_HOME; sleep 6
 adb logcat -d -s WaiYT:* | grep -E 'pip' | tail -2
 adb shell dumpsys activity activities | grep -iE 'pinned|windowingMode=pinned' | head -3
 echo "in the small window: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused,w:innerWidth}})()")"
 sleep 8
 echo "…and later: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
+echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
 shot PIPSHOT
 adb logcat -d | grep -E 'pip true' -q || warn "the small window over everything did not come"
 echo "youtube: checked"
