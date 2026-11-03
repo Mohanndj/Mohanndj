@@ -646,7 +646,11 @@ function wrRenumber() {
   box.innerHTML = `<h3>الحواشي</h3>${ids.map((id, i) => `<div class="wr-note"><b data-wr="fngo" data-fn="${id}" role="button" aria-label="إلى موضعها في النص">(${wrNum(i + 1)})</b><textarea data-fn="${id}" rows="2" aria-label="الحاشية ${i + 1}">${esc(c.notes[id] || '')}</textarea><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
 }
 // between a footnote and its mark: the one gone to is in the middle of the screen and glows a moment
-function wrFlash(el) { el.classList.remove('wr-flash'); void el.offsetWidth; el.classList.add('wr-flash'); setTimeout(() => el.classList.remove('wr-flash'), 1600); }
+// (an animation, not a class: nothing of it goes into the text, its saves or its undo steps)
+function wrFlash(el) {
+  const c = getComputedStyle(document.documentElement).getPropertyValue('--accent-soft').trim() || '#ccfbf1';
+  try { el.animate([{ backgroundColor: c, boxShadow: `0 0 0 3px ${c}` }, { backgroundColor: c, boxShadow: `0 0 0 3px ${c}`, offset: 0.4 }, { backgroundColor: 'transparent', boxShadow: '0 0 0 3px transparent' }], { duration: 1500, easing: 'ease-out' }); } catch {}
+}
 function wrToNote(id) {
   const ta = $('wrNotes').querySelector(`textarea[data-fn="${id}"]`);
   if (!ta) return;
