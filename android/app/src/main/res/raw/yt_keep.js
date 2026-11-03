@@ -19,6 +19,9 @@
     Object.defineProperty(Document.prototype, 'visibilityState', vis);
     Object.defineProperty(Document.prototype, 'webkitVisibilityState', vis);
     st.bg = true;
+    // (for the build's check: how many times the page's own script paused a video)
+    var mp = HTMLMediaElement.prototype.pause;
+    HTMLMediaElement.prototype.pause = function () { st.jsPauses = (st.jsPauses || 0) + 1; return mp.apply(this, arguments); };
   } catch (e) { st.err = 'seen'; }
   ['visibilitychange', 'webkitvisibilitychange'].forEach(function (n) {
     window.addEventListener(n, function (e) { e.stopImmediatePropagation(); if (window.__waiKeepSave) window.__waiKeepSave(); }, true);

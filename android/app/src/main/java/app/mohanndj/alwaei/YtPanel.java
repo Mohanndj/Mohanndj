@@ -55,7 +55,7 @@ final class YtPanel {
     private final FrameLayout root; // the app's screen: its page, then this panel over it
     private final Listener cb;
     private FrameLayout box; // the panel: YouTube's page
-    private WebView web;
+    private KeepWeb web;
     private boolean fitting;
     private TextView icon; // v161: the floating icon, moved by the finger; a tap shows YouTube again, a long press stops it
     private View full; // a video on the whole screen (YouTube's own button)
@@ -100,7 +100,7 @@ final class YtPanel {
         script = raw(R.raw.yt_noads) + "\n" + raw(R.raw.yt_calm) + "\n" + raw(R.raw.yt_keep);
         box = new FrameLayout(act);
         box.setBackgroundColor(Color.BLACK);
-        web = new WebView(act);
+        web = new KeepWeb(act);
         box.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         box.setElevation(dp(8));
         root.addView(box);
@@ -129,6 +129,7 @@ final class YtPanel {
                     if (web != w) return; // (an answer from a YouTube closed since)
                     boolean was = playing;
                     playing = "true".equals(r);
+                    web.keep = playing;
                     if (was != playing) { cb.playing(playing); Log.i(TAG, "playing " + playing); }
                 });
         root.removeCallbacks(poller);
@@ -241,9 +242,10 @@ final class YtPanel {
     void close() {
         if (web == null) return;
         hideFull();
-        WebView w = web;
+        KeepWeb w = web;
         web = null;
         root.removeCallbacks(poller);
+        w.keep = false;
         if (playing) { playing = false; cb.playing(false); }
         CookieManager.getInstance().flush();
         state = HIDDEN;
@@ -276,6 +278,7 @@ final class YtPanel {
      *  stopped, its place kept (and the page paused, unless asked to stay as it is: «إيقاف» with the app open). */
     void pause(boolean page) {
         if (web == null) return;
+        web.keep = false;
         web.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave();(function(){var v=document.querySelector('video');if(v)v.pause()})()", null);
         if (page) web.onPause();
         if (playing) { playing = false; cb.playing(false); }
@@ -298,6 +301,21 @@ final class YtPanel {
         if (box != null) root.removeView(box);
         if (web != null) web.destroy();
         web = null;
+    }
+
+    // v161: with a video playing, YouTube's page is not told that the app's window went out of sight (the app left):
+    // the WebView would stop its video then (seen on the emulator). Nothing playing, or stopped: as any WebView.
+    static final class KeepWeb extends WebView {
+        volatile boolean keep;
+
+        KeepWeb(Activity a) {
+            super(a);
+        }
+
+        @Override
+        protected void onWindowVisibilityChanged(int v) {
+            super.onWindowVisibilityChanged(keep ? View.VISIBLE : v);
+        }
     }
 
     private void inject(WebView v) {

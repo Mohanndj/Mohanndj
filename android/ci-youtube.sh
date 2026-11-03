@@ -110,6 +110,7 @@ adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' || note
 # (the app left: it plays on, with its notification)
 C=$(vid); adb shell input keyevent KEYCODE_HOME; sleep 15; D=$(vid)
 echo "the app left: $C then $D"
+echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
 adb logcat -d -s WaiYT:* | grep -E 'service' | tail -2
 adb shell dumpsys notification --noredact 2>/dev/null | grep -E 'id=7341|يوتيوب يعمل' | head -3
 [ "$(moving "$C" "$D")" = yes ] && echo "the app left: plays on" || note "the app left, the video did not play on"
