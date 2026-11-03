@@ -643,7 +643,24 @@ function wrRenumber() {
   if (!ids.length) { box.innerHTML = ''; return; }
   const have = [...box.querySelectorAll('textarea')].map((x) => x.dataset.fn).join();
   if (have === ids.join()) { box.querySelectorAll('.wr-note b').forEach((x, i) => { x.textContent = `(${wrNum(i + 1)})`; }); return; }
-  box.innerHTML = `<h3>الحواشي</h3>${ids.map((id, i) => `<div class="wr-note"><b>(${wrNum(i + 1)})</b><textarea data-fn="${id}" rows="2" aria-label="الحاشية ${i + 1}">${esc(c.notes[id] || '')}</textarea><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
+  box.innerHTML = `<h3>الحواشي</h3>${ids.map((id, i) => `<div class="wr-note"><b data-wr="fngo" data-fn="${id}" role="button" aria-label="إلى موضعها في النص">(${wrNum(i + 1)})</b><textarea data-fn="${id}" rows="2" aria-label="الحاشية ${i + 1}">${esc(c.notes[id] || '')}</textarea><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
+}
+// between a footnote and its mark: the one gone to is in the middle of the screen and glows a moment
+function wrFlash(el) { el.classList.remove('wr-flash'); void el.offsetWidth; el.classList.add('wr-flash'); setTimeout(() => el.classList.remove('wr-flash'), 1600); }
+function wrToNote(id) {
+  const ta = $('wrNotes').querySelector(`textarea[data-fn="${id}"]`);
+  if (!ta) return;
+  ta.focus({ preventScroll: true }); ta.scrollIntoView({ block: 'center' }); wrFlash(ta.closest('.wr-note'));
+}
+function wrToMark(id) {
+  const m = $('wrBody').querySelector(`sup.fn[data-fn="${id}"]`);
+  if (!m) return;
+  // (the cursor just after the number, to write on from there)
+  const r = document.createRange(); r.setStartAfter(m); r.collapse(true);
+  $('wrBody').focus({ preventScroll: true });
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  m.scrollIntoView({ block: 'center' }); wrFlash(m);
+  setTimeout(() => { if (m.isConnected) m.scrollIntoView({ block: 'center' }); }, 350); // (again once the phone's keyboard is up)
 }
 // a footnote deleted with its mark in the text (two taps; «تراجع» brings it back)
 function wrNoteDel(btn) {
@@ -978,7 +995,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.wtm) { wrTm(t.dataset.wtm); return; }
-  if (t.matches('sup.fn')) { const ta = $('wrNotes').querySelector(`textarea[data-fn="${t.dataset.fn}"]`); if (ta) { ta.focus(); ta.scrollIntoView({ block: 'center' }); } return; }
+  if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
   if (a === 'close') wrClose();
   else if (a === 'copy') { wrSaveNow(); wrCopy(wrState.book); }
@@ -986,6 +1003,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
   else if (a === 'tm') { const p = $('wrTmPop'), show = p.hidden; wrPopsClose(); if (show) { p.innerHTML = wrTmPopHTML(); p.hidden = false; } }
   else if (a === 'fndel') wrNoteDel(t);
+  else if (a === 'fngo') wrToMark(t.dataset.fn);
   else if (a === 'find') { $('wrFabMenu').hidden = true; const f = $('wrFind'); f.hidden = !f.hidden; if (!f.hidden) { if ($('wrEditor').classList.contains('wr-focus')) wrSetFocus(false, true); /* (this time only: focus stays his choice) */ const s = getSelection().toString(); if (s && s.length < 80) $('wrQ').value = s; $('wrQ').focus(); } }
   else if (a === 'next') wrFindNext();
   else if (a === 'rep') wrReplace(false);

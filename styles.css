@@ -2205,6 +2205,9 @@ li.sel .sel-box { background: var(--high); }
 .wr-body u { text-decoration: underline; }
 .wr-body s { text-decoration: line-through; }
 .wr-body sup.fn { font-size: .62em; }
+.wr-note b[data-wr="fngo"] { cursor: pointer; }
+.wr-flash { animation: wr-flash 1.5s ease-out; border-radius: 4px; }
+@keyframes wr-flash { 0%, 40% { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); } 100% { background: transparent; box-shadow: 0 0 0 3px transparent; } }
 .wr-body [data-ind="1"] { margin-inline-start: 1.5em; } .wr-body [data-ind="2"] { margin-inline-start: 3em; } .wr-body [data-ind="3"] { margin-inline-start: 4.5em; }
 .wr-body [data-ind="4"] { margin-inline-start: 6em; } .wr-body [data-ind="5"] { margin-inline-start: 7.5em; } .wr-body [data-ind="6"] { margin-inline-start: 9em; }
 @counter-style wr-ar { system: extends arabic-indic; suffix: "- "; }
