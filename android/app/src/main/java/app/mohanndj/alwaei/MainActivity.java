@@ -23,9 +23,10 @@ import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
-import android.app.PictureInPictureParams;
-import android.content.res.Configuration;
-import android.util.Rational;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.os.PowerManager;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -74,10 +75,11 @@ public class MainActivity extends Activity {
     static volatile MainActivity live;
     static volatile boolean visible;
     private volatile boolean pageReady; // the page has started and asked for what happened while it was closed
-    // v160: «يوتيوب» over the app's page (YtPanel): whole, small over the app's pages, or in the phone's small window
+    // v160: «يوتيوب» over the app's page (YtPanel): whole, or (v161) hidden behind a floating icon playing on
     private YtPanel yt;
     private FrameLayout root;
     private boolean resumed, stopped, launching;
+    private BroadcastReceiver screenOff;
     private SpeechRecognizer speech;
     private String[] speechWait; // a dictation waiting for the microphone's permission: {lang, interim}
 
@@ -90,7 +92,17 @@ public class MainActivity extends Activity {
         root = new FrameLayout(this);
         root.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
-        yt = new YtPanel(this, root, this::ytChanged);
+        yt = new YtPanel(this, root, new YtPanel.Listener() {
+            @Override public void changed() { ytChanged(); }
+            @Override public void playing(boolean on) { if (!on) YtService.stop(MainActivity.this); }
+        });
+        // v161 (his answer in v161: the screen turned off, it stops): also with the app left and the video playing on
+        screenOff = new BroadcastReceiver() {
+            @Override public void onReceive(Context c, Intent i) {
+                if (yt.playing) { yt.pause(stopped); YtService.stop(MainActivity.this); Log.i(YtPanel.TAG, "screen off: stopped"); }
+            }
+        };
+        registerReceiver(screenOff, new IntentFilter(Intent.ACTION_SCREEN_OFF));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -118,6 +130,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (live == this) live = null;
+        try { unregisterReceiver(screenOff); } catch (Exception ignored) {}
+        YtService.stop(this);
         yt.destroy();
         if (speech != null) speech.destroy();
         super.onDestroy();
@@ -153,6 +167,10 @@ public class MainActivity extends Activity {
         resumed = false;
         visible = false;
         web.onPause();
+        // v161: leaving the app with a video playing: it plays on, with the notification Android asks for (started
+        // while the app is still in sight, as Android allows; not for the app's own windows: a file, sharing, printing)
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (yt.playing && !launching && !isChangingConfigurations() && (pm == null || pm.isInteractive())) YtService.start(this);
     }
 
     @Override
@@ -160,12 +178,13 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         launching = false;
+        YtService.stop(this); // (back in the app: no notification; YouTube or its icon is here)
         yt.resume();
         ytChanged(); // (the app's page resumed there, unless YouTube is whole over it)
     }
 
-    // v160: the app out of sight (left without the small window, the screen turned off, or the small window closed):
-    // YouTube's video stopped, its place kept; no sound without a window. (In the small window the app is only paused.)
+    // v160, v161: the app out of sight: a video playing plays on (his answer: «يستمر الصوت»), unless the screen was turned
+    // off (his answer in v161: it stops); nothing playing: YouTube's page paused, its place kept
     @Override
     protected void onStart() {
         super.onStart();
@@ -176,74 +195,39 @@ public class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         stopped = true;
-        yt.pause();
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (yt.playing && (pm == null || pm.isInteractive())) yt.keep();
+        else { yt.pause(true); YtService.stop(this); }
     }
 
-    // the app's own windows (choosing a file, sharing, printing, a settings page): not a leaving for the small window
+    // the app's own windows (choosing a file, sharing, printing, a settings page): not a leaving of the app
     @Override
     public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
         launching = true;
-        pipParams();
         try {
             super.startActivityForResult(intent, requestCode, options);
         } catch (RuntimeException e) { // (nothing opened: the app stays as it was)
             launching = false;
-            pipParams();
             throw e;
         }
     }
 
-    /** YouTube shown, made small or whole, or closed: the app's page hidden behind it when it is whole (so the page
+    /** «إيقاف» in YouTube's notification: the video stopped, its place kept. */
+    static void ytStop() {
+        MainActivity a = live;
+        if (a != null) a.runOnUiThread(() -> a.yt.pause(a.stopped));
+    }
+
+    /** YouTube shown, hidden behind its icon, or closed: the app's page hidden behind it when it is whole (so the page
      *  knows it is not seen, and the app itself rings an alarm, as when YouTube was a window of its own). */
     private void ytChanged() {
-        boolean whole = yt.state == YtPanel.FULL || yt.pip;
-        web.setVisibility(yt.pip ? View.GONE : whole ? View.INVISIBLE : View.VISIBLE);
+        boolean whole = yt.state == YtPanel.FULL;
+        web.setVisibility(whole ? View.INVISIBLE : View.VISIBLE);
         // (the page told it is out of sight, as when YouTube was a window of its own: so it does not ring an alarm
         // behind YouTube, the app does)
         if (whole) web.onPause();
         else if (resumed) web.onResume();
         visible = resumed && !whole;
-        pipParams();
-    }
-
-    // the phone's small window: the video's 16:9; on Android 12 and later it comes by itself when he leaves the app
-    // with a video playing (else from onUserLeaveHint)
-    void pipParams() {
-        if (Build.VERSION.SDK_INT < 26 || yt == null) return;
-        try {
-            PictureInPictureParams.Builder b = new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9));
-            if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(yt.isOpen() && yt.playing && !launching);
-            setPictureInPictureParams(b.build());
-        } catch (Exception e) {
-            Log.w(TAG, "pip " + e);
-        }
-    }
-
-    private boolean toPip() {
-        if (Build.VERSION.SDK_INT < 26 || !yt.isOpen() || !yt.playing) return false;
-        try {
-            return enterPictureInPictureMode(new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9)).build());
-        } catch (Exception e) {
-            Log.w(TAG, "pip " + e);
-            return false;
-        }
-    }
-
-    @Override
-    protected void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        if (!launching && !isInPictureInPictureMode()) toPip(); // (Android 12 and later may already have entered it by itself)
-    }
-
-    @Override
-    public void onPictureInPictureModeChanged(boolean in, Configuration c) {
-        super.onPictureInPictureModeChanged(in, c);
-        yt.pip = in;
-        // (closed: Android stops the app before it says the small window is gone; made whole again: it was not stopped)
-        if (!in && stopped) yt.close();
-        yt.layout();
-        ytChanged();
-        Log.i(YtPanel.TAG, "pip " + in);
     }
 
     // back: the page's own steps (it closes what is open, then goes to «اليوم»); with none left, the app goes to
@@ -251,9 +235,9 @@ public class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (yt.back()) return; // (YouTube whole: its steps; a video playing goes small over the app's pages)
+        if (yt.back()) return; // (YouTube whole: its steps; a video playing goes behind the floating icon)
         if (web.canGoBack()) web.goBack();
-        else if (!toPip()) moveTaskToBack(true); // (leaving the app with a video playing: the small window)
+        else moveTaskToBack(true); // (a video playing plays on: onPause)
     }
 
     private String versionName() {
@@ -531,8 +515,7 @@ public class MainActivity extends Activity {
     private void printPage(String title) {
         String job = title == null || title.isEmpty() ? NAME : title;
         PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
-        launching = true; // (the phone's print screen: not a leaving for the small window)
-        pipParams();
+        launching = true; // (the phone's print screen: not a leaving of the app)
         pm.print(job, web.createPrintDocumentAdapter(job), new PrintAttributes.Builder().build());
     }
 

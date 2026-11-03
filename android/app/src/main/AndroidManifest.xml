@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- v124: …and over whatever is open while the phone is in use («الظهور فوق التطبيقات الأخرى», given by the owner) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- v161: YouTube's video playing on with the app left (his answer: «يستمر الصوت»), shown in a notification -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- dictation: the phone's speech recognition service must be visible to the app -->
     <queries>
@@ -42,7 +45,6 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -63,6 +65,13 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale" />
+
+        <!-- v161: YouTube playing on with the app left: the notification Android asks for, its «إيقاف» -->
+        <service
+            android:name=".YtService"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- an alarm's time, its quiet copy, the buttons of the notifications: the app's own only -->
         <receiver android:name=".AlarmReceiver" android:exported="false" />

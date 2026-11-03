@@ -9,6 +9,20 @@
   if (window.__waiKeep) return;
   var st = window.__waiKeep = { saved: 0, resumed: 0, list: 0, mini: false };
   if (!/(^|\.)youtube\.com$/.test(location.hostname)) return; // (Google's sign-in pages are left as they are)
+  // v161 (his answers: «المطلوب فقط التشغيل في الخلفية», and leaving the app «يستمر الصوت»): YouTube stops its video when
+  // its page is hidden (the app left, or YouTube hidden behind the floating icon): its page is told it is always seen;
+  // the place is saved when the page is hidden instead
+  try {
+    var seen = { configurable: true, get: function () { return false; } }, vis = { configurable: true, get: function () { return 'visible'; } };
+    Object.defineProperty(Document.prototype, 'hidden', seen);
+    Object.defineProperty(Document.prototype, 'webkitHidden', seen);
+    Object.defineProperty(Document.prototype, 'visibilityState', vis);
+    Object.defineProperty(Document.prototype, 'webkitVisibilityState', vis);
+    st.bg = true;
+  } catch (e) { st.err = 'seen'; }
+  ['visibilitychange', 'webkitvisibilitychange'].forEach(function (n) {
+    window.addEventListener(n, function (e) { e.stopImmediatePropagation(); if (window.__waiKeepSave) window.__waiKeepSave(); }, true);
+  });
   var POS = 'wai-pos', LIST = 'wai-list', MAX = 400;
   function load(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v || d; } catch (e) { return d; } }
   function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { st.err = 'store'; } }

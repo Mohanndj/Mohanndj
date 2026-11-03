@@ -46,8 +46,7 @@ PY
 # (v153: what draws him in hidden: the first page a search box, no Shorts, no videos suggested)
 echo "$LOG" | grep -q 'calm\\":{\\"home\\":true' || warn "the calm script is not in the first page"
 echo "$LOG" | grep -q 'box\\":true' || warn "the search box is not seen on the first page"
-# (v160: each video's place and the list «للاستماع» in the page; a video playing goes small over the app's pages on back,
-# and into the phone's small window when the app is left; the app's page hidden while YouTube is whole)
+# (v160: each video's place and the list «للاستماع» in the page; the app's page hidden while YouTube is whole)
 echo "$LOG" | grep -q 'keep\\":{' || warn "the keep script is not in the page"
 echo "the app's page while YouTube is whole: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
 shot() { adb exec-out screencap -p > s.png; python3 - "$1" <<'PY'
@@ -70,49 +69,19 @@ sleep 20
 echo "the video: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?{t:v.currentTime,paused:v.paused,ad:!!document.querySelector('.ad-showing')}:null})()")"
 echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('wai-pos')")"
 shot VIDEOSHOT
-# (v161: what makes YouTube stop its video when small: the page's size seen by it, set by the debugging tool, with
-# the video started again before each try; and the video drawn smaller inside a page of its whole size)
-cat > exp.py <<'PY'
-import json, sys, time
-import websocket
-ws = websocket.create_connection(sys.argv[1], suppress_origin=True, timeout=30)
-n = [0]
-def cmd(method, params=None):
-    n[0] += 1; i = n[0]
-    ws.send(json.dumps({"id": i, "method": method, "params": params or {}}))
-    while True:
-        m = json.loads(ws.recv())
-        if m.get("id") == i: return m
-def ev(expr):
-    r = cmd("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True, "userGesture": True})
-    return r.get("result", {}).get("result", {}).get("value")
-PLAY = "(function(){var v=document.querySelector('video');return v?v.play().then(function(){return 'ok'},function(e){return 'no '+e.name}):'none'})()"
-STATE = "(function(){var v=document.querySelector('video'),p=document.querySelector('#movie_player,.html5-video-player');return {paused:v.paused,t:Math.round(v.currentTime*10)/10,w:innerWidth,h:innerHeight,pw:p&&p.offsetWidth,ph:p&&p.offsetHeight,cls:p?String(p.className).slice(0,160):''}})()"
-TRY = [("phone size", None, None)] + [("%dx%d" % wh, wh, None) for wh in [(150, 84), (170, 96), (180, 101), (192, 108), (240, 135), (280, 158), (320, 180), (480, 320), (320, 400), (260, 260), (170, 120), (170, 80)]]
-CSS = "(function(on){var s=document.getElementById('wai-exp');if(!on){if(s)s.remove();return 0}if(!s){s=document.createElement('style');s.id='wai-exp';document.documentElement.appendChild(s)}s.textContent='#player-container-id,.player-container,#movie_player,.html5-video-player{position:fixed!important;top:0!important;left:0!important;width:412px!important;height:232px!important;max-height:none!important;transform:scale(.5)!important;transform-origin:0 0!important;z-index:2147483646!important}video{width:412px!important;height:232px!important;left:0!important;top:0!important}';return 1})"
-for name, size, css in TRY:
-    cmd("Emulation.clearDeviceMetricsOverride"); ev(CSS + "(false)"); time.sleep(1)
-    p0 = ev(PLAY); time.sleep(2)
-    if size: cmd("Emulation.setDeviceMetricsOverride", {"width": size[0], "height": size[1], "deviceScaleFactor": 0, "mobile": True})
-    if css: ev(CSS + "(true)")
-    time.sleep(4)
-    a = ev(STATE)
-    p1 = ev(PLAY); time.sleep(4)
-    b = ev(STATE)
-    print("EXP %s: before %s | after 4s %s | played again %s | 4s later %s" % (name, p0, json.dumps(a), p1, json.dumps(b)))
-cmd("Emulation.clearDeviceMetricsOverride"); ev(CSS + "(false)")
+note() { echo "::warning::youtube: $*"; }
+# (v161, his answers: no small window, the video playing on in the background with a floating icon; leaving the app it
+# plays on with a notification; the screen turned off stops it; a long press on the icon stops it)
+vid() { python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&Math.round(v.currentTime*10)/10,paused:v&&v.paused,seen:document.visibilityState}})()"; }
+moving() { python3 - "$1" "$2" <<'PY'
+import json, sys
+try:
+    a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+    print("yes" if a and b and not b["paused"] and b["t"] > a["t"] + 2 else "no")
+except Exception:
+    print("no")
 PY
-python3 exp.py "$YT" 2>&1 | tail -12
-# (does the page's small look alone stop YouTube's video? the page's size unchanged)
-echo "the small look alone: $(python3 android/ci-cdp.py "$YT" "new Promise(function(ok){window.__waiMini(true);setTimeout(function(){var v=document.querySelector('video');var r={paused:v.paused,t:v.currentTime};window.__waiMini(false);ok(r)},4000)})")"
-adb shell input keyevent KEYCODE_BACK; sleep 4
-adb logcat -d -s WaiYT:* | grep -E 'state|pip' | tail -3
-echo "small over the app: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {mini:document.documentElement.classList.contains('wai-mini'),w:innerWidth,h:innerHeight,t:v&&v.currentTime,paused:v&&v.paused}})()")"
-echo "the app's page with YouTube small: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
-echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
-adb logcat -d -s WaiYT:* | grep -E 'whole screen' | tail -3
-shot MINISHOT
-# (v161: «—» on the small window: the video on, a small floating icon; a tap on the icon: the small window again)
+}
 tapdesc() { adb shell uiautomator dump /sdcard/y.xml > /dev/null 2>&1; adb pull /sdcard/y.xml y.xml > /dev/null 2>&1 || : > y.xml
   python3 - "$1" <<'PY'
 import re, sys
@@ -121,30 +90,41 @@ m = re.search(r'content-desc="' + re.escape(sys.argv[1]) + r'"[^>]*bounds="\[(\d
 print("%d %d" % ((int(m[1]) + int(m[3])) // 2, (int(m[2]) + int(m[4])) // 2) if m else "")
 PY
 }
-P=$(tapdesc "صغّره إلى أيقونة"); echo "the «—» at: $P"
-if [ -n "$P" ]; then
-  adb shell input tap $P; sleep 6
-  adb logcat -d -s WaiYT:* | grep -E 'state|played again' | tail -3
-  echo "as an icon: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused,hidden:document.hidden}})()")"
-  sleep 5
-  echo "…and later: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
-  shot ICONSHOT
-  I=$(tapdesc "يوتيوب: افتح النافذة الصغيرة"); echo "the icon at: $I"
-  [ -n "$I" ] && { adb shell input swipe $I $((${I% *} + 60)) $((${I#* } - 200)) 400; sleep 2; I=$(tapdesc "يوتيوب: افتح النافذة الصغيرة"); echo "the icon moved to: $I"; adb shell input tap $I; sleep 4; }
-  adb logcat -d -s WaiYT:* | grep -E 'state' | tail -2
-  echo "small again: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
-  shot MINI2SHOT
-else warn "no «—» on the small window"; fi
-# (if it paused going small, started again here, to see the small window over everything)
-python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v&&v.paused?v.play().then(function(){return 'played again'},function(e){return 'no '+e}):'playing'})()"
-sleep 4
-adb shell input keyevent KEYCODE_HOME; sleep 6
-adb logcat -d -s WaiYT:* | grep -E 'pip' | tail -2
-adb shell dumpsys activity activities | grep -iE 'pinned|windowingMode=pinned' | head -3
-echo "in the small window: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused,w:innerWidth}})()")"
-sleep 8
-echo "…and later: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
+ICONDESC="يوتيوب يعمل: اضغط لتفتحه، واضغط مطوّلاً لتوقفه"
+A=$(vid); echo "playing whole: $A"
+adb shell input keyevent KEYCODE_BACK; sleep 3
+adb logcat -d -s WaiYT:* | grep -E 'state|playing' | tail -3
+sleep 8; B=$(vid); echo "behind the icon: $B"
+echo "the app's page with YouTube behind the icon: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
 echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
-shot PIPSHOT
-adb logcat -d | grep -E 'pip true' -q || warn "the small window over everything did not come"
+[ "$(moving "$A" "$B")" = yes ] && echo "behind the icon: plays on" || note "behind the icon the video did not play on"
+shot ICONSHOT
+I=$(tapdesc "$ICONDESC"); echo "the icon at: $I"
+[ -n "$I" ] || warn "no floating icon"
+adb shell input swipe $I $((${I% *} + 60)) $((${I#* } - 200)) 400; sleep 2
+I=$(tapdesc "$ICONDESC"); echo "the icon moved to: $I"
+adb shell input tap $I; sleep 3
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 1' && echo "a tap on the icon: YouTube whole again" || note "a tap on the icon did not show YouTube"
+adb shell input keyevent KEYCODE_BACK; sleep 3
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' || note "back did not hide YouTube behind the icon again"
+# (the app left: it plays on, with its notification)
+C=$(vid); adb shell input keyevent KEYCODE_HOME; sleep 15; D=$(vid)
+echo "the app left: $C then $D"
+adb logcat -d -s WaiYT:* | grep -E 'service' | tail -2
+adb shell dumpsys notification --noredact 2>/dev/null | grep -E 'id=7341|يوتيوب يعمل' | head -3
+[ "$(moving "$C" "$D")" = yes ] && echo "the app left: plays on" || note "the app left, the video did not play on"
+adb logcat -d -s WaiYT:* | grep -q 'service on' || note "no notification for the video playing on"
+shot HOMESHOT
+# (the screen turned off: it stops)
+adb shell input keyevent KEYCODE_SLEEP; sleep 6
+E=$(vid); echo "the screen off: $E"
+adb logcat -d -s WaiYT:* | grep -E 'screen off' | tail -1
+echo "$E" | grep -q '"paused": true' && echo "the screen off: stopped" || note "the screen off, the video did not stop"
+adb shell input keyevent KEYCODE_WAKEUP; sleep 2; adb shell wm dismiss-keyguard; sleep 2
+adb shell am start -n app.mohanndj.alwaei/.MainActivity > /dev/null; sleep 4
+echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('wai-pos')")"
+# (a long press on the icon: stopped and closed)
+I=$(tapdesc "$ICONDESC"); echo "the icon at: $I"
+[ -n "$I" ] && { adb shell input swipe $I $I 1500; sleep 3; }
+adb logcat -d -s WaiYT:* | grep -q 'closed' && echo "a long press on the icon: closed" || note "a long press on the icon did not close YouTube"
 echo "youtube: checked"
