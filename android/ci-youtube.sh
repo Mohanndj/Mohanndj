@@ -70,6 +70,8 @@ sleep 20
 echo "the video: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?{t:v.currentTime,paused:v.paused,ad:!!document.querySelector('.ad-showing')}:null})()")"
 echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('wai-pos')")"
 shot VIDEOSHOT
+# (does the page's small look alone stop YouTube's video? the page's size unchanged)
+echo "the small look alone: $(python3 android/ci-cdp.py "$YT" "new Promise(function(ok){window.__waiMini(true);setTimeout(function(){var v=document.querySelector('video');var r={paused:v.paused,t:v.currentTime};window.__waiMini(false);ok(r)},4000)})")"
 adb shell input keyevent KEYCODE_BACK; sleep 4
 adb logcat -d -s WaiYT:* | grep -E 'state|pip' | tail -3
 echo "small over the app: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {mini:document.documentElement.classList.contains('wai-mini'),w:innerWidth,h:innerHeight,t:v&&v.currentTime,paused:v&&v.paused}})()")"

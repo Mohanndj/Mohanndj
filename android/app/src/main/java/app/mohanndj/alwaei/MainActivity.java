@@ -184,6 +184,7 @@ public class MainActivity extends Activity {
     @Override
     public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
         launching = true;
+        pipParams();
         super.startActivityForResult(intent, requestCode, options);
     }
 
@@ -206,7 +207,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT < 26 || yt == null) return;
         try {
             PictureInPictureParams.Builder b = new PictureInPictureParams.Builder().setAspectRatio(new Rational(16, 9));
-            if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(yt.isOpen() && yt.playing);
+            if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(yt.isOpen() && yt.playing && !launching);
             setPictureInPictureParams(b.build());
         } catch (Exception e) {
             Log.w(TAG, "pip " + e);
@@ -226,7 +227,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT < 31 && !launching) toPip();
+        if (!launching && !isInPictureInPictureMode()) toPip(); // (Android 12 and later may already have entered it by itself)
     }
 
     @Override

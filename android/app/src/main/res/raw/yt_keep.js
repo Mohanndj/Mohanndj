@@ -102,12 +102,13 @@
     + '#wai-sheet .wai-done b{text-decoration:line-through;color:#909090}'
     + '#wai-sheet .wai-empty{color:#606060;padding:10px 0}'
     + 'html.wai-mini #wai-keep,html.wai-mini #wai-sheet,html.wai-mini #wai-home,html.wai-busy #wai-keep{display:none!important}'
-    // (the app's small windows: the video alone, filling the page)
+    // (the app's small windows: the page keeps its size and is drawn smaller from its top: the video alone at its top,
+    // the whole width, in its 16:9)
     + 'html.wai-mini,html.wai-mini body{overflow:hidden!important;background:#000!important}'
     + 'html.wai-mini #player-container-id,html.wai-mini .player-container,html.wai-mini #movie_player,html.wai-mini .html5-video-player{position:fixed!important;'
-    + 'top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;max-height:none!important;'
+    + 'top:0!important;left:0!important;width:100vw!important;height:56.25vw!important;max-height:none!important;'
     + 'margin:0!important;padding:0!important;transform:none!important;z-index:2147483646!important;background:#000!important}'
-    + 'html.wai-mini video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;object-fit:contain!important;'
+    + 'html.wai-mini video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:56.25vw!important;object-fit:contain!important;'
     + 'transform:none!important;z-index:2147483647!important;background:#000!important}';
   function css() {
     if (document.getElementById('wai-keep-css') || !(document.head || document.documentElement)) return;

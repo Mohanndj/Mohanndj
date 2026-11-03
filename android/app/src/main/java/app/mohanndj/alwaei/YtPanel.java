@@ -56,6 +56,9 @@ final class YtPanel {
     private TextView close;
     private View full; // a video on the whole screen (YouTube's own button, or the page made small and wide)
     private boolean fullInBox; // …kept inside the small window
+    // the page's own size while it is whole: kept when it is small, only drawn smaller (YouTube stops its video when its
+    // page is made small: seen on GitHub's emulator)
+    private int baseW, baseH;
     private WebChromeClient.CustomViewCallback fullCb;
     private String script = "";
     private int blocked;
@@ -118,6 +121,8 @@ final class YtPanel {
         cl.setMargins(dp(4), dp(4), dp(4), dp(4));
         box.addView(close, cl);
         box.setElevation(dp(8));
+        box.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit());
+        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (state == FULL && !pip && r - l > 0) { baseW = r - l; baseH = b - t; } });
         root.addView(box);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -161,6 +166,7 @@ final class YtPanel {
     void layout() {
         if (box == null) return;
         boolean small = state == MINI && !pip;
+        if (state == FULL && !pip && root.getWidth() > 0) { baseW = root.getWidth(); baseH = root.getHeight(); }
         FrameLayout.LayoutParams lp;
         if (state == HIDDEN) {
             box.setVisibility(View.GONE);
@@ -182,6 +188,29 @@ final class YtPanel {
         cover.setVisibility(small ? View.VISIBLE : View.GONE);
         close.setVisibility(small ? View.VISIBLE : View.GONE);
         mini(small || pip);
+        fit();
+    }
+
+    // small (in the app, or the phone's small window): YouTube's page keeps its whole size, drawn smaller from its top
+    // left, where its video is put (yt_keep.js), and the window shows that much of it
+    private void fit() {
+        if (web == null || box == null) return;
+        boolean small = state == MINI || pip;
+        FrameLayout.LayoutParams wl = (FrameLayout.LayoutParams) web.getLayoutParams();
+        if (small && baseW > 0) {
+            if (wl.width != baseW || wl.height != baseH) { wl.width = baseW; wl.height = baseH; web.setLayoutParams(wl); }
+            float s = box.getWidth() > 0 ? box.getWidth() / (float) baseW : 0.5f;
+            web.setPivotX(0);
+            web.setPivotY(0);
+            web.setScaleX(s);
+            web.setScaleY(s);
+        } else {
+            if (wl.width != ViewGroup.LayoutParams.MATCH_PARENT || wl.height != ViewGroup.LayoutParams.MATCH_PARENT) {
+                wl.width = ViewGroup.LayoutParams.MATCH_PARENT; wl.height = ViewGroup.LayoutParams.MATCH_PARENT; web.setLayoutParams(wl);
+            }
+            web.setScaleX(1);
+            web.setScaleY(1);
+        }
     }
 
     // the page's video alone, filling the small window (yt_keep.js)
