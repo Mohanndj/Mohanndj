@@ -79,6 +79,29 @@ echo "the app's page with YouTube small: $(python3 android/ci-cdp.py "$WS" 'docu
 echo "the keep script: $(python3 android/ci-cdp.py "$YT" 'JSON.stringify(window.__waiKeep)')"
 adb logcat -d -s WaiYT:* | grep -E 'whole screen' | tail -3
 shot MINISHOT
+# (v161: «—» on the small window: the video on, a small floating icon; a tap on the icon: the small window again)
+tapdesc() { adb shell uiautomator dump /sdcard/y.xml > /dev/null 2>&1; adb pull /sdcard/y.xml y.xml > /dev/null 2>&1 || : > y.xml
+  python3 - "$1" <<'PY'
+import re, sys
+x = open("y.xml", encoding="utf-8").read()
+m = re.search(r'content-desc="' + re.escape(sys.argv[1]) + r'"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print("%d %d" % ((int(m[1]) + int(m[3])) // 2, (int(m[2]) + int(m[4])) // 2) if m else "")
+PY
+}
+P=$(tapdesc "صغّره إلى أيقونة"); echo "the «—» at: $P"
+if [ -n "$P" ]; then
+  adb shell input tap $P; sleep 6
+  adb logcat -d -s WaiYT:* | grep -E 'state|played again' | tail -3
+  echo "as an icon: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused,hidden:document.hidden}})()")"
+  sleep 5
+  echo "…and later: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
+  shot ICONSHOT
+  I=$(tapdesc "يوتيوب: افتح النافذة الصغيرة"); echo "the icon at: $I"
+  [ -n "$I" ] && { adb shell input swipe $I $((${I% *} + 60)) $((${I#* } - 200)) 400; sleep 2; I=$(tapdesc "يوتيوب: افتح النافذة الصغيرة"); echo "the icon moved to: $I"; adb shell input tap $I; sleep 4; }
+  adb logcat -d -s WaiYT:* | grep -E 'state' | tail -2
+  echo "small again: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&v.currentTime,paused:v&&v.paused}})()")"
+  shot MINI2SHOT
+else warn "no «—» on the small window"; fi
 # (if it paused going small, started again here, to see the small window over everything)
 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v&&v.paused?v.play().then(function(){return 'played again'},function(e){return 'no '+e}):'playing'})()"
 sleep 4

@@ -45,7 +45,7 @@ import java.util.Scanner;
 final class YtPanel {
     static final String TAG = "WaiYT";
     private static final String HOME = "https://m.youtube.com/";
-    static final int HIDDEN = 0, FULL = 1, MINI = 2;
+    static final int HIDDEN = 0, FULL = 1, MINI = 2, ICON = 3; // (ICON, v161: the video playing on, only a small floating icon shown)
 
     private final Activity act;
     private final FrameLayout root; // the app's screen: its page, then this panel over it
@@ -53,12 +53,13 @@ final class YtPanel {
     private FrameLayout box; // the panel: YouTube's page, and in MINI a cover for the tap and the «×»
     private WebView web;
     private View cover;
-    private TextView close;
+    private TextView close, shrink;
+    private TextView icon; // v161: the floating icon, moved by the finger, a tap opening the small window again
     private View full; // a video on the whole screen (YouTube's own button, or the page made small and wide)
     private boolean fullInBox; // …kept inside the small window
-    // the page's own size while it is whole: kept when it is small, only drawn smaller (YouTube stops its video when its
-    // page is made small: seen on GitHub's emulator)
-    private int baseW, baseH;
+    // (v161: the page is made small for real again: drawn smaller, it was black on his phone; and if YouTube stops its
+    // video for being made small, it is started again where it was)
+    private long resumeUntil;
     private WebChromeClient.CustomViewCallback fullCb;
     private String script = "";
     private int blocked;
@@ -74,7 +75,6 @@ final class YtPanel {
         this.act = act;
         this.root = root;
         this.cb = cb;
-        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (state == FULL && !pip && r - l > 0) { baseW = r - l; baseH = b - t; } });
     }
 
     private int dp(float v) {
@@ -121,8 +121,23 @@ final class YtPanel {
         FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.END);
         cl.setMargins(dp(4), dp(4), dp(4), dp(4));
         box.addView(close, cl);
+        // v161, the owner: «نفذ زر التصغير بحيث يكون شغال في الخلفية وتوجد أيقونة عائمة صغيرة جدا تتنقل ويمكن الضغط عليها
+        // لتفتح النافذة الصغيرة للمقطع»: «—» beside «×»
+        shrink = new TextView(act);
+        shrink.setText("—");
+        shrink.setTextColor(Color.WHITE);
+        shrink.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        shrink.setGravity(Gravity.CENTER);
+        shrink.setContentDescription("صغّره إلى أيقونة");
+        GradientDrawable dot2 = new GradientDrawable();
+        dot2.setShape(GradientDrawable.OVAL);
+        dot2.setColor(0xCC000000);
+        shrink.setBackground(dot2);
+        shrink.setOnClickListener(v -> setState(ICON));
+        FrameLayout.LayoutParams sl = new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP | Gravity.END);
+        sl.setMargins(dp(4), dp(4), dp(40), dp(4));
+        box.addView(shrink, sl);
         box.setElevation(dp(8));
-        box.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit());
         root.addView(box);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -149,6 +164,8 @@ final class YtPanel {
                     if (web != w) return; // (an answer from a YouTube closed since)
                     boolean was = playing;
                     playing = "true".equals(r);
+                    // (stopped by YouTube for being made small or whole: started again, within a moment of it only)
+                    if (was && !playing && (state != FULL || pip) && System.currentTimeMillis() < resumeUntil) { playing = true; playAgain(); }
                     if (was != playing && act instanceof MainActivity) ((MainActivity) act).pipParams();
                 });
         root.removeCallbacks(poller);
@@ -161,14 +178,14 @@ final class YtPanel {
         state = s;
         layout();
         cb.changed();
-        Log.i(TAG, "state " + s); // (for the build's check: 1 whole, 2 small over the app's pages)
+        Log.i(TAG, "state " + s); // (for the build's check: 1 whole, 2 small over the app's pages, 3 the icon)
     }
 
     /** The panel's place and look for its state (and in the phone's small window, the whole of it). */
     void layout() {
         if (box == null) return;
-        boolean small = state == MINI && !pip;
-        if (state == FULL && !pip && root.getWidth() > 0) { baseW = root.getWidth(); baseH = root.getHeight(); }
+        boolean small = (state == MINI || state == ICON) && !pip, away = state == ICON && !pip;
+        int was = box.getWidth();
         FrameLayout.LayoutParams lp;
         if (state == HIDDEN) {
             box.setVisibility(View.GONE);
@@ -184,35 +201,83 @@ final class YtPanel {
                 lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             }
             box.setLayoutParams(lp);
+            // (as an icon: the small window out of the screen, still shown to its page, so YouTube plays on)
+            box.setTranslationY(away ? Math.max(root.getHeight(), dp(800)) * 2f : 0);
             box.bringToFront();
             if (full != null && !fullInBox) full.bringToFront();
         }
-        cover.setVisibility(small ? View.VISIBLE : View.GONE);
-        close.setVisibility(small ? View.VISIBLE : View.GONE);
+        boolean mini = state == MINI && !pip;
+        cover.setVisibility(mini ? View.VISIBLE : View.GONE);
+        close.setVisibility(mini ? View.VISIBLE : View.GONE);
+        shrink.setVisibility(mini ? View.VISIBLE : View.GONE);
+        icon(away);
         mini(small || pip);
-        fit();
+        // (a new size: if YouTube stops its video for it, it is started again)
+        if (playing) resumeUntil = System.currentTimeMillis() + 4000;
+        if (playing && was != 0) { root.postDelayed(this::playAgain, 700); root.postDelayed(this::playAgain, 1800); }
     }
 
-    // small (in the app, or the phone's small window): YouTube's page keeps its whole size, drawn smaller from its top
-    // left, where its video is put (yt_keep.js), and the window shows that much of it
-    private void fit() {
-        if (web == null || box == null) return;
-        boolean small = state == MINI || pip;
-        FrameLayout.LayoutParams wl = (FrameLayout.LayoutParams) web.getLayoutParams();
-        if (small && baseW > 0) {
-            if (wl.width != baseW || wl.height != baseH) { wl.width = baseW; wl.height = baseH; web.setLayoutParams(wl); }
-            float s = box.getWidth() > 0 ? box.getWidth() / (float) baseW : 0.5f;
-            web.setPivotX(0);
-            web.setPivotY(0);
-            web.setScaleX(s);
-            web.setScaleY(s);
-        } else {
-            if (wl.width != ViewGroup.LayoutParams.MATCH_PARENT || wl.height != ViewGroup.LayoutParams.MATCH_PARENT) {
-                wl.width = ViewGroup.LayoutParams.MATCH_PARENT; wl.height = ViewGroup.LayoutParams.MATCH_PARENT; web.setLayoutParams(wl);
-            }
-            web.setScaleX(1);
-            web.setScaleY(1);
+    // the video started again if it stopped (not if it ended), within a moment of a new size only
+    private void playAgain() {
+        if (web == null || System.currentTimeMillis() > resumeUntil) return;
+        web.evaluateJavascript("(function(){try{var v=document.querySelector('video');if(v&&v.paused&&!v.ended&&v.currentTime>0){v.play().catch(function(){});return 1}}catch(e){}return 0})()",
+                r -> { if ("1".equals(r)) Log.i(TAG, "played again"); });
+    }
+
+    // the floating icon: a small round one, moved by the finger and kept where it is left; a tap opens the small window
+    private void icon(boolean show) {
+        if (!show) { if (icon != null) icon.setVisibility(View.GONE); return; }
+        if (icon == null) {
+            icon = new TextView(act);
+            icon.setText("▶");
+            icon.setTextColor(Color.WHITE);
+            icon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            icon.setGravity(Gravity.CENTER);
+            icon.setContentDescription("يوتيوب: افتح النافذة الصغيرة");
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(0xEE0F766E);
+            dot.setStroke(dp(2), Color.WHITE);
+            icon.setBackground(dot);
+            icon.setElevation(dp(10));
+            root.addView(icon, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
+            final float[] at = new float[4];
+            final boolean[] moved = new boolean[1];
+            final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
+            icon.setOnTouchListener((v, e) -> {
+                switch (e.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        at[0] = e.getRawX(); at[1] = e.getRawY(); at[2] = v.getX(); at[3] = v.getY(); moved[0] = false;
+                        return true;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        float dx = e.getRawX() - at[0], dy = e.getRawY() - at[1];
+                        if (!moved[0] && Math.hypot(dx, dy) < slop) return true;
+                        moved[0] = true;
+                        v.setX(Math.max(0, Math.min(root.getWidth() - v.getWidth(), at[2] + dx)));
+                        v.setY(Math.max(0, Math.min(root.getHeight() - v.getHeight(), at[3] + dy)));
+                        return true;
+                    case android.view.MotionEvent.ACTION_UP:
+                        if (moved[0]) {
+                            act.getSharedPreferences("yt", 0).edit().putFloat("ix", v.getX() / Math.max(1, root.getWidth()))
+                                    .putFloat("iy", v.getY() / Math.max(1, root.getHeight())).apply();
+                        } else setState(MINI);
+                        return true;
+                    default:
+                        return true;
+                }
+            });
         }
+        icon.setVisibility(View.VISIBLE);
+        icon.bringToFront();
+        // (where it was left, else at the bottom on the left, where the small window was)
+        icon.post(() -> {
+            if (icon == null) return;
+            float fx = act.getSharedPreferences("yt", 0).getFloat("ix", -1), fy = act.getSharedPreferences("yt", 0).getFloat("iy", -1);
+            int w = root.getWidth(), h = root.getHeight();
+            float x = fx >= 0 ? fx * w : dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
+            icon.setX(Math.max(0, Math.min(w - icon.getWidth(), x)));
+            icon.setY(Math.max(0, Math.min(h - icon.getHeight(), y)));
+        });
     }
 
     // the page's video alone, filling the small window (yt_keep.js)
@@ -232,6 +297,7 @@ final class YtPanel {
         state = HIDDEN;
         w.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave();(function(){var v=document.querySelector('video');if(v)v.pause()})()", null);
         if (box != null) box.setVisibility(View.GONE);
+        if (icon != null) { root.removeView(icon); icon = null; }
         cb.changed();
         View b = box;
         box = null;
@@ -266,6 +332,7 @@ final class YtPanel {
 
     void destroy() {
         root.removeCallbacks(poller);
+        if (icon != null) { root.removeView(icon); icon = null; }
         if (box != null) root.removeView(box);
         if (web != null) web.destroy();
         web = null;
