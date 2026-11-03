@@ -74,6 +74,7 @@ final class YtPanel {
         this.act = act;
         this.root = root;
         this.cb = cb;
+        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (state == FULL && !pip && r - l > 0) { baseW = r - l; baseH = b - t; } });
     }
 
     private int dp(float v) {
@@ -122,7 +123,6 @@ final class YtPanel {
         box.addView(close, cl);
         box.setElevation(dp(8));
         box.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fit());
-        root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (state == FULL && !pip && r - l > 0) { baseW = r - l; baseH = b - t; } });
         root.addView(box);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -143,8 +143,10 @@ final class YtPanel {
 
     private void poll() {
         if (web == null) return;
+        final WebView w = web;
         web.evaluateJavascript("(function(){try{var v=document.querySelector('video');return !!(v&&!v.paused&&!v.ended&&v.currentTime>0)}catch(e){return false}})()",
                 r -> {
+                    if (web != w) return; // (an answer from a YouTube closed since)
                     boolean was = playing;
                     playing = "true".equals(r);
                     if (was != playing && act instanceof MainActivity) ((MainActivity) act).pipParams();

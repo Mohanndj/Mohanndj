@@ -160,9 +160,8 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         launching = false;
-        web.onResume();
         yt.resume();
-        ytChanged();
+        ytChanged(); // (the app's page resumed there, unless YouTube is whole over it)
     }
 
     // v160: the app out of sight (left without the small window, the screen turned off, or the small window closed):
@@ -185,7 +184,13 @@ public class MainActivity extends Activity {
     public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
         launching = true;
         pipParams();
-        super.startActivityForResult(intent, requestCode, options);
+        try {
+            super.startActivityForResult(intent, requestCode, options);
+        } catch (RuntimeException e) { // (nothing opened: the app stays as it was)
+            launching = false;
+            pipParams();
+            throw e;
+        }
     }
 
     /** YouTube shown, made small or whole, or closed: the app's page hidden behind it when it is whole (so the page
@@ -526,6 +531,8 @@ public class MainActivity extends Activity {
     private void printPage(String title) {
         String job = title == null || title.isEmpty() ? NAME : title;
         PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+        launching = true; // (the phone's print screen: not a leaving for the small window)
+        pipParams();
         pm.print(job, web.createPrintDocumentAdapter(job), new PrintAttributes.Builder().build());
     }
 
