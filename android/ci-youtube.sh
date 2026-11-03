@@ -88,9 +88,7 @@ def ev(expr):
     return r.get("result", {}).get("result", {}).get("value")
 PLAY = "(function(){var v=document.querySelector('video');return v?v.play().then(function(){return 'ok'},function(e){return 'no '+e.name}):'none'})()"
 STATE = "(function(){var v=document.querySelector('video'),p=document.querySelector('#movie_player,.html5-video-player');return {paused:v.paused,t:Math.round(v.currentTime*10)/10,w:innerWidth,h:innerHeight,pw:p&&p.offsetWidth,ph:p&&p.offsetHeight,cls:p?String(p.className).slice(0,160):''}})()"
-TRY = [("phone size", None, None), ("206x116", (206, 116), None), ("412x232", (412, 232), None), ("356x200", (356, 200), None),
-       ("300x200", (300, 200), None), ("200x200", (200, 200), None), ("199x200", (199, 200), None), ("400x199", (400, 199), None),
-       ("206x116 and the player 412x232 drawn at half", (206, 116), "scale")]
+TRY = [("phone size", None, None)] + [("%dx%d" % wh, wh, None) for wh in [(150, 84), (170, 96), (180, 101), (192, 108), (240, 135), (280, 158), (320, 180), (480, 320), (320, 400), (260, 260), (170, 120), (170, 80)]]
 CSS = "(function(on){var s=document.getElementById('wai-exp');if(!on){if(s)s.remove();return 0}if(!s){s=document.createElement('style');s.id='wai-exp';document.documentElement.appendChild(s)}s.textContent='#player-container-id,.player-container,#movie_player,.html5-video-player{position:fixed!important;top:0!important;left:0!important;width:412px!important;height:232px!important;max-height:none!important;transform:scale(.5)!important;transform-origin:0 0!important;z-index:2147483646!important}video{width:412px!important;height:232px!important;left:0!important;top:0!important}';return 1})"
 for name, size, css in TRY:
     cmd("Emulation.clearDeviceMetricsOverride"); ev(CSS + "(false)"); time.sleep(1)
