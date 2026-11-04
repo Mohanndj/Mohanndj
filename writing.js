@@ -622,11 +622,27 @@ function wrDirty() {
   wrState.timer = setTimeout(wrSaveNow, wrState.hist.length && wrState.hist[wrState.hi] && wrState.hist[wrState.hi].html.length > 1e6 ? 2500 : 700);
   wrStatus('يحفظ…');
 }
+// v165 (his words: «نص المنشور يصغر إذا خرجت وطولت في الخارج مع إني واضعه على حجم مريح للعين»): text typed in place of
+// enlarged text has its size written by the browser in pixels, which wrSafe does not keep (sizes are kept relative,
+// «em»); so it looked large and was saved at the usual size. Before saving, such a size is made relative to its paragraph.
+function wrEmSizes() {
+  const body = $('wrBody');
+  if (!body) return;
+  for (const el of body.querySelectorAll('[style*="font-size"]')) {
+    const v = el.style.fontSize;
+    if (!v || /^\d+(\.\d+)?em$/.test(v)) continue;
+    const px = parseFloat(getComputedStyle(el).fontSize), base = parseFloat(getComputedStyle(el.parentNode).fontSize);
+    const em = px > 0 && base > 0 ? Math.round(Math.min(4, Math.max(0.5, px / base)) * 100) / 100 : 1;
+    el.style.fontSize = em === 1 ? '' : `${em}em`;
+  }
+}
+
 function wrSaveNow() {
   if (!wrState || !wrState.dirty) return;
   clearTimeout(wrState.timer);
   const c = wrState.ch, b = wrState.book;
   if (b.kind === 'book') c.title = $('wrTitle').value.trim(); else b.title = $('wrTitle').value.trim();
+  wrEmSizes();
   c.html = wrSafe($('wrBody').innerHTML);
   c.updated = Date.now();
   wrState.dirty = false;
