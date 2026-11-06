@@ -6,8 +6,11 @@
 (function () {
   // (once a page, and only on Twitter's own: run again later if the page's address is not known yet, as at its start)
   if (window.__waiX && window.__waiX.on) return;
-  if (!/(^|\.)(x|twitter)\.com$/.test(location.hostname)) { window.__waiX = { on: false, host: location.hostname }; return; }
+  // (nor before the page has its root: what it adds goes into the page, so it waits for the next run)
+  if (!/(^|\.)(x|twitter)\.com$/.test(location.hostname) || !document.documentElement) { window.__waiX = { on: false, host: location.hostname }; return; }
   var st = window.__waiX = { on: true, home: false, explore: false, list: false, hid: 0 };
+  // (anything failing on the way: not done, so the next run tries again, and the error is kept for the log)
+  try {
   var KEY = 'wai-xlist';
   function mine() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
   function keep(v) { try { localStorage.setItem(KEY, v); } catch (e) { st.err = 'store'; } }
@@ -136,4 +139,5 @@
   }
   try { draw(); } catch (e) { st.err = String(e && e.message || e); }
   setInterval(function () { try { draw(); } catch (e) { st.err = String(e && e.message || e); } }, 700);
+  } catch (e) { window.__waiX = { on: false, err: String(e && e.message || e) }; }
 })();
