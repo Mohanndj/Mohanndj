@@ -40,8 +40,7 @@
     // (the line on top of the page, and the page itself moved down under it: Twitter's sign-in page covers the screen)
     + '#wai-xsign{display:none;position:fixed;top:0;left:0;right:0;z-index:2147483002;box-sizing:border-box;height:40px;margin:0;padding:0 12px;background:#e6f2f0;color:#0f4f4a;font:600 14px/40px sans-serif;direction:rtl;text-align:center;white-space:nowrap;overflow:hidden}'
     + 'html.wai-xsign #wai-xsign{display:block}'
-    // (and no taller than what is left under the line, so a button at the page's bottom, «التالي» or «دخول», stays seen)
-    + 'html.wai-xsign body>*:not(#wai-xsign):not(script):not(style){transform:translateY(40px);max-height:calc(100vh - 40px);overflow-y:auto}'
+    + 'html.wai-xsign body>*:not(#wai-xsign):not(script):not(style){transform:translateY(40px)}'
     + 'html.wai-xsign iframe[src*="accounts.google.com"],html.wai-xsign [data-testid="apple_sign_in_button"],html.wai-xsign .jf-gsi-shell{display:none!important}';
   (document.head || document.documentElement).appendChild(css);
 
