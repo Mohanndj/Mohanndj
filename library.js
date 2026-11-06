@@ -182,6 +182,7 @@ function moreTiles() {
     ['inspire', 'spark', 'الإلهام', S.inspire.length ? `عبارات وصور: ${S.inspire.length}` : ''],
     ['report', 'sheet', 'التقارير', ''],
     ['youtube', 'play', 'يوتيوب', ''], // (v152: YouTube with its ads blocked, in the Android app)
+    ['twitter', 'chat', 'تويتر', ''], // (v166: Twitter to tweet, and to read his own List only, in the Android app)
     ['writing', 'edit', 'مؤلفاتي', ''], // (v154: books he writes, in place of Word)
   ];
 }

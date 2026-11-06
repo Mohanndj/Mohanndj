@@ -77,6 +77,7 @@ public class MainActivity extends Activity {
     private volatile boolean pageReady; // the page has started and asked for what happened while it was closed
     // v160: «يوتيوب» over the app's page (YtPanel): whole, or (v161) hidden behind a floating icon playing on
     private YtPanel yt;
+    private XPanel xp; // v166: «تويتر», over the app's page like YouTube
     private FrameLayout root;
     private boolean resumed, stopped, launching;
     private BroadcastReceiver screenOff;
@@ -96,6 +97,7 @@ public class MainActivity extends Activity {
             @Override public void changed() { ytChanged(); }
             @Override public void playing(boolean on) { if (!on) YtService.stop(MainActivity.this); }
         });
+        xp = new XPanel(this, root, this::ytChanged);
         // v161 (his answer in v161: the screen turned off, it stops): also with the app left and the video playing on
         screenOff = new BroadcastReceiver() {
             @Override public void onReceive(Context c, Intent i) {
@@ -133,6 +135,7 @@ public class MainActivity extends Activity {
         try { unregisterReceiver(screenOff); } catch (Exception ignored) {}
         YtService.stop(this);
         yt.destroy();
+        xp.destroy();
         if (speech != null) speech.destroy();
         super.onDestroy();
     }
@@ -180,6 +183,7 @@ public class MainActivity extends Activity {
         launching = false;
         YtService.stop(this); // (back in the app: no notification; YouTube or its icon is here)
         yt.resume();
+        xp.resume();
         ytChanged(); // (the app's page resumed there, unless YouTube is whole over it)
     }
 
@@ -195,6 +199,7 @@ public class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         stopped = true;
+        xp.pause();
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (yt.playing && (pm == null || pm.isInteractive())) yt.keep();
         else { yt.pause(true); YtService.stop(this); }
@@ -221,7 +226,7 @@ public class MainActivity extends Activity {
     /** YouTube shown, hidden behind its icon, or closed: the app's page hidden behind it when it is whole (so the page
      *  knows it is not seen, and the app itself rings an alarm, as when YouTube was a window of its own). */
     private void ytChanged() {
-        boolean whole = yt.state == YtPanel.FULL;
+        boolean whole = yt.state == YtPanel.FULL || xp.isOpen(); // (v166: «تويتر» open is whole too)
         web.setVisibility(whole ? View.INVISIBLE : View.VISIBLE);
         // (the page told it is out of sight, as when YouTube was a window of its own: so it does not ring an alarm
         // behind YouTube, the app does)
@@ -235,6 +240,7 @@ public class MainActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        if (xp.back()) return; // (v166: «تويتر» open: its steps, then closed)
         if (yt.back()) return; // (YouTube whole: its steps; a video playing goes behind the floating icon)
         if (web.canGoBack()) web.goBack();
         else moveTaskToBack(true); // (a video playing plays on: onPause)
@@ -319,22 +325,7 @@ public class MainActivity extends Activity {
         // «اختر ملفاً»: a backup to restore, an Excel file, a photo
         @Override
         public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb, FileChooserParams p) {
-            if (fileCb != null) fileCb.onReceiveValue(null);
-            fileCb = cb;
-            boolean images = true;
-            String[] acc = p.getAcceptTypes();
-            if (acc == null || acc.length == 0) images = false;
-            else for (String a : acc) if (a == null || !a.startsWith("image/")) images = false;
-            Intent i = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType(images ? "image/*" : "*/*");
-            if (p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-            try {
-                startActivityForResult(i, REQ_FILE);
-            } catch (Exception e) {
-                fileCb = null;
-                cb.onReceiveValue(null);
-                toast("لا يوجد في جوالك تطبيق لاختيار الملفات");
-            }
-            return true;
+            return chooseFiles(cb, p);
         }
 
         // the microphone, for this page only
@@ -378,6 +369,26 @@ public class MainActivity extends Activity {
             Log.i(TAG, "console " + m.messageLevel() + ": " + m.message() + " @" + m.sourceId() + ":" + m.lineNumber());
             return true;
         }
+    }
+
+    /** The phone's chooser for a file (the app's page; v166: also a picture to tweet in «تويتر», XPanel). */
+    boolean chooseFiles(ValueCallback<Uri[]> cb, WebChromeClient.FileChooserParams p) {
+        if (fileCb != null) fileCb.onReceiveValue(null);
+        fileCb = cb;
+        boolean images = true;
+        String[] acc = p.getAcceptTypes();
+        if (acc == null || acc.length == 0) images = false;
+        else for (String a : acc) if (a == null || !a.startsWith("image/")) images = false;
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType(images ? "image/*" : "*/*");
+        if (p.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        try {
+            startActivityForResult(i, REQ_FILE);
+        } catch (Exception e) {
+            fileCb = null;
+            cb.onReceiveValue(null);
+            toast("لا يوجد في جوالك تطبيق لاختيار الملفات");
+        }
+        return true;
     }
 
     @Override
@@ -757,6 +768,13 @@ public class MainActivity extends Activity {
         public void openYoutube() {
             if (!allowed()) return;
             runOnUiThread(() -> yt.open());
+        }
+
+        // v166: «تويتر» in «المزيد»: Twitter over the app's page in a WebView of its own (XPanel), no bridge there
+        @JavascriptInterface
+        public void openX() {
+            if (!allowed()) return;
+            runOnUiThread(() -> xp.open());
         }
 
         // …and the phone's page where «الظهور فوق التطبيقات الأخرى» is given to this app

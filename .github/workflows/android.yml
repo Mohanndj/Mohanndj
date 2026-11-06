@@ -108,7 +108,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: bash android/ci-smoke.sh && bash android/ci-widget.sh && bash android/ci-alarm.sh && bash android/ci-youtube.sh
+          script: bash android/ci-smoke.sh && bash android/ci-widget.sh && bash android/ci-alarm.sh && bash android/ci-youtube.sh && bash android/ci-x.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

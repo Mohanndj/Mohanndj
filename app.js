@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 165;
+const APP_VERSION = 166;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -46,6 +46,7 @@ const ICONS = {
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   play: 'M5 4l15 8-15 8z',
+  chat: 'M4 5h16v11H9l-5 4z',
   flag: 'M4 22V4M4 4h13l-2 4 2 4H4',
   tag: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01',
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
@@ -1086,7 +1087,7 @@ const VIEWS = {
   today: viewToday, tasks: viewTasks, timer: () => viewTimer(), calendar: () => moreCrumb() + viewCalendar(), habits: viewHabits, plan: viewPlan,
   settings: viewSettings, ...LibraryViews,
 };
-const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'youtube', 'writing'];
+const MORE_TABS = ['more', 'reminders', 'calendar', 'habits', 'health', 'shop', 'finance', 'cv', 'ideas', 'journal', 'hifz', 'people', 'decisions', 'study', 'notes', 'books', 'benefits', 'inspire', 'archive', 'report', 'youtube', 'twitter', 'writing'];
 
 function render() {
   const view = $('view');
@@ -2818,6 +2819,7 @@ function restoreWhere() {
   if (w && w.tab === 'stats') { w.tab = 'plan'; w.kh = 'stats'; } // and «الإحصائيات» its «إحصائياتي» (v99)
   if (!w || !VIEWS[w.tab]) return null;
   if (w.tab === 'youtube' && ytCan()) w.tab = 'more'; // (its tile opens YouTube itself in the app, v153)
+  if (w.tab === 'twitter' && xCan()) w.tab = 'more'; // (and Twitter's, v166)
   ui.tab = w.tab;
   ui.project = w.project || '';
   if (w.sci) studyUi.sci = w.sci;
