@@ -136,9 +136,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # (on the branch as it is now: a run before this one may have put its own file there after this one began; the
+          # runs go one at a time, so this newer file replaces it)
+          cp alwaei.apk "$RUNNER_TEMP/alwaei.apk"
+          git fetch origin "$GITHUB_REF_NAME"
+          git checkout -B site FETCH_HEAD
+          cp "$RUNNER_TEMP/alwaei.apk" alwaei.apk
           git add alwaei.apk
           git commit -m "Android app ${{ github.run_number }}: its file on the site"
-          git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
