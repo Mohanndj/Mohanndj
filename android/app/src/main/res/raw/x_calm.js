@@ -98,7 +98,7 @@
     var h = document.documentElement;
     h.classList.toggle('wai-xhome', isHome);
     h.classList.toggle('wai-xexplore', st.explore);
-    h.classList.toggle('wai-xcompose', /^\/(compose\/|i\/flow\/|login|logout|account\/)/.test(p)); // (no bar over tweeting or signing in)
+    h.classList.toggle('wai-xcompose', /^\/(compose\/|i\/flow\/|i\/jf\/|login|logout|signup|account\/)/.test(p)); // (no bar over tweeting or signing in)
     bMine.style.display = isList && mine() !== p.replace(/\/$/, '') ? '' : 'none';
     if (isList && mine() === p.replace(/\/$/, '')) homeMsg.textContent = '';
     if (!mine() && !homeMsg.textContent) homeMsg.textContent = 'ضع من تختارهم في قائمة خاصة في حسابك، ثم افتحها واضغط «اجعلها قائمتي».';
