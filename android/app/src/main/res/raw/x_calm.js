@@ -41,7 +41,7 @@
     + '#wai-xsign{display:none;position:fixed;top:0;left:0;right:0;z-index:2147483002;box-sizing:border-box;height:40px;margin:0;padding:0 12px;background:#e6f2f0;color:#0f4f4a;font:600 14px/40px sans-serif;direction:rtl;text-align:center;white-space:nowrap;overflow:hidden}'
     + 'html.wai-xsign #wai-xsign{display:block}'
     + 'html.wai-xsign body>*:not(#wai-xsign):not(script):not(style){transform:translateY(40px)}'
-    + 'html.wai-xsign iframe[src*="accounts.google.com"],html.wai-xsign [data-testid="apple_sign_in_button"]{display:none!important}';
+    + 'html.wai-xsign iframe[src*="accounts.google.com"],html.wai-xsign [data-testid="apple_sign_in_button"],html.wai-xsign .jf-gsi-shell{display:none!important}';
   (document.head || document.documentElement).appendChild(css);
 
   // «من تتابع» and the like inside a timeline: the cell with its «show more» link, and the cells of people above it
@@ -85,6 +85,14 @@
       var b = all[i];
       if (b.classList.contains('wai-x-gone') || b.closest('#wai-xbar,#wai-xhome')) continue;
       if (/(Google|Apple|جوجل|غوغل|قوقل|آبل|أبل(?!غ))/.test(b.textContent || '') && (b.textContent || '').length < 60) { b.classList.add('wai-x-gone'); st.hid++; }
+    }
+    // (Twitter draws the Google button itself, in a box of its own around Google's frame: the box, and its row when it
+    // holds nothing else)
+    var sh = document.querySelectorAll('.jf-gsi-shell');
+    for (var k = 0; k < sh.length; k++) {
+      var row = sh[k].parentElement;
+      var gone = row && row !== document.body && row.children.length === 1 ? row : sh[k];
+      if (!gone.classList.contains('wai-x-gone')) { gone.classList.add('wai-x-gone'); st.hid++; }
     }
     var fr = document.querySelectorAll('iframe[src*="accounts.google.com"]');
     for (var j = 0; j < fr.length; j++) {
