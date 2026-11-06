@@ -31,7 +31,11 @@
     + '.wai-xbtn.ghost{background:#fff;color:#0f766e;border:1.5px solid #0f766e}'
     + '#wai-xbar{position:fixed;left:10px;bottom:72px;z-index:2147483001;display:flex;gap:8px;direction:rtl;font-family:sans-serif}'
     + '#wai-xbar button{border:0;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;background:#0f766e;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);font-family:inherit}'
-    + 'html.wai-xhome #wai-xbar,html.wai-xcompose #wai-xbar{display:none}';
+    + 'html.wai-xhome #wai-xbar,html.wai-xcompose #wai-xbar{display:none}'
+    // (his answer: «المطلوب أن أدخل بحساباتي فقط لا من قوقل»: a line above the sign-in pages, and no Google or Apple)
+    + '#wai-xsign{display:none;margin:0;padding:10px 16px;background:#e6f2f0;color:#0f4f4a;font:600 15px/1.6 sans-serif;direction:rtl;text-align:center}'
+    + 'html.wai-xsign #wai-xsign{display:block}'
+    + 'html.wai-xsign iframe[src*="accounts.google.com"],html.wai-xsign [data-testid="apple_sign_in_button"]{display:none!important}';
   (document.head || document.documentElement).appendChild(css);
 
   // «من تتابع» and the like inside a timeline: the cell with its «show more» link, and the cells of people above it
@@ -67,6 +71,22 @@
   home.appendChild(listBtn('wai-xbtn ghost'));
   home.appendChild(homeMsg);
 
+  var sign = el('p', '', 'ادخل باسم حسابك في تويتر وكلمة سره.'); sign.id = 'wai-xsign';
+  // the buttons to sign in with Google or Apple (Google's own is a frame of its own inside a box): hidden
+  function hideOthers() {
+    var all = document.querySelectorAll('button,[role="button"],a');
+    for (var i = 0; i < all.length; i++) {
+      var b = all[i];
+      if (b.classList.contains('wai-x-gone') || b.closest('#wai-xbar,#wai-xhome')) continue;
+      if (/(Google|Apple|جوجل|غوغل|قوقل|آبل|أبل(?!غ))/.test(b.textContent || '') && (b.textContent || '').length < 60) { b.classList.add('wai-x-gone'); st.hid++; }
+    }
+    var fr = document.querySelectorAll('iframe[src*="accounts.google.com"]');
+    for (var j = 0; j < fr.length; j++) {
+      var box = fr[j].parentElement; // (its box, never the page itself: the frame alone is hidden by the style)
+      if (box && box !== document.body && box !== document.documentElement && !box.classList.contains('wai-x-gone')) { box.classList.add('wai-x-gone'); st.hid++; }
+    }
+  }
+
   // the floating bar on the other pages: «غرّد» and «قائمتي» (and on a List's page: «اجعلها قائمتي»)
   var bar = el('div'); bar.id = 'wai-xbar';
   var bTw = el('button', '', 'غرّد'); bTw.type = 'button';
@@ -98,7 +118,10 @@
     var h = document.documentElement;
     h.classList.toggle('wai-xhome', isHome);
     h.classList.toggle('wai-xexplore', st.explore);
-    h.classList.toggle('wai-xcompose', /^\/(compose\/|i\/flow\/|i\/jf\/|login|logout|signup|account\/)/.test(p)); // (no bar over tweeting or signing in)
+    var signing = /^\/(i\/flow\/|i\/jf\/|login|signup)/.test(p);
+    h.classList.toggle('wai-xcompose', signing || /^\/(compose\/|logout|account\/)/.test(p)); // (no bar over tweeting or signing in)
+    h.classList.toggle('wai-xsign', signing);
+    if (signing) { if (document.body && document.body.firstChild !== sign) document.body.insertBefore(sign, document.body.firstChild); hideOthers(); }
     bMine.style.display = isList && mine() !== p.replace(/\/$/, '') ? '' : 'none';
     if (isList && mine() === p.replace(/\/$/, '')) homeMsg.textContent = '';
     if (!mine() && !homeMsg.textContent) homeMsg.textContent = 'ضع من تختارهم في قائمة خاصة في حسابك، ثم افتحها واضغط «اجعلها قائمتي».';
