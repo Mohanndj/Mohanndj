@@ -4,9 +4,10 @@
 // search and others' pages, and retweets in his List. Run in Twitter's page inside the app (XPanel), once a page. No
 // bridge to the app; no HTML written as text (the page may refuse it: Trusted Types).
 (function () {
-  if (window.__waiX) return;
-  var st = window.__waiX = { home: false, explore: false, list: false, hid: 0 };
-  if (!/(^|\.)(x|twitter)\.com$/.test(location.hostname)) return;
+  // (once a page, and only on Twitter's own: run again later if the page's address is not known yet, as at its start)
+  if (window.__waiX && window.__waiX.on) return;
+  if (!/(^|\.)(x|twitter)\.com$/.test(location.hostname)) { window.__waiX = { on: false, host: location.hostname }; return; }
+  var st = window.__waiX = { on: true, home: false, explore: false, list: false, hid: 0 };
   var KEY = 'wai-xlist';
   function mine() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
   function keep(v) { try { localStorage.setItem(KEY, v); } catch (e) { st.err = 'store'; } }
@@ -33,8 +34,10 @@
     + '#wai-xbar button{border:0;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;background:#0f766e;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);font-family:inherit}'
     + 'html.wai-xhome #wai-xbar,html.wai-xcompose #wai-xbar{display:none}'
     // (his answer: «المطلوب أن أدخل بحساباتي فقط لا من قوقل»: a line above the sign-in pages, and no Google or Apple)
-    + '#wai-xsign{display:none;margin:0;padding:10px 16px;background:#e6f2f0;color:#0f4f4a;font:600 15px/1.6 sans-serif;direction:rtl;text-align:center}'
+    // (the line on top of the page, and the page itself moved down under it: Twitter's sign-in page covers the screen)
+    + '#wai-xsign{display:none;position:fixed;top:0;left:0;right:0;z-index:2147483002;box-sizing:border-box;height:40px;margin:0;padding:0 12px;background:#e6f2f0;color:#0f4f4a;font:600 14px/40px sans-serif;direction:rtl;text-align:center;white-space:nowrap;overflow:hidden}'
     + 'html.wai-xsign #wai-xsign{display:block}'
+    + 'html.wai-xsign body>*:not(#wai-xsign):not(script):not(style){transform:translateY(40px)}'
     + 'html.wai-xsign iframe[src*="accounts.google.com"],html.wai-xsign [data-testid="apple_sign_in_button"]{display:none!important}';
   (document.head || document.documentElement).appendChild(css);
 

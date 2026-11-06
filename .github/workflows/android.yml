@@ -140,7 +140,7 @@ jobs:
           # runs go one at a time, so this newer file replaces it)
           cp alwaei.apk "$RUNNER_TEMP/alwaei.apk"
           git fetch origin "$GITHUB_REF_NAME"
-          git checkout -B site FETCH_HEAD
+          git checkout -f -B site FETCH_HEAD
           cp "$RUNNER_TEMP/alwaei.apk" alwaei.apk
           git add alwaei.apk
           git commit -m "Android app ${{ github.run_number }}: its file on the site"
