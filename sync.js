@@ -124,6 +124,32 @@ const Sync = (() => {
     return out;
   }
 
+  // (v167) a counted goal counted on both devices since the last sync, the same day, each to its own number: the larger is
+  // kept (one device's count was taken whole, and the day's mark from the other: «done» with 1 of 3), and the day's mark
+  // follows the count; counted on one device only (one more, or one less), it is merged as before
+  function countClash(t, B, L, R) {
+    const at = (xs) => (Array.isArray(xs) ? xs.find((x) => x && x.id === t.id) : null);
+    const b = at(B), l = at(L), r = at(R);
+    if (!b || !l || !r || !isObj(t) || !(Number(t.target) > 1)) return t;
+    const clash = (bv, lv, rv) => lv !== bv && rv !== bv && lv !== rv;
+    let out = t;
+    const lc = isObj(l.counts) ? l.counts : {}, rc = isObj(r.counts) ? r.counts : {}, bc = isObj(b.counts) ? b.counts : {};
+    for (const d of new Set([...Object.keys(lc), ...Object.keys(rc)])) {
+      if (!clash(bc[d], lc[d], rc[d])) continue;
+      const v = Math.min(Number(t.target), Math.max(Number(lc[d]) || 0, Number(rc[d]) || 0));
+      if (out === t) out = { ...t, counts: { ...(t.counts || {}) }, completions: { ...(t.completions || {}) } };
+      out.counts[d] = v;
+      if (v >= Number(t.target)) out.completions[d] = (l.completions || {})[d] || (r.completions || {})[d] || out.completions[d] || Date.now();
+      else delete out.completions[d];
+    }
+    if (!t.repeat && clash(b.count, l.count, r.count)) {
+      const v = Math.min(Number(t.target), Math.max(Number(l.count) || 0, Number(r.count) || 0));
+      out = { ...out, count: v, done: v >= Number(t.target) };
+      out.doneAt = out.done ? l.doneAt || r.doneAt || Date.now() : null;
+    }
+    return out;
+  }
+
   function merge(base, local, remote) {
     // what a newer version wrote and this one does not know goes on as it came
     const out = { ...remote, v: 1, app: APP_VERSION, at: Date.now() };
@@ -131,6 +157,7 @@ const Sync = (() => {
     // a collection missing from the cloud altogether was written by an older version that does not know it
     // (on another device not updated yet): not a deletion, this device's stays
     for (const c of COLLECTIONS) out[c] = c in remote ? mergeList(base && base[c], local[c], remote[c], noBase, c) : local[c];
+    if (!noBase && Array.isArray(out.tasks)) out.tasks = out.tasks.map((t) => countClash(t, base.tasks, local.tasks, remote.tasks));
     // «أكلته» of the same day marked on two devices: what either added is kept, what either removed goes
     // (as a whole list, one device's marks were lost)
     if (!noBase && base.mealDone && Array.isArray(remote.mealDone)) {

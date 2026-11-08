@@ -1449,6 +1449,8 @@ function openSheet(id, opts = {}) {
   khFillRole(t ? t.roleId : opts.roleId || '', t ? t.area : '');
   $('fDue').value = t && !isGoal(t) ? t.due : opts.due || (ui.tab === 'today' ? t0 : '');
   $('fGoalDue').value = t && isGoal(t) && !isRepeat(t) ? t.due : (kind === 'goal' && opts.due) || '';
+  // (v167) what the date fields held when the sheet opened: a date of its own or one typed is carried by «مهمة | هدف»
+  draft.dues = { task: $('fDue').value, goal: $('fGoalDue').value };
   $('fStart').value = t && t.repeat ? t.repeat.start : opts.due || t0;
   $('fUntil').value = t && t.repeat ? t.repeat.until || '' : '';
   $('fTarget').value = t ? t.target : 1;
@@ -1583,6 +1585,8 @@ function readDraft() {
 function commitDraft() {
   const t = readDraft();
   if (!t) { $('fTitle').focus(); toast('اكتب عنواناً أولاً.'); return null; }
+  // (v167) «ساعة محددة» with no hour: not saved without its time and alarms, as an empty title is not
+  if (draft.timeMode === 'clock' && !$('clockFields').hidden && !$('fTime').value) { $('fTime').focus(); toast('اكتب الساعة أولاً، أو اختر «بلا وقت».'); return null; }
   const was = getTask(t.id);
   if (isHabit(t) && !(was && isHabit(was)) && activeHabits(t.id).length >= HABIT_MAX) {
     toast(`لا يمكن بناء أكثر من ${HABIT_MAX} عادات في وقت واحد. أكمل إحداها أولاً.`);
@@ -2673,7 +2677,13 @@ document.addEventListener('change', (e) => {
 document.addEventListener('click', (e) => {
   const b = e.target.closest('#fKind button, #fTimeMode button, #fRepeatMode button');
   if (!b || !draft) return;
-  if (b.dataset.kind) { setKind(b.dataset.kind); updatePrayerHint(); }
+  if (b.dataset.kind) {
+    // (v167) the date written for one kind goes to the other (a task's date to a one-time goal's deadline, and back),
+    // when it is the item's own or typed, not the empty field's default
+    const to = b.dataset.kind, from = to === 'goal' ? $('fDue') : $('fGoalDue'), into = to === 'goal' ? $('fGoalDue') : $('fDue');
+    if (to !== draft.kind && from.value && (!draftIsNew || from.value !== draft.dues[to === 'goal' ? 'task' : 'goal'])) into.value = from.value;
+    setKind(to); updatePrayerHint();
+  }
   if (b.dataset.mode) setTimeMode(b.dataset.mode);
   if (b.dataset.rep && !b.disabled) setGoalMode(b.dataset.rep);
 });

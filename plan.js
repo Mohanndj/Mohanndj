@@ -603,7 +603,8 @@ function khSetOn(t, d) {
   if (t.bookId) return !!(t.completions && t.completions[d]) || (d >= t0 && !t.done && t.due === d);
   if (t.done) return !!t.doneAt && iso(new Date(t.doneAt)) === d;
   if (d < t0 || (t.skip && t.skip[t.due])) return false;
-  if (!t.due) return !isGoal(t);
+  // (v167) undated: from today on until done, a one-time goal as a task, the owner (v146): «كل ما لم يحدد له يوم يظهر كل يوم»
+  if (!t.due) return true;
   return t.from ? dueOpen(t, d) && d <= t.due : t.due === d;
 }
 // «يومي» (v146): the seven days of the week, Sunday to Saturday, each with what is set for it, the owner: «اليومي يظهر اليومي
@@ -618,7 +619,7 @@ function khTodayHTML() {
     if (d === t0) {
       b.push(khPrioBtn(t, d));
       if (doneOn(t, d)) b.push(khLifeBtn(t));
-      if (!isGoal(t) && !t.due && !t.done && !t.bookId) b.push(`<button type="button" class="ghost sm" data-action="kh-to-today" data-id="${t.id}">لليوم</button>`);
+      if (!isRepeat(t) && !t.due && !t.done && !t.bookId) b.push(`<button type="button" class="ghost sm" data-action="kh-to-today" data-id="${t.id}">لليوم</button>`);
     }
     return `<div class="kh-side">${b.join('')}</div>`;
   };
@@ -1164,10 +1165,16 @@ function khYearHTML() {
   const months = [];
   for (let m = y; m < end; m = khMoNext(m)) months.push(m);
   const counts = months.map((m) => khDoneIn(m, khMoNext(m), khRoleArg())), max = Math.max(1, ...counts), n = khDoneIn(y, end, khRoleArg());
+  // (v167) a one-time goal with a deadline in this year, not in a chain: under its role until it is done, the owner's answer
+  // «ج: في «سنتي» تحت دوره» (it showed nowhere before its week); its row as in «اليوم», ticked and counted there
+  const ones = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && !t.done && !t.bookId && t.due && t.due >= y && t.due < end && !(t.kgoal && kgOf(t.kgoal)))
+    .sort((a, b) => a.due.localeCompare(b.due));
+  const roleOf = (t) => (khRole(khRoleIdOf(t)) ? khRoleIdOf(t) : '');
   const card = (r) => {
     const gs = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === (r ? r.id : '') && khYrOfKey(g.period) === y);
-    if (!r && !gs.length) return '';
-    return khRoleSec(r, `${gs.length ? `<div class="kh-chain">${gs.map((g) => khChainHTML(g, y)).join('')}</div>` : ''}${r && end > today() ? `<div class="btn-row kh-adds">${addBtn('kh-wiz', 'هدف للسنة', ` data-step="0" data-role="${r.id}" data-yk="${khYrKey(y)}"`)}</div>` : ''}`, khDoneIn(y, end, r ? r.id : ''));
+    const mine = ones.filter((t) => roleOf(t) === (r ? r.id : ''));
+    if (!r && !gs.length && !mine.length) return '';
+    return khRoleSec(r, `${gs.length ? `<div class="kh-chain">${gs.map((g) => khChainHTML(g, y)).join('')}</div>` : ''}${mine.length ? `<div class="kh-ones"><small class="kh-serve">أهداف لمرة حتى تتمها</small><ul class="list">${mine.map((t) => itemHTML(t, today())).join('')}</ul></div>` : ''}${r && end > today() ? `<div class="btn-row kh-adds">${addBtn('kh-wiz', 'هدف للسنة', ` data-step="0" data-role="${r.id}" data-yk="${khYrKey(y)}"`)}</div>` : ''}`, khDoneIn(y, end, r ? r.id : ''));
   };
   return `<section class="section">
     ${khPeriodNav(y === now ? 'سنتي' : 'سنة', khYrLabel(y), khYrPrev(y), end, 'kh-yr', y !== now ? 'العودة إلى هذه السنة' : '')}
@@ -1526,7 +1533,8 @@ function khWizCommit0() {
       const t = getTask(w.taskId), c = w.cards[0];
       if (!t) { toast('هذه المهمة لم تعد موجودة.'); return false; }
       if (w.cards.length > 1) return khNeed('khwD', 'اكتب مهمة واحدة: هذه المهمة وحدها.');
-      const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
+      // (v167) «بعد العصر بربع ساعة» stays so while the prayer is the same (the card lists the prayers only)
+      const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: t.prayer && t.prayer.name === c.tm ? t.prayer.offset : 0 } : null };
       // (v148) a reading project's book task: the day picked is its next session (kept as «للغد» keeps it, v90); its time
       // and its mark are its own; its title, days and pages stay its book's
       if (w.book) {
@@ -1719,7 +1727,19 @@ document.addEventListener('click', (e) => {
     case 'kh-book-link': { if (!bookSheetKeep()) break; const b = getBook(v), g = bookGoal(b); if (!b) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, book: b.id, yText: `قراءة «${b.title}»` }); break; }
     case 'kh-chain-at': khChainGo(v); break;
     // its day and time: in its own days step (v144)
-    case 'kh-chain-go': { const id = draft && draft.id; closeSheet(); if (id) khWizard({ task: id }); break; }
+    case 'kh-chain-go': {
+      // (v167) what was changed in the sheet is kept first, as the timer's button in it does (its date stays: draft.lock)
+      const id = draft && draft.id;
+      if (!id) break;
+      if (getTask(id)) {
+        if ($('fNote').value.trim()) addNote();
+        if ($('fSub').value.trim()) addSub();
+        if (!commitDraft()) break;
+      }
+      closeSheet();
+      khWizard({ task: id });
+      break;
+    }
     case 'kh-day-edit': khWizard({ task: v }); break;
     case 'kh-hz-link': { closeLib(); const p = getPlan(v), g = hpGoal(p); if (!p) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, hz: p.id, yText: `حفظ «${p.title}»` }); break; }
     case 'kh-sci-link': { const sc = getSci(v), g = sciGoal(sc); if (!sc) break; if (g) khWizard({ step: 0, edit: 'year', yearId: g.id }); else khWizard({ step: 0, sci: sc.id, yText: sc.name }); break; }
