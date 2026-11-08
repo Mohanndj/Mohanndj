@@ -1578,7 +1578,8 @@ function readDraft() {
   if (existing && existing.bookId) { t.time = existing.time; t.prayer = existing.prayer; }
   if (draft.plock || (existing && existing.bookId)) t.alarms = hasTime(t) ? [...draft.alarms].sort((a, b) => a - b) : [];
   // a new date: it is no longer «for any day of its week», nor cancelled for its old day
-  if (existing && t.due !== existing.due) { t.from = ''; t.skip = {}; }
+  // (v167) nor when it becomes a goal or a task: its date carried by «مهمة | هدف» is one day's, not a week's
+  if (existing && (t.due !== existing.due || t.kind !== existing.kind)) { t.from = ''; t.skip = {}; }
   return t;
 }
 
@@ -2681,6 +2682,7 @@ document.addEventListener('click', (e) => {
     // (v167) the date written for one kind goes to the other (a task's date to a one-time goal's deadline, and back),
     // when it is the item's own or typed, not the empty field's default
     const to = b.dataset.kind, from = to === 'goal' ? $('fDue') : $('fGoalDue'), into = to === 'goal' ? $('fGoalDue') : $('fDue');
+    // (the date in sight goes with the switch: the other field is hidden, what it holds is the one seen before)
     if (to !== draft.kind && from.value && (!draftIsNew || from.value !== draft.dues[to === 'goal' ? 'task' : 'goal'])) into.value = from.value;
     setKind(to); updatePrayerHint();
   }
