@@ -734,10 +734,19 @@ function khWeekHTML() {
 
 // ---------- مراجعة الأسبوع ----------
 // what can be moved or cancelled: the week's one-time tasks still not done (a goal or a book renews by itself)
+// what the review moves: what was not done in a week not yet reviewed; and a task sent from its card (v168), with them,
+// or alone in a week already reviewed
+function khRvList(k) {
+  const rec = khRec(k), one = khUi.rvOne && getTask(khUi.rvOne);
+  const ok = one && one.kind === 'task' && !one.done && khWeekOf(one.from || one.due) === k;
+  if (rec && rec.review) return ok ? [one] : [];
+  const xs = khOpenInWeek(k);
+  return ok && !xs.includes(one) ? [...xs, one] : xs;
+}
 const khOpenInWeek = (k) => khWeekItems(k).filter((x) => x.kind === 'task' && !x.t.done && !(x.t.due && x.t.due > today()) && !(x.t.skip && x.t.skip[x.t.due])).map((x) => x.t);
 function khReviewHTML(k) {
   const rec = khRec(k), done = !!(rec && rec.review), xs = khWeekItems(k);
-  const open = done ? [] : khOpenInWeek(k);
+  const open = khRvList(k);
   // «the next»: the week after the one reviewed, or this week if that has gone by (a late review); «اختر أسبوعاً»: from it to twelve weeks on
   const now = khWeekOf(today()), next = addDays(k, 7) > now ? addDays(k, 7) : now, wks = Array.from({ length: 12 }, (_, i) => addDays(next, i * 7));
   khUi.rvq = khUi.rvq || { worked: '', missed: '', change: '', ...(rec && rec.review ? { worked: rec.review.worked, missed: rec.review.missed, change: rec.review.change } : {}) };
@@ -759,16 +768,16 @@ function khReviewHTML(k) {
     ${khProgressHTML(k)}
     ${bal.length ? `<div class="panel"><h3>توازن أدوارك</h3>${bal.map(([r, d, n]) => `<div class="kh-bal" style="--rc:${khColor(r ? r.id : '')}"><span>${esc(r ? r.name : 'بلا دور')}</span><span class="kh-track sm"><i style="width:${Math.round((d / n) * 100)}%"></i></span><small>${d} من ${n}</small></div>`).join('')}
       ${none.length ? `<p class="note-text">لم تنجز شيئاً في: ${none.map(([r]) => `«${esc(r.name)}»`).join('، ')}. تذكّر أن تمنح كل دور حقه ولو بأقل الجهد.</p>` : ''}</div>` : ''}
-    ${done ? (rec.review.moved || rec.review.dropped.length ? `<p class="note-text">${[rec.review.moved ? `نقلت ${plural(rec.review.moved, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')}` : '', rec.review.dropped.length ? `وألغيت: ${rec.review.dropped.map((x) => `«${esc(x)}»`).join('، ')}` : ''].filter(Boolean).join('، ')}.</p>` : '')
-      : open.length ? `<div class="panel"><h3>ما لم يُنجز</h3><p class="note-text">لكل مهمة: انقلها إلى مثل يومها من الأسبوع القادم، أو إلى أسبوع تختاره ثم يومها منه (واختصرها إن شئت)، أو ألغها فتُحذف من مهامك.</p>
+    ${done ? (rec.review.moved || rec.review.dropped.length ? `<p class="note-text">${[rec.review.moved ? `نقلت ${plural(rec.review.moved, 'مهمة واحدة', 'مهمتين', 'مهام', 'مهمة')}` : '', rec.review.dropped.length ? `وألغيت: ${rec.review.dropped.map((x) => `«${esc(x)}»`).join('، ')}` : ''].filter(Boolean).join('، ')}.</p>` : '') : ''}
+    ${open.length ? `<div class="panel"><h3>ما لم يُنجز</h3><p class="note-text">لكل مهمة: انقلها إلى مثل يومها من الأسبوع القادم، أو إلى أسبوع تختاره ثم يومها منه (واختصرها إن شئت)، أو ألغها فتُحذف من مهامك.</p>
       ${open.map(pick).join('')}</div>`
-        : xs.length && khWeekPct(k) === 100 ? '<p class="note-text kh-ok">أنجزت كل مهامك هذا الأسبوع. بارك الله في وقتك.</p>' : ''}
+        : !done && xs.length && khWeekPct(k) === 100 ? '<p class="note-text kh-ok">أنجزت كل مهامك هذا الأسبوع. بارك الله في وقتك.</p>' : ''}
     <div class="panel"><h3>وقفة مع نفسك</h3>
       <label class="field"><span>ما الذي نجح هذا الأسبوع؟ (اختياري)</span><textarea rows="2" data-kh-q="worked">${esc(khUi.rvq.worked)}</textarea></label>
       <label class="field"><span>ما الذي لم ينجح؟ ولماذا؟ (اختياري)</span><textarea rows="2" data-kh-q="missed">${esc(khUi.rvq.missed)}</textarea></label>
       <label class="field"><span>ماذا أغيّر في الأسبوع القادم؟ (اختياري)</span><textarea rows="2" data-kh-q="change">${esc(khUi.rvq.change)}</textarea></label>
     </div>
-    <button type="button" class="primary" data-action="kh-rv-save" data-v="${k}">${done ? 'احفظ المراجعة' : open.length ? 'احفظ المراجعة وانقل ما اخترت' : 'احفظ المراجعة'}</button>
+    <button type="button" class="primary" data-action="kh-rv-save" data-v="${k}">${open.length ? 'احفظ المراجعة وانقل ما اخترت' : 'احفظ المراجعة'}</button>
   </section>`;
 }
 function khSaveReview(k) {
@@ -777,10 +786,11 @@ function khSaveReview(k) {
   const q = { worked: khUi.rvq.worked.trim(), missed: khUi.rvq.missed.trim(), change: khUi.rvq.change.trim() };
   let moved = 0;
   const dropped = [];
-  if (!rec.review) {
+  const list = khRvList(k), first = !rec.review;
+  {
     // the week's share is kept from before anything is cancelled, so cancelling never raises it
-    const pct = khWeekPct(k); // (null: nothing was in its plan)
-    for (const t of khOpenInWeek(k)) {
+    const pct = first ? khWeekPct(k) : null; // (null: nothing was in its plan)
+    for (const t of list) {
       const c = khUi.rv[t.id] || { act: 'move', text: t.title };
       if (c.act === 'drop') { dropped.push(t.title); dropTask(t.id); continue; }
       if (c.act === 'week' && c.wk) {
@@ -799,8 +809,9 @@ function khSaveReview(k) {
       t.movedFrom = k;
       moved++;
     }
-    rec.review = { at: today(), pct, moved, dropped, ...q };
-  } else Object.assign(rec.review, q);
+    if (first) rec.review = { at: today(), pct, moved, dropped, ...q };
+    else Object.assign(rec.review, q, { moved: (rec.review.moved || 0) + moved, dropped: [...(rec.review.dropped || []), ...dropped] }); // (a task sent alone, v168)
+  }
   save();
   return { moved, dropped: dropped.length };
 }
@@ -1167,8 +1178,10 @@ function khYearHTML() {
   const counts = months.map((m) => khDoneIn(m, khMoNext(m), khRoleArg())), max = Math.max(1, ...counts), n = khDoneIn(y, end, khRoleArg());
   // (v167) a one-time goal with a deadline in this year, not in a chain: under its role until it is done, the owner's answer
   // «ج: في «سنتي» تحت دوره» (it showed nowhere before its week); its row as in «اليوم», ticked and counted there
-  const ones = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && !t.done && !t.bookId && t.due && t.due >= y && t.due < end && !(t.kgoal && kgOf(t.kgoal)))
-    .sort((a, b) => a.due.localeCompare(b.due));
+  // (v168, his leave for the suggestion) one with no deadline too, in the year of today only: shown from today until done
+  const nowY = y <= today() && today() < end;
+  const ones = S.tasks.filter((t) => isGoal(t) && !isRepeat(t) && !t.done && !t.bookId && (t.due ? t.due >= y && t.due < end : nowY) && !(t.kgoal && kgOf(t.kgoal)))
+    .sort((a, b) => (a.due || '9').localeCompare(b.due || '9'));
   const roleOf = (t) => (khRole(khRoleIdOf(t)) ? khRoleIdOf(t) : '');
   const card = (r) => {
     const gs = S.kgoals.filter((g) => g.level === 'year' && kgRoleId(g) === (r ? r.id : '') && khYrOfKey(g.period) === y);
@@ -1305,7 +1318,8 @@ function khWizard(o = {}) {
     if (!o.day) ldraft.day = '';
     khWizCards();
     const c = ldraft.cards[0];
-    if (c) Object.assign(c, { own: true, imp: et.priority === 'high', tm: et.time ? 'clock' : et.prayer ? et.prayer.name : '', time: et.time || c.time, area: et.area || c.area },
+    // (v168) its alarms as they are; one with no time given one takes «في الموعد», as its sheet does
+    if (c) Object.assign(c, { own: true, imp: et.priority === 'high', tm: et.time ? 'clock' : et.prayer ? et.prayer.name : '', time: et.time || c.time, area: et.area || c.area, al: [...et.alarms], alAuto: !et.alarms.length && !hasTime(et) },
       isRepeat(et) ? { mode: et.repeat.per ? 'count' : 'fixed', per: et.repeat.per || 3, days: [...et.repeat.days] } : {});
   } else khWizCards();
   khWizDraw();
@@ -1324,7 +1338,7 @@ function khWizCards() {
     if (j < 0 && prev[i] && !used.has(i) && !ls.includes(prev[i].text)) j = i; // a line edited in its place
     if (j < 0 && w.edit === 'day' && i === 0 && prev[0] && !used.has(0)) j = 0; // (the task edited: its title rewritten, its card kept)
     if (j >= 0) used.add(j);
-    const c = j >= 0 ? prev[j] : { mode: w.dMode, per: w.per, days: [...w.days], tm: '', time: '07:00', area: w.roleId === KH_SAW ? 'health' : '', own: false };
+    const c = j >= 0 ? prev[j] : { mode: w.dMode, per: w.per, days: [...w.days], tm: '', time: '07:00', area: w.roleId === KH_SAW ? 'health' : '', own: false, al: [], alAuto: true };
     if (!c.own) { c.days = [...w.days]; c.mode = w.dMode; c.per = w.per; }
     return { ...c, text };
   });
@@ -1340,8 +1354,20 @@ function khWizCardsHTML() {
       <div class="kh-card-row"><select data-kh-ctm="${i}" aria-label="وقتها"><option value="">بلا وقت</option><option value="clock"${c.tm === 'clock' ? ' selected' : ''}>في ساعة محددة</option>${KH_PRAYERS.map((p) => `<option value="${p}"${c.tm === p ? ' selected' : ''}>مع ${Prayer.NAMES[p]}</option>`).join('')}</select>
         ${c.tm === 'clock' ? `<input type="time" data-kh-ctime="${i}" value="${esc(c.time)}" aria-label="الساعة" data-novoice>` : ''}
         ${w.roleId === KH_SAW ? `<select data-kh-carea="${i}" aria-label="جانبها">${khAreaOptions(c.area)}</select>` : ''}
-        <button type="button" class="kh-imp" data-action="kh-w" data-op="cimp" data-i="${i}" aria-pressed="${!!c.imp}">${c.imp ? '★ أهمية قصوى' : '☆ قصوى'}</button></div></div>`).join('')}</div>${w.once ? '' : khWizShares()}`;
+        <button type="button" class="kh-imp" data-action="kh-w" data-op="cimp" data-i="${i}" aria-pressed="${!!c.imp}">${c.imp ? '★ أهمية قصوى' : '☆ قصوى'}</button></div>${c.tm ? khCardAlarms(c, i) : ''}</div>`).join('')}</div>${w.once ? '' : khWizShares()}`;
 }
+// (v168, the owner's answer to 98: «ج: خانة «منبه» في البطاقة» and in the days step, with the sheet's own choices)
+function khCardAlarms(c, i) {
+  const al = c.al || [], extra = al.filter((v) => !ALARM_OPTIONS.some(([o]) => o === v)).map((v) => [v, `قبل ${v < 60 ? `${v} د` : minsWord(v)}`]);
+  return `<div class="kh-card-al"><span class="kh-al">المنبهات <small class="hint explain">اختر واحداً أو أكثر</small></span><div class="days">${[...ALARM_OPTIONS, ...extra].sort((a, b) => a[0] - b[0]).map(([v, l]) =>
+    `<button type="button" data-action="kh-w" data-op="cal" data-i="${i}" data-v="${v}" aria-pressed="${al.includes(v)}">${l}</button>`).join('')}</div></div>`;
+}
+// a time given to a card: «في الموعد», unless its alarms were turned off before (as setTimeMode does in the sheet)
+function khCardTimed(c) { if (!c.al) c.al = []; if (c.tm && !c.al.length && c.alAuto !== false) c.al = [0]; if (c.tm) c.alAuto = false; }
+const khCardAl = (c, when) => (when.time || when.prayer ? [...new Set((c.al || []).map(Number))].sort((a, b) => a - b) : []);
+// what the sheet's commitDraft compares: a new time or new alarms may ring again today (v168, item 83)
+const khTiming = (x) => JSON.stringify([x.due, x.time, x.prayer, x.alarms, x.repeat && x.repeat.days, x.repeat && x.repeat.per]);
+function khUnfire(t, before) { if (khTiming(t) !== before) for (const k of Object.keys(S.fired)) if (k.startsWith(t.id + '|')) delete S.fired[k]; }
 // how many times a week, a month and to the end of the year the tasks come to
 function khWizShares() {
   const w = ldraft, per = w.cards.reduce((n, c) => n + (c.mode === 'count' ? c.per : c.days.length), 0);
@@ -1438,7 +1464,8 @@ function khWizDraw0() {
       ${w.first === 3 && !w.book ? `<div class="seg" role="group">${khWBtn('once', '', 'تتكرر في أيامها', !w.once)}${khWBtn('once', '1', 'لمرة في هذا الأسبوع', w.once)}</div>` : ''}
       ${edit === 'day' ? '' : '<p class="kh-qt lv-day">كيف تريد أن يتحقق الهدف من خلال أيامك المختارة؟</p>'}
       ${w.bkId ? `<div class="kh-ask lv-day"><span class="kh-al">أيام قراءته</span>${khDots('bkday', w.bkRdays)}</div>` : ''}
-      ${w.once && !(w.book && !w.bookDays) ? `<div class="kh-ask lv-day"><span class="kh-al">${w.book ? 'في أيّ يوم جلستها التالية؟' : 'في أيّ يوم؟'}</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}${w.book ? '' : `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button>`}</div>${w.day || w.book ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
+      ${khWkGone(w) ? khWkGoneHTML(w)
+        : w.once && !(w.book && !w.bookDays) ? `<div class="kh-ask lv-day"><span class="kh-al">${w.book ? 'في أيّ يوم جلستها التالية؟' : 'في أيّ يوم؟'}</span><div class="kh-chips">${days.map((d) => `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="${d}" aria-pressed="${w.day === d}">${esc(dueLabel(d))}</button>`).join('')}${w.book ? '' : `<button type="button" class="chip" data-action="kh-w" data-op="oday" data-v="" aria-pressed="${!w.day}">أي يوم من أسبوعها</button>`}</div>${w.day || w.book ? '' : '<p class="note-text explain">تظهر لك كل يوم من أسبوعها حتى تتمها.</p>'}</div>`
         : edit === 'day' ? '' : `<div class="kh-ask lv-day"><span class="kh-al">في أيّ أيام هذه الأسابيع؟</span>
           <div class="seg" role="group">${khWBtn('dmode', 'fixed', 'أيام محددة', w.dMode === 'fixed')}${khWBtn('dmode', 'count', 'عدد أيام أيّها كان', w.dMode === 'count')}</div>
           ${w.dMode === 'fixed' ? khDots('day', w.days) : `<span class="kh-al">كم مرة في الأسبوع؟</span><div class="seg kh-nseg" role="group">${[1, 2, 3, 4, 5, 6].map((n) => khWBtn('dper', n, n, w.per === n)).join('')}</div><p class="note-text explain">تظهر لك كل يوم حتى يكتمل عددها، ثم تختفي بقية الأسبوع، ويظهر هدف الأسبوع متحققاً.</p>`}</div>`}
@@ -1447,6 +1474,14 @@ function khWizDraw0() {
       ${btns(w.first === 3 ? 'احفظ' : 'احفظ: من رؤيتي إلى أيامي')}`;
   }
   $('libForm').innerHTML = `${sheetHead(edit === 'day' ? 'تعديل المهمة' : edit ? 'تعديل الهدف' : 'من الرؤية إلى الأيام')}${body}`;
+}
+// (v168, item 87) a task once whose week has gone: no day of it is left to pick, and the card moves no task between weeks
+// (his answer to 99: «أ: يبقى كما هو»); it is moved from its week's review, opened for it alone if that week was reviewed
+// (his answer: «ب: تُفتح مراجعته لها وحدها»)
+const khWkGone = (w) => w.edit === 'day' && w.once && !w.book && addDays(w.k, 6) < today();
+function khWkGoneHTML(w) {
+  const t = getTask(w.taskId);
+  return `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><p class="note-text">${esc(t && t.due && !t.from ? dueLabel(t.due) : 'أي يوم من أسبوعها')}: مضى أسبوعها، فتنقلها إلى أسبوع آخر من مراجعة أسبوعها.</p>${t && !t.done ? `<button type="button" class="ghost" data-action="kh-rv-one" data-v="${t.id}">انقلها من مراجعة الأسبوع</button>` : ''}</div>`;
 }
 // what is written in the step on screen, into the draft
 function khWizKeep() {
@@ -1521,6 +1556,8 @@ function khWizCommit0() {
   }
   if (w.step === 3) {
     const wg = kgOf(w.weekId), mg = wg && kgOf(wg.parent);
+    // (v168, item 87) the task edited with its title cleared: not saved, as its sheet says
+    if (w.edit === 'day' && !w.book && !w.dText.replace(/^\s*(?:[-•*]|\d+[.)-])\s*/gm, '').trim()) return khNeed('khwD', 'اكتب عنواناً أولاً.');
     if (!w.cards.length) return khNeed('khwD', 'اكتب مهمة واحدة على الأقل، كل مهمة في سطر.');
     if (!wg || !mg) { toast('هدف الأسبوع لم يعد موجوداً.'); return false; }
     if (w.once && w.day && !w.book && !khDays(w.k).includes(w.day)) { toast('اختر يوماً من أيام هذا الأسبوع.'); return false; }
@@ -1533,6 +1570,9 @@ function khWizCommit0() {
       const t = getTask(w.taskId), c = w.cards[0];
       if (!t) { toast('هذه المهمة لم تعد موجودة.'); return false; }
       if (w.cards.length > 1) return khNeed('khwD', 'اكتب مهمة واحدة: هذه المهمة وحدها.');
+      // (v168, items 83 and 87) a new time rings again today, as its sheet does; nothing changed: said so
+      const before = khTiming(t), was0 = JSON.stringify([t, w.book && getBook(w.bkId) ? getBook(w.bkId).rdays : null]);
+      const end = () => { khUnfire(t, before); w.same = JSON.stringify([t, w.book && getBook(w.bkId) ? getBook(w.bkId).rdays : null]) === was0; if (t.alarms.length) ensureNotifPermission(); save(); return true; };
       // (v167) «بعد العصر بربع ساعة» stays so while the prayer is the same (the card lists the prayers only)
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: t.prayer && t.prayer.name === c.tm ? t.prayer.offset : 0 } : null };
       // (v148) a reading project's book task: the day picked is its next session (kept as «للغد» keeps it, v90); its time
@@ -1541,10 +1581,8 @@ function khWizCommit0() {
         const b = getBook(w.bkId);
         if (b) b.rdays = [...w.bkRdays].sort(); // (v150) its reading days, set here only
         if (w.dayPicked && w.day && w.bookDays) t.readOn = w.day; // (a day he picked: not the old schedule's next one)
-        Object.assign(t, { priority: c.imp ? 'high' : t.priority === 'high' ? 'mid' : t.priority, ...when });
-        if (!hasTime(t)) t.alarms = [];
-        save();
-        return true;
+        Object.assign(t, { priority: c.imp ? 'high' : t.priority === 'high' ? 'mid' : t.priority, ...when, alarms: khCardAl(c, when) });
+        return end();
       }
       const keep = isRepeat(t) ? t.repeat : null, s0 = keep && keep.start < start ? keep.start : start;
       const u0 = keep && keep.until && (!until || keep.until < until) ? keep.until : until; // (one that ended stays ended)
@@ -1556,18 +1594,18 @@ function khWizCommit0() {
         ? { kind: 'task', due, from: w.day ? '' : w.k, repeat: null, skip: !was && t.due === due ? t.skip : {} }
         : { kind: 'goal', due: '', from: '', repeat: rep });
       if (was !== isRepeat(t)) { t.done = false; t.doneAt = null; } // (once ↔ recurring: it starts undone)
-      if (!hasTime(t)) t.alarms = [];
-      save();
-      return true;
+      t.alarms = khCardAl(c, when);
+      return end();
     }
     for (const c of w.cards) {
       const when = { time: c.tm === 'clock' ? c.time : '', prayer: c.tm && c.tm !== 'clock' ? { name: c.tm, offset: 0 } : null };
       // once: on a day of the week, or on any day of it (shown from its first day until its last)
       const rep = c.mode === 'count' ? { days: [...DAY_ORDER].sort(), start, until, per: c.per } : { days: [...c.days].sort(), start, until };
       S.tasks.push(normalize(w.once
-        ? { kind: 'task', title: c.text, due: w.day || addDays(w.k, 6), from: w.day ? '' : w.k, kgoal: wg.id, roleId: kgRoleId(wg), area: c.area, priority: c.imp ? 'high' : 'mid', ...when }
-        : { kind: 'goal', title: c.text, repeat: rep, kgoal: wg.id, roleId: kgRoleId(wg), area: c.area, priority: c.imp ? 'high' : 'mid', ...when }));
+        ? { kind: 'task', title: c.text, due: w.day || addDays(w.k, 6), from: w.day ? '' : w.k, kgoal: wg.id, roleId: kgRoleId(wg), area: c.area, priority: c.imp ? 'high' : 'mid', ...when, alarms: khCardAl(c, when) }
+        : { kind: 'goal', title: c.text, repeat: rep, kgoal: wg.id, roleId: kgRoleId(wg), area: c.area, priority: c.imp ? 'high' : 'mid', ...when, alarms: khCardAl(c, when) }));
     }
+    if (w.cards.some((c) => c.tm && (c.al || []).length)) ensureNotifPermission();
   }
   save();
   return true;
@@ -1577,7 +1615,7 @@ function khWizNext() {
   khWizKeep();
   if (!khWizCommit()) return false;
   const w = ldraft;
-  if (w.edit || w.step === 3) { toast(w.edit === 'day' ? 'حُفظت المهمة' : w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
+  if (w.edit || w.step === 3) { toast(w.edit === 'day' ? (w.same ? 'لم يتغير شيء.' : 'حُفظت المهمة') : w.edit ? 'حُفظ الهدف' : w.first === 3 ? (w.cards.length > 1 ? 'أُضيفت المهام' : 'أُضيفت المهمة') : 'حُفظ: من رؤيتك إلى أيامك'); return true; }
   w.step++;
   khWizDraw();
   $('libForm').scrollTop = 0;
@@ -1802,6 +1840,7 @@ document.addEventListener('click', (e) => {
       if (op === 'cmode') { const c = w.cards[Number(el.dataset.i)]; if (c) { c.mode = v; c.own = true; if (v === 'fixed' && !c.days.length) c.days = [...w.days]; } }
       if (op === 'cper') { const c = w.cards[Number(el.dataset.i)]; if (c) { c.per = Number(v); c.own = true; } }
       if (op === 'cimp') { const c = w.cards[Number(el.dataset.i)]; if (c) c.imp = !c.imp; } // (its importance «قصوى», v146)
+      if (op === 'cal') { const c = w.cards[Number(el.dataset.i)], n = Number(v); if (c) { c.al = (c.al || []).includes(n) ? c.al.filter((x) => x !== n) : [...(c.al || []), n]; c.alAuto = false; } }
       if (op === 'once') w.once = !!v;
       if (op === 'oday') { w.day = v; w.dayPicked = true; }
       if (op === 'bkday') {
@@ -1868,12 +1907,23 @@ document.addEventListener('click', (e) => {
     case 'kh-tpl': if (khAddTpl(v)) { render(); toast('أُضيف القالب إلى خطتك: رؤيته وهدف سنته وأشهره وأسابيعه ومهام أيامه. عدّله كما تشاء'); } break;
     case 'kh-tpl-del': if (!selArmed(el)) break; khRemoveTpl(v); render(); toast('حُذف القالب'); break;
     case 'kh-rv-day': { const c = khUi.rv[el.dataset.id]; if (c) { c.day = v; render(); } break; }
-    case 'kh-review': khUi.review = v; khUi.rv = {}; khUi.rvq = null; render(); window.scrollTo({ top: 0 }); break;
-    case 'kh-review-close': khUi.review = ''; render(); window.scrollTo({ top: 0 }); break;
+    case 'kh-review': khUi.review = v; khUi.rv = {}; khUi.rvq = null; khUi.rvOne = ''; render(); window.scrollTo({ top: 0 }); break;
+    case 'kh-review-close': khUi.review = ''; khUi.rvOne = ''; render(); window.scrollTo({ top: 0 }); break;
+    case 'kh-rv-one': {
+      // (v168) from a task's card: its week's review, where it is moved
+      const t = getTask(v);
+      if (!t) break;
+      const k = khWeekOf(t.from || t.due);
+      closeLib();
+      khUi.tab = 'week'; khUi.wk = k === khWeekOf(today()) ? '' : k; khUi.role = '';
+      khUi.review = k; khUi.rv = {}; khUi.rvq = null; khUi.rvOne = t.id;
+      go('plan'); window.scrollTo({ top: 0 });
+      break;
+    }
     case 'kh-rv-act': { const t = getTask(el.dataset.id); if (!t) break; const c = khUi.rv[t.id] = khUi.rv[t.id] || { act: 'move', text: t.title, wk: '', day: '' }; c.act = v; render(); break; }
     case 'kh-rv-save': {
       const k = v, r = khSaveReview(k);
-      khUi.review = ''; khUi.rv = {}; khUi.rvq = null;
+      khUi.review = ''; khUi.rv = {}; khUi.rvq = null; khUi.rvOne = '';
       // to the next week, as in the book: what was moved is waiting there
       khUi.wk = addDays(k, 7) === khWeekOf(today()) ? '' : addDays(k, 7);
       render(); window.scrollTo({ top: 0 });
@@ -1917,7 +1967,7 @@ document.addEventListener('change', (e) => {
     if (e.target.id === 'khwRole') { khWizKeep(); ldraft.roleId = e.target.value; const up = kgOf(ldraft.vision); if (up && up.roleId !== ldraft.roleId) ldraft.vision = ''; khWizDraw(); return; }
     if (ds.khCtm !== undefined || ds.khCarea !== undefined) khWizKeep(); // (the cards are made again from the lines: first, then the change)
     const c = ldraft.cards[Number(ds.khCtm ?? ds.khCarea ?? -1)];
-    if (c && ds.khCtm !== undefined) { c.tm = e.target.value; $('khwCards').innerHTML = khWizCardsHTML(); return; }
+    if (c && ds.khCtm !== undefined) { c.tm = e.target.value; khCardTimed(c); $('khwCards').innerHTML = khWizCardsHTML(); return; }
     if (c && ds.khCarea !== undefined) { c.area = e.target.value; return; }
   }
   const a = ds.khAssign;

@@ -2036,6 +2036,7 @@ li.sel .sel-box { background: var(--high); }
 .kh-card > b span { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--lv-day); color: var(--card); display: grid; place-items: center; font-size: .75rem; }
 .kh-card-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .kh-card-row select, .kh-card-row input { flex: 1 1 120px; min-width: 0; padding-block: 6px; }
+.kh-card-al { display: grid; gap: 4px; margin-top: 8px; } /* (v168) a card's alarms, as in the task sheet */
 .kh-shares { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: center; }
 .kh-shares span { display: grid; font-size: .78rem; color: var(--lv); border: 1px solid color-mix(in srgb, var(--lv) 40%, var(--line)); border-radius: 10px; padding: 4px; }
 .kh-shares b { font-size: 1.1rem; }
