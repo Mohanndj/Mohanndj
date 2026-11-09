@@ -1480,8 +1480,8 @@ function khWizDraw0() {
 // (his answer: «ب: تُفتح مراجعته لها وحدها»)
 const khWkGone = (w) => w.edit === 'day' && w.once && !w.book && addDays(w.k, 6) < today();
 function khWkGoneHTML(w) {
-  const t = getTask(w.taskId);
-  return `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><p class="note-text">${esc(t && t.due && !t.from ? dueLabel(t.due) : 'أي يوم من أسبوعها')}: مضى أسبوعها، فتنقلها إلى أسبوع آخر من مراجعة أسبوعها.</p>${t && !t.done ? `<button type="button" class="ghost" data-action="kh-rv-one" data-v="${t.id}">انقلها من مراجعة الأسبوع</button>` : ''}</div>`;
+  const t = getTask(w.taskId), day = t && t.due && !t.from ? dueLabel(t.due) : 'أي يوم من أسبوعها', can = t && t.kind === 'task' && !t.done;
+  return `<div class="kh-ask lv-day"><span class="kh-al">في أيّ يوم؟</span><p class="note-text">${esc(day)}${can ? ': مضى أسبوعها، فتنقلها إلى أسبوع آخر من مراجعة أسبوعها.' : ''}</p>${can ? `<button type="button" class="ghost" data-action="kh-rv-one" data-v="${t.id}">انقلها من مراجعة الأسبوع</button>` : ''}</div>`;
 }
 // what is written in the step on screen, into the draft
 function khWizKeep() {
@@ -1571,6 +1571,7 @@ function khWizCommit0() {
       if (!t) { toast('هذه المهمة لم تعد موجودة.'); return false; }
       if (w.cards.length > 1) return khNeed('khwD', 'اكتب مهمة واحدة: هذه المهمة وحدها.');
       // (v168, items 83 and 87) a new time rings again today, as its sheet does; nothing changed: said so
+      t.alarms = [...new Set(t.alarms.map(Number))].sort((a, b) => a - b); // (as the card saves them: an old order is no change)
       const before = khTiming(t), was0 = JSON.stringify([t, w.book && getBook(w.bkId) ? getBook(w.bkId).rdays : null]);
       const end = () => { khUnfire(t, before); w.same = JSON.stringify([t, w.book && getBook(w.bkId) ? getBook(w.bkId).rdays : null]) === was0; if (t.alarms.length) ensureNotifPermission(); save(); return true; };
       // (v167) «بعد العصر بربع ساعة» stays so while the prayer is the same (the card lists the prayers only)
@@ -1915,7 +1916,7 @@ document.addEventListener('click', (e) => {
       if (!t) break;
       const k = khWeekOf(t.from || t.due);
       closeLib();
-      khUi.tab = 'week'; khUi.wk = k === khWeekOf(today()) ? '' : k; khUi.role = '';
+      khUi.tab = 'week'; khUi.wk = k === khWeekOf(today()) ? '' : k;
       khUi.review = k; khUi.rv = {}; khUi.rvq = null; khUi.rvOne = t.id;
       go('plan'); window.scrollTo({ top: 0 });
       break;
