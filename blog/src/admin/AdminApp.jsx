@@ -978,6 +978,17 @@ function CategoriesPage() {
     } catch (e) { alert(e.message); }
   };
 
+  // النقل بالأزرار (يعمل على الجوال حيث لا يتاح السحب)
+  const move = async (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const arr = [...items];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    setItems(arr);
+    try { await api("/admin/categories/reorder", { method: "POST", body: JSON.stringify({ order: arr.map((x) => x.id) }) }); }
+    catch (er) { alert(er.message); await load(); }
+  };
+
   const onDragStart = (i) => (e) => { dragFrom.current = i; e.currentTarget.classList.add("dragging"); };
   const onDragEnd = (e) => e.currentTarget.classList.remove("dragging");
   const onDragOver = (e) => e.preventDefault();
@@ -997,6 +1008,7 @@ function CategoriesPage() {
   return (
     <>
       <h1 className="admin-title">التصنيفات</h1>
+      <p className="hint" style={{ marginTop: -8 }}>رتّبها بالسهمين ↑ ↓ (أو بالسحب على الحاسوب)، وتظهر في الموقع بهذا الترتيب.</p>
       <div className="admin-toolbar">
         <input className="admin-input" placeholder="اسم تصنيف جديد" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 260 }} data-testid="cat-new-name"/>
         <button className="admin-btn" onClick={create} data-testid="cat-add">أضف</button>
@@ -1015,6 +1027,8 @@ function CategoriesPage() {
                      onBlur={(e) => rename(c.id, e.target.value)}
                      data-testid={`cat-name-${c.id}`}/>
               <span className="count">{ar(c.article_count)} مقالات</span>
+              <button className="admin-btn ghost small" onClick={() => move(i, -1)} disabled={i === 0} title="قدّمه" aria-label={`قدّم «${c.name}»`} data-testid={`cat-up-${c.id}`}>↑</button>
+              <button className="admin-btn ghost small" onClick={() => move(i, 1)} disabled={i === items.length - 1} title="أخّره" aria-label={`أخّر «${c.name}»`} data-testid={`cat-down-${c.id}`}>↓</button>
               <button className="admin-btn danger small" onClick={() => delReq(c)} data-testid={`cat-del-${c.id}`}>حذف</button>
             </li>
           ))}

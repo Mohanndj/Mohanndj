@@ -387,6 +387,7 @@ export async function api(path, opts = {}) {
   if (route === "POST /admin/categories" && id === "reorder") {
     return mutate("Reorder categories", (d) => {
       body.order.forEach((cid, i) => { const c = d.categories.categories.find((x) => x.id === cid); if (c) c.order = i + 1; });
+      d.categories.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
       return { ok: true };
     });
   }

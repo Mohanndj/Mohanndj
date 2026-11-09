@@ -261,7 +261,8 @@ function ContentBootstrap() {
           show_references: !!x.show_references,
         }));
         series = (s.series || []).map((x) => ({ id: x.id, title: x.title, desc: x.desc || "" }));
-        const cs = (c.categories || []).map((x) => x.name);
+        // بالترتيب الذي يضعه صاحب المدونة في لوحة التحكم
+        const cs = [...(c.categories || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map((x) => x.name);
         cats = ["الكلّ", ...cs];
         pagesData = (p.pages || []);
         if (st) siteSettings = { ...siteSettings, ...st };
