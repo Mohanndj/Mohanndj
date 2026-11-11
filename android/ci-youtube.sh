@@ -140,9 +140,9 @@ adb logcat -d -s WaiYT:* | grep -q 'closed' && echo "a long press on the icon: c
 python3 android/ci-cdp.py "$WS" 'WaiNative.openYoutube(), 1' > /dev/null; sleep 25
 YT=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'youtube.com' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
 [ -n "$YT" ] || warn "probe: YouTube's page has no debugging address"
-python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=surah+al+mulk', 1" > /dev/null; sleep 25
+python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=rick+astley+never+gonna+give+you+up', 1" > /dev/null; sleep 25
 echo "PROBE results: $(python3 android/ci-cdp.py "$YT" "(function(){var a=[].slice.call(document.querySelectorAll('a[href*=\"/watch\"]'));return {href:location.href,links:a.length}})()")"
-python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
+python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"dQw4w9WgXcQ\"]')||document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
 sleep 25
 adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?v.play().then(function(){return 'play'},function(e){return 'no '+e}):'no video'})()"
