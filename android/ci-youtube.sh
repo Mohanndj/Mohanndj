@@ -70,6 +70,31 @@ echo "the video: $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.q
 echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('wai-pos')")"
 shot VIDEOSHOT
 note() { echo "::warning::youtube: $*"; }
+# (v175, his choice «ج: يرجع ويتوقف المقطع»: back with a video playing, its place kept, one step back in YouTube, where the
+# video stops; opened again, it goes on from its place)
+python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=rick+astley+never+gonna+give+you+up', 1" > /dev/null; sleep 25
+python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"dQw4w9WgXcQ\"]')||document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
+sleep 25
+adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
+timeout 15 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');if(v)v.play();return 1})()" > /dev/null
+sleep 20
+PS="(function(){var v=document.querySelector('video');return {path:location.pathname,t:v&&Math.round(v.currentTime),paused:v&&v.paused}})()"
+P1=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: watching $P1"
+adb logcat -c
+adb shell input keyevent KEYCODE_BACK; sleep 8
+P2=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: after it $P2"
+adb logcat -d -s WaiYT:* | grep -E 'back with|state' | tail -3
+echo "back: its place $(python3 android/ci-cdp.py "$YT" "JSON.stringify((JSON.parse(localStorage.getItem('wai-pos')||'{}'))['dQw4w9WgXcQ']||null)")"
+echo "$P2" | grep -q '"/results"' && echo "$P2" | grep -q '"paused": true' && echo "back: the page before, the video stopped" || note "back did not go to the page before with the video stopped"
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' && note "back hid YouTube behind the icon"
+shot BACKSHOT
+python3 android/ci-cdp.py "$YT" "history.forward(), 1" > /dev/null; sleep 15
+echo "back: the video again $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&Math.round(v.currentTime),keep:window.__waiKeep}})()")"
+# (playing again for what follows)
+adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
+timeout 15 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');if(v)v.play();return 1})()" > /dev/null
+sleep 10
+note() { echo "::warning::youtube: $*"; }
 # (v161, his answers: no small window, the video playing on in the background with a floating icon; leaving the app it
 # plays on with a notification; the screen turned off stops it; a long press on the icon stops it)
 vid() { python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&Math.round(v.currentTime*10)/10,paused:v&&v.paused,seen:document.visibilityState}})()"; }
@@ -82,7 +107,7 @@ except Exception:
     print("no")
 PY
 }
-tapdesc() { adb shell uiautomator dump /sdcard/y.xml > /dev/null 2>&1; adb pull /sdcard/y.xml y.xml > /dev/null 2>&1 || : > y.xml
+tapdesc1() { adb shell uiautomator dump /sdcard/y.xml > /dev/null 2>&1; adb pull /sdcard/y.xml y.xml > /dev/null 2>&1 || : > y.xml
   python3 - "$1" <<'PY'
 import re, sys
 x = open("y.xml", encoding="utf-8").read()
@@ -90,6 +115,8 @@ m = re.search(r'content-desc="' + re.escape(sys.argv[1]) + r'"[^>]*bounds="\[(\d
 print("%d %d" % ((int(m[1]) + int(m[3])) // 2, (int(m[2]) + int(m[4])) // 2) if m else "")
 PY
 }
+# (the screen's dump fails now and then while a video plays: tried three times)
+tapdesc() { local r=""; for k in 1 2 3; do r=$(tapdesc1 "$1"); [ -n "$r" ] && break; sleep 2; done; echo "$r"; }
 ICONDESC="يوتيوب يعمل: اضغط لتفتحه، واضغط مطوّلاً لتوقفه"
 A=$(vid); echo "playing whole: $A"
 # (v175: back no longer hides it behind the icon; the button back to the app does, v173)
@@ -136,27 +163,4 @@ echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('w
 I=$(tapdesc "$ICONDESC"); echo "the icon at: $I"
 [ -n "$I" ] && { adb shell input swipe $I $I 1500; sleep 3; }
 adb logcat -d -s WaiYT:* | grep -q 'closed' && echo "a long press on the icon: closed" || note "a long press on the icon did not close YouTube"
-# (v175, his choice «ج: يرجع ويتوقف المقطع»: back with a video playing, its place kept, one step back in YouTube, where the
-# video stops; opened again, it goes on from its place)
-python3 android/ci-cdp.py "$WS" 'WaiNative.openYoutube(), 1' > /dev/null; sleep 25
-YT=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'youtube.com' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
-[ -n "$YT" ] || warn "back: YouTube's page has no debugging address"
-python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=rick+astley+never+gonna+give+you+up', 1" > /dev/null; sleep 25
-python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"dQw4w9WgXcQ\"]')||document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
-sleep 25
-adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
-timeout 15 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');if(v)v.play();return 1})()" > /dev/null
-sleep 20
-PS="(function(){var v=document.querySelector('video');return {path:location.pathname,t:v&&Math.round(v.currentTime),paused:v&&v.paused}})()"
-P1=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: watching $P1"
-adb logcat -c
-adb shell input keyevent KEYCODE_BACK; sleep 8
-P2=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: after it $P2"
-adb logcat -d -s WaiYT:* | grep -E 'back with|state' | tail -3
-echo "back: its place $(python3 android/ci-cdp.py "$YT" "JSON.stringify((JSON.parse(localStorage.getItem('wai-pos')||'{}'))['dQw4w9WgXcQ']||null)")"
-echo "$P2" | grep -q '"/results"' && echo "$P2" | grep -q '"paused": true' && echo "back: the page before, the video stopped" || note "back did not go to the page before with the video stopped"
-adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' && note "back hid YouTube behind the icon"
-shot BACKSHOT
-python3 android/ci-cdp.py "$YT" "history.forward(), 1" > /dev/null; sleep 15
-echo "back: the video again $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&Math.round(v.currentTime),keep:window.__waiKeep}})()")"
 echo "youtube: checked"
