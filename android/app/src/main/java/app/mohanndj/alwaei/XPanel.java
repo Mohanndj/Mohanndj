@@ -8,7 +8,11 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
@@ -44,6 +48,7 @@ final class XPanel {
     private FrameLayout box;
     private WebView web;
     private View full;
+    private View home; // v173: the floating button back to the app
     private WebChromeClient.CustomViewCallback fullCb;
     private String script = "";
 
@@ -75,6 +80,7 @@ final class XPanel {
         if (web == null) build();
         box.setVisibility(full != null ? View.GONE : View.VISIBLE);
         box.bringToFront();
+        homeBtn(full == null);
         changed.run();
         Log.i(TAG, "open");
     }
@@ -112,6 +118,7 @@ final class XPanel {
     void close() {
         if (web == null) return;
         hideFull();
+        if (home != null) { root.removeView(home); home = null; }
         WebView w = web;
         web = null;
         CookieManager.getInstance().flush();
@@ -134,9 +141,67 @@ final class XPanel {
     }
 
     void destroy() {
+        if (home != null) { root.removeView(home); home = null; }
         if (box != null) root.removeView(box);
         if (web != null) web.destroy();
         web = null;
+    }
+
+    // v173 (the owner: «أريد زرا يخرجني لواجهة الوعي الشخصي بدل من الرجوع المتكرر إلى أن أصل», and his answer: a small
+    // round one his finger moves): the app's icon floating over Twitter; a tap closes Twitter back to the app's page (as
+    // back does at its end), kept where he leaves it; none over a video on the whole screen
+    private void homeBtn(boolean show) {
+        if (!show) { if (home != null) home.setVisibility(View.GONE); return; }
+        if (home == null) {
+            View b = new View(act);
+            b.setBackground(act.getResources().getDrawable(R.mipmap.ic_launcher, null));
+            b.setContentDescription("ارجع إلى الوعي الشخصي");
+            b.setElevation(dp(12)); // (over Twitter's page)
+            root.addView(b, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
+            final float[] at = new float[4];
+            final boolean[] moved = new boolean[1];
+            final int slop = ViewConfiguration.get(act).getScaledTouchSlop();
+            b.setOnTouchListener((v, e) -> {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        at[0] = e.getRawX(); at[1] = e.getRawY(); at[2] = v.getX(); at[3] = v.getY(); moved[0] = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = e.getRawX() - at[0], dy = e.getRawY() - at[1];
+                        if (!moved[0] && Math.hypot(dx, dy) < slop) return true;
+                        moved[0] = true;
+                        v.setX(Math.max(0, Math.min(root.getWidth() - v.getWidth(), at[2] + dx)));
+                        v.setY(Math.max(0, Math.min(root.getHeight() - v.getHeight(), at[3] + dy)));
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (moved[0] || e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                            act.getSharedPreferences("x", 0).edit().putFloat("hx", v.getX() / Math.max(1, root.getWidth()))
+                                    .putFloat("hy", v.getY() / Math.max(1, root.getHeight())).apply();
+                        } else {
+                            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                            Log.i(TAG, "home button");
+                            close();
+                        }
+                        return true;
+                    default:
+                        return true;
+                }
+            });
+            home = b;
+        }
+        home.setVisibility(View.VISIBLE);
+        home.bringToFront();
+        // (where it was left, else at the bottom on the right: Twitter's own buttons are on the left in Arabic)
+        final View b = home;
+        b.post(() -> {
+            if (home != b) return;
+            float fx = act.getSharedPreferences("x", 0).getFloat("hx", -1), fy = act.getSharedPreferences("x", 0).getFloat("hy", -1);
+            int w = root.getWidth(), h = root.getHeight();
+            float x = fx >= 0 ? fx * w : w - b.getWidth() - dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
+            b.setX(Math.max(0, Math.min(w - b.getWidth(), x)));
+            b.setY(Math.max(0, Math.min(h - b.getHeight(), y)));
+        });
     }
 
     private void inject(WebView v) {
@@ -191,6 +256,7 @@ final class XPanel {
         if (full.getParent() instanceof ViewGroup) ((ViewGroup) full.getParent()).removeView(full);
         full = null;
         if (box != null) box.setVisibility(View.VISIBLE);
+        homeBtn(box != null);
         act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         if (fullCb != null) fullCb.onCustomViewHidden();
@@ -205,6 +271,7 @@ final class XPanel {
             full = view;
             fullCb = c;
             box.setVisibility(View.GONE);
+            homeBtn(false);
             root.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
             act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);

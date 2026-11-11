@@ -11,7 +11,7 @@
   var st = window.__waiX = { on: true, home: false, explore: false, list: false, hid: 0 };
   // (anything failing on the way: not done, so the next run tries again, and the error is kept for the log)
   try {
-  var KEY = 'wai-xlist';
+  var KEY = 'wai-xlist', KEYH = 'wai-xhandle';
   function mine() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
   function keep(v) { try { localStorage.setItem(KEY, v); } catch (e) { st.err = 'store'; } }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
@@ -33,6 +33,10 @@
     + '#wai-xhome b{font-size:20px;color:#0f1419}#wai-xhome p{margin:0;color:#536471;font-size:15px;line-height:1.7;max-width:340px}'
     + '.wai-xbtn{border:0;border-radius:999px;padding:12px 26px;font-size:17px;font-weight:700;background:#0f766e;color:#fff;font-family:inherit}'
     + '.wai-xbtn.ghost{background:#fff;color:#0f766e;border:1.5px solid #0f766e}'
+    // (v173) his handle written once, when Twitter shows it nowhere
+    + '#wai-xme{display:none;flex-direction:column;align-items:center;gap:8px}#wai-xme.on{display:flex}'
+    + '#wai-xme input{direction:ltr;text-align:center;font-size:16px;padding:10px 12px;border:1.5px solid #0f766e;border-radius:12px;width:220px;max-width:80vw;font-family:inherit}'
+    + '#wai-xme input::placeholder{direction:rtl}'
     + '#wai-xbar{position:fixed;left:10px;bottom:72px;z-index:2147483001;display:flex;gap:8px;direction:rtl;font-family:sans-serif}'
     + '#wai-xbar button{border:0;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;background:#0f766e;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);font-family:inherit}'
     + 'html.wai-xhome #wai-xbar,html.wai-xcompose #wai-xbar{display:none}'
@@ -75,7 +79,19 @@
   home.appendChild(el('b', '', 'تويتر'));
   home.appendChild(tw);
   home.appendChild(listBtn('wai-xbtn ghost'));
+  home.appendChild(meBtn('wai-xbtn ghost'));
   home.appendChild(homeMsg);
+  // (v173) «صفحتي» with no handle known: written here once, kept in Twitter's own storage on the phone
+  var meBox = el('div'); meBox.id = 'wai-xme';
+  var meIn = el('input'); meIn.type = 'text'; meIn.placeholder = 'اسم حسابك في تويتر'; meIn.autocomplete = 'off'; meIn.setAttribute('autocapitalize', 'off');
+  var meOk = el('button', 'wai-xbtn', 'احفظ وافتح صفحتي'); meOk.type = 'button';
+  meOk.addEventListener('click', function () {
+    var v = (meIn.value || '').trim().replace(/^@/, '');
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(v)) { homeMsg.textContent = 'اكتب اسم حسابك كما في تويتر: حروف إنجليزية وأرقام وشرطة سفلية، بلا @.'; return; }
+    keepH(v); meBox.classList.remove('on'); homeMsg.textContent = ''; go('/' + v);
+  });
+  meBox.appendChild(meIn); meBox.appendChild(meOk);
+  home.appendChild(meBox);
 
   var sign = el('p', '', 'ادخل باسم حسابك في تويتر وكلمة سره.'); sign.id = 'wai-xsign';
   // the buttons to sign in with Google or Apple (Google's own is a frame of its own inside a box): hidden
@@ -107,13 +123,33 @@
   bTw.addEventListener('click', function () { go('/compose/post'); });
   var bMine = el('button', '', 'اجعلها قائمتي'); bMine.type = 'button';
   bMine.addEventListener('click', function () { keep(location.pathname); st.list = true; draw(); });
-  bar.appendChild(bTw); bar.appendChild(listBtn('')); bar.appendChild(bMine);
+  bar.appendChild(bTw); bar.appendChild(listBtn('')); bar.appendChild(meBtn('')); bar.appendChild(bMine);
 
-  // his own handle (for his Lists' page), from the links of his profile Twitter shows
+  // his own handle (for his Lists' page, and «صفحتي»), from the links of his profile Twitter shows; (v173) else from his
+  // picture beside the box to tweet (only his own is there), else as he wrote it once; kept once known
+  function storedH() { try { return localStorage.getItem(KEYH) || ''; } catch (e) { return ''; } }
+  function keepH(v) { try { localStorage.setItem(KEYH, v); } catch (e) { st.err = 'store'; } }
   function handle() {
     var a = document.querySelector('a[data-testid="AppTabBar_Profile_Link"],a[aria-label="Profile"],a[aria-label="الملف الشخصي"]');
     var m = a && /^\/([A-Za-z0-9_]{1,15})$/.exec(a.getAttribute('href') || '');
-    return m ? m[1] : '';
+    if (!m && /^\/compose\//.test(location.pathname)) {
+      var av = document.querySelectorAll('[data-testid^="UserAvatar-Container-"]');
+      if (av.length === 1) m = /^UserAvatar-Container-([A-Za-z0-9_]{1,15})$/.exec(av[0].getAttribute('data-testid') || '');
+    }
+    if (m) { if (storedH() !== m[1]) keepH(m[1]); return m[1]; }
+    return storedH();
+  }
+  function meBtn(cls) {
+    var b = el('button', cls, 'صفحتي');
+    b.type = 'button';
+    b.addEventListener('click', openMe);
+    return b;
+  }
+  function openMe() {
+    var h = handle();
+    if (h) { go('/' + h); return; }
+    try { sessionStorage.setItem('wai-xask', '1'); } catch (e) { st.err = 'store'; } // (kept across the page opened next)
+    if (location.pathname === '/home' || location.pathname === '/') draw(); else go('/home');
   }
   function openList() {
     var l = mine();
@@ -140,6 +176,12 @@
     if (isList && mine() === p.replace(/\/$/, '')) homeMsg.textContent = '';
     if (!mine() && !homeMsg.textContent) homeMsg.textContent = 'ضع من تختارهم في قائمة خاصة في حسابك، ثم افتحها واضغط «اجعلها قائمتي».';
     if (mine()) homeMsg.textContent = '';
+    if (isHome) handle(); // (learnt as it shows)
+    else if (/^\/compose\//.test(p)) handle();
+    var ask = ''; try { ask = sessionStorage.getItem('wai-xask') || ''; } catch (e) { ask = ''; }
+    if (isHome && ask && !storedH() && !meBox.classList.contains('on')) { meBox.classList.add('on'); st.ask = true; homeMsg.textContent = 'لم يظهر لي اسم حسابك: اكتبه مرة واحدة ويُحفظ في جوالك.'; }
+    if (!isHome && st.ask) { st.ask = false; try { sessionStorage.removeItem('wai-xask'); } catch (e) { st.err = 'store'; } }
+    if (!isHome || storedH()) meBox.classList.remove('on');
     if (document.body && !home.isConnected) document.body.appendChild(home);
     if (document.body && !bar.isConnected) document.body.appendChild(bar);
     if (!css.isConnected) (document.head || document.documentElement).appendChild(css);

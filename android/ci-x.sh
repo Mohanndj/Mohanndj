@@ -42,6 +42,22 @@ im = Image.open("x.png").convert("RGB"); im.thumbnail((360, 720))
 b = io.BytesIO(); im.save(b, "JPEG", quality=60)
 print("XSHOT " + base64.b64encode(b.getvalue()).decode())
 PY
+# (v173: the floating button back to the app: shown over Twitter, a tap closes it)
+adb shell uiautomator dump /sdcard/x.xml > /dev/null 2>&1; adb pull /sdcard/x.xml x.xml > /dev/null 2>&1 || : > x.xml
+H=$(python3 - <<'PY'
+import re
+x = open("x.xml", encoding="utf-8").read()
+m = re.search(r'content-desc="ارجع إلى الوعي الشخصي"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', x)
+print("%d %d" % ((int(m[1]) + int(m[3])) // 2, (int(m[2]) + int(m[4])) // 2) if m else "")
+PY
+)
+echo "the button back to the app at: $H"
+if [ -n "$H" ]; then
+  adb logcat -c; adb shell input tap $H; sleep 3
+  adb logcat -d -s WaiX:* | grep -q 'home button' && adb logcat -d -s WaiX:* | grep -q 'closed' && echo "the button back to the app: Twitter closed" || note "the button back to the app did not close Twitter"
+  python3 android/ci-cdp.py "$WS" 'WaiNative.openX(), 1' > /dev/null; sleep 15
+else note "no button back to the app over Twitter"; fi
+adb logcat -c
 adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE_BACK; sleep 2
 adb logcat -d -s WaiX:* | grep -q 'closed' && echo "back: Twitter closed" || note "back did not close Twitter"
 echo "x: checked"

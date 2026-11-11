@@ -107,6 +107,13 @@ adb shell input tap $I; sleep 3
 adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 1' && echo "a tap on the icon: YouTube whole again" || note "a tap on the icon did not show YouTube"
 adb shell input keyevent KEYCODE_BACK; sleep 3
 adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' || note "back did not hide YouTube behind the icon again"
+# (v173: the same floating button over YouTube, the app's icon: a tap goes back to the app, the video playing on)
+I=$(tapdesc "$ICONDESC"); [ -n "$I" ] && { adb shell input tap $I; sleep 3; }
+H=$(tapdesc "ارجع إلى الوعي الشخصي"); echo "the button back to the app at: $H (the icon was at: $I)"
+[ -n "$H" ] || note "no button back to the app over YouTube"
+[ -n "$H" ] && { adb shell input tap $H; sleep 3; }
+adb logcat -d -s WaiYT:* | grep -E 'home button' | tail -1
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' && echo "the button back to the app: behind the icon, playing on" || note "the button back to the app did not hide YouTube behind the icon"
 # (the app left: it plays on, with its notification)
 C=$(vid); adb shell input keyevent KEYCODE_HOME; sleep 15; D=$(vid)
 echo "the app left: $C then $D"

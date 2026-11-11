@@ -160,7 +160,41 @@ final class YtPanel {
             box.bringToFront();
             if (full != null) full.bringToFront();
         }
-        icon(away);
+        iconFor();
+    }
+
+    // v173 (the owner: «أريد زرا يخرجني لواجهة الوعي الشخصي بدل من الرجوع المتكرر إلى أن أصل», then «اجعل للرجوع والمقطع
+    // شغال الزر نفسه الذي يرجعني للوعي الشخصي», his answer «زر واحد يتبدّل»): the same floating button over YouTube (the
+    // app's own icon: a tap goes back to the app's page, the video playing on behind it as back does, or YouTube closed
+    // when nothing plays) and over the app's page (▶: a tap shows YouTube again); in the place he leaves it, a long press
+    // stopping YouTube; none over a video on the whole screen
+    private void iconFor() {
+        icon(full == null && (state == ICON || state == FULL));
+    }
+
+    private void iconLook() {
+        if (icon == null) return;
+        if (state == FULL) {
+            icon.setText("");
+            icon.setBackground(act.getResources().getDrawable(R.mipmap.ic_launcher, null));
+            icon.setContentDescription("ارجع إلى الوعي الشخصي");
+        } else {
+            icon.setText("▶");
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(0xEE0F766E);
+            dot.setStroke(dp(2), Color.WHITE);
+            icon.setBackground(dot);
+            icon.setContentDescription("يوتيوب يعمل: اضغط لتفتحه، واضغط مطوّلاً لتوقفه");
+        }
+    }
+
+    // a tap: from YouTube to the app's page (playing on, or closed), from the app's page to YouTube
+    private void iconTap() {
+        if (state == ICON) { setState(FULL); return; }
+        Log.i(TAG, "home button");
+        if (playing) setState(ICON);
+        else close();
     }
 
     // the floating icon: a small round one, moved by the finger and kept where it is left; a tap shows YouTube again,
@@ -169,16 +203,9 @@ final class YtPanel {
         if (!show) { if (icon != null) icon.setVisibility(View.GONE); return; }
         if (icon == null) {
             icon = new TextView(act);
-            icon.setText("▶");
             icon.setTextColor(Color.WHITE);
             icon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
             icon.setGravity(Gravity.CENTER);
-            icon.setContentDescription("يوتيوب يعمل: اضغط لتفتحه، واضغط مطوّلاً لتوقفه");
-            GradientDrawable dot = new GradientDrawable();
-            dot.setShape(GradientDrawable.OVAL);
-            dot.setColor(0xEE0F766E);
-            dot.setStroke(dp(2), Color.WHITE);
-            icon.setBackground(dot);
             icon.setElevation(dp(10));
             root.addView(icon, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
             // (the screen turned or made smaller: kept on it; one listener, though the icon is made again after a stop)
@@ -218,21 +245,22 @@ final class YtPanel {
                         if (moved[0] || e.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) {
                             act.getSharedPreferences("yt", 0).edit().putFloat("ix", v.getX() / Math.max(1, root.getWidth()))
                                     .putFloat("iy", v.getY() / Math.max(1, root.getHeight())).apply();
-                        } else setState(FULL);
+                        } else iconTap();
                         return true;
                     default:
                         return true;
                 }
             });
         }
+        iconLook();
         icon.setVisibility(View.VISIBLE);
         icon.bringToFront();
-        // (where it was left, else at the bottom on the left, where the small window was)
+        // (where it was left, else at the bottom on the right, clear of «للاستماع» on the left)
         icon.post(() -> {
             if (icon == null) return;
             float fx = act.getSharedPreferences("yt", 0).getFloat("ix", -1), fy = act.getSharedPreferences("yt", 0).getFloat("iy", -1);
             int w = root.getWidth(), h = root.getHeight();
-            float x = fx >= 0 ? fx * w : dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
+            float x = fx >= 0 ? fx * w : w - icon.getWidth() - dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
             icon.setX(Math.max(0, Math.min(w - icon.getWidth(), x)));
             icon.setY(Math.max(0, Math.min(h - icon.getHeight(), y)));
         });
@@ -390,6 +418,7 @@ final class YtPanel {
         if (full.getParent() instanceof ViewGroup) ((ViewGroup) full.getParent()).removeView(full);
         full = null;
         if (box != null) box.setVisibility(state == HIDDEN ? View.GONE : View.VISIBLE);
+        iconFor();
         act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         if (fullCb != null) fullCb.onCustomViewHidden();
@@ -406,6 +435,7 @@ final class YtPanel {
             fullCb = c;
             box.setVisibility(View.GONE);
             root.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            iconFor();
             act.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
             act.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
         }
