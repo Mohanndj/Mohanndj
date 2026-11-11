@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run by GitHub on an Android emulator after each build: installs the app, opens it, and checks in the phone's log that
 # the app's page opened (its version and its first page) with no error from the page.
+bash android/ci-aff.sh || true
 set -u
 adb install -r alwaei.apk
 # the emulator's network may come up after it has booted: wait until the site's name resolves (an app opened before

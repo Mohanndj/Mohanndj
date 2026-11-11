@@ -64,4 +64,4 @@ try yellow 0 "أمان" '[data-qcmd="pal:hi"]' '#qPal [data-qhi="#fff3a3"]'
 try bold 1 "معي" '[data-qcmd="bold"]' ''
 ev "(function(){var p=document.getElementById('qPal');if(p)p.hidden=true;return 1})()" > /dev/null
 try yellow2 1 "دائما" '[data-qcmd="pal:hi"]' '#qPal [data-qhi="#fff3a3"]'
-say "done"
+say "done"; adb shell am force-stop app.mohanndj.alwaei; adb shell pm clear app.mohanndj.alwaei > /dev/null
