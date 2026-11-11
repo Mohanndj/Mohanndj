@@ -9,7 +9,7 @@ function normalizeInspire(x) {
   return {
     id: x.id || uid(), type: ['motivation', 'affirmation', 'image'].includes(x.type) ? x.type : 'motivation',
     text: String(x.text || ''), source: String(x.source || ''), imageId: x.imageId || '',
-    fav: !!x.fav, created: x.created || Date.now(), tab: String(x.tab || ''),
+    fav: !!x.fav, created: x.created || Date.now(), tab: String(x.tab || ''), html: typeof x.html === 'string' ? x.html : '',
   };
 }
 
@@ -129,7 +129,7 @@ function dailyQuoteHTML() {
   if (starter) q = STARTER_QUOTES[Math.floor(parse(today()).getTime() / 86400000) % STARTER_QUOTES.length];
   return `<button type="button" class="daily-quote" data-tab="inspire">
     <small>${icon('spark')} ${esc(pageName('inspire'))}${starter ? ` | أضف عباراتك من صفحة ${esc(pageName('inspire'))}` : ''}</small>
-    <q>${esc(q.text)}</q>
+    ${qxBody(q)}
     ${q.source ? `<cite>${esc(q.source)}</cite>` : ''}
   </button>`;
 }
@@ -138,7 +138,7 @@ function dailyQuoteHTML() {
 function quoteCard(x) {
   return `<button type="button" class="quote-card k-${x.type}" data-action="insp-open" data-v="${x.id}">
     <small>${QUOTE_KIND[x.type]}${x.fav ? ' | ' + icon('star') : ''}</small>
-    <q>${esc(x.text)}</q>
+    ${qxBody(x)}
     ${x.source ? `<cite>${esc(x.source)}</cite>` : ''}
   </button>`;
 }
@@ -164,7 +164,7 @@ function viewInspire() {
     <div class="section-head"><h2>الإلهام</h2>
       <div class="btn-row">${counts.motivation + counts.affirmation ? xlsBtn('inspire') : ''}${addBtn('insp-new', 'عبارة')}${addBtn('insp-photo', 'صورة')}</div></div>
     <input type="file" id="inspFile" accept="image/*" multiple hidden>
-    ${q && f === 'all' ? `<div class="daily-quote big"><small>${icon('spark')} عبارة اليوم</small><q>${esc(q.text)}</q>${q.source ? `<cite>${esc(q.source)}</cite>` : ''}</div>` : ''}
+    ${q && f === 'all' ? `<div class="daily-quote big"><small>${icon('spark')} عبارة اليوم</small>${qxBody(q)}${q.source ? `<cite>${esc(q.source)}</cite>` : ''}</div>` : ''}
     ${S.inspire.length ? `<div class="seg seg-wrap" role="group" aria-label="عرض">${seg}</div>` : ''}
     ${f === 'affirmation' ? affTabsHTML(atab) : ''}
     ${quotes.length ? `<div class="quote-list">${quotes.map(quoteCard).join('')}</div>` : ''}
@@ -186,7 +186,7 @@ function openQuote(id, type) {
     <div class="sheet-head"><h2>${id ? 'تعديل العبارة' : 'عبارة جديدة'}</h2>
       <button type="button" class="icon-btn" data-action="lib-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="seg" id="qType">${['motivation', 'affirmation'].map((k) => `<button type="button" data-action="insp-type" data-v="${k}" aria-pressed="${x.type === k}">${k === 'motivation' ? 'تحفيزية' : 'توكيدية'}</button>`).join('')}</div>
-    <label class="field"><span>العبارة</span><textarea id="qText" rows="4" placeholder="${x.type === 'affirmation' ? 'مثال: أنا أستحق النجاح وأعمل له كل يوم' : 'مثال: ابدأ من حيث أنت، واستخدم ما لديك'}">${esc(x.text)}</textarea></label>
+    <div class="field q-field"><span>العبارة</span>${qxToolsHTML()}<div id="qText" class="q-edit q-rich${S.settings.digits === 'arab' ? ' q-ar' : ''}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="العبارة" data-ph="${x.type === 'affirmation' ? 'مثال: أنا أستحق النجاح وأعمل له كل يوم' : 'مثال: ابدأ من حيث أنت، واستخدم ما لديك'}">${qxEditHTML(x)}</div></div>
     ${affTabs().length ? `<label class="field" id="qTabWrap"${x.type === 'affirmation' ? '' : ' hidden'}><span>التبويب</span><select id="qTab"><option value="">بلا تبويب</option>${affTabs().map((t) => `<option value="${t.id}"${affTabOf(x) === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>` : ''}
     <label class="field"><span>القائل أو المصدر (اختياري)</span><input type="text" id="qSource" value="${esc(x.source)}" autocomplete="off"></label>
     <label class="switch"><input type="checkbox" id="qFav"${x.fav ? ' checked' : ''}><span>مفضّلة (تظهر أكثر في «عبارة اليوم»)</span></label>
@@ -195,17 +195,20 @@ function openQuote(id, type) {
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
     </div>`;
   libArmed = false;
+  qxHist = [];
+  qxFontsFor(x.html);
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
-  setTimeout(() => { if (!id) $('qText').focus(); }, 60);
+  setTimeout(() => { if (!id) qxFocusEnd(); }, 60);
 }
 
 function saveQuote() {
-  const text = $('qText').value.trim();
-  if (!text) { toast('اكتب العبارة.'); $('qText').focus(); return false; }
+  // (v170) the phrase as formatted, and its plain text with its lines (for the sheet, sync and every other reader)
+  const html = qxSafe($('qText').innerHTML), text = qxPlain(html);
+  if (!text) { toast('اكتب العبارة.'); qxFocusEnd(); return false; }
   const old = S.inspire.find((i) => i.id === ldraft.id);
   const tab = ldraft.type === 'affirmation' ? ($('qTab') ? $('qTab').value : (old && old.tab) || '') : '';
-  const x = normalizeInspire({ ...(old || {}), id: ldraft.id, type: ldraft.type, text, source: $('qSource').value.trim(), fav: $('qFav').checked, tab });
+  const x = normalizeInspire({ ...(old || {}), id: ldraft.id, type: ldraft.type, text, source: $('qSource').value.trim(), fav: $('qFav').checked, tab, html: qxRich(html) ? html : '' });
   if (old) Object.assign(old, x); else S.inspire.push(x);
   save();
   return true;
@@ -357,11 +360,267 @@ function affTodayHTML() {
   const body = !st.open ? ''
     : !cur ? `<p class="note-text">اكتب توكيداتك في تبويبات من «${esc(pageName('inspire'))}». <button type="button" class="ghost sm" data-tab="inspire">${esc(pageName('inspire'))}</button></p>`
       : `${tabs.length > 1 ? `<div class="chips aff-tabs" role="group" aria-label="تبويبات التوكيدات">${tabs.map((t) => `<button type="button" class="chip" data-action="insp-aff-tab" data-v="${t.id}" aria-pressed="${t.id === cur.id}">${esc(t.name)}</button>`).join('')}</div>` : `<h3 class="aff-one">${esc(cur.name)}</h3>`}
-        <div class="aff-read">${affOf(cur.id).map((x) => `<p>${esc(x.text)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</p>`).join('')}</div>`;
+        <div class="aff-read">${affOf(cur.id).map((x) => `<div class="aff-q">${qxBody(x, true)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</div>`).join('')}</div>`;
   return `<section class="section aff-today">
     <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span><span class="aff-arrow" aria-hidden="true">${st.open ? '▲' : '▼'}</span></button>
     ${body}
   </section>`;
 }
+
+// ---------- (v170) a phrase formatted as in «مؤلفاتي», and shown as it was formatted ----------
+// his request: «اجعل نافذة التوكيدات في اليوم تظهر بنفس التنسيق الذي أضعه في نفس صفحة التعبئة، وكذلك اجعل لي القدرة على تنسيق
+// النص كما في كتاباتي»; his answers: its lines kept with the new formatting, «مؤلفاتي»'s text tools, every phrase
+// what a phrase keeps: «مؤلفاتي»'s own (wrSafe), less what its tools here do not make; a heading is «h3» (an «h2» the
+// size of a page's name would be renamed by renameHeads)
+function qxSafe(html) {
+  const t = document.createElement('template');
+  t.innerHTML = typeof wrSafe === 'function' ? wrSafe(html || '') : '';
+  for (const e of t.content.querySelectorAll('img, table, hr, .pgbreak, sup.fn')) e.remove();
+  for (const h of t.content.querySelectorAll('h2')) { const n = document.createElement('h3'); n.style.cssText = h.style.cssText; while (h.firstChild) n.append(h.firstChild); h.replaceWith(n); }
+  for (const e of t.content.querySelectorAll('[data-ind]')) delete e.dataset.ind;
+  return t.innerHTML.trim();
+}
+// its text, line by line
+function qxPlain(html) {
+  const t = document.createElement('template');
+  t.innerHTML = String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|h2|h3|blockquote|li)>/gi, '$&\n');
+  return t.content.textContent.split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// formatted beyond its lines: anything but plain paragraphs (those stay a text, shown as before)
+function qxRich(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html || '';
+  return [...t.content.querySelectorAll('*')].some((e) => !(e.nodeName === 'BR' || (e.nodeName === 'P' && !e.attributes.length)));
+}
+// the formatting shown while it is still this phrase's text (a text edited elsewhere goes back to plain)
+function qxShown(x) {
+  if (!x || !x.html) return '';
+  const h = qxSafe(x.html), same = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  return h && same(qxPlain(h)) === same(x.text) ? h : '';
+}
+function qxFontsFor(html) { if (/font-family/i.test(html || '') && typeof wrFonts === 'function') wrFonts(); }
+// a phrase as it is shown: formatted as he formatted it, or its text with its lines (between «…» as before)
+function qxBody(x, bare) {
+  const h = qxShown(x);
+  if (h) { qxFontsFor(h); return `<div class="q-rich${S.settings.digits === 'arab' ? ' q-ar' : ''}">${h}</div>`; }
+  return bare ? `<div class="q-lines">${esc(x.text)}</div>` : `<q class="q-lines">${esc(x.text)}</q>`;
+}
+function qxEditHTML(x) {
+  const h = qxShown(x);
+  if (h) return h;
+  const ls = String(x.text || '').split('\n');
+  return x.text ? ls.map((l) => `<p>${l ? esc(l) : '<br>'}</p>`).join('') : '<p><br></p>';
+}
+function qxFocusEnd() {
+  const el = $('qText');
+  if (!el) return;
+  el.focus();
+  const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+// «مؤلفاتي»'s text tools, by his choice (no table, picture, footnote, page break)
+const QX_TOOLS = [['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عادي'], ['bold', '<b>غ</b>', 'غامق'], ['italic', '<i>م</i>', 'مائل'], ['underline', '<u>ت</u>', 'تسطير'], ['strike', '<s>ش</s>', 'شطب'],
+  ['pal:color', '<span class="tool-color">أ</span>', 'لون الخط'], ['pal:hi', '<span class="tool-hi">أ</span>', 'تظليل'], ['pal:font', 'الخط', 'نوع الخط'], ['bigger', 'أ+', 'كبّر النص المحدد'], ['smaller', 'أ−', 'صغّر النص المحدد'],
+  ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'], ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'],
+  ['clear', 'مسح التنسيق', 'مسح التنسيق'], ['undo', '↶', 'تراجع']];
+const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تنسيق العبارة">${QX_TOOLS.map(([c, f, n]) => `<button type="button" data-qcmd="${c}" aria-label="${n}" title="${n}">${f}</button>`).join('')}</div><div class="q-pal" id="qPal" hidden></div>`;
+// «تراجع»: what the phrase was before each tool and each pause in typing
+let qxHist = [], qxTyping = 0, qxRange = null;
+const qxEl = () => $('qText');
+function qxMark() { const el = qxEl(); if (!el) return; const h = el.innerHTML; if (qxHist[qxHist.length - 1] !== h) qxHist.push(h); if (qxHist.length > 60) qxHist.shift(); }
+function qxUndo() {
+  const el = qxEl(); if (!el) return;
+  while (qxHist.length && qxHist[qxHist.length - 1] === el.innerHTML) qxHist.pop();
+  if (!qxHist.length) { toast('لا شيء تتراجع عنه'); return; }
+  el.innerHTML = qxHist.pop();
+  qxFocusEnd();
+}
+function qxKeep() { const s = getSelection(), el = qxEl(); if (el && s.rangeCount && el.contains(s.anchorNode)) qxRange = s.getRangeAt(0).cloneRange(); }
+function qxBack() {
+  const s = getSelection(), el = qxEl();
+  if (!el || (s.rangeCount && el.contains(s.anchorNode))) return;
+  el.focus();
+  if (qxRange && el.contains(qxRange.startContainer)) { s.removeAllRanges(); s.addRange(qxRange); }
+}
+const qxExec = (cmd, val, css) => { try { document.execCommand('styleWithCSS', false, !!css); } catch {} return document.execCommand(cmd, false, val); };
+// the paragraph the cursor is in, and those the selection touches
+function qxBlock() {
+  const s = getSelection(), el = qxEl();
+  if (!el || !s.rangeCount) return null;
+  let n = s.getRangeAt(0).startContainer;
+  if (!el.contains(n)) return null;
+  while (n && n.parentNode !== el) n = n.parentNode;
+  return n && n.nodeType === 1 ? n : null;
+}
+function qxBlocks() {
+  const s = getSelection(), el = qxEl();
+  if (!el || !s.rangeCount || !el.contains(s.anchorNode)) return [];
+  const r = s.getRangeAt(0);
+  const pick = () => [...el.querySelectorAll('p, h3, blockquote, li')].filter((b) => r.intersectsNode(b) && !b.querySelector('p, h3, blockquote, li'));
+  let l = pick();
+  if (!l.length) { document.execCommand('formatBlock', false, '<p>'); l = pick(); }
+  return l;
+}
+function qxUnstyle(prop, test) {
+  for (const sp of [...qxEl().querySelectorAll('span, font')]) {
+    if (!test(sp)) continue;
+    for (const inner of sp.querySelectorAll('span')) inner.style[prop] = '';
+    sp.style[prop] = '';
+    if (sp.nodeName === 'FONT') { sp.removeAttribute('color'); sp.removeAttribute('face'); }
+    if (!sp.getAttribute('style') || !sp.style.length) { if (sp.nodeName === 'SPAN' || !sp.attributes.length) sp.replaceWith(...sp.childNodes); }
+  }
+}
+// the selected text larger or smaller, as in «مؤلفاتي»: 15% a step, between 0.6 and 3 times its paragraph's size
+function qxResize(f) {
+  const el = qxEl(), s = getSelection();
+  if (!s.rangeCount || s.isCollapsed || !el.contains(s.anchorNode)) { toast('حدّد النص الذي تريد تكبيره أو تصغيره'); return false; }
+  const r = s.getRangeAt(0);
+  let n = r.startContainer.nodeType === 3 ? r.startContainer.parentNode : r.startContainer.childNodes[r.startOffset] || r.startContainer;
+  if (n.nodeType !== 1) n = n.parentNode;
+  const blk = n.closest('p, h3, blockquote, li') || el;
+  const px = (e) => parseFloat(getComputedStyle(e).fontSize) || 16;
+  const bp = px(blk), want = Math.min(bp * 3, Math.max(bp * 0.6, px(n) * f));
+  qxExec('fontSize', '7');
+  const made = [];
+  for (const ft of [...el.querySelectorAll('font[size="7"]')]) {
+    const sp = document.createElement('span');
+    for (const x of ft.querySelectorAll('[style]')) x.style.fontSize = '';
+    while (ft.firstChild) sp.append(ft.firstChild);
+    ft.replaceWith(sp);
+    made.push(sp);
+  }
+  for (const sp of made) sp.style.fontSize = `${Math.round((want / px(sp.parentNode)) * 100) / 100}em`;
+  if (made.length) { const nr = document.createRange(); nr.setStartBefore(made[0]); nr.setEndAfter(made[made.length - 1]); s.removeAllRanges(); s.addRange(nr); }
+  return true;
+}
+// a list of the paragraphs selected, or (on a list of the same kind) undone, by hand as in «مؤلفاتي»
+function qxList(tag) {
+  const T = tag.toUpperCase(), el = qxEl();
+  const blks = qxBlocks().filter((b) => b.nodeName === 'LI' || b.parentNode === el);
+  if (!blks.length) return;
+  const move = (from, to) => { to.style.cssText = from.style.cssText; if (from.classList.contains('ayah') && to.nodeName === 'P') to.className = 'ayah'; while (from.firstChild) to.append(from.firstChild); };
+  let last = null;
+  if (blks.every((b) => b.nodeName === 'LI' && b.parentNode.nodeName === T)) {
+    for (const li of blks) {
+      const list = li.parentNode, p = document.createElement('p');
+      const after = [...list.children].slice([...list.children].indexOf(li) + 1);
+      if (after.length) { const rest = document.createElement(list.nodeName.toLowerCase()); for (const x of after) rest.append(x); list.after(rest); }
+      list.after(p); move(li, p); li.remove(); last = p;
+      if (!list.children.length) list.remove();
+    }
+  } else {
+    let list = null;
+    for (const b of blks) {
+      if (b.nodeName === 'LI') { const old = b.parentNode; if (old.nodeName !== T) { const nl = document.createElement(tag); while (old.firstChild) nl.append(old.firstChild); old.replaceWith(nl); } list = null; last = b; continue; }
+      const prev = b.previousElementSibling;
+      if (!list) { list = prev && prev.nodeName === T ? prev : document.createElement(tag); if (list !== prev) b.before(list); }
+      const li = document.createElement('li'); move(b, li); if (!li.firstChild) li.append(document.createElement('br'));
+      list.append(li); b.remove(); last = li;
+    }
+  }
+  if (last) { const r = document.createRange(); r.selectNodeContents(last); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+}
+function qxPalHTML(k) {
+  if (k === 'color') return NOTE_COLORS.map(([c, n]) => `<button type="button" class="pal" data-qcolor="${c}" title="${n}" aria-label="لون ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : 'أ'}</button>`).join('');
+  if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-qhi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
+  if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-qfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
+  if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-qalign="${v}">${n}</button>`).join('');
+  if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-qlh="${v}">${n}</button>`).join('');
+  return '';
+}
+function qxCmd(cmd) {
+  const el = qxEl();
+  if (!el) return;
+  if (cmd.startsWith('pal:')) {
+    const k = cmd.slice(4), pal = $('qPal');
+    qxKeep();
+    if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; return; }
+    if (k === 'font' && typeof wrFonts === 'function') wrFonts();
+    pal.dataset.k = k; pal.innerHTML = qxPalHTML(k); pal.hidden = false;
+    return;
+  }
+  qxBack();
+  if (cmd === 'undo') { qxUndo(); return; }
+  qxMark();
+  if (cmd === 'bold' || cmd === 'italic' || cmd === 'underline') qxExec(cmd);
+  else if (cmd === 'strike') qxExec('strikeThrough');
+  else if (cmd === 'bigger' || cmd === 'smaller') qxResize(cmd === 'bigger' ? 1.15 : 1 / 1.15);
+  else if (cmd === 'ul' || cmd === 'ol') qxList(cmd);
+  else if (cmd === 'clear') { qxExec('removeFormat'); qxUnstyle('fontSize', (sp) => !!sp.style.fontSize && getSelection().containsNode(sp, true)); }
+  else if (cmd === 'h3' || cmd === 'p' || cmd === 'quote') {
+    const want = cmd === 'quote' ? 'blockquote' : cmd, blk = qxBlock();
+    document.execCommand('formatBlock', false, `<${blk && blk.nodeName.toLowerCase() === want && cmd !== 'p' ? 'p' : want}>`);
+    const nb = qxBlock(); if (nb) nb.classList.remove('ayah');
+  } else if (cmd === 'ayah') {
+    let blk = qxBlock();
+    if (!blk || blk.nodeName !== 'P') { document.execCommand('formatBlock', false, '<p>'); blk = qxBlock(); }
+    if (!blk) return;
+    if (blk.classList.contains('ayah')) blk.classList.remove('ayah');
+    else {
+      blk.classList.add('ayah');
+      const tx = blk.textContent.trim();
+      if (tx && !tx.startsWith('﴿')) blk.insertBefore(document.createTextNode('﴿'), blk.firstChild);
+      if (tx && !tx.endsWith('﴾')) blk.append(document.createTextNode('﴾'));
+    }
+  }
+}
+// the tools keep the cursor and the selection in the phrase
+document.addEventListener('pointerdown', (e) => {
+  if (!qxEl()) return;
+  if (e.target.closest('.q-tools button, #qPal button')) e.preventDefault();
+  else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; }
+});
+document.addEventListener('selectionchange', () => { if (qxEl()) qxKeep(); });
+document.addEventListener('click', (e) => {
+  const el = qxEl();
+  if (!el) return;
+  const t = e.target.closest('[data-qcmd], [data-qcolor], [data-qhi], [data-qfont], [data-qalign], [data-qlh]');
+  if (!t) return;
+  if (t.dataset.qcmd) { qxCmd(t.dataset.qcmd); return; }
+  // (a palette stays open with the text still selected, to try one after another, as in «مؤلفاتي»)
+  qxBack(); qxMark();
+  if (t.dataset.qcolor !== undefined) { const c = t.dataset.qcolor; if (c) qxExec('foreColor', c, true); else { qxExec('foreColor', '#010203', true); qxUnstyle('color', (sp) => /rgb\(1, 2, 3\)|#010203/i.test(sp.style.color || sp.getAttribute('color') || '')); } }
+  else if (t.dataset.qhi !== undefined) { const c = t.dataset.qhi; if (c) qxExec('hiliteColor', c, true); else { qxExec('hiliteColor', '#010203', true); qxUnstyle('backgroundColor', (sp) => /rgb\(1, 2, 3\)/.test(sp.style.backgroundColor)); } }
+  else if (t.dataset.qfont !== undefined) { const f = t.dataset.qfont; if (f) qxExec('fontName', f, true); else { qxExec('fontName', 'wr-reset', true); qxUnstyle('fontFamily', (sp) => /wr-reset/.test(sp.style.fontFamily || sp.getAttribute('face') || '')); } }
+  else if (t.dataset.qalign) { for (const b of qxBlocks()) b.style.textAlign = t.dataset.qalign; }
+  else if (t.dataset.qlh) { for (const b of qxBlocks()) b.style.lineHeight = t.dataset.qlh; }
+});
+document.addEventListener('focusin', (e) => {
+  if (e.target.id !== 'qText' || e.target.firstElementChild) return;
+  const p = document.createElement('p'); p.append(document.createElement('br'));
+  e.target.textContent = ''; e.target.append(p);
+  const r = document.createRange(); r.setStart(p, 0); r.collapse(true); getSelection().removeAllRanges(); getSelection().addRange(r);
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'qText') return;
+  // a new line after a verse box or a quotation is plain text
+  if (e.inputType === 'insertParagraph') {
+    const blk = qxBlock();
+    if (blk && !blk.textContent.trim() && (blk.classList.contains('ayah') || blk.nodeName === 'BLOCKQUOTE')) {
+      if (blk.nodeName === 'BLOCKQUOTE') document.execCommand('formatBlock', false, '<p>');
+      const nb = qxBlock(); if (nb) nb.classList.remove('ayah');
+    }
+  }
+  clearTimeout(qxTyping); qxTyping = setTimeout(qxMark, 700);
+});
+document.addEventListener('beforeinput', (e) => {
+  if (e.target.id !== 'qText') return;
+  if (e.inputType === 'historyUndo') { e.preventDefault(); qxUndo(); }
+  else if (e.inputType !== 'historyRedo') { clearTimeout(qxTyping); if (!qxHist.length) qxMark(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.id === 'qText' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); qxUndo(); }
+});
+// what is pasted keeps what «مؤلفاتي» keeps (headings, bold, italic, its lines)
+document.addEventListener('paste', (e) => {
+  if (!(e.target.closest && e.target.closest('#qText'))) return;
+  const cd = e.clipboardData;
+  if (!cd) return;
+  e.preventDefault();
+  qxMark();
+  const html = cd.getData('text/html');
+  if (html && typeof wrClean === 'function') qxExec('insertHTML', qxSafe(wrClean(html)));
+  else qxExec('insertText', cd.getData('text/plain'));
+});
 
 Object.assign(LibraryViews, { inspire: viewInspire });

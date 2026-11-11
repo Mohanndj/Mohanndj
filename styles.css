@@ -647,7 +647,30 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .aff-arrow { font-size: .8rem; }
 .aff-one { font-size: 1rem; color: var(--accent); margin: 0; }
 .aff-read { display: grid; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
-.aff-read p { margin: 0; font-family: var(--font-display); font-size: 1.25rem; line-height: 1.9; overflow-wrap: anywhere; }
+.aff-q { margin: 0; font-family: var(--font-display); font-size: 1.25rem; line-height: 1.9; overflow-wrap: anywhere; }
+/* (v170) a phrase with its lines, or formatted as in «مؤلفاتي»; the same look in its form as where it is shown */
+.q-lines { white-space: pre-line; }
+.q-rich { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.7; overflow-wrap: anywhere; text-align: start; }
+.daily-quote.big .q-rich { font-size: 1.5rem; }
+.aff-q .q-rich { line-height: 1.9; }
+.q-rich > :first-child { margin-top: 0; } .q-rich > :last-child { margin-bottom: 0; }
+.q-rich p, .q-rich h3, .q-rich ul, .q-rich ol, .q-rich blockquote { margin: 0 0 .35em; }
+.q-rich h3 { font-size: 1.25em; font-family: inherit; }
+.q-rich u { text-decoration: underline; } .q-rich s { text-decoration: line-through; }
+.q-rich ul, .q-rich ol { padding-inline-start: 1.4em; }
+.q-rich ol { list-style: wr-num; } .q-rich.q-ar ol { list-style: wr-ar; }
+.q-rich p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .4em .6em; }
+.q-rich blockquote { border-inline-start: 3px solid var(--accent); padding-inline-start: 10px; color: var(--muted); }
+.q-tools { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.q-tools button { min-width: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: .85rem; }
+.q-pal { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.q-pal .wr-fonts { flex: 1 1 100%; min-width: 0; }
+.q-field { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.q-field > * { min-width: 0; }
+.q-edit, .q-tools, .q-pal { max-width: 100%; box-sizing: border-box; }
+.q-edit { position: relative; min-height: 6.5em; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); outline: none; }
+.q-edit:focus { border-color: var(--accent); }
+.q-edit:has(> p:only-child > br:only-child)::before { content: attr(data-ph); position: absolute; color: var(--muted); pointer-events: none; font-size: 1rem; }
 .aff-read cite { display: block; color: var(--muted); font-style: normal; font-size: .85rem; font-family: inherit; }
 .aff-read cite::before { content: "— "; }
 .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
