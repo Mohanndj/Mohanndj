@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 170;
+const APP_VERSION = 171;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2763,6 +2763,7 @@ function closeTopLayer() {
   if (typeof hzs !== 'undefined' && hzs) { closeStudy(); return true; }
   if ($('viewer').open) { closeViewer(); return true; }
   if ($('aiSheet').open) { closeAIPreview(); return true; }
+  if ($('affReader') && $('affReader').open) { closeAffReader(); return true; } // (v171) «اقرأها بهدوء»
   if ($('libSheet').open) { const back = ldraft && ldraft.back; closeLib(); libBack(back); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }

@@ -195,7 +195,7 @@ function openQuote(id, type) {
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
     </div>`;
   libArmed = false;
-  qxHist = [];
+  qxHist = []; qxFut = []; qxRange = null; qxDown = null;
   qxFontsFor(x.html);
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -290,8 +290,12 @@ document.addEventListener('click', (e) => {
       save(); closeLib(); render(); toast(`حُذف التبويب${t ? ` «${t.name}»` : ''}، وبقيت عباراته`);
       break;
     }
-    case 'insp-aff-open': { const st = affState(); st.open = !st.open; affKeep(st); render(); break; }
-    case 'insp-aff-tab': { const st = affState(); st.tab = v; affKeep(st); render(); break; }
+    case 'insp-aff-open': { const st = affState(); st.open = !st.open; affKeep(st); inspUi.affAnim = 'open'; render(); break; }
+    case 'insp-aff-tab': { const st = affState(); if (st.tab === v) break; st.tab = v; affKeep(st); inspUi.affAnim = 'tab'; render(); break; }
+    case 'insp-aff-calm': openAffReader(); break;
+    case 'insp-aff-close': closeAffReader(); break;
+    case 'insp-aff-rtab': { const st = affState(); st.tab = v; affKeep(st); affReaderDraw(); const b = $('affReader').querySelector('.ar-read'); if (b) b.classList.add('aff-fade'); render(); break; }
+    case 'insp-aff-size': { const i = AFF_SIZES.indexOf(affSize()), n = AFF_SIZES[Math.max(0, Math.min(AFF_SIZES.length - 1, i + Number(v)))]; try { localStorage.setItem('mahami-affsize', String(n)); } catch {} const w = $('affReader').querySelector('.ar-wrap'); if (w) w.style.setProperty('--ark', n); affReaderDraw(); break; }
   }
 });
 document.addEventListener('change', (e) => {
@@ -355,17 +359,51 @@ function affOnce() {
   if (!h.includes('quote')) S.settings.todayHidden = [...h, 'quote'];
   save();
 }
+// (v171, «أكثر سلاسة وأناقة في الكتاب والفتح والقراءة»: it opens and folds with a soft motion, its count in words, each
+// phrase in a calm space of its own, and «اقرأها بهدوء» for the whole screen)
+const affCount = (n) => plural(n, 'عبارة واحدة', 'عبارتان', 'عبارات', 'عبارة');
+const affTabsRow = (tabs, cur, act) => (tabs.length > 1 ? `<div class="chips aff-tabs" role="group" aria-label="تبويبات التوكيدات">${tabs.map((t) => `<button type="button" class="chip" data-action="${act}" data-v="${t.id}" aria-pressed="${t.id === cur.id}">${esc(t.name)}</button>`).join('')}</div>` : `<h3 class="aff-one">${esc(cur.name)}</h3>`);
+const affListHTML = (tab) => affOf(tab).map((x) => `<div class="aff-q">${qxBody(x, true)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</div>`).join('');
 function affTodayHTML() {
   const st = affState(), tabs = affTabs().filter((t) => affOf(t.id).length), cur = tabs.find((t) => t.id === st.tab) || tabs[0];
+  const n = tabs.reduce((a, t) => a + affOf(t.id).length, 0), anim = inspUi.affAnim; inspUi.affAnim = '';
   const body = !st.open ? ''
     : !cur ? `<p class="note-text">اكتب توكيداتك في تبويبات من «${esc(pageName('inspire'))}». <button type="button" class="ghost sm" data-tab="inspire">${esc(pageName('inspire'))}</button></p>`
-      : `${tabs.length > 1 ? `<div class="chips aff-tabs" role="group" aria-label="تبويبات التوكيدات">${tabs.map((t) => `<button type="button" class="chip" data-action="insp-aff-tab" data-v="${t.id}" aria-pressed="${t.id === cur.id}">${esc(t.name)}</button>`).join('')}</div>` : `<h3 class="aff-one">${esc(cur.name)}</h3>`}
-        <div class="aff-read">${affOf(cur.id).map((x) => `<div class="aff-q">${qxBody(x, true)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</div>`).join('')}</div>`;
-  return `<section class="section aff-today">
-    <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span><span class="aff-arrow" aria-hidden="true">${st.open ? '▲' : '▼'}</span></button>
-    ${body}
+      : `${affTabsRow(tabs, cur, 'insp-aff-tab')}
+        <div class="aff-read${anim === 'tab' ? ' aff-fade' : ''}">${affListHTML(cur.id)}</div>
+        <div class="aff-acts"><button type="button" class="ghost sm" data-action="insp-aff-calm">${icon('spark')} اقرأها بهدوء</button></div>`;
+  return `<section class="section aff-today${st.open ? ' open' : ''}">
+    <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span>${n ? `<small>${affCount(n)}</small>` : ''}<span class="aff-arrow${anim === 'open' ? ' aff-turn' : ''}" aria-hidden="true">⌄</span></button>
+    ${body ? `<div class="aff-body${anim === 'open' && st.open ? ' aff-in' : ''}">${body}</div>` : ''}
   </section>`;
 }
+// «اقرأها بهدوء»: the tab on the whole screen, in a large calm hand, its size his to choose (kept on this phone)
+const AFF_SIZES = [0.85, 1, 1.15, 1.3, 1.5, 1.75];
+function affSize() { try { const v = Number(localStorage.getItem('mahami-affsize')); return AFF_SIZES.includes(v) ? v : 1; } catch { return 1; } }
+function affReader() {
+  let d = $('affReader');
+  if (d) return d;
+  d = document.createElement('dialog');
+  d.id = 'affReader'; d.className = 'fullscreen aff-reader'; d.setAttribute('aria-label', 'التوكيدات');
+  document.body.append(d);
+  return d;
+}
+function affReaderDraw() {
+  const d = $('affReader');
+  if (!d) return;
+  const st = affState(), tabs = affTabs().filter((t) => affOf(t.id).length), cur = tabs.find((t) => t.id === st.tab) || tabs[0];
+  if (!cur) { closeAffReader(); return; }
+  const k = affSize();
+  d.innerHTML = `<div class="ar-wrap" style="--ark:${k}">
+    <div class="ar-head"><button type="button" class="icon-btn" data-action="insp-aff-close" aria-label="إغلاق"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <b>التوكيدات</b>
+      <span class="ar-size"><button type="button" class="ghost sm" data-action="insp-aff-size" data-v="-1" aria-label="صغّر الخط"${k <= AFF_SIZES[0] ? ' disabled' : ''}>أ−</button><button type="button" class="ghost sm" data-action="insp-aff-size" data-v="1" aria-label="كبّر الخط"${k >= AFF_SIZES[AFF_SIZES.length - 1] ? ' disabled' : ''}>أ+</button></span></div>
+    ${affTabsRow(tabs, cur, 'insp-aff-rtab')}
+    <div class="ar-body"><div class="aff-read ar-read">${affListHTML(cur.id)}</div><p class="ar-end">${icon('spark')}</p></div>
+  </div>`;
+}
+function openAffReader() { const d = affReader(); affReaderDraw(); if (!d.open) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); } d.querySelector('.ar-body').scrollTop = 0; }
+function closeAffReader() { const d = $('affReader'); if (d && d.open) { if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); } }
 
 // ---------- (v170) a phrase formatted as in «مؤلفاتي», and shown as it was formatted ----------
 // his request: «اجعل نافذة التوكيدات في اليوم تظهر بنفس التنسيق الذي أضعه في نفس صفحة التعبئة، وكذلك اجعل لي القدرة على تنسيق
@@ -419,28 +457,69 @@ function qxFocusEnd() {
   const s = getSelection(); s.removeAllRanges(); s.addRange(r);
 }
 // «مؤلفاتي»'s text tools, by his choice (no table, picture, footnote, page break)
-const QX_TOOLS = [['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عادي'], ['bold', '<b>غ</b>', 'غامق'], ['italic', '<i>م</i>', 'مائل'], ['underline', '<u>ت</u>', 'تسطير'], ['strike', '<s>ش</s>', 'شطب'],
-  ['pal:color', '<span class="tool-color">أ</span>', 'لون الخط'], ['pal:hi', '<span class="tool-hi">أ</span>', 'تظليل'], ['pal:font', 'الخط', 'نوع الخط'], ['bigger', 'أ+', 'كبّر النص المحدد'], ['smaller', 'أ−', 'صغّر النص المحدد'],
-  ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'], ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'],
-  ['clear', 'مسح التنسيق', 'مسح التنسيق'], ['undo', '↶', 'تراجع']];
-const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تنسيق العبارة">${QX_TOOLS.map(([c, f, n]) => `<button type="button" data-qcmd="${c}" aria-label="${n}" title="${n}">${f}</button>`).join('')}</div><div class="q-pal" id="qPal" hidden></div>`;
+// (v171, «أكثر سلاسة وأناقة»: in groups, with «إعادة» beside «تراجع» as in «مؤلفاتي»)
+const QX_TOOLS = [['undo', '↶', 'تراجع'], ['redo', '↷', 'إعادة'], '|', ['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عادي'], '|', ['bold', '<b>غ</b>', 'غامق'], ['italic', '<i>م</i>', 'مائل'], ['underline', '<u>ت</u>', 'تسطير'], ['strike', '<s>ش</s>', 'شطب'], '|',
+  ['pal:color', '<span class="tool-color">أ</span>', 'لون الخط'], ['pal:hi', '<span class="tool-hi">أ</span>', 'تظليل'], ['pal:font', 'الخط', 'نوع الخط'], ['bigger', 'أ+', 'كبّر النص المحدد'], ['smaller', 'أ−', 'صغّر النص المحدد'], '|',
+  ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'], ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'], '|',
+  ['clear', 'مسح التنسيق', 'مسح التنسيق']];
+const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تنسيق العبارة">${QX_TOOLS.map((t) => (t === '|' ? '<i class="q-sep" aria-hidden="true"></i>' : `<button type="button" data-qcmd="${t[0]}" aria-label="${t[2]}" title="${t[2]}">${t[1]}</button>`)).join('')}</div><div class="q-pal" id="qPal" hidden></div>`;
 // «تراجع»: what the phrase was before each tool and each pause in typing
-let qxHist = [], qxTyping = 0, qxRange = null;
+// (v171) each step keeps where the cursor was, and «إعادة» takes back what «تراجع» undid
+let qxHist = [], qxFut = [], qxTyping = 0, qxRange = null, qxDown = null, qxHold = 0;
 const qxEl = () => $('qText');
-function qxMark() { const el = qxEl(); if (!el) return; const h = el.innerHTML; if (qxHist[qxHist.length - 1] !== h) qxHist.push(h); if (qxHist.length > 60) qxHist.shift(); }
+function qxCaret() {
+  const s = getSelection(), el = qxEl();
+  if (!el || !s.rangeCount || !el.contains(s.anchorNode)) return -1;
+  const r = document.createRange(); r.selectNodeContents(el); r.setEnd(s.anchorNode, s.anchorOffset);
+  return r.toString().length;
+}
+function qxSetCaret(n) {
+  const el = qxEl(); if (!el) return;
+  el.focus({ preventScroll: true });
+  if (n < 0) { const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return; }
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let last = null;
+  while (w.nextNode()) {
+    const t = w.currentNode; last = t;
+    if (n <= t.textContent.length) { const r = document.createRange(); r.setStart(t, n); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return; }
+    n -= t.textContent.length;
+  }
+  if (last) { const r = document.createRange(); r.setStart(last, last.textContent.length); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+}
+function qxMark() { const el = qxEl(); if (!el) return; const h = el.innerHTML; if ((qxHist[qxHist.length - 1] || {}).h !== h) { qxHist.push({ h, c: qxCaret() }); qxFut = []; } if (qxHist.length > 60) qxHist.shift(); }
 function qxUndo() {
   const el = qxEl(); if (!el) return;
-  while (qxHist.length && qxHist[qxHist.length - 1] === el.innerHTML) qxHist.pop();
+  while (qxHist.length && qxHist[qxHist.length - 1].h === el.innerHTML) qxHist.pop();
   if (!qxHist.length) { toast('لا شيء تتراجع عنه'); return; }
-  el.innerHTML = qxHist.pop();
-  qxFocusEnd();
+  qxFut.push({ h: el.innerHTML, c: qxCaret() });
+  const e = qxHist.pop();
+  el.innerHTML = e.h; qxSetCaret(e.c); qxStates();
 }
-function qxKeep() { const s = getSelection(), el = qxEl(); if (el && s.rangeCount && el.contains(s.anchorNode)) qxRange = s.getRangeAt(0).cloneRange(); }
+function qxRedo() {
+  const el = qxEl(); if (!el) return;
+  if (!qxFut.length) { toast('لا شيء تعيده'); return; }
+  qxHist.push({ h: el.innerHTML, c: qxCaret() });
+  const e = qxFut.pop();
+  el.innerHTML = e.h; qxSetCaret(e.c); qxStates();
+}
+// the selection while a tool is touched: kept at the touch itself, as a phone may let it go before the tool works
+function qxKeep() { if (qxHold) return; const s = getSelection(), el = qxEl(); if (el && s.rangeCount && el.contains(s.anchorNode)) qxRange = s.getRangeAt(0).cloneRange(); }
 function qxBack() {
   const s = getSelection(), el = qxEl();
-  if (!el || (s.rangeCount && el.contains(s.anchorNode))) return;
-  el.focus();
-  if (qxRange && el.contains(qxRange.startContainer)) { s.removeAllRanges(); s.addRange(qxRange); }
+  if (!el) return;
+  const r = qxDown || qxRange;
+  if (r && el.contains(r.startContainer) && el.contains(r.endContainer)) { el.focus({ preventScroll: true }); s.removeAllRanges(); s.addRange(r); return; }
+  if (!(s.rangeCount && el.contains(s.anchorNode))) el.focus({ preventScroll: true });
+}
+// the tools on the text selected look pressed (bold, a heading, a list…)
+function qxStates() {
+  const el = qxEl(), bar = el && el.closest('.q-field') && el.closest('.q-field').querySelector('.q-tools');
+  if (!bar) return;
+  const s = getSelection(), inside = s.rangeCount && el.contains(s.anchorNode);
+  const blk = inside ? qxBlock() : null, li = inside && s.anchorNode && (s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentNode).closest('li');
+  const q = (c) => { try { return inside && document.queryCommandState(c); } catch { return false; } };
+  const on = { bold: q('bold'), italic: q('italic'), underline: q('underline'), strike: q('strikeThrough'), h3: !!blk && blk.nodeName === 'H3', quote: !!blk && blk.nodeName === 'BLOCKQUOTE', ayah: !!blk && blk.classList.contains('ayah'), ul: !!li && li.parentNode.nodeName === 'UL', ol: !!li && li.parentNode.nodeName === 'OL' };
+  for (const b of bar.querySelectorAll('[data-qcmd]')) if (b.dataset.qcmd in on) b.setAttribute('aria-pressed', String(on[b.dataset.qcmd]));
 }
 const qxExec = (cmd, val, css) => { try { document.execCommand('styleWithCSS', false, !!css); } catch {} return document.execCommand(cmd, false, val); };
 // the paragraph the cursor is in, and those the selection touches
@@ -533,7 +612,8 @@ function qxCmd(cmd) {
   if (!el) return;
   if (cmd.startsWith('pal:')) {
     const k = cmd.slice(4), pal = $('qPal');
-    qxKeep();
+    if (qxDown) qxRange = qxDown; else { qxHold = 0; qxKeep(); }
+    qxBack(); // the text stays selected while the palette is open, so the choices that follow work on it
     if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; return; }
     if (k === 'font' && typeof wrFonts === 'function') wrFonts();
     pal.dataset.k = k; pal.innerHTML = qxPalHTML(k); pal.hidden = false;
@@ -541,12 +621,18 @@ function qxCmd(cmd) {
   }
   qxBack();
   if (cmd === 'undo') { qxUndo(); return; }
+  if (cmd === 'redo') { qxRedo(); return; }
   qxMark();
   if (cmd === 'bold' || cmd === 'italic' || cmd === 'underline') qxExec(cmd);
   else if (cmd === 'strike') qxExec('strikeThrough');
   else if (cmd === 'bigger' || cmd === 'smaller') qxResize(cmd === 'bigger' ? 1.15 : 1 / 1.15);
   else if (cmd === 'ul' || cmd === 'ol') qxList(cmd);
-  else if (cmd === 'clear') { qxExec('removeFormat'); qxUnstyle('fontSize', (sp) => !!sp.style.fontSize && getSelection().containsNode(sp, true)); }
+  else if (cmd === 'clear') {
+    // (v171) the marks and sizes, and the paragraph's alignment and spacing (a heading, list, verse or quotation keeps its own tool)
+    qxExec('removeFormat');
+    qxUnstyle('fontSize', (sp) => !!sp.style.fontSize && getSelection().containsNode(sp, true));
+    for (const b of qxBlocks()) { b.style.textAlign = ''; b.style.lineHeight = ''; if (!b.getAttribute('style')) b.removeAttribute('style'); }
+  }
   else if (cmd === 'h3' || cmd === 'p' || cmd === 'quote') {
     const want = cmd === 'quote' ? 'blockquote' : cmd, blk = qxBlock();
     document.execCommand('formatBlock', false, `<${blk && blk.nodeName.toLowerCase() === want && cmd !== 'p' ? 'p' : want}>`);
@@ -567,18 +653,24 @@ function qxCmd(cmd) {
 // the tools keep the cursor and the selection in the phrase
 document.addEventListener('pointerdown', (e) => {
   if (!qxEl()) return;
-  if (e.target.closest('.q-tools button, #qPal button')) e.preventDefault();
-  else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; }
+  if (e.target.closest('.q-tools button, #qPal button')) {
+    e.preventDefault();
+    const s = getSelection(), el = qxEl();
+    qxDown = s.rangeCount && el.contains(s.anchorNode) ? s.getRangeAt(0).cloneRange() : qxRange;
+    clearTimeout(qxHold); qxHold = setTimeout(() => { qxHold = 0; qxDown = null; }, 900);
+  } else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; }
 });
-document.addEventListener('selectionchange', () => { if (qxEl()) qxKeep(); });
+let qxSelT = 0;
+document.addEventListener('selectionchange', () => { if (!qxEl()) return; qxKeep(); cancelAnimationFrame(qxSelT); qxSelT = requestAnimationFrame(qxStates); });
 document.addEventListener('click', (e) => {
   const el = qxEl();
   if (!el) return;
   const t = e.target.closest('[data-qcmd], [data-qcolor], [data-qhi], [data-qfont], [data-qalign], [data-qlh]');
   if (!t) return;
-  if (t.dataset.qcmd) { qxCmd(t.dataset.qcmd); return; }
+  const done = () => { clearTimeout(qxHold); qxHold = 0; qxDown = null; qxKeep(); qxStates(); };
+  if (t.dataset.qcmd) { qxCmd(t.dataset.qcmd); done(); return; }
   // (a palette stays open with the text still selected, to try one after another, as in «مؤلفاتي»)
-  qxBack(); qxMark();
+  qxBack(); qxMark(); setTimeout(done, 0);
   if (t.dataset.qcolor !== undefined) { const c = t.dataset.qcolor; if (c) qxExec('foreColor', c, true); else { qxExec('foreColor', '#010203', true); qxUnstyle('color', (sp) => /rgb\(1, 2, 3\)|#010203/i.test(sp.style.color || sp.getAttribute('color') || '')); } }
   else if (t.dataset.qhi !== undefined) { const c = t.dataset.qhi; if (c) qxExec('hiliteColor', c, true); else { qxExec('hiliteColor', '#010203', true); qxUnstyle('backgroundColor', (sp) => /rgb\(1, 2, 3\)/.test(sp.style.backgroundColor)); } }
   else if (t.dataset.qfont !== undefined) { const f = t.dataset.qfont; if (f) qxExec('fontName', f, true); else { qxExec('fontName', 'wr-reset', true); qxUnstyle('fontFamily', (sp) => /wr-reset/.test(sp.style.fontFamily || sp.getAttribute('face') || '')); } }
@@ -606,10 +698,11 @@ document.addEventListener('input', (e) => {
 document.addEventListener('beforeinput', (e) => {
   if (e.target.id !== 'qText') return;
   if (e.inputType === 'historyUndo') { e.preventDefault(); qxUndo(); }
-  else if (e.inputType !== 'historyRedo') { clearTimeout(qxTyping); if (!qxHist.length) qxMark(); }
+  else if (e.inputType === 'historyRedo') { e.preventDefault(); qxRedo(); }
+  else { clearTimeout(qxTyping); if (!qxHist.length) qxMark(); }
 });
 document.addEventListener('keydown', (e) => {
-  if (e.target.id === 'qText' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); qxUndo(); }
+  if (e.target.id === 'qText' && (e.ctrlKey || e.metaKey) && /^[zy]$/i.test(e.key)) { e.preventDefault(); if (e.key.toLowerCase() === 'y' || e.shiftKey) qxRedo(); else qxUndo(); }
 });
 // what is pasted keeps what «مؤلفاتي» keeps (headings, bold, italic, its lines)
 document.addEventListener('paste', (e) => {

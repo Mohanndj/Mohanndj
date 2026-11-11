@@ -644,9 +644,25 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .aff-head { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 16px; padding: 12px 16px; color: var(--accent); font-weight: 700; font-size: 1rem; }
 .aff-head span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 .aff-head svg { width: 16px; height: 16px; }
-.aff-arrow { font-size: .8rem; }
+.aff-arrow { font-size: 1.1rem; line-height: 1; transition: transform .25s ease; }
+/* (v171) softer and calmer: the count in words, the arrow turns, it opens and the tab changes with a gentle fade */
+.aff-head small { margin-inline-start: auto; margin-inline-end: 10px; color: var(--muted); font-weight: 500; font-size: .8rem; }
+.aff-today.open .aff-arrow { transform: rotate(180deg); }
+.aff-body { display: grid; gap: 10px; }
+.aff-in { animation: affIn .32s ease-out; }
+.aff-fade { animation: affFade .28s ease-out; }
+.aff-turn { transition: transform .25s ease; }
+@keyframes affIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes affFade { from { opacity: 0; } to { opacity: 1; } }
+.aff-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-bottom: 2px; }
+.aff-tabs::-webkit-scrollbar { display: none; }
+.aff-tabs .chip { flex: 0 0 auto; }
+.aff-acts { display: flex; justify-content: center; }
+.aff-acts svg { width: 14px; height: 14px; }
 .aff-one { font-size: 1rem; color: var(--accent); margin: 0; }
-.aff-read { display: grid; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.aff-read { display: grid; gap: 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 18px; }
+.aff-read .aff-q { padding: 14px 0; }
+.aff-read .aff-q + .aff-q { border-top: 1px dashed color-mix(in srgb, var(--accent) 22%, var(--line)); }
 .aff-q { margin: 0; font-family: var(--font-display); font-size: 1.25rem; line-height: 1.9; overflow-wrap: anywhere; }
 /* (v170) a phrase with its lines, or formatted as in «مؤلفاتي»; the same look in its form as where it is shown */
 .q-lines { white-space: pre-line; }
@@ -661,18 +677,33 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .q-rich ol { list-style: wr-num; } .q-rich.q-ar ol { list-style: wr-ar; }
 .q-rich p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .4em .6em; }
 .q-rich blockquote { border-inline-start: 3px solid var(--accent); padding-inline-start: 10px; color: var(--muted); }
-.q-tools { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
-.q-tools button { min-width: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: .85rem; }
+.q-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 6px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); position: sticky; top: 0; z-index: 3; }
+.q-tools button { min-width: 36px; min-height: 34px; padding: 5px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fg); font-size: .88rem; }
+.q-tools button[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.q-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
 .q-pal { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .q-pal .wr-fonts { flex: 1 1 100%; min-width: 0; }
 .q-field { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .q-field > * { min-width: 0; }
 .q-edit, .q-tools, .q-pal { max-width: 100%; box-sizing: border-box; }
-.q-edit { position: relative; min-height: 6.5em; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); outline: none; }
+.q-edit { position: relative; min-height: 8em; padding: 12px 14px 12px 52px; line-height: 1.8; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg); outline: none; }
 .q-edit:focus { border-color: var(--accent); }
 .q-edit:has(> p:only-child > br:only-child)::before { content: attr(data-ph); position: absolute; color: var(--muted); pointer-events: none; font-size: 1rem; }
 .aff-read cite { display: block; color: var(--muted); font-style: normal; font-size: .85rem; font-family: inherit; }
 .aff-read cite::before { content: "— "; }
+/* (v171) «اقرأها بهدوء» */
+.aff-reader { background: var(--bg); }
+dialog.aff-reader::backdrop { background: var(--bg); }
+.ar-wrap { height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 0; box-sizing: border-box; max-width: 720px; margin: 0 auto; }
+.ar-head { display: flex; align-items: center; gap: 10px; }
+.ar-head b { flex: 1; color: var(--accent); font-family: var(--font-display); font-size: 1.1rem; }
+.ar-size { display: inline-flex; gap: 6px; }
+.ar-body { flex: 1; overflow-y: auto; padding-bottom: 28px; }
+.ar-read { background: transparent; border: 0; padding: 0 4px; }
+.ar-read .aff-q { font-size: calc(1.45rem * var(--ark, 1)); line-height: 2; padding: 22px 0; }
+.ar-read .aff-q .q-rich { font-size: 1em; line-height: 2; }
+.ar-end { text-align: center; color: var(--accent); opacity: .5; margin: 14px 0; }
+.ar-end svg { width: 18px; height: 18px; }
 .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .photo { position: relative; aspect-ratio: 1; max-width: 100%; padding: 0; border-radius: 12px; overflow: hidden; background: var(--line); }
 .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
