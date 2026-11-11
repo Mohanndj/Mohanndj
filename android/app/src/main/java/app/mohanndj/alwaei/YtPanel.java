@@ -42,8 +42,9 @@ import java.util.Scanner;
  * v161 (his answers: «ما يحتاج أن نضيف صورة لمقطع اليوتيوب صغيرة… المطلوب فقط التشغيل في الخلفية», back to the app with a
  * video playing: the sound on and a floating icon; leaving the app: «يستمر الصوت»; stopping it: a long press on the icon;
  * the screen turned off: it stops): no small window any more (drawn small it was black on his phone, and made small YouTube
- * stops its video). With a video playing, back hides YouTube whole as it is (out of the screen, its page told it is still
- * seen, yt_keep.js) and shows the floating icon (ICON); a tap on it shows YouTube again, a long press stops it. Leaving the
+ * stops its video). With a video playing, the button back to the app (v173) hides YouTube whole as it is (out of the screen,
+ * its page told it is still seen, yt_keep.js) and shows the floating icon (ICON); a tap on it shows YouTube again, a long
+ * press stops it (back itself, from v175: a step back in YouTube, the video stopped, its place kept). Leaving the
  * app, the video plays on with a notification Android asks for (YtService, its «إيقاف» stops it).
  */
 final class YtPanel {
@@ -64,6 +65,7 @@ final class YtPanel {
     private int blocked;
     int state = HIDDEN;
     volatile boolean playing;
+    private boolean wipe; // (v175: YouTube's first page opened by back from a video with no page before it: that video is not a step back)
 
     interface Listener {
         void changed(); // shown, hidden behind the icon, or closed: the app's page shown or hidden behind it
@@ -165,7 +167,7 @@ final class YtPanel {
 
     // v173 (the owner: «أريد زرا يخرجني لواجهة الوعي الشخصي بدل من الرجوع المتكرر إلى أن أصل», then «اجعل للرجوع والمقطع
     // شغال الزر نفسه الذي يرجعني للوعي الشخصي», his answer «زر واحد يتبدّل»): the same floating button over YouTube (the
-    // app's own icon: a tap goes back to the app's page, the video playing on behind it as back does, or YouTube closed
+    // app's own icon: a tap goes back to the app's page, the video playing on behind it, or YouTube closed
     // when nothing plays) and over the app's page (▶: a tap shows YouTube again); in the place he leaves it, a long press
     // stopping YouTube; none over a video on the whole screen
     private void iconFor() {
@@ -306,11 +308,11 @@ final class YtPanel {
             web.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave()", null);
             final boolean step = web.canGoBack();
             String u = web.getUrl();
-            if (!step && (u == null || !u.contains("/watch"))) { close(); return true; } // (not a video's page: as before)
+            if (!step && (u == null || !u.contains("/watch"))) { setState(ICON); return true; } // (not a video's page: as before)
             Log.i(TAG, "back with a video playing: " + (step ? "a step back" : "the first page"));
             web.postDelayed(() -> {
                 if (web == null) return;
-                if (step) web.goBack(); else web.loadUrl(HOME);
+                if (step) web.goBack(); else { wipe = true; web.loadUrl(HOME); }
             }, 150);
             return true;
         }
@@ -422,6 +424,7 @@ final class YtPanel {
         @Override
         public void onPageFinished(WebView view, String url) {
             inject(view);
+            if (wipe && url != null && !url.contains("/watch")) { wipe = false; view.clearHistory(); }
             // a line in the phone's log for checking the build (android/ci-youtube.sh)
             view.postDelayed(() -> view.evaluateJavascript(
                     "(function(){try{return JSON.stringify({u:location.host,bridge:typeof WaiNative,ad:window.__waiAd||null,calm:window.__waiCalm||null,keep:window.__waiKeep||null})}catch(e){return 'error '+e}})()",

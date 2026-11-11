@@ -684,13 +684,15 @@ function qxCmd(cmd) {
     const k = cmd.slice(4), pal = $('qPal');
     if (qxDown) qxRange = qxDown; else { clearTimeout(qxHold); qxHold = 0; qxKeep(); }
     qxBack(); // the text stays selected while the palette is open, so the choices that follow work on it
-    if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; return; }
+    if (k !== 'hi') qxLast = null; // (another tool, or the palette closed: the words just highlighted are let go)
+    if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; qxLast = null; return; }
     if (k === 'font' && typeof wrFonts === 'function') wrFonts();
     pal.dataset.k = k; pal.innerHTML = qxPalHTML(k); pal.hidden = false;
     qxPalTop();
     if (k === 'hi') { const s = getSelection(); if (s.rangeCount && !s.isCollapsed) qxShow(s.getRangeAt(0)); }
     return;
   }
+  qxLast = null;
   qxBack();
   if (cmd === 'undo') { qxUndo(); return; }
   if (cmd === 'redo') { qxRedo(); return; }

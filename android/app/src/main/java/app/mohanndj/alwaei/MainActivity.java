@@ -241,7 +241,7 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         if (xp.back()) return; // (v166: «تويتر» open: its steps, then closed)
-        if (yt.back()) return; // (YouTube whole: its steps; a video playing goes behind the floating icon)
+        if (yt.back()) return; // (YouTube whole: its steps; v175: a video playing stops, its place kept)
         if (web.canGoBack()) web.goBack();
         else moveTaskToBack(true); // (a video playing plays on: onPause)
     }
