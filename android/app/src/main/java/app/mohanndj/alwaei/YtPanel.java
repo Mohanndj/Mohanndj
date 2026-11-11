@@ -296,12 +296,24 @@ final class YtPanel {
         w.postDelayed(() -> { root.removeView(b); w.destroy(); }, 400);
     }
 
-    /** Back while it is whole: out of the whole screen, then behind the icon if a video plays, then YouTube's steps,
-     *  then closed. */
+    /** Back while it is whole: out of the whole screen, then YouTube's steps, then closed.
+     *  (v175, his choice «ج: يرجع ويتوقف المقطع»: with a video playing, its place kept and a step back in YouTube, which
+     *  stops it; with no page before it, YouTube's first page: «يبقى في يوتيوب». It was behind the icon from v164.) */
     boolean back() {
         if (web == null || state != FULL) return false;
         if (full != null) { hideFull(); return true; }
-        if (playing) { setState(ICON); return true; }
+        if (playing) {
+            web.evaluateJavascript("window.__waiKeepSave&&window.__waiKeepSave()", null);
+            final boolean step = web.canGoBack();
+            String u = web.getUrl();
+            if (!step && (u == null || !u.contains("/watch"))) { close(); return true; } // (not a video's page: as before)
+            Log.i(TAG, "back with a video playing: " + (step ? "a step back" : "the first page"));
+            web.postDelayed(() -> {
+                if (web == null) return;
+                if (step) web.goBack(); else web.loadUrl(HOME);
+            }, 150);
+            return true;
+        }
         if (web.canGoBack()) web.goBack();
         else close();
         return true;

@@ -694,7 +694,7 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .q-tools button { min-width: 36px; min-height: 34px; padding: 5px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fg); font-size: .88rem; }
 .q-tools button[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .q-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
-.q-pal { position: relative; z-index: 4; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.q-pal { position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .q-pal .wr-fonts { flex: 1 1 100%; min-width: 0; }
 .q-field { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .q-field > * { min-width: 0; }

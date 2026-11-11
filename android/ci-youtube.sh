@@ -92,7 +92,8 @@ PY
 }
 ICONDESC="يوتيوب يعمل: اضغط لتفتحه، واضغط مطوّلاً لتوقفه"
 A=$(vid); echo "playing whole: $A"
-adb shell input keyevent KEYCODE_BACK; sleep 3
+# (v175: back no longer hides it behind the icon; the button back to the app does, v173)
+H=$(tapdesc "ارجع إلى الوعي الشخصي"); [ -n "$H" ] && adb shell input tap $H; sleep 3
 adb logcat -d -s WaiYT:* | grep -E 'state|playing' | tail -3
 sleep 8; B=$(vid); echo "behind the icon: $B"
 echo "the app's page with YouTube behind the icon: $(python3 android/ci-cdp.py "$WS" 'document.visibilityState')"
@@ -105,8 +106,8 @@ adb shell input swipe $I $((${I% *} + 60)) $((${I#* } - 200)) 400; sleep 2
 I=$(tapdesc "$ICONDESC"); echo "the icon moved to: $I"
 adb shell input tap $I; sleep 3
 adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 1' && echo "a tap on the icon: YouTube whole again" || note "a tap on the icon did not show YouTube"
-adb shell input keyevent KEYCODE_BACK; sleep 3
-adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' || note "back did not hide YouTube behind the icon again"
+H=$(tapdesc "ارجع إلى الوعي الشخصي"); [ -n "$H" ] && adb shell input tap $H; sleep 3
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' || note "the button did not hide YouTube behind the icon again"
 # (v173: the same floating button over YouTube, the app's icon: a tap goes back to the app, the video playing on)
 I=$(tapdesc "$ICONDESC"); [ -n "$I" ] && { adb shell input tap $I; sleep 3; }
 H=$(tapdesc "ارجع إلى الوعي الشخصي"); echo "the button back to the app at: $H (the icon was at: $I)"
@@ -135,26 +136,27 @@ echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('w
 I=$(tapdesc "$ICONDESC"); echo "the icon at: $I"
 [ -n "$I" ] && { adb shell input swipe $I $I 1500; sleep 3; }
 adb logcat -d -s WaiYT:* | grep -q 'closed' && echo "a long press on the icon: closed" || note "a long press on the icon did not close YouTube"
-# (probe for v175, his ask: back with a video playing goes to the YouTube page he was on before it, the video playing on
-# in a small bar as in YouTube's app; what YouTube's own site does on back: its place, the video, any small player)
+# (v175, his choice «ج: يرجع ويتوقف المقطع»: back with a video playing, its place kept, one step back in YouTube, where the
+# video stops; opened again, it goes on from its place)
 python3 android/ci-cdp.py "$WS" 'WaiNative.openYoutube(), 1' > /dev/null; sleep 25
 YT=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'youtube.com' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
-[ -n "$YT" ] || warn "probe: YouTube's page has no debugging address"
+[ -n "$YT" ] || warn "back: YouTube's page has no debugging address"
 python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=rick+astley+never+gonna+give+you+up', 1" > /dev/null; sleep 25
-echo "PROBE results: $(python3 android/ci-cdp.py "$YT" "(function(){var a=[].slice.call(document.querySelectorAll('a[href*=\"/watch\"]'));return {href:location.href,links:a.length}})()")"
 python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"dQw4w9WgXcQ\"]')||document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
 sleep 25
 adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
-python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?v.play().then(function(){return 'play'},function(e){return 'no '+e}):'no video'})()"
-sleep 15
-PS="(function(){var v=document.querySelector('video');var m=[].slice.call(document.querySelectorAll('*')).map(function(e){return e.tagName.toLowerCase()+(e.id?'#'+e.id:'')}).filter(function(n){return /mini|pivot|floating/.test(n)});var c=[].slice.call(document.querySelectorAll('[class*=mini],[class*=Mini]')).slice(0,8).map(function(e){var r=e.getBoundingClientRect();return e.tagName.toLowerCase()+'.'+String(e.className).slice(0,60)+' '+Math.round(r.top)+','+Math.round(r.height)});var r=v&&v.getBoundingClientRect();return {href:location.href,len:history.length,video:!!v,inDoc:!!(v&&v.isConnected),t:v&&Math.round(v.currentTime*10)/10,paused:v&&v.paused,box:r&&[Math.round(r.top),Math.round(r.width),Math.round(r.height)],tags:m.slice(0,12),cls:c}})()"
-echo "PROBE watching: $(python3 android/ci-cdp.py "$YT" "$PS")"
-shot PROBEWATCHSHOT
-python3 android/ci-cdp.py "$YT" "history.back(), 1" > /dev/null; sleep 6
-echo "PROBE after back: $(python3 android/ci-cdp.py "$YT" "$PS")"
-sleep 8
-echo "PROBE after back, 8s on: $(python3 android/ci-cdp.py "$YT" "$PS")"
-shot PROBEBACKSHOT
-python3 android/ci-cdp.py "$YT" "history.forward(), 1" > /dev/null; sleep 6
-echo "PROBE forward again: $(python3 android/ci-cdp.py "$YT" "$PS")"
+timeout 15 python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');if(v)v.play();return 1})()" > /dev/null
+sleep 20
+PS="(function(){var v=document.querySelector('video');return {path:location.pathname,t:v&&Math.round(v.currentTime),paused:v&&v.paused}})()"
+P1=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: watching $P1"
+adb logcat -c
+adb shell input keyevent KEYCODE_BACK; sleep 8
+P2=$(python3 android/ci-cdp.py "$YT" "$PS"); echo "back: after it $P2"
+adb logcat -d -s WaiYT:* | grep -E 'back with|state' | tail -3
+echo "back: its place $(python3 android/ci-cdp.py "$YT" "JSON.stringify((JSON.parse(localStorage.getItem('wai-pos')||'{}'))['dQw4w9WgXcQ']||null)")"
+echo "$P2" | grep -q '"/results"' && echo "$P2" | grep -q '"paused": true' && echo "back: the page before, the video stopped" || note "back did not go to the page before with the video stopped"
+adb logcat -d -s WaiYT:* | grep -E 'state' | tail -1 | grep -q 'state 3' && note "back hid YouTube behind the icon"
+shot BACKSHOT
+python3 android/ci-cdp.py "$YT" "history.forward(), 1" > /dev/null; sleep 15
+echo "back: the video again $(python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return {t:v&&Math.round(v.currentTime),keep:window.__waiKeep}})()")"
 echo "youtube: checked"
