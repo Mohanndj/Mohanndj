@@ -644,14 +644,18 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .aff-head { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 16px; padding: 12px 16px; color: var(--accent); font-weight: 700; font-size: 1rem; }
 .aff-head span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 .aff-head svg { width: 16px; height: 16px; }
-.aff-arrow { font-size: 1.1rem; line-height: 1; transition: transform .25s ease; }
+.aff-arrow { display: inline-flex; line-height: 1; }
+.aff-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 /* (v171) softer and calmer: the count in words, the arrow turns, it opens and the tab changes with a gentle fade */
 .aff-head small { margin-inline-start: auto; margin-inline-end: 10px; color: var(--muted); font-weight: 500; font-size: .8rem; }
 .aff-today.open .aff-arrow { transform: rotate(180deg); }
 .aff-body { display: grid; gap: 10px; }
 .aff-in { animation: affIn .32s ease-out; }
 .aff-fade { animation: affFade .28s ease-out; }
-.aff-turn { transition: transform .25s ease; }
+.aff-turn-o { animation: affTurnO .25s ease; }
+.aff-turn-c { animation: affTurnC .25s ease; }
+@keyframes affTurnO { from { transform: rotate(0); } to { transform: rotate(180deg); } }
+@keyframes affTurnC { from { transform: rotate(180deg); } to { transform: rotate(0); } }
 @keyframes affIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes affFade { from { opacity: 0; } to { opacity: 1; } }
 .aff-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-bottom: 2px; }
@@ -681,7 +685,7 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .q-tools button { min-width: 36px; min-height: 34px; padding: 5px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--fg); font-size: .88rem; }
 .q-tools button[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
 .q-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
-.q-pal { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.q-pal { position: relative; z-index: 4; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .q-pal .wr-fonts { flex: 1 1 100%; min-width: 0; }
 .q-field { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .q-field > * { min-width: 0; }

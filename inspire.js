@@ -295,7 +295,7 @@ document.addEventListener('click', (e) => {
     case 'insp-aff-calm': openAffReader(); break;
     case 'insp-aff-close': closeAffReader(); break;
     case 'insp-aff-rtab': { const st = affState(); st.tab = v; affKeep(st); affReaderDraw(); const b = $('affReader').querySelector('.ar-read'); if (b) b.classList.add('aff-fade'); render(); break; }
-    case 'insp-aff-size': { const i = AFF_SIZES.indexOf(affSize()), n = AFF_SIZES[Math.max(0, Math.min(AFF_SIZES.length - 1, i + Number(v)))]; try { localStorage.setItem('mahami-affsize', String(n)); } catch {} const w = $('affReader').querySelector('.ar-wrap'); if (w) w.style.setProperty('--ark', n); affReaderDraw(); break; }
+    case 'insp-aff-size': { const i = AFF_SIZES.indexOf(affSize()), n = AFF_SIZES[Math.max(0, Math.min(AFF_SIZES.length - 1, i + Number(v)))]; try { localStorage.setItem('mahami-affsize', String(n)); } catch {} const d = $('affReader'), w = d && d.querySelector('.ar-wrap'); if (w) { w.style.setProperty('--ark', n); for (const b of d.querySelectorAll('[data-action="insp-aff-size"]')) b.disabled = b.dataset.v === '1' ? n >= AFF_SIZES[AFF_SIZES.length - 1] : n <= AFF_SIZES[0]; } break; }
   }
 });
 document.addEventListener('change', (e) => {
@@ -373,7 +373,7 @@ function affTodayHTML() {
         <div class="aff-read${anim === 'tab' ? ' aff-fade' : ''}">${affListHTML(cur.id)}</div>
         <div class="aff-acts"><button type="button" class="ghost sm" data-action="insp-aff-calm">${icon('spark')} اقرأها بهدوء</button></div>`;
   return `<section class="section aff-today${st.open ? ' open' : ''}">
-    <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span>${n ? `<small>${affCount(n)}</small>` : ''}<span class="aff-arrow${anim === 'open' ? ' aff-turn' : ''}" aria-hidden="true">⌄</span></button>
+    <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span>${n ? `<small>${affCount(n)}</small>` : ''}<span class="aff-arrow${anim === 'open' ? (st.open ? ' aff-turn-o' : ' aff-turn-c') : ''}" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
     ${body ? `<div class="aff-body${anim === 'open' && st.open ? ' aff-in' : ''}">${body}</div>` : ''}
   </section>`;
 }
@@ -402,7 +402,7 @@ function affReaderDraw() {
     <div class="ar-body"><div class="aff-read ar-read">${affListHTML(cur.id)}</div><p class="ar-end">${icon('spark')}</p></div>
   </div>`;
 }
-function openAffReader() { const d = affReader(); affReaderDraw(); if (!d.open) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); } d.querySelector('.ar-body').scrollTop = 0; }
+function openAffReader() { const d = affReader(); affReaderDraw(); if (!d.open) { if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', ''); } const b = d.querySelector('.ar-body'); if (b) b.scrollTop = 0; }
 function closeAffReader() { const d = $('affReader'); if (d && d.open) { if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); } }
 
 // ---------- (v170) a phrase formatted as in «مؤلفاتي», and shown as it was formatted ----------
@@ -457,11 +457,11 @@ function qxFocusEnd() {
   const s = getSelection(); s.removeAllRanges(); s.addRange(r);
 }
 // «مؤلفاتي»'s text tools, by his choice (no table, picture, footnote, page break)
-// (v171, «أكثر سلاسة وأناقة»: in groups, with «إعادة» beside «تراجع» as in «مؤلفاتي»)
-const QX_TOOLS = [['undo', '↶', 'تراجع'], ['redo', '↷', 'إعادة'], '|', ['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عادي'], '|', ['bold', '<b>غ</b>', 'غامق'], ['italic', '<i>م</i>', 'مائل'], ['underline', '<u>ت</u>', 'تسطير'], ['strike', '<s>ش</s>', 'شطب'], '|',
+// (v171, «أكثر سلاسة وأناقة»: in groups, and «إعادة» after «تراجع» at the end, as in «مؤلفاتي»)
+const QX_TOOLS = [['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عادي'], '|', ['bold', '<b>غ</b>', 'غامق'], ['italic', '<i>م</i>', 'مائل'], ['underline', '<u>ت</u>', 'تسطير'], ['strike', '<s>ش</s>', 'شطب'], '|',
   ['pal:color', '<span class="tool-color">أ</span>', 'لون الخط'], ['pal:hi', '<span class="tool-hi">أ</span>', 'تظليل'], ['pal:font', 'الخط', 'نوع الخط'], ['bigger', 'أ+', 'كبّر النص المحدد'], ['smaller', 'أ−', 'صغّر النص المحدد'], '|',
   ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'], ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'], '|',
-  ['clear', 'مسح التنسيق', 'مسح التنسيق']];
+  ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|', ['undo', '↶', 'تراجع'], ['redo', '↷', 'إعادة']];
 const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تنسيق العبارة">${QX_TOOLS.map((t) => (t === '|' ? '<i class="q-sep" aria-hidden="true"></i>' : `<button type="button" data-qcmd="${t[0]}" aria-label="${t[2]}" title="${t[2]}">${t[1]}</button>`)).join('')}</div><div class="q-pal" id="qPal" hidden></div>`;
 // «تراجع»: what the phrase was before each tool and each pause in typing
 // (v171) each step keeps where the cursor was, and «إعادة» takes back what «تراجع» undid
@@ -489,6 +489,7 @@ function qxSetCaret(n) {
 function qxMark() { const el = qxEl(); if (!el) return; const h = el.innerHTML; if ((qxHist[qxHist.length - 1] || {}).h !== h) { qxHist.push({ h, c: qxCaret() }); qxFut = []; } if (qxHist.length > 60) qxHist.shift(); }
 function qxUndo() {
   const el = qxEl(); if (!el) return;
+  clearTimeout(qxTyping);
   while (qxHist.length && qxHist[qxHist.length - 1].h === el.innerHTML) qxHist.pop();
   if (!qxHist.length) { toast('لا شيء تتراجع عنه'); return; }
   qxFut.push({ h: el.innerHTML, c: qxCaret() });
@@ -497,6 +498,7 @@ function qxUndo() {
 }
 function qxRedo() {
   const el = qxEl(); if (!el) return;
+  clearTimeout(qxTyping);
   if (!qxFut.length) { toast('لا شيء تعيده'); return; }
   qxHist.push({ h: el.innerHTML, c: qxCaret() });
   const e = qxFut.pop();
@@ -612,7 +614,7 @@ function qxCmd(cmd) {
   if (!el) return;
   if (cmd.startsWith('pal:')) {
     const k = cmd.slice(4), pal = $('qPal');
-    if (qxDown) qxRange = qxDown; else { qxHold = 0; qxKeep(); }
+    if (qxDown) qxRange = qxDown; else { clearTimeout(qxHold); qxHold = 0; qxKeep(); }
     qxBack(); // the text stays selected while the palette is open, so the choices that follow work on it
     if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; return; }
     if (k === 'font' && typeof wrFonts === 'function') wrFonts();
