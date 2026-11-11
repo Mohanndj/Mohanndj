@@ -728,6 +728,7 @@ function viewToday() {
       : emptyHTML('لا مهام لليوم', 'المهام التي تاريخها اليوم وأهدافك اليومية تظهر هنا، وعاداتك في «بناء العادات» أعلاه.')}
   </section>`,
   };
+  affOnce(); // (v169) «عبارة اليوم» hidden once, before the parts shown are read
   const hidden = todayHidden();
   return `${todayOrder().filter((k) => !hidden.includes(k)).map((k) => parts[k]()).join('\n')}
   <div class="lay-open"><button type="button" class="ghost sm" data-action="lay-open" data-v="today">${icon('gear')} رتّب صفحة اليوم</button></div>`;

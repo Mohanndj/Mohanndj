@@ -338,8 +338,12 @@ function saveAffTab() {
   return true;
 }
 // «اليوم»: folded, or open on the tab he left it on, on this phone only (not synced)
-function affState() { try { return { open: false, tab: '', ...JSON.parse(localStorage.getItem('mahami-aff') || '{}') }; } catch { return { open: false, tab: '' }; } }
-function affKeep(st) { try { localStorage.setItem('mahami-aff', JSON.stringify({ open: !!st.open, tab: st.tab || '' })); } catch {} }
+// (kept in memory too: a phone whose storage refuses still opens and folds it)
+function affState() {
+  if (!inspUi.affSt) { inspUi.affSt = { open: false, tab: '' }; try { Object.assign(inspUi.affSt, JSON.parse(localStorage.getItem('mahami-aff') || '{}')); } catch {} }
+  return inspUi.affSt;
+}
+function affKeep(st) { inspUi.affSt = { open: !!st.open, tab: st.tab || '' }; try { localStorage.setItem('mahami-aff', JSON.stringify(inspUi.affSt)); } catch {} }
 // «بدل الإلهام في اليوم»: «عبارة اليوم» hidden once (his answer «أ: يُخفى»); brought back from «رتّب صفحة اليوم»
 function affOnce() {
   if (S.settings.affOnce) return;
@@ -349,7 +353,6 @@ function affOnce() {
   save();
 }
 function affTodayHTML() {
-  affOnce();
   const st = affState(), tabs = affTabs().filter((t) => affOf(t.id).length), cur = tabs.find((t) => t.id === st.tab) || tabs[0];
   const body = !st.open ? ''
     : !cur ? `<p class="note-text">اكتب توكيداتك في تبويبات من «${esc(pageName('inspire'))}». <button type="button" class="ghost sm" data-tab="inspire">${esc(pageName('inspire'))}</button></p>`
