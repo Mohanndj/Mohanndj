@@ -586,9 +586,9 @@ document.addEventListener('click', (e) => {
   else if (t.dataset.qlh) { for (const b of qxBlocks()) b.style.lineHeight = t.dataset.qlh; }
 });
 document.addEventListener('focusin', (e) => {
-  if (e.target.id !== 'qText' || e.target.firstElementChild) return;
+  if (e.target.id !== 'qText' || e.target.firstChild) return; // (only an empty field: a loose line is gathered on save)
   const p = document.createElement('p'); p.append(document.createElement('br'));
-  e.target.textContent = ''; e.target.append(p);
+  e.target.append(p);
   const r = document.createRange(); r.setStart(p, 0); r.collapse(true); getSelection().removeAllRanges(); getSelection().addRange(r);
 });
 document.addEventListener('input', (e) => {
