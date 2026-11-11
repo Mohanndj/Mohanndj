@@ -680,6 +680,12 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .q-rich p, .q-rich h3, .q-rich ul, .q-rich ol, .q-rich blockquote { margin: 0 0 .35em; }
 .q-rich h3 { font-size: 1.25em; font-family: inherit; }
 .q-rich u { text-decoration: underline; } .q-rich s { text-decoration: line-through; }
+/* (v172, the proposal he approved: «ونفذ اقتراحك») on the dark theme a highlighted word is dark, so it reads on the pale
+   colour; a text colour he chose (on it, or on what wraps it inside the phrase) stays */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .q-rich [style*="background-color"]:not([style^="color"] *):not([style*=" color"] *) { color: #1c1c1c; }
+}
+:root[data-theme="dark"] .q-rich [style*="background-color"]:not([style^="color"] *):not([style*=" color"] *) { color: #1c1c1c; }
 .q-rich ul, .q-rich ol { padding-inline-start: 1.4em; }
 .q-rich ol { list-style: wr-num; } .q-rich.q-ar ol { list-style: wr-ar; }
 .q-rich p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .4em .6em; }

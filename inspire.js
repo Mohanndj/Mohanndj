@@ -512,22 +512,26 @@ function qxRedo() {
 // suggesting the moment a tool is touched, and a selection held by those pieces then shrank to nothing
 // (each line's letters counted with one more between lines, so the end of a line and the start of the next differ)
 const QX_BLK = 'p, h3, h2, li, blockquote, div';
+// (a line break <br> is a place of its own, so an empty line, or the start of a line after Shift+Enter, is not taken
+// for the line next to it)
 function qxPts() {
-  const el = qxEl(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), out = [];
+  const el = qxEl(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, { acceptNode: (n) => (n.nodeType === 3 || n.nodeName === 'BR' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP) });
+  const out = [];
   let pos = 0, blk = null;
   while (w.nextNode()) {
-    const t = w.currentNode, b = t.parentNode.closest(QX_BLK);
+    const t = w.currentNode, b = t.parentNode.closest(QX_BLK), len = t.nodeType === 3 ? t.textContent.length : 1;
     if (out.length && b !== blk) pos += 1;
-    out.push({ t, s: pos, b }); pos += t.textContent.length; blk = b;
+    out.push({ t, s: pos, b, len }); pos += len; blk = b;
   }
   return out;
 }
+const qxIdx = (n) => Array.prototype.indexOf.call(n.parentNode.childNodes, n);
 function qxPos(pts, node, off) {
   if (node.nodeType === 3) { const p = pts.find((x) => x.t === node); return p ? p.s + off : 0; }
   const r = document.createRange(); r.setStart(node, off); r.collapse(true);
-  const next = pts.findIndex((x) => r.comparePoint(x.t, 0) >= 0), prev = pts[(next < 0 ? pts.length : next) - 1];
+  const next = pts.findIndex((x) => (x.t.nodeType === 3 ? r.comparePoint(x.t, 0) : r.comparePoint(x.t.parentNode, qxIdx(x.t))) >= 0), prev = pts[(next < 0 ? pts.length : next) - 1];
   const blk = node.nodeType === 1 && node.matches(QX_BLK) ? node : (node.closest ? node.closest(QX_BLK) : null);
-  if (prev && (next < 0 || (blk && prev.b === blk))) return prev.s + prev.t.textContent.length;
+  if (prev && (next < 0 || (blk && prev.b === blk))) return prev.s + prev.len;
   return next < 0 ? 0 : pts[next].s;
 }
 function qxSelOff() {
@@ -539,7 +543,11 @@ function qxSelOff() {
 function qxOffRange(o) {
   const el = qxEl(), r = document.createRange(), pts = qxPts();
   if (!pts.length) { r.selectNodeContents(el); r.collapse(false); return r; }
-  const at = (n) => { const p = pts.find((x) => n >= x.s && n <= x.s + x.t.textContent.length) || pts.find((x) => x.s > n) || pts[pts.length - 1]; return [p.t, Math.max(0, Math.min(p.t.textContent.length, n - p.s))]; };
+  const at = (n) => {
+    const fit = pts.filter((x) => n >= x.s && n <= x.s + x.len), p = fit.find((x) => x.t.nodeType === 3) || fit[0] || pts.find((x) => x.s > n) || pts[pts.length - 1];
+    if (p.t.nodeType === 3) return [p.t, Math.max(0, Math.min(p.len, n - p.s))];
+    return [p.t.parentNode, qxIdx(p.t) + (n > p.s ? 1 : 0)]; // (before the line break, or after it)
+  };
   r.setStart(...at(o.s)); r.setEnd(...at(o.e));
   return r;
 }
