@@ -638,6 +638,18 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .quote-card small svg { width: 13px; height: 13px; color: #d4a017; fill: currentColor; }
 .quote-card.k-affirmation { border-inline-start: 4px solid var(--accent); }
 .quote-card.k-motivation { border-inline-start: 4px solid var(--goal); }
+/* (v169) his affirmations in tabs: their row in «الإلهام», and their section on «اليوم», folded or read in full */
+.aff-tabs { margin-block: 8px; }
+.aff-today { display: grid; gap: 10px; }
+.aff-head { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 16px; padding: 12px 16px; color: var(--accent); font-weight: 700; font-size: 1rem; }
+.aff-head span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.aff-head svg { width: 16px; height: 16px; }
+.aff-arrow { font-size: .8rem; }
+.aff-one { font-size: 1rem; color: var(--accent); margin: 0; }
+.aff-read { display: grid; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.aff-read p { margin: 0; font-family: var(--font-display); font-size: 1.25rem; line-height: 1.9; overflow-wrap: anywhere; }
+.aff-read cite { display: block; color: var(--muted); font-style: normal; font-size: .85rem; font-family: inherit; }
+.aff-read cite::before { content: "— "; }
 .photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .photo { position: relative; aspect-ratio: 1; max-width: 100%; padding: 0; border-radius: 12px; overflow: hidden; background: var(--line); }
 .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }

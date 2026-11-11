@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 168;
+const APP_VERSION = 169;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -697,6 +697,7 @@ function viewToday() {
   const parts = {
     close: closeTodayHTML,
     quote: dailyQuoteHTML,
+    affirm: affTodayHTML, // (v169) his affirmations in their tabs, in place of «عبارة اليوم»
     smart: smartHTML,
     summary: () => `<div class="today-card">
     <div class="ring" style="--p:${p}"><span>${p}%</span></div>
@@ -2626,7 +2627,7 @@ document.addEventListener('click', (e) => {
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
         S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
-        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats', 'wrKey']) delete S.settings[k];
+        for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats', 'wrKey', 'affTabs']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         try { if (typeof WBooks !== 'undefined') { WrCloud.wipe(); WBooks.forget(); indexedDB.deleteDatabase('mahami-writing'); wrUi.list = null; wrUi.book = ''; } } catch {}
         save(); render(); toast('حُذفت كل البيانات');
