@@ -363,15 +363,16 @@ function affOnce() {
 // phrase in a calm space of its own, and «اقرأها بهدوء» for the whole screen)
 const affCount = (n) => plural(n, 'عبارة واحدة', 'عبارتان', 'عبارات', 'عبارة');
 const affTabsRow = (tabs, cur, act) => (tabs.length > 1 ? `<div class="chips aff-tabs" role="group" aria-label="تبويبات التوكيدات">${tabs.map((t) => `<button type="button" class="chip" data-action="${act}" data-v="${t.id}" aria-pressed="${t.id === cur.id}">${esc(t.name)}</button>`).join('')}</div>` : `<h3 class="aff-one">${esc(cur.name)}</h3>`);
-const affListHTML = (tab) => affOf(tab).map((x) => `<div class="aff-q">${qxBody(x, true)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</div>`).join('');
+// (v172) in «اليوم» each phrase has its ✎, opening its window right there
+const affListHTML = (tab, edit) => affOf(tab).map((x) => `<div class="aff-q${edit ? ' aff-ed' : ''}">${edit ? `<button type="button" class="aff-pen" data-action="insp-open" data-v="${x.id}" aria-label="تعديل العبارة" title="تعديل العبارة">✎</button>` : ''}${qxBody(x, true)}${x.source ? `<cite>${esc(x.source)}</cite>` : ''}</div>`).join('');
 function affTodayHTML() {
   const st = affState(), tabs = affTabs().filter((t) => affOf(t.id).length), cur = tabs.find((t) => t.id === st.tab) || tabs[0];
   const n = tabs.reduce((a, t) => a + affOf(t.id).length, 0), anim = inspUi.affAnim; inspUi.affAnim = '';
   const body = !st.open ? ''
     : !cur ? `<p class="note-text">اكتب توكيداتك في تبويبات من «${esc(pageName('inspire'))}». <button type="button" class="ghost sm" data-tab="inspire">${esc(pageName('inspire'))}</button></p>`
-      : `${affTabsRow(tabs, cur, 'insp-aff-tab')}
-        <div class="aff-read${anim === 'tab' ? ' aff-fade' : ''}">${affListHTML(cur.id)}</div>
-        <div class="aff-acts"><button type="button" class="ghost sm" data-action="insp-aff-calm">${icon('spark')} اقرأها بهدوء</button></div>`;
+      : `<div class="aff-acts"><button type="button" class="ghost sm" data-action="insp-aff-calm">${icon('spark')} اقرأها بهدوء</button></div>
+        ${affTabsRow(tabs, cur, 'insp-aff-tab')}
+        <div class="aff-read${anim === 'tab' ? ' aff-fade' : ''}">${affListHTML(cur.id, true)}</div>`;
   return `<section class="section aff-today${st.open ? ' open' : ''}">
     <button type="button" class="aff-head" data-action="insp-aff-open" aria-expanded="${st.open}"><span>${icon('spark')} التوكيدات</span>${n ? `<small>${affCount(n)}</small>` : ''}<span class="aff-arrow${anim === 'open' ? (st.open ? ' aff-turn-o' : ' aff-turn-c') : ''}" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
     ${body ? `<div class="aff-body${anim === 'open' && st.open ? ' aff-in' : ''}">${body}</div>` : ''}
@@ -462,6 +463,8 @@ const QX_TOOLS = [['h3', 'عنوان', 'عنوان'], ['p', 'نص', 'نص عاد
   ['pal:color', '<span class="tool-color">أ</span>', 'لون الخط'], ['pal:hi', '<span class="tool-hi">أ</span>', 'تظليل'], ['pal:font', 'الخط', 'نوع الخط'], ['bigger', 'أ+', 'كبّر النص المحدد'], ['smaller', 'أ−', 'صغّر النص المحدد'], '|',
   ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'], ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'], '|',
   ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|', ['undo', '↶', 'تراجع'], ['redo', '↷', 'إعادة']];
+// (v172, his ask: «البيج والرمادي وباقي طبقتها دون إكثار») the notes' pale colours and four more of the same tier, here only
+const QX_HIGHLIGHTS = [...NOTE_HIGHLIGHTS, ['#efe3cf', 'بيج'], ['#e4e4e4', 'رمادي'], ['#e6ddf6', 'بنفسجي'], ['#d3f0ee', 'فيروزي']];
 const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تنسيق العبارة">${QX_TOOLS.map((t) => (t === '|' ? '<i class="q-sep" aria-hidden="true"></i>' : `<button type="button" data-qcmd="${t[0]}" aria-label="${t[2]}" title="${t[2]}">${t[1]}</button>`)).join('')}</div><div class="q-pal" id="qPal" hidden></div>`;
 // «تراجع»: what the phrase was before each tool and each pause in typing
 // (v171) each step keeps where the cursor was, and «إعادة» takes back what «تراجع» undid
@@ -505,12 +508,47 @@ function qxRedo() {
   el.innerHTML = e.h; qxSetCaret(e.c); qxStates();
 }
 // the selection while a tool is touched: kept at the touch itself, as a phone may let it go before the tool works
-function qxKeep() { if (qxHold) return; const s = getSelection(), el = qxEl(); if (el && s.rangeCount && el.contains(s.anchorNode)) qxRange = s.getRangeAt(0).cloneRange(); }
+// (v172) kept as the place of its letters, not as the page's pieces: the phone keyboard rewrites the word it was
+// suggesting the moment a tool is touched, and a selection held by those pieces then shrank to nothing
+// (each line's letters counted with one more between lines, so the end of a line and the start of the next differ)
+const QX_BLK = 'p, h3, h2, li, blockquote, div';
+function qxPts() {
+  const el = qxEl(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), out = [];
+  let pos = 0, blk = null;
+  while (w.nextNode()) {
+    const t = w.currentNode, b = t.parentNode.closest(QX_BLK);
+    if (out.length && b !== blk) pos += 1;
+    out.push({ t, s: pos, b }); pos += t.textContent.length; blk = b;
+  }
+  return out;
+}
+function qxPos(pts, node, off) {
+  if (node.nodeType === 3) { const p = pts.find((x) => x.t === node); return p ? p.s + off : 0; }
+  const r = document.createRange(); r.setStart(node, off); r.collapse(true);
+  const next = pts.findIndex((x) => r.comparePoint(x.t, 0) >= 0), prev = pts[(next < 0 ? pts.length : next) - 1];
+  const blk = node.nodeType === 1 && node.matches(QX_BLK) ? node : (node.closest ? node.closest(QX_BLK) : null);
+  if (prev && (next < 0 || (blk && prev.b === blk))) return prev.s + prev.t.textContent.length;
+  return next < 0 ? 0 : pts[next].s;
+}
+function qxSelOff() {
+  const s = getSelection(), el = qxEl();
+  if (!el || !s.rangeCount || !el.contains(s.anchorNode)) return null;
+  const rg = s.getRangeAt(0), pts = qxPts();
+  return { s: qxPos(pts, rg.startContainer, rg.startOffset), e: qxPos(pts, rg.endContainer, rg.endOffset) };
+}
+function qxOffRange(o) {
+  const el = qxEl(), r = document.createRange(), pts = qxPts();
+  if (!pts.length) { r.selectNodeContents(el); r.collapse(false); return r; }
+  const at = (n) => { const p = pts.find((x) => n >= x.s && n <= x.s + x.t.textContent.length) || pts.find((x) => x.s > n) || pts[pts.length - 1]; return [p.t, Math.max(0, Math.min(p.t.textContent.length, n - p.s))]; };
+  r.setStart(...at(o.s)); r.setEnd(...at(o.e));
+  return r;
+}
+function qxKeep() { if (qxHold) return; const o = qxSelOff(); if (o) qxRange = o; }
 function qxBack() {
   const s = getSelection(), el = qxEl();
   if (!el) return;
-  const r = qxDown || qxRange;
-  if (r && el.contains(r.startContainer) && el.contains(r.endContainer)) { el.focus({ preventScroll: true }); s.removeAllRanges(); s.addRange(r); return; }
+  const o = qxDown || qxRange;
+  if (o) { el.focus({ preventScroll: true }); s.removeAllRanges(); s.addRange(qxOffRange(o)); return; }
   if (!(s.rangeCount && el.contains(s.anchorNode))) el.focus({ preventScroll: true });
 }
 // the tools on the text selected look pressed (bold, a heading, a list…)
@@ -603,7 +641,7 @@ function qxList(tag) {
 }
 function qxPalHTML(k) {
   if (k === 'color') return NOTE_COLORS.map(([c, n]) => `<button type="button" class="pal" data-qcolor="${c}" title="${n}" aria-label="لون ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : 'أ'}</button>`).join('');
-  if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-qhi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
+  if (k === 'hi') return QX_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-qhi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-qfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-qalign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-qlh="${v}">${n}</button>`).join('');
@@ -657,8 +695,7 @@ document.addEventListener('pointerdown', (e) => {
   if (!qxEl()) return;
   if (e.target.closest('.q-tools button, #qPal button')) {
     e.preventDefault();
-    const s = getSelection(), el = qxEl();
-    qxDown = s.rangeCount && el.contains(s.anchorNode) ? s.getRangeAt(0).cloneRange() : qxRange;
+    qxDown = qxSelOff() || qxRange;
     clearTimeout(qxHold); qxHold = setTimeout(() => { qxHold = 0; qxDown = null; }, 900);
   } else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; }
 });

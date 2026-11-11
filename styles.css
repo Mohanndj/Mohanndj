@@ -662,6 +662,9 @@ dialog.fullscreen.dark, dialog.fullscreen.dark::backdrop { background: #0b0f0e; 
 .aff-tabs::-webkit-scrollbar { display: none; }
 .aff-tabs .chip { flex: 0 0 auto; }
 .aff-acts { display: flex; justify-content: center; }
+.aff-q.aff-ed { position: relative; padding-inline-end: 36px; }
+.aff-pen { position: absolute; inset-inline-end: -6px; top: 10px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 1rem; line-height: 1; font-family: inherit; }
+.aff-pen:active { background: var(--accent-soft); color: var(--accent); }
 .aff-acts svg { width: 14px; height: 14px; }
 .aff-one { font-size: 1rem; color: var(--accent); margin: 0; }
 .aff-read { display: grid; gap: 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 18px; }
