@@ -49,6 +49,7 @@ final class XPanel {
     private WebView web;
     private View full;
     private View home; // v173: the floating button back to the app
+    private boolean fitting;
     private WebChromeClient.CustomViewCallback fullCb;
     private String script = "";
 
@@ -157,6 +158,10 @@ final class XPanel {
             b.setBackground(act.getResources().getDrawable(R.mipmap.ic_launcher, null));
             b.setContentDescription("ارجع إلى الوعي الشخصي");
             b.setElevation(dp(12)); // (over Twitter's page)
+            b.setOutlineProvider(new android.view.ViewOutlineProvider() { // (round, as he chose: «صغير مستدير»)
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            b.setClipToOutline(true);
             root.addView(b, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
             final float[] at = new float[4];
             final boolean[] moved = new boolean[1];
@@ -189,6 +194,12 @@ final class XPanel {
                 }
             });
             home = b;
+            // (the screen turned: kept on it; one listener, though the button is made again after a close)
+            if (!fitting) { fitting = true; root.addOnLayoutChangeListener((v, l, t, rr, bb, ol, ot, or, ob) -> {
+                if (home == null || home.getVisibility() != View.VISIBLE) return;
+                home.setX(Math.max(0, Math.min(rr - l - home.getWidth(), home.getX())));
+                home.setY(Math.max(0, Math.min(bb - t - home.getHeight(), home.getY())));
+            }); }
         }
         home.setVisibility(View.VISIBLE);
         home.bringToFront();

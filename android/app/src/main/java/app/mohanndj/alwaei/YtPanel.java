@@ -193,8 +193,12 @@ final class YtPanel {
     private void iconTap() {
         if (state == ICON) { setState(FULL); return; }
         Log.i(TAG, "home button");
-        if (playing) setState(ICON);
-        else close();
+        if (web == null) return;
+        final WebView w = web; // (asked now, not from the last second's answer: a video just started plays on)
+        web.evaluateJavascript("(function(){try{var v=document.querySelector('video');return !!(v&&!v.paused&&!v.ended&&v.currentTime>0)}catch(e){return false}})()", r -> {
+            if (web != w || state != FULL) return;
+            if ("true".equals(r)) { playing = true; web.keep = true; setState(ICON); } else close();
+        });
     }
 
     // the floating icon: a small round one, moved by the finger and kept where it is left; a tap shows YouTube again,
@@ -207,6 +211,10 @@ final class YtPanel {
             icon.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
             icon.setGravity(Gravity.CENTER);
             icon.setElevation(dp(10));
+            icon.setOutlineProvider(new android.view.ViewOutlineProvider() { // (round, as he chose: «صغير مستدير»)
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            icon.setClipToOutline(true);
             root.addView(icon, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP | Gravity.LEFT));
             // (the screen turned or made smaller: kept on it; one listener, though the icon is made again after a stop)
             if (!fitting) { fitting = true; root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
@@ -218,6 +226,7 @@ final class YtPanel {
             final boolean[] moved = new boolean[2]; // (moved, held long)
             final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
             final Runnable held = () -> {
+                if (state != ICON) return; // (v173: the button over YouTube is a tap only; his long press is the ▶'s)
                 moved[1] = true;
                 if (icon != null) icon.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
                 close();
@@ -255,12 +264,12 @@ final class YtPanel {
         iconLook();
         icon.setVisibility(View.VISIBLE);
         icon.bringToFront();
-        // (where it was left, else at the bottom on the right, clear of «للاستماع» on the left)
+        // (where it was left, else at the bottom on the left, where the small window was)
         icon.post(() -> {
             if (icon == null) return;
             float fx = act.getSharedPreferences("yt", 0).getFloat("ix", -1), fy = act.getSharedPreferences("yt", 0).getFloat("iy", -1);
             int w = root.getWidth(), h = root.getHeight();
-            float x = fx >= 0 ? fx * w : w - icon.getWidth() - dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
+            float x = fx >= 0 ? fx * w : dp(16), y = fy >= 0 ? fy * h : h - dp(84) - dp(60);
             icon.setX(Math.max(0, Math.min(w - icon.getWidth(), x)));
             icon.setY(Math.max(0, Math.min(h - icon.getHeight(), y)));
         });

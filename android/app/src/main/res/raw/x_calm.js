@@ -37,7 +37,7 @@
     + '#wai-xme{display:none;flex-direction:column;align-items:center;gap:8px}#wai-xme.on{display:flex}'
     + '#wai-xme input{direction:ltr;text-align:center;font-size:16px;padding:10px 12px;border:1.5px solid #0f766e;border-radius:12px;width:220px;max-width:80vw;font-family:inherit}'
     + '#wai-xme input::placeholder{direction:rtl}'
-    + '#wai-xbar{position:fixed;left:10px;bottom:72px;z-index:2147483001;display:flex;gap:8px;direction:rtl;font-family:sans-serif}'
+    + '#wai-xbar{position:fixed;left:10px;bottom:72px;z-index:2147483001;display:flex;flex-wrap:wrap;gap:8px;max-width:calc(100vw - 84px);direction:rtl;font-family:sans-serif}'
     + '#wai-xbar button{border:0;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;background:#0f766e;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);font-family:inherit}'
     + 'html.wai-xhome #wai-xbar,html.wai-xcompose #wai-xbar{display:none}'
     // (his answer: «المطلوب أن أدخل بحساباتي فقط لا من قوقل»: a line above the sign-in pages, and no Google or Apple)
@@ -132,9 +132,11 @@
   function handle() {
     var a = document.querySelector('a[data-testid="AppTabBar_Profile_Link"],a[aria-label="Profile"],a[aria-label="الملف الشخصي"]');
     var m = a && /^\/([A-Za-z0-9_]{1,15})$/.exec(a.getAttribute('href') || '');
-    if (!m && /^\/compose\//.test(location.pathname)) {
+    // (only on a plain box to tweet: a reply or a quote shows the other person's picture too; and never «unknown»)
+    if (!m && /^\/compose\//.test(location.pathname) && !document.querySelector('article,[data-testid="tweet"]')) {
       var av = document.querySelectorAll('[data-testid^="UserAvatar-Container-"]');
       if (av.length === 1) m = /^UserAvatar-Container-([A-Za-z0-9_]{1,15})$/.exec(av[0].getAttribute('data-testid') || '');
+      if (m && m[1].toLowerCase() === 'unknown') m = null;
     }
     if (m) { if (storedH() !== m[1]) keepH(m[1]); return m[1]; }
     return storedH();
@@ -175,7 +177,7 @@
     bMine.style.display = isList && mine() !== p.replace(/\/$/, '') ? '' : 'none';
     if (isList && mine() === p.replace(/\/$/, '')) homeMsg.textContent = '';
     if (!mine() && !homeMsg.textContent) homeMsg.textContent = 'ضع من تختارهم في قائمة خاصة في حسابك، ثم افتحها واضغط «اجعلها قائمتي».';
-    if (mine()) homeMsg.textContent = '';
+    if (mine() && !meBox.classList.contains('on')) homeMsg.textContent = ''; // (not while his name is being asked)
     if (isHome) handle(); // (learnt as it shows)
     else if (/^\/compose\//.test(p)) handle();
     var ask = ''; try { ask = sessionStorage.getItem('wai-xask') || ''; } catch (e) { ask = ''; }

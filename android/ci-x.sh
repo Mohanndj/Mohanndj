@@ -55,7 +55,7 @@ echo "the button back to the app at: $H"
 if [ -n "$H" ]; then
   adb logcat -c; adb shell input tap $H; sleep 3
   adb logcat -d -s WaiX:* | grep -q 'home button' && adb logcat -d -s WaiX:* | grep -q 'closed' && echo "the button back to the app: Twitter closed" || note "the button back to the app did not close Twitter"
-  python3 android/ci-cdp.py "$WS" 'WaiNative.openX(), 1' > /dev/null; sleep 15
+  python3 android/ci-cdp.py "$WS" 'WaiNative.openX(), 1' > /dev/null; sleep 40
 else note "no button back to the app over Twitter"; fi
 adb logcat -c
 adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE_BACK; sleep 2
