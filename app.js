@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 172;
+const APP_VERSION = 174;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -1056,7 +1056,10 @@ function viewSettings() {
       <div class="btn-row" style="flex-wrap:nowrap"><select id="setTone" style="flex:1;min-width:0">${Object.entries(TONES).map(([v, [l]]) => `<option value="${v}"${(st.tone || 'chime') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="ghost sm" data-action="tone-try">جرّب</button></div></div>
     <p class="note-text explain">يرن المنبه والتطبيق مفتوح أو في الخلفية. الجوال قد يوقف التطبيقات المغلقة تماماً، فللمواعيد المهمة افتح المهمة واضغط «إضافة إلى تقويم الجوال».</p>
   </section>
-  ${window.WaiNative && window.WaiNative.overlayState ? '' : `<section class="panel">
+  ${window.WaiNative && window.WaiNative.overlayState ? `<section class="panel">
+    <h2>تطبيق أندرويد</h2>
+    ${apkLineHTML()}
+  </section>` : `<section class="panel">
     <h2>تطبيق أندرويد</h2>
     ${window.WaiNative && window.WaiNative.notify ? '<p class="note-text">نسخة أحدث من التطبيق: منبه التذكير يظهر فيها نافذة على الشاشة حتى تجيبه، والإشعار الدائم لا يزيله «مسح الكل» ولا السحب. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : window.WaiNative ? '<p class="note-text">نسخة أحدث من التطبيق فيها الإشعارات والمنبّه والإملاء. نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p>' : '<p class="note-text explain">«الوعي الشخصي» تطبيقاً على جوالك بالصفحات نفسها. بعد تثبيته انقل إليه بياناتك بالنسخة الاحتياطية.</p>'}
     <div class="btn-row"><button type="button" class="ghost" data-action="apk-get">نزّل تطبيق أندرويد</button></div>
@@ -1999,6 +2002,29 @@ async function exportData() {
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 // the Android app's file (v112): from the site itself, saved as a backup is (a link to GitHub stopped at «جارٍ التنزيل»)
+// v174 (the owner, asking «هل نزل في التطبيق؟», then «نفذ وأخبرني» to our proposal): in the Android app, «تطبيق أندرويد»
+// in «الإعدادات» says whether a newer app is out: its own number (versionName "1.N") against the latest release on
+// GitHub (tag "android-M", published after the emulator checks); asked at most every ten minutes, written in place
+let apkLatest = null;
+function apkMine() { try { const m = /^1\.(\d+)/.exec(String(window.WaiNative.version())); return m ? +m[1] : 0; } catch { return 0; } }
+function apkLineHTML() {
+  apkCheck();
+  const n = apkMine(), L = apkLatest;
+  const body = !L || L.wait ? '<p class="note-text">أتحقق هل نزلت نسخة أحدث من التطبيق…</p>'
+    : L.err || !n ? '<p class="note-text">تعذّر التحقق الآن هل نزلت نسخة أحدث من التطبيق.</p>'
+      : L.m > n ? '<p class="note-text"><b>نزلت نسخة أحدث من التطبيق:</b> نزّلها وثبّتها فوق هذه، فتبقى بياناتك.</p><div class="btn-row"><button type="button" class="primary" data-action="apk-get">نزّل تطبيق أندرويد</button></div>'
+        : '<p class="note-text">تطبيقك أحدث نسخة ✓</p>';
+  return `<div id="apkLine">${body}</div>`;
+}
+function apkCheck() {
+  if (apkLatest && (apkLatest.wait || Date.now() - apkLatest.at < 600000)) return;
+  apkLatest = { wait: true, at: Date.now() };
+  fetch('https://api.github.com/repos/Mohanndj/Mohanndj/releases/latest', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    .then((j) => { const m = /^android-(\d+)$/.exec((j && j.tag_name) || ''); apkLatest = m ? { m: +m[1], at: Date.now() } : { err: 1, at: Date.now() }; })
+    .catch(() => { apkLatest = { err: 1, at: Date.now() }; })
+    .finally(() => { const e = $('apkLine'); if (e) e.outerHTML = apkLineHTML(); });
+}
 async function getApk() {
   toast('يُنزَّل التطبيق…');
   try {
