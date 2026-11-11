@@ -195,7 +195,7 @@ function openQuote(id, type) {
       ${id ? '<button type="button" class="danger" data-action="lib-delete">حذف</button>' : ''}
     </div>`;
   libArmed = false;
-  qxHist = []; qxFut = []; qxRange = null; qxDown = null;
+  qxHist = []; qxFut = []; qxRange = null; qxDown = null; qxLast = null; qxLastAt = null;
   qxFontsFor(x.html);
   const d = lsheet();
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -469,6 +469,8 @@ const qxToolsHTML = () => `<div class="q-tools" role="toolbar" aria-label="تن�
 // «تراجع»: what the phrase was before each tool and each pause in typing
 // (v171) each step keeps where the cursor was, and «إعادة» takes back what «تراجع» undid
 let qxHist = [], qxFut = [], qxTyping = 0, qxRange = null, qxDown = null, qxHold = 0;
+// (v175) the words a highlight was just put on, and the cursor left after them: the next highlight goes on the same words
+let qxLast = null, qxLastAt = null;
 const qxEl = () => $('qText');
 function qxCaret() {
   const s = getSelection(), el = qxEl();
@@ -559,6 +561,26 @@ function qxBack() {
   if (o) { el.focus({ preventScroll: true }); s.removeAllRanges(); s.addRange(qxOffRange(o)); return; }
   if (!(s.rangeCount && el.contains(s.anchorNode))) el.focus({ preventScroll: true });
 }
+// (v175) the words just highlighted brought into sight below the tools and the palette, as the field scrolls under them
+function qxShow(rg) {
+  const el = qxEl(); if (!el || !rg) return;
+  let sc = el.parentNode;
+  while (sc && sc !== document.body && !(sc.scrollHeight > sc.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentNode;
+  if (!sc || sc === document.body) return;
+  const r = rg.getBoundingClientRect(); if (!r.width && !r.height) return;
+  const f = el.closest('.q-field'), pal = $('qPal'), over = pal && !pal.hidden ? pal : f && f.querySelector('.q-tools');
+  const box = sc.getBoundingClientRect(), vv = window.visualViewport;
+  const top = Math.max(box.top, over ? over.getBoundingClientRect().bottom : box.top) + 8;
+  const bottom = Math.min(box.bottom, vv ? vv.offsetTop + vv.height : innerHeight) - 8;
+  if (r.top < top) sc.scrollTop -= top - r.top;
+  else if (r.bottom > bottom) sc.scrollTop += Math.min(r.bottom - bottom, r.top - top);
+}
+// (v175) the palette held just under the tools, so it never slides over them or the phrase
+function qxPalTop() {
+  const pal = $('qPal'), el = qxEl(), bar = el && el.closest('.q-field') && el.closest('.q-field').querySelector('.q-tools');
+  if (pal && bar) pal.style.top = bar.offsetHeight + 'px';
+}
+addEventListener('resize', () => { const pal = document.getElementById('qPal'); if (pal && !pal.hidden) qxPalTop(); });
 // the tools on the text selected look pressed (bold, a heading, a list…)
 function qxStates() {
   const el = qxEl(), bar = el && el.closest('.q-field') && el.closest('.q-field').querySelector('.q-tools');
@@ -662,11 +684,15 @@ function qxCmd(cmd) {
     const k = cmd.slice(4), pal = $('qPal');
     if (qxDown) qxRange = qxDown; else { clearTimeout(qxHold); qxHold = 0; qxKeep(); }
     qxBack(); // the text stays selected while the palette is open, so the choices that follow work on it
-    if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; return; }
+    if (k !== 'hi') qxLast = null; // (another tool, or the palette closed: the words just highlighted are let go)
+    if (!pal.hidden && pal.dataset.k === k) { pal.hidden = true; qxLast = null; return; }
     if (k === 'font' && typeof wrFonts === 'function') wrFonts();
     pal.dataset.k = k; pal.innerHTML = qxPalHTML(k); pal.hidden = false;
+    qxPalTop();
+    if (k === 'hi') { const s = getSelection(); if (s.rangeCount && !s.isCollapsed) qxShow(s.getRangeAt(0)); }
     return;
   }
+  qxLast = null;
   qxBack();
   if (cmd === 'undo') { qxUndo(); return; }
   if (cmd === 'redo') { qxRedo(); return; }
@@ -703,12 +729,16 @@ document.addEventListener('pointerdown', (e) => {
   if (!qxEl()) return;
   if (e.target.closest('.q-tools button, #qPal button')) {
     e.preventDefault();
-    qxDown = qxSelOff() || qxRange;
+    const o = qxSelOff();
+    qxDown = qxLast && e.target.closest('#qPal [data-qhi]') && (!o || (o.s === o.e && qxLastAt && o.s === qxLastAt.s)) ? qxLast : o || qxRange;
     clearTimeout(qxHold); qxHold = setTimeout(() => { qxHold = 0; qxDown = null; }, 900);
-  } else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; }
+  } else if (!e.target.closest('#qPal, .q-tools')) { const p = $('qPal'); if (p) p.hidden = true; qxLast = null; }
 });
 let qxSelT = 0;
-document.addEventListener('selectionchange', () => { if (!qxEl()) return; qxKeep(); cancelAnimationFrame(qxSelT); qxSelT = requestAnimationFrame(qxStates); });
+document.addEventListener('selectionchange', () => {
+  if (!qxEl()) return;
+  if (qxLast && !qxHold) { const o = qxSelOff(); if (o && !(o.s === o.e && qxLastAt && o.s === qxLastAt.s)) qxLast = null; }
+  qxKeep(); cancelAnimationFrame(qxSelT); qxSelT = requestAnimationFrame(qxStates); });
 document.addEventListener('click', (e) => {
   const el = qxEl();
   if (!el) return;
@@ -719,7 +749,17 @@ document.addEventListener('click', (e) => {
   // (a palette stays open with the text still selected, to try one after another, as in «مؤلفاتي»)
   qxBack(); qxMark(); setTimeout(done, 0);
   if (t.dataset.qcolor !== undefined) { const c = t.dataset.qcolor; if (c) qxExec('foreColor', c, true); else { qxExec('foreColor', '#010203', true); qxUnstyle('color', (sp) => /rgb\(1, 2, 3\)|#010203/i.test(sp.style.color || sp.getAttribute('color') || '')); } }
-  else if (t.dataset.qhi !== undefined) { const c = t.dataset.qhi; if (c) qxExec('hiliteColor', c, true); else { qxExec('hiliteColor', '#010203', true); qxUnstyle('backgroundColor', (sp) => /rgb\(1, 2, 3\)/.test(sp.style.backgroundColor)); } }
+  else if (t.dataset.qhi !== undefined) {
+    const o = qxSelOff(); // (its letters' places, which a colour does not move)
+    const c = t.dataset.qhi; if (c) qxExec('hiliteColor', c, true); else { qxExec('hiliteColor', '#010203', true); qxUnstyle('backgroundColor', (sp) => /rgb\(1, 2, 3\)/.test(sp.style.backgroundColor)); }
+    // (v175, his choice: the blue of the selection hid the colour) the words let go, the cursor after them, the colour seen
+    if (o && o.s !== o.e) {
+      qxLast = o; qxLastAt = { s: o.e, e: o.e };
+      const rg = qxOffRange(o); qxShow(rg);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(qxOffRange(qxLastAt));
+      qxRange = qxLastAt;
+    }
+  }
   else if (t.dataset.qfont !== undefined) { const f = t.dataset.qfont; if (f) qxExec('fontName', f, true); else { qxExec('fontName', 'wr-reset', true); qxUnstyle('fontFamily', (sp) => /wr-reset/.test(sp.style.fontFamily || sp.getAttribute('face') || '')); } }
   else if (t.dataset.qalign) { for (const b of qxBlocks()) b.style.textAlign = t.dataset.qalign; }
   else if (t.dataset.qlh) { for (const b of qxBlocks()) b.style.lineHeight = t.dataset.qlh; }
@@ -732,6 +772,7 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'qText') return;
+  qxLast = null;
   // a new line after a verse box or a quotation is plain text
   if (e.inputType === 'insertParagraph') {
     const blk = qxBlock();
