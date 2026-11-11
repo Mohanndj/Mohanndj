@@ -135,4 +135,26 @@ echo "its place kept: $(python3 android/ci-cdp.py "$YT" "localStorage.getItem('w
 I=$(tapdesc "$ICONDESC"); echo "the icon at: $I"
 [ -n "$I" ] && { adb shell input swipe $I $I 1500; sleep 3; }
 adb logcat -d -s WaiYT:* | grep -q 'closed' && echo "a long press on the icon: closed" || note "a long press on the icon did not close YouTube"
+# (probe for v175, his ask: back with a video playing goes to the YouTube page he was on before it, the video playing on
+# in a small bar as in YouTube's app; what YouTube's own site does on back: its place, the video, any small player)
+python3 android/ci-cdp.py "$WS" 'WaiNative.openYoutube(), 1' > /dev/null; sleep 25
+YT=$(curl -s -m 5 localhost:9223/json | python3 -c "import sys,json; print([p for p in json.load(sys.stdin) if 'youtube.com' in p.get('url','')][0]['webSocketDebuggerUrl'])" 2>/dev/null)
+[ -n "$YT" ] || warn "probe: YouTube's page has no debugging address"
+python3 android/ci-cdp.py "$YT" "location.href='/results?search_query=surah+al+mulk', 1" > /dev/null; sleep 25
+echo "PROBE results: $(python3 android/ci-cdp.py "$YT" "(function(){var a=[].slice.call(document.querySelectorAll('a[href*=\"/watch\"]'));return {href:location.href,links:a.length}})()")"
+python3 android/ci-cdp.py "$YT" "(function(){var a=document.querySelector('a[href*=\"/watch\"]');if(a){a.click();return a.getAttribute('href')}return 'none'})()"
+sleep 25
+adb shell input tap $((W / 2)) $((W * 9 / 32 + 150)); sleep 2
+python3 android/ci-cdp.py "$YT" "(function(){var v=document.querySelector('video');return v?v.play().then(function(){return 'play'},function(e){return 'no '+e}):'no video'})()"
+sleep 15
+PS="(function(){var v=document.querySelector('video');var m=[].slice.call(document.querySelectorAll('*')).map(function(e){return e.tagName.toLowerCase()+(e.id?'#'+e.id:'')}).filter(function(n){return /mini|pivot|floating/.test(n)});var c=[].slice.call(document.querySelectorAll('[class*=mini],[class*=Mini]')).slice(0,8).map(function(e){var r=e.getBoundingClientRect();return e.tagName.toLowerCase()+'.'+String(e.className).slice(0,60)+' '+Math.round(r.top)+','+Math.round(r.height)});var r=v&&v.getBoundingClientRect();return {href:location.href,len:history.length,video:!!v,inDoc:!!(v&&v.isConnected),t:v&&Math.round(v.currentTime*10)/10,paused:v&&v.paused,box:r&&[Math.round(r.top),Math.round(r.width),Math.round(r.height)],tags:m.slice(0,12),cls:c}})()"
+echo "PROBE watching: $(python3 android/ci-cdp.py "$YT" "$PS")"
+shot PROBEWATCHSHOT
+python3 android/ci-cdp.py "$YT" "history.back(), 1" > /dev/null; sleep 6
+echo "PROBE after back: $(python3 android/ci-cdp.py "$YT" "$PS")"
+sleep 8
+echo "PROBE after back, 8s on: $(python3 android/ci-cdp.py "$YT" "$PS")"
+shot PROBEBACKSHOT
+python3 android/ci-cdp.py "$YT" "history.forward(), 1" > /dev/null; sleep 6
+echo "PROBE forward again: $(python3 android/ci-cdp.py "$YT" "$PS")"
 echo "youtube: checked"

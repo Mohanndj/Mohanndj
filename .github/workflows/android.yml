@@ -123,7 +123,8 @@ jobs:
 
   release:
     needs: [build, smoke]
-    if: needs.build.outputs.signed == '1'
+    # (published from the site's branch alone: a run started by hand on another branch only builds and tries the app)
+    if: needs.build.outputs.signed == '1' && github.ref_name == 'claude/task-collection-interface-dc758h'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
