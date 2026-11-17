@@ -133,14 +133,16 @@ if adb root > /dev/null 2>&1; then
 fi
 # v176: the widget «فوائد الكتب»: some benefits of two books (one not in «الكتب»), the widget placed, «اختر كتاباً»
 # pressed, a book chosen: its benefits shown in page order, by title, page and text, and the other book's not
+# (the widget placed first: a home screen of the check sends it no APPWIDGET_UPDATE, so it is drawn when the page sends
+# its benefits)
+adb shell am start -S -W -n app.mohanndj.alwaei.host/.HostActivity --es provider BenWidget > /dev/null
+sleep 5
 page "(() => { S.books.push(normalizeBook({ id: 'bk1', title: 'الموافقات', status: 'reading' }));
   S.benefits.push(normalizeBenefit({ id: 'f1', bookId: 'bk1', book: 'الموافقات', page: 40, title: 'مقاصد الشريعة', text: 'نص الفائدة الثانية' }),
     normalizeBenefit({ id: 'f2', bookId: 'bk1', book: 'الموافقات', page: 12, title: 'العادات والعبادات', text: 'نص الفائدة الأولى' }),
     normalizeBenefit({ id: 'f3', book: 'كتاب آخر', page: 5, title: 'فائدة من غيره', text: 'لا تظهر' }));
   save(); return S.benefits.length; })()"
 sleep 4
-adb shell am start -S -W -n app.mohanndj.alwaei.host/.HostActivity --es provider BenWidget > /dev/null
-sleep 5
 adb logcat -d -s WaiHost:* | tail -2
 look b1
 grep -q 'اختر كتاباً' b1.xml || fail "bens: no «اختر كتاباً»"
