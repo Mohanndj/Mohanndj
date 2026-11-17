@@ -33,7 +33,7 @@ public class BenWidgetService extends RemoteViewsService {
 
         @Override
         public void onDataSetChanged() {
-            items = BenWidget.shown(c, wid); // (v177: five at a time, without what its ✓ took off)
+            items = BenWidget.shown(c, wid); // (v177: three at a time, without what its ✓ took off)
         }
 
         @Override

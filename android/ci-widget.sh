@@ -175,13 +175,13 @@ page "(() => { S.benefits.push(normalizeBenefit({ id: 'f4', bookId: 'bk1', book:
 sleep 5
 look b4
 grep -q 'فائدة جديدة' b4.xml || fail "bens: a new benefit did not reach the widget"
-# v177: five at a time; a ✓ takes one off and the next comes; all off: «مررت على كل فوائده» and «من جديد» brings them back
+# v177: three at a time (was five); a ✓ takes one off and the next comes; all off: «مررت على كل فوائده» and «من جديد» brings them back
 page "(() => { for (const [i, p] of [[5, 50], [6, 60], [7, 70]]) S.benefits.push(normalizeBenefit({ id: 'f' + i, bookId: 'bk1', book: 'الموافقات', page: p, title: 'فائدة رقم ' + i, text: 'نص ' + i })); save(); return 1; })()"
 sleep 5
 look b5
 # (the rows below the widget's height are not in the screen's text: what came is counted by the ✓ pressed below)
-grep -q 'فائدة رقم 7' b5.xml && fail "bens: more than five shown"
-grep -q 'فائدة رقم ٧' b5.xml && fail "bens: more than five shown"
+grep -q 'فائدة رقم 5' b5.xml && fail "bens: more than three shown"
+grep -q 'فائدة رقم ٥' b5.xml && fail "bens: more than three shown"
 okdesc() { # the ✓ labelled «أزل: <title>»
   B=$(python3 -c "
 import re,sys

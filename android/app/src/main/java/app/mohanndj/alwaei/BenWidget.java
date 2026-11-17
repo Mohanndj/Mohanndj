@@ -20,9 +20,9 @@ import org.json.JSONObject;
  * (BenPickActivity). The page sends the books and their benefits whenever they change (native.js sendBens).
  */
 public class BenWidget extends AppWidgetProvider {
-    // v177 (the owner: «اجعل النافذة لخمسة فوائد فقط، وبجانبها إشارة إن ضغطتها زالت وجاء ما بعدها»): five at a time, a ✓
+    // v177 (the owner: «اجعل النافذة لخمسة فوائد فقط، وبجانبها إشارة إن ضغطتها زالت وجاء ما بعدها»; then «اقتصر فقط على 3 فوائد»): three at a time, a ✓
     // takes one off the widget alone and the next comes; when all are off, «من جديد» (his answer «أ») brings them back
-    static final int SHOWN = 5;
+    static final int SHOWN = 3;
     static final String GONE = "app.mohanndj.alwaei.BEN_GONE", AGAIN = "app.mohanndj.alwaei.BEN_AGAIN";
 
     /** The page sent the benefits again, or a book was chosen: every widget «فوائد الكتب» drawn again. */
@@ -71,7 +71,7 @@ public class BenWidget extends AppWidgetProvider {
         refresh(c, wid);
     }
 
-    /** The benefits a widget shows now: the first five of its book not taken off by their ✓. */
+    /** The benefits a widget shows now: the first three of its book not taken off by their ✓. */
     static JSONArray shown(Context c, int wid) {
         JSONArray out = new JSONArray();
         JSONObject b = bookOf(c, wid);
