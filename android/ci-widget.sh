@@ -133,6 +133,8 @@ if adb root > /dev/null 2>&1; then
 fi
 # v176: the widget «فوائد الكتب»: some benefits of two books (one not in «الكتب»), the widget placed, «اختر كتاباً»
 # pressed, a book chosen: its benefits shown in page order, by title, page and text, and the other book's not
+# («adb root» above restarts adb, and with it the forward to the page's debugging address: made again)
+adb forward tcp:9222 "localabstract:webview_devtools_remote_$PID" > /dev/null || fail "the page's debugging is not open again"
 # (the widget placed first: a home screen of the check sends it no APPWIDGET_UPDATE, so it is drawn when the page sends
 # its benefits)
 adb shell am start -S -W -n app.mohanndj.alwaei.host/.HostActivity --es provider BenWidget > /dev/null
