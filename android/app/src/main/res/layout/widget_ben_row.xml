@@ -54,5 +54,5 @@
         android:lineSpacingMultiplier="1.15"
         android:textColor="@color/w_text"
         android:textDirection="rtl"
-        android:textSize="17sp" />
+        android:textSize="22sp" />
 </LinearLayout>
