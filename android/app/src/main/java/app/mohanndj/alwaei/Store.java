@@ -156,6 +156,29 @@ final class Store {
         else prefs(c).edit().putString("benw_" + wid, id).apply();
     }
 
+    // v177: the benefits a widget «فوائد الكتب» took off by their ✓, for each book it showed (the benefits stay in the app)
+    static synchronized java.util.Set<String> benGone(Context c, int wid, String book) {
+        java.util.Set<String> s = new java.util.HashSet<>();
+        try {
+            JSONArray a = new JSONArray(prefs(c).getString("benr_" + wid + "_" + book, "[]"));
+            for (int i = 0; i < a.length(); i++) s.add(a.optString(i));
+        } catch (Exception e) { /* none */ }
+        return s;
+    }
+
+    static synchronized void setBenGone(Context c, int wid, String book, java.util.Set<String> s) {
+        if (s == null || s.isEmpty()) prefs(c).edit().remove("benr_" + wid + "_" + book).apply();
+        else prefs(c).edit().putString("benr_" + wid + "_" + book, new JSONArray(s).toString()).apply();
+    }
+
+    /** A widget removed: what it took off in every book forgotten. */
+    static synchronized void dropBenGone(Context c, int wid) {
+        SharedPreferences p = prefs(c);
+        SharedPreferences.Editor e = p.edit();
+        for (String k : p.getAll().keySet()) if (k.startsWith("benr_" + wid + "_")) e.remove(k);
+        e.apply();
+    }
+
     // v122: the pinned notification as the page last showed it, shown again when swiped away
     static synchronized String pin(Context c) {
         return prefs(c).getString("pin", "");

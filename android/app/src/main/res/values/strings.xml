@@ -21,4 +21,6 @@
     <string name="bens_choose">اضغط «اختر كتاباً» لتظهر هنا فوائده</string>
     <string name="bens_pick">اختر كتاباً</string>
     <string name="bens_close">إغلاق</string>
+    <string name="bens_done">مررت على كل فوائده</string>
+    <string name="bens_again">من جديد</string>
 </resources>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- a benefit in the widget «فوائد الكتب» (v176): its title and page, then its whole text -->
+<!-- a benefit in the widget «فوائد الكتب» (v176): its title and page, then its whole text (v177: larger, and its ✓
+     that takes it off the widget) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -21,7 +22,7 @@
             android:layout_weight="1"
             android:textColor="@color/w_text"
             android:textDirection="rtl"
-            android:textSize="15sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
@@ -30,7 +31,19 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textColor="@color/w_muted"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/br_ok"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/widget_btn"
+            android:gravity="center"
+            android:text="✓"
+            android:textColor="@color/w_brand"
+            android:textSize="18sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <TextView
@@ -41,5 +54,5 @@
         android:lineSpacingMultiplier="1.15"
         android:textColor="@color/w_text"
         android:textDirection="rtl"
-        android:textSize="14sp" />
+        android:textSize="17sp" />
 </LinearLayout>

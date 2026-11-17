@@ -33,9 +33,7 @@ public class BenWidgetService extends RemoteViewsService {
 
         @Override
         public void onDataSetChanged() {
-            JSONObject b = BenWidget.bookOf(c, wid);
-            JSONArray a = b == null ? null : b.optJSONArray("items");
-            items = a == null ? new JSONArray() : a;
+            items = BenWidget.shown(c, wid); // (v177: five at a time, without what its ✓ took off)
         }
 
         @Override
@@ -58,6 +56,9 @@ public class BenWidgetService extends RemoteViewsService {
             r.setViewVisibility(R.id.br_p, p.isEmpty() ? View.GONE : View.VISIBLE);
             r.setTextViewText(R.id.br_x, body);
             r.setViewVisibility(R.id.br_x, body.isEmpty() ? View.GONE : View.VISIBLE);
+            // its ✓: off the widget, and the next comes (v177)
+            r.setContentDescription(R.id.br_ok, "أزل: " + t);
+            r.setOnClickFillInIntent(R.id.br_ok, new Intent().putExtra("ben", x.optString("i")));
             return r;
         }
 

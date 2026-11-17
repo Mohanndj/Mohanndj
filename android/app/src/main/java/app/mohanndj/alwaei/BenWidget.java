@@ -20,6 +20,10 @@ import org.json.JSONObject;
  * (BenPickActivity). The page sends the books and their benefits whenever they change (native.js sendBens).
  */
 public class BenWidget extends AppWidgetProvider {
+    // v177 (the owner: «اجعل النافذة لخمسة فوائد فقط، وبجانبها إشارة إن ضغطتها زالت وجاء ما بعدها»): five at a time, a ✓
+    // takes one off the widget alone and the next comes; when all are off, «من جديد» (his answer «أ») brings them back
+    static final int SHOWN = 5;
+    static final String GONE = "app.mohanndj.alwaei.BEN_GONE", AGAIN = "app.mohanndj.alwaei.BEN_AGAIN";
 
     /** The page sent the benefits again, or a book was chosen: every widget «فوائد الكتب» drawn again. */
     static void refresh(Context c) {
@@ -42,7 +46,43 @@ public class BenWidget extends AppWidgetProvider {
 
     @Override
     public void onDeleted(Context c, int[] ids) {
-        for (int id : ids) Store.setBenBook(c, id, null);
+        for (int id : ids) {
+            Store.setBenBook(c, id, null);
+            Store.dropBenGone(c, id);
+        }
+    }
+
+    @Override
+    public void onReceive(Context c, Intent in) {
+        super.onReceive(c, in);
+        String a = in.getAction();
+        if (!GONE.equals(a) && !AGAIN.equals(a)) return;
+        int wid = in.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0);
+        JSONObject b = bookOf(c, wid);
+        if (b == null) return;
+        String book = b.optString("id");
+        java.util.Set<String> gone = Store.benGone(c, wid, book);
+        if (GONE.equals(a)) {
+            String id = in.getStringExtra("ben");
+            if (id == null || id.isEmpty()) return;
+            gone.add(id);
+        } else gone.clear();
+        Store.setBenGone(c, wid, book, gone);
+        refresh(c, wid);
+    }
+
+    /** The benefits a widget shows now: the first five of its book not taken off by their ✓. */
+    static JSONArray shown(Context c, int wid) {
+        JSONArray out = new JSONArray();
+        JSONObject b = bookOf(c, wid);
+        JSONArray a = b == null ? null : b.optJSONArray("items");
+        if (a == null) return out;
+        java.util.Set<String> gone = Store.benGone(c, wid, b.optString("id"));
+        for (int i = 0; i < a.length() && out.length() < SHOWN; i++) {
+            JSONObject x = a.optJSONObject(i);
+            if (x != null && !gone.contains(x.optString("i"))) out.put(x);
+        }
+        return out;
     }
 
     /** The book a widget shows, from what the page sent (null when none was chosen, or it has no benefits now). */
@@ -78,9 +118,19 @@ public class BenWidget extends AppWidgetProvider {
                 .setData(Uri.parse("wai-bens://list/" + wid));
         v.setRemoteAdapter(R.id.b_list, svc);
         v.setEmptyView(R.id.b_list, R.id.b_empty);
+        // a row's ✓: this widget's book, the benefit named by the row (v177)
+        Intent gone = new Intent(c, BenWidget.class).setAction(GONE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, wid)
+                .setData(Uri.parse("wai-bens://gone/" + wid));
+        v.setPendingIntentTemplate(R.id.b_list, PendingIntent.getBroadcast(c, wid, gone, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE));
+        // all its benefits taken off: «مررت على كل فوائده» and «من جديد»
+        boolean done = b != null && n > 0 && shown(c, wid).length() == 0;
         String empty = all == null ? c.getString(R.string.bens_first) : !any ? c.getString(R.string.bens_none)
-                : b == null ? c.getString(R.string.bens_choose) : "";
+                : b == null ? c.getString(R.string.bens_choose) : done ? c.getString(R.string.bens_done) : "";
         v.setTextViewText(R.id.b_empty, empty);
+        v.setViewVisibility(R.id.b_again, done ? View.VISIBLE : View.GONE);
+        Intent again = new Intent(c, BenWidget.class).setAction(AGAIN).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, wid)
+                .setData(Uri.parse("wai-bens://again/" + wid));
+        v.setOnClickPendingIntent(R.id.b_again, PendingIntent.getBroadcast(c, wid, again, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         if (b == null && any) v.setOnClickPendingIntent(R.id.b_empty, PendingIntent.getActivity(c, wid, pick, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         return v;
     }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- the widget «فوائد الكتب» (v176): its head (the book, its count, «اختر كتاباً»), its benefits scrolled, or a line -->
+<!-- the widget «فوائد الكتب» (v176): its head (the book, its count, «اختر كتاباً»), its benefits scrolled, or a line
+     (v177: larger, five at a time, and «من جديد» when all were taken off) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -26,7 +27,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/w_brand"
-            android:textSize="17sp"
+            android:textSize="19sp"
             android:textStyle="bold" />
 
         <TextView
@@ -35,12 +36,12 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textColor="@color/w_muted"
-            android:textSize="12sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/b_pick"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="40dp"
             android:layout_marginStart="8dp"
             android:background="@drawable/widget_btn"
             android:gravity="center"
@@ -48,7 +49,7 @@
             android:paddingEnd="12dp"
             android:text="@string/bens_pick"
             android:textColor="@color/w_brand"
-            android:textSize="13sp"
+            android:textSize="15sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -71,6 +72,22 @@
             android:gravity="center"
             android:padding="8dp"
             android:textColor="@color/w_muted"
-            android:textSize="14sp" />
+            android:textSize="17sp" />
+
+        <TextView
+            android:id="@+id/b_again"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/widget_btn"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="@string/bens_again"
+            android:textColor="@color/w_brand"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

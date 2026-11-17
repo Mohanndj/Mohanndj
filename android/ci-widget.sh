@@ -175,5 +175,48 @@ page "(() => { S.benefits.push(normalizeBenefit({ id: 'f4', bookId: 'bk1', book:
 sleep 5
 look b4
 grep -q 'فائدة جديدة' b4.xml || fail "bens: a new benefit did not reach the widget"
+# v177: five at a time; a ✓ takes one off and the next comes; all off: «مررت على كل فوائده» and «من جديد» brings them back
+page "(() => { for (const [i, p] of [[5, 50], [6, 60], [7, 70]]) S.benefits.push(normalizeBenefit({ id: 'f' + i, bookId: 'bk1', book: 'الموافقات', page: p, title: 'فائدة رقم ' + i, text: 'نص ' + i })); save(); return 1; })()"
+sleep 5
+look b5
+# (the rows below the widget's height are not in the screen's text: what came is counted by the ✓ pressed below)
+grep -q 'فائدة رقم 7' b5.xml && fail "bens: more than five shown"
+grep -q 'فائدة رقم ٧' b5.xml && fail "bens: more than five shown"
+okdesc() { # the ✓ labelled «أزل: <title>»
+  B=$(python3 -c "
+import re,sys
+x=open('$1.xml',encoding='utf-8').read()
+m=re.search(r'content-desc=\"أزل: $2\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
+  [ -n "$B" ] || fail "bens: no ✓ for «$2»"
+  adb shell input tap $B
+}
+okdesc b5 'العادات والعبادات'
+sleep 4
+look b6
+grep -q 'العادات والعبادات' b6.xml && fail "bens: the benefit taken off is still shown"
+[ "$(page "S.benefits.some((f) => f.id === 'f2')")" = "true" ] || fail "bens: the benefit was deleted from the app"
+# all taken off, one by one (the first row's ✓ each time): five more (the sixth came when the first went)
+K=0
+for i in 1 2 3 4 5 6 7; do
+  look bx
+  T=$(python3 -c "
+import re
+x=open('bx.xml',encoding='utf-8').read()
+m=re.search(r'content-desc=\"أزل: ([^\"]+)\"', x)
+print(m.group(1) if m else '')")
+  [ -n "$T" ] || break
+  okdesc bx "$T"
+  K=$((K + 1))
+  sleep 3
+done
+echo "bens: taken off after the first: $K"
+[ "$K" = "5" ] || fail "bens: $K taken off after the first, not five"
+look b7
+grep -q 'مررت على كل فوائده' b7.xml && grep -q 'من جديد' b7.xml || fail "bens: no «مررت على كل فوائده» and «من جديد» when all are off"
+tapdesc b7 'من جديد'
+sleep 4
+look b8
+grep -q 'العادات والعبادات' b8.xml || fail "bens: «من جديد» did not bring them back"
 echo "bens widget check passed"
 echo "widget check passed"

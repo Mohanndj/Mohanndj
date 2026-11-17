@@ -145,6 +145,7 @@ const WaiBridge = (() => {
   }
   // v176: the widget «فوائد الكتب» (his answer: «العنوان والفائدة»): every book that has benefits, by its name, with
   // its benefits in page order: the page, the title, the text (and each written-out recording), as «العنوان والفائدة فقط»
+  // (v177: and its id, for the widget's ✓ that takes it off the widget alone)
   function sendBens() {
     let json;
     try {
@@ -157,7 +158,7 @@ const WaiBridge = (() => {
       const list = [...books.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((b) => ({
         id: b.id, name: b.name,
         items: b.items.sort((a, c) => (a.page === '' ? 1e9 : a.page) - (c.page === '' ? 1e9 : c.page))
-          .map((f) => ({ p: f.page === '' ? '' : digitsOut(`صفحة ${f.page}`), t: digitsOut(f.title || 'فائدة'), x: digitsOut([f.text, ...bvTexts(f)].filter(Boolean).join('\n\n')) })),
+          .map((f) => ({ i: f.id, p: f.page === '' ? '' : digitsOut(`صفحة ${f.page}`), t: digitsOut(f.title || 'فائدة'), x: digitsOut([f.text, ...bvTexts(f)].filter(Boolean).join('\n\n')) })),
       }));
       json = JSON.stringify({ arab: S.settings.digits === 'arab', books: list });
     } catch { return; }
