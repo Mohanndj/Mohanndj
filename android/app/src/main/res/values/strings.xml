@@ -13,4 +13,12 @@
     <string name="widget_desc">ما بقي لك اليوم من مهام وأهداف، تشطبها من الشاشة الرئيسية</string>
     <string name="widget_first">افتح التطبيق مرة لتظهر هنا مهام يومك</string>
     <string name="widget_none">لا شيء باقٍ لليوم ✓</string>
+    <!-- the widget «فوائد الكتب» (v176) -->
+    <string name="bens_name">فوائد الكتب</string>
+    <string name="bens_desc">فوائد كتاب تختاره، بعناوينها ونصوصها مرتبة بالصفحات</string>
+    <string name="bens_first">افتح التطبيق مرة لتظهر هنا فوائدك</string>
+    <string name="bens_none">لا فوائد مسجلة بعد</string>
+    <string name="bens_choose">اضغط «اختر كتاباً» لتظهر هنا فوائده</string>
+    <string name="bens_pick">اختر كتاباً</string>
+    <string name="bens_close">إغلاق</string>
 </resources>

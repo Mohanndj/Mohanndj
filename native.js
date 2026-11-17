@@ -55,7 +55,7 @@ const WaiBridge = (() => {
 
   // ---------- stage two (v113): only with an app that has it (an app of the first stage stays as it was) ----------
   const has = (k) => typeof N[k] === 'function';
-  let permWait = [], speechCur = null, alarmsTimer = null, alarmsSent = '', widgetSent = '';
+  let permWait = [], speechCur = null, alarmsTimer = null, alarmsSent = '', widgetSent = '', bensSent = '';
 
   // the phone's notifications in place of the browser's: the timer with its buttons, what is left today, an alarm
   const notice = (title, o = {}) => JSON.stringify({ title: String(title), body: o.body || '', tag: o.tag || '', silent: !!o.silent,
@@ -143,6 +143,26 @@ const WaiBridge = (() => {
     } catch { return; }
     if (json !== widgetSent) { widgetSent = json; N.setWidget(json); }
   }
+  // v176: the widget «فوائد الكتب» (his answer: «العنوان والفائدة»): every book that has benefits, by its name, with
+  // its benefits in page order: the page, the title, the text (and each written-out recording), as «العنوان والفائدة فقط»
+  function sendBens() {
+    let json;
+    try {
+      const books = new Map();
+      for (const f of S.benefits) {
+        const name = benefitBookTitle(f), id = f.bookId && getBook(f.bookId) ? f.bookId : `n:${name}`;
+        if (!books.has(id)) books.set(id, { id, name: digitsOut(name), items: [] });
+        books.get(id).items.push(f);
+      }
+      const list = [...books.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar')).map((b) => ({
+        id: b.id, name: b.name,
+        items: b.items.sort((a, c) => (a.page === '' ? 1e9 : a.page) - (c.page === '' ? 1e9 : c.page))
+          .map((f) => ({ p: f.page === '' ? '' : digitsOut(`صفحة ${f.page}`), t: digitsOut(f.title || 'فائدة'), x: digitsOut([f.text, ...bvTexts(f)].filter(Boolean).join('\n\n')) })),
+      }));
+      json = JSON.stringify({ arab: S.settings.digits === 'arab', books: list });
+    } catch { return; }
+    if (json !== bensSent) { bensSent = json; N.setBens(json); }
+  }
   // a task ticked on the widget: done as by its circle in «اليوم», without «كم استغرقت؟» (asked of nobody there)
   function widgetDone(id, d) {
     const t = getTask(id);
@@ -200,6 +220,7 @@ const WaiBridge = (() => {
       if (list.length) save();
       if (has('setAlarms')) sendAlarms();
       if (has('setWidget')) sendWidget();
+      if (has('setBens')) sendBens();
     },
     // the app kept something for the open page (a tick on the widget): taken now, in order
     pull() {
@@ -209,6 +230,6 @@ const WaiBridge = (() => {
       list.sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach((m) => { try { apply(m, true); } catch {} });
     },
     // app.js save(): the alarms and the widget again, a moment after the last change
-    alarmsSoon() { if ((has('setAlarms') || has('setWidget')) && !alarmsTimer) alarmsTimer = setTimeout(() => { alarmsTimer = null; if (has('setAlarms')) sendAlarms(); if (has('setWidget')) sendWidget(); }, 1000); },
+    alarmsSoon() { if ((has('setAlarms') || has('setWidget') || has('setBens')) && !alarmsTimer) alarmsTimer = setTimeout(() => { alarmsTimer = null; if (has('setAlarms')) sendAlarms(); if (has('setWidget')) sendWidget(); if (has('setBens')) sendBens(); }, 1000); },
   };
 })();

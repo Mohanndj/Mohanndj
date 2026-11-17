@@ -12,7 +12,7 @@ import android.view.Gravity;
 import android.widget.FrameLayout;
 
 /**
- * The app's widget «اليوم» placed as a home screen would place it (four cells by about three), so GitHub's emulator can
+ * The app's widget «اليوم» (or «فوائد الكتب», v176) placed as a home screen would place it (four cells by about three), so GitHub's emulator can
  * read it, press its circles and take its picture (android/ci-widget.sh). Allowed to place it by «appwidget grantbind».
  */
 public class HostActivity extends Activity {
@@ -24,7 +24,9 @@ public class HostActivity extends Activity {
         super.onCreate(b);
         host = new AppWidgetHost(this, 4711);
         AppWidgetManager m = AppWidgetManager.getInstance(this);
-        ComponentName cn = new ComponentName("app.mohanndj.alwaei", "app.mohanndj.alwaei.TodayWidget");
+        // (v176: «--es provider BenWidget» places the widget «فوائد الكتب» instead)
+        String prov = getIntent().getStringExtra("provider");
+        ComponentName cn = new ComponentName("app.mohanndj.alwaei", "app.mohanndj.alwaei." + (prov == null ? "TodayWidget" : prov));
         int id = host.allocateAppWidgetId();
         float dp = getResources().getDisplayMetrics().density;
         // no wider than the emulator's screen

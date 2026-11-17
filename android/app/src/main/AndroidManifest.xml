@@ -94,6 +94,27 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_today_info" />
         </receiver>
 
+        <!-- v176: the widget «فوائد الكتب» on the home screen, its rows, and its «اختر كتاباً» -->
+        <receiver
+            android:name=".BenWidget"
+            android:exported="true"
+            android:label="@string/bens_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_bens_info" />
+        </receiver>
+        <service
+            android:name=".BenWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <activity
+            android:name=".BenPickActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/BenPickTheme" />
+
         <!-- files handed to another app (a recording to transcribe, a report): read only, one at a time -->
         <provider
             android:name=".ShareProvider"

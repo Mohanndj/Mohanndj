@@ -12,4 +12,8 @@
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:backgroundDimAmount">0.55</item>
     </style>
+    <!-- v176: «اختر كتاباً» of the widget «فوائد الكتب»: the same window, closed by a touch beside it too -->
+    <style name="BenPickTheme" parent="@style/AlarmTheme">
+        <item name="android:windowCloseOnTouchOutside">true</item>
+    </style>
 </resources>

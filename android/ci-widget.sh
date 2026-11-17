@@ -131,4 +131,45 @@ if adb root > /dev/null 2>&1; then
   adb shell date "$T" > /dev/null 2>&1 && adb shell am broadcast -n app.mohanndj.alwaei/.TodayWidget -a app.mohanndj.alwaei.WIDGET_DAY > /dev/null && sleep 4 && look w4 \
     && { grep -q 'لغد فقط' w4.xml && echo "the new day: tomorrow's list shown" || echo "::warning::the new day: tomorrow's list not shown"; }
 fi
+# v176: the widget «فوائد الكتب»: some benefits of two books (one not in «الكتب»), the widget placed, «اختر كتاباً»
+# pressed, a book chosen: its benefits shown in page order, by title, page and text, and the other book's not
+page "(() => { S.books.push(normalizeBook({ id: 'bk1', title: 'الموافقات', status: 'reading' }));
+  S.benefits.push(normalizeBenefit({ id: 'f1', bookId: 'bk1', book: 'الموافقات', page: 40, title: 'مقاصد الشريعة', text: 'نص الفائدة الثانية' }),
+    normalizeBenefit({ id: 'f2', bookId: 'bk1', book: 'الموافقات', page: 12, title: 'العادات والعبادات', text: 'نص الفائدة الأولى' }),
+    normalizeBenefit({ id: 'f3', book: 'كتاب آخر', page: 5, title: 'فائدة من غيره', text: 'لا تظهر' }));
+  save(); return S.benefits.length; })()"
+sleep 4
+adb shell am start -S -W -n app.mohanndj.alwaei.host/.HostActivity --es provider BenWidget > /dev/null
+sleep 5
+adb logcat -d -s WaiHost:* | tail -2
+look b1
+grep -q 'اختر كتاباً' b1.xml || fail "bens: no «اختر كتاباً»"
+tapdesc() { # a text on the screen pressed
+  B=$(python3 -c "
+import re,sys
+x=open('$1.xml',encoding='utf-8').read()
+m=re.search(r'text=\"$2\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', x)
+print('' if not m else '%d %d' % ((int(m.group(1))+int(m.group(3)))//2, (int(m.group(2))+int(m.group(4)))//2))")
+  [ -n "$B" ] || fail "bens: no «$2» to press"
+  adb shell input tap $B
+}
+tapdesc b1 'اختر كتاباً'
+sleep 3
+look b2
+grep -q 'الموافقات' b2.xml && grep -q 'كتاب آخر' b2.xml || fail "bens: the books are not in «اختر كتاباً»"
+tapdesc b2 'الموافقات'
+sleep 4
+look b3
+grep -q 'مقاصد الشريعة' b3.xml && grep -q 'العادات والعبادات' b3.xml && grep -q 'نص الفائدة الأولى' b3.xml || fail "bens: the chosen book's benefits are not shown"
+grep -q 'فائدة من غيره' b3.xml && fail "bens: another book's benefit is shown"
+python3 -c "
+x=open('b3.xml',encoding='utf-8').read()
+a,b=x.find('العادات والعبادات'),x.find('مقاصد الشريعة')
+exit(0 if 0<=a<b else 1)" || fail "bens: not in page order"
+# a benefit added in the app reaches the widget
+page "(() => { S.benefits.push(normalizeBenefit({ id: 'f4', bookId: 'bk1', book: 'الموافقات', page: 20, title: 'فائدة جديدة', text: 'وصلت' })); save(); return 1; })()"
+sleep 5
+look b4
+grep -q 'فائدة جديدة' b4.xml || fail "bens: a new benefit did not reach the widget"
+echo "bens widget check passed"
 echo "widget check passed"

@@ -119,6 +119,43 @@ final class Store {
         return t;
     }
 
+    // v176: the widget «فوائد الكتب»: the books with their benefits, as the page sent them, in a file of their own (the
+    // benefits may be long): {arab, books: [{id, name, items: [{p, t, x}]}]}
+    static synchronized JSONObject bens(Context c) {
+        try {
+            java.io.File f = new java.io.File(c.getFilesDir(), "bens.json");
+            if (!f.exists()) return null;
+            byte[] b = new byte[(int) f.length()];
+            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+                int off = 0, n;
+                while (off < b.length && (n = in.read(b, off, b.length - off)) > 0) off += n;
+            }
+            return new JSONObject(new String(b, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static synchronized void setBens(Context c, String json) {
+        java.io.File f = new java.io.File(c.getFilesDir(), "bens.json"), tmp = new java.io.File(c.getFilesDir(), "bens.tmp");
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+            out.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return;
+        }
+        if (!tmp.renameTo(f)) tmp.delete();
+    }
+
+    // the book each widget «فوائد الكتب» shows (its id from the page), chosen by «اختر كتاباً»
+    static synchronized String benBook(Context c, int wid) {
+        return prefs(c).getString("benw_" + wid, "");
+    }
+
+    static synchronized void setBenBook(Context c, int wid, String id) {
+        if (id == null) prefs(c).edit().remove("benw_" + wid).apply();
+        else prefs(c).edit().putString("benw_" + wid, id).apply();
+    }
+
     // v122: the pinned notification as the page last showed it, shown again when swiped away
     static synchronized String pin(Context c) {
         return prefs(c).getString("pin", "");

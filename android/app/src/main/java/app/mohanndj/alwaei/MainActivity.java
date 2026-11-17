@@ -821,6 +821,14 @@ public class MainActivity extends Activity {
             }
         }
 
+        // v176: the widget «فوائد الكتب»: every book with its benefits (native.js sendBens)
+        @JavascriptInterface
+        public void setBens(String json) {
+            if (!allowed() || json == null) return;
+            Store.setBens(MainActivity.this, json);
+            BenWidget.refresh(MainActivity.this);
+        }
+
         @JavascriptInterface
         public String takePending() {
             if (!allowed()) return "[]";
