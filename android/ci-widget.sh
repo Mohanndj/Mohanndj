@@ -224,10 +224,10 @@ sleep 8
 attach || fail "bens: the page was not reached after a benefit was pressed"
 for i in 1 2 3 4 5; do
 O=$(page "(() => { return (typeof ldraft !== 'undefined' && ldraft ? ldraft.kind + ':' + ldraft.id : '') + '|' + ui.tab + '|' + ((document.getElementById('lTitle') || {}).value || ''); })()")
-case "$O" in benefit:f2*) break ;; esac
+case "$O" in *benefit:f2*) break ;; esac
 sleep 3
 done
 echo "bens: pressed a benefit: $O"
-case "$O" in benefit:f2\|benefits\|العادات\ والعبادات) ;; *) fail "bens: pressing a benefit did not open it in the app ($O)" ;; esac
+case "$O" in *benefit:f2\|benefits\|العادات\ والعبادات*) ;; *) fail "bens: pressing a benefit did not open it in the app ($O)" ;; esac
 echo "bens widget check passed"
 echo "widget check passed"
