@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 177;
+const APP_VERSION = 178;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2905,6 +2905,9 @@ $('hzStudy').addEventListener('close', () => { if (hzs) { hzs = null; render(); 
   else if (nw === 'reminder') { ui.tab = 'reminders'; render(); setTimeout(() => { const x = document.querySelector('[data-rem-form] input'); if (x) x.focus(); }, 300); }
   else if (nw === 'journal') { ui.tab = 'journal'; render(); openJournal(null, (suggestedTpl() || {}).id); }
   else if (nw) openSheet(null, nw === 'goal' ? { kind: 'goal', repeat: true } : { kind: 'task' });
+  // the widget «فوائد الكتب» on the home screen: this benefit's own window (v178)
+  const benLink = params.get('ben');
+  if (benLink) { ui.tab = 'benefits'; render(); if (getBenefit(benLink)) openLib('benefit', benLink); }
   if (params.toString()) history.replaceState(null, '', location.pathname + location.hash);
   if (WaiBridge) WaiBridge.boot(); // the Android app: what happened while the page was closed, and its alarms
   checkAlarms();

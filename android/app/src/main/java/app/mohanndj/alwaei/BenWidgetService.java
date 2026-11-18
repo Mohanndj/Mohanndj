@@ -59,6 +59,11 @@ public class BenWidgetService extends RemoteViewsService {
             // its ✓: off the widget, and the next comes (v177)
             r.setContentDescription(R.id.br_ok, "أزل: " + t);
             r.setOnClickFillInIntent(R.id.br_ok, new Intent().putExtra("ben", x.optString("i")));
+            // its title, page or text: the app opens on this benefit itself (v178, his answer «أ: نافذة الفائدة نفسها»)
+            Intent open = new Intent().putExtra("ben", x.optString("i")).putExtra("open", true);
+            r.setOnClickFillInIntent(R.id.br_t, open);
+            r.setOnClickFillInIntent(R.id.br_p, open);
+            r.setOnClickFillInIntent(R.id.br_x, open);
             return r;
         }
 

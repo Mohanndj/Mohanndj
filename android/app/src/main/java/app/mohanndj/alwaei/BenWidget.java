@@ -58,6 +58,13 @@ public class BenWidget extends AppWidgetProvider {
         String a = in.getAction();
         if (!GONE.equals(a) && !AGAIN.equals(a)) return;
         int wid = in.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 0);
+        if (GONE.equals(a) && in.getBooleanExtra("open", false)) { // a benefit's text pressed: the app on it (v178)
+            String id = in.getStringExtra("ben");
+            if (id == null || id.isEmpty()) return;
+            c.startActivity(new Intent(c, MainActivity.class).setAction(Intent.ACTION_VIEW)
+                    .setData(Uri.parse(MainActivity.BASE + "?ben=" + Uri.encode(id))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        }
         JSONObject b = bookOf(c, wid);
         if (b == null) return;
         String book = b.optString("id");
