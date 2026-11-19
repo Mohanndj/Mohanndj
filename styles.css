@@ -2049,6 +2049,11 @@ li.sel .sel-box { background: var(--high); }
 .kh-leaf.kh-flash { outline: 3px solid var(--accent, #0f766e); outline-offset: 2px; }
 .kh-nh small, .kh-leaf small { color: var(--lv); font-size: .78rem; font-weight: 700; }
 .kh-leaf small + b + small, .kh-nh b + small { color: var(--muted); font-weight: 400; }
+.kh-leaf small + b + .kh-ygl + small { color: var(--muted); font-weight: 400; }
+/* (v184) the year goal's name under a card's title; on an app row, a line of its own under it */
+.kh-leaf .kh-ygl, .kh-nh .kh-ygl { color: var(--muted); font-weight: 400; }
+.task:has(> .kh-ygl) { flex-wrap: wrap; }
+.task > .kh-ygl { flex-basis: 100%; padding: 0 14px 8px; }
 .kh-serve { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
 .kh-gprog { display: flex; align-items: center; gap: 8px; }
 .kh-gprog .kh-track > i { background: var(--lv); }

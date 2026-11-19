@@ -440,7 +440,7 @@ function khLateGroup(xs) {
     if (g.length === 1) return khLateRows(g);
     const t = g[0].t;
     const dots = g.map((x) => `<button type="button" class="kh-dot" data-action="toggle" data-id="${t.id}" data-date="${x.d}" aria-pressed="false" aria-label="${esc(`${AR_DAYS[parse(x.d).getDay()]} ${khDayLabel(x.d)}`)}">${KH_WD[parse(x.d).getDay()]}</button>`).join('');
-    return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khRoleName(khRoleIdOf(t), khAreaOf(t)))} | فاتها ${plural(g.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')}: ${esc(g.map((x) => AR_DAYS[parse(x.d).getDay()]).join(' و'))}</small><b>${esc(t.title)}</b></button><div class="kh-side">${khImpBtn(t)}</div><div class="kh-dots">${dots}</div></div>`;
+    return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khRoleName(khRoleIdOf(t), khAreaOf(t)))} | فاتها ${plural(g.length, 'يوم واحد', 'يومان', 'أيام', 'يوماً')}: ${esc(g.map((x) => AR_DAYS[parse(x.d).getDay()]).join(' و'))}</small><b>${esc(t.title)}</b>${khYgLine(t)}</button><div class="kh-side">${khImpBtn(t)}</div><div class="kh-dots">${dots}</div></div>`;
   }).join('');
 }
 // «!» on what is not fixed to a day or a week: it shows in every period until it is done, and says why
@@ -592,8 +592,19 @@ const khImpBtn = (t) => `<button type="button" class="kh-imp" data-action="kh-im
 const khPrioBtn = (t, d) => { const on = t.prio === d; return `<button type="button" class="kh-pri" data-action="kh-prio" data-id="${t.id}" aria-pressed="${on}">🚩<span>${on ? 'من الأهم اليوم' : 'الأهم'}</span></button>`; };
 // one item: the app's own row (its tick, its editor), with the role and the priority beside it
 const khLifeBtn = (t) => `<button type="button" class="kh-life" data-action="kh-life" data-id="${t.id}" aria-pressed="${!!t.life}">${t.life ? '✦ في حياتي' : '✦ ينعكس في حياتي؟'}</button>`;
+// (v184) the year goal a task serves: through its week goal (its month, its year), or its project or book tied to a year goal; the owner: «كل هدف يُربط بسنة اجعل اسم الهدف يظهر… بحيث أعرف بماذا يرتبط إذا نظرت في يومي أو أسبوعي أو شهري»
+function khYgOf(t) {
+  let g = t && t.kgoal ? kgOf(t.kgoal) : null;
+  for (let i = 0; g && g.level !== 'year' && i < 4; i++) g = kgOf(g.parent);
+  if (g && g.level === 'year') return g;
+  const p = t && t.projectId && S.projects.find((x) => x.id === t.projectId), pg = p && kgOf(p.ygoal);
+  if (pg && pg.level === 'year') return pg;
+  const b = t && t.bookId && getBook(t.bookId);
+  return (b && bookGoal(b)) || null;
+}
+const khYgLine = (t) => { const g = khYgOf(t); return g ? `<small class="kh-serve kh-ygl">${esc(g.text)}</small>` : ''; };
 // (v146) a task as a box of «سنتي»'s day level: its tick, its role (or what is given) and time, its title; the buttons beside
-const khDayBox = (t, d, side, lab) => `<div class="kh-node lv-day kh-dbox${doneOn(t, d) ? ' done' : ''}${t.prio === d ? ' kh-prio-on' : ''}" style="--rc:${khColor(khRoleIdOf(t))}">${checkButton(t, d, doneOn(t, d))}<button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(lab || khRoleName(khRoleIdOf(t), khAreaOf(t)))}${hasTime(t) ? ` | ${esc(timeLabel(t, d))}` : ''}</small><b>${esc(t.title)}</b></button>${side || ''}</div>`;
+const khDayBox = (t, d, side, lab) => `<div class="kh-node lv-day kh-dbox${doneOn(t, d) ? ' done' : ''}${t.prio === d ? ' kh-prio-on' : ''}" style="--rc:${khColor(khRoleIdOf(t))}">${checkButton(t, d, doneOn(t, d))}<button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(lab || khRoleName(khRoleIdOf(t), khAreaOf(t)))}${hasTime(t) ? ` | ${esc(timeLabel(t, d))}` : ''}</small><b>${esc(t.title)}</b>${khYgLine(t)}</button>${side || ''}</div>`;
 // set for a day: a recurring task on its day, a task for one time on its date; what has no day of its own («بلا موعد»، «عدد
 // أيام أيّها كان»، «لأي يوم من أسبوعها») on today and every day after it until it is done (the owner: «كل ما لم يحدد له يوم يظهر
 // كل يوم»); a day gone by: what was done in it, struck (the owner: «المنجز مشطوب»)
@@ -671,7 +682,7 @@ const khDotsRow = (x, t0, k) => `<div class="kh-dots">${khRepDots(x, t0, k)}<sma
 function khRepRow(x, t0, k) {
   const t = x.t;
   return `<div class="kh-rep">
-    <div class="kh-rep-t"><button type="button" class="kh-link" data-action="open" data-id="${t.id}">${esc(t.title)}${isHabit(t) ? ' <small>(عادة)</small>' : ''}</button>${x.quota ? khQuotaWhy(t) : ''}</div>
+    <div class="kh-rep-t"><button type="button" class="kh-link" data-action="open" data-id="${t.id}">${esc(t.title)}${isHabit(t) ? ' <small>(عادة)</small>' : ''}</button>${x.quota ? khQuotaWhy(t) : ''}</div>${khYgLine(t)}
     ${khDotsRow(x, t0, k)}
   </div>`;
 }
@@ -680,7 +691,7 @@ function khRepRow(x, t0, k) {
 function khWkBox(x, t0, k) {
   const t = x.t, last = addDays(k, 6);
   if (x.kind !== 'rep') return khDayBox(t, t.due && t.due >= k && t.due <= last ? t.due : t0 >= k && t0 <= last ? t0 : k, `<div class="kh-side">${khWhyOf(t, t0)}${khImpBtn(t)}</div>`, khBookDaysText(t) || (t.from ? 'لمرة: أي يوم من أسبوعها' : t.due ? `لمرة: ${AR_DAYS[parse(t.due).getDay()]}` : 'لمرة'));
-  return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khDaysText(t))}${hasTime(t) ? ` | ${esc(timeLabel(t, t0))}` : ''}</small><b>${esc(t.title)}</b></button><div class="kh-side">${x.quota ? khQuotaWhy(t) : ''}${khImpBtn(t)}</div>${khDotsRow(x, t0, k)}</div>`;
+  return `<div class="kh-node lv-day kh-dbox kh-wbox" style="--rc:${khColor(khRoleIdOf(t))}"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small>${esc(khDaysText(t))}${hasTime(t) ? ` | ${esc(timeLabel(t, t0))}` : ''}</small><b>${esc(t.title)}</b>${khYgLine(t)}</button><div class="kh-side">${x.quota ? khQuotaWhy(t) : ''}${khImpBtn(t)}</div>${khDotsRow(x, t0, k)}</div>`;
 }
 // what passed its time and is still not done, in a page's end: «لم تُنجز في وقتها»
 const khLateBox = (xs, head) => (xs.length ? `<div class="panel kh-late"><b>${head}</b>${khLateRows(xs)}</div>` : '');
@@ -698,7 +709,7 @@ function khWeekHTML() {
   // (a week gone by: a task for one time late, or gone under its month, is in «لم تُنجز في وقتها» or there, not twice)
   const gone = k < khWeekOf(t0) ? khLateOnce() : null;
   const xs = khWeekItems(k).filter((x) => !gone || !gone.has(x.t.id)), rec = khRec(k);
-  const rowsOf = (list) => [...list.filter((x) => x.kind !== 'rep').sort((a, b) => (a.t.due || '').localeCompare(b.t.due || '')).map((x) => `<ul class="list">${itemHTML(x.t, x.t.due && x.t.due >= k && x.t.due <= last ? x.t.due : t0 >= k && t0 <= last ? t0 : k)}</ul>`),
+  const rowsOf = (list) => [...list.filter((x) => x.kind !== 'rep').sort((a, b) => (a.t.due || '').localeCompare(b.t.due || '')).map((x) => `<ul class="list">${itemHTML(x.t, x.t.due && x.t.due >= k && x.t.due <= last ? x.t.due : t0 >= k && t0 <= last ? t0 : k, { extra: khYgLine(x.t) })}</ul>`),
     ...list.filter((x) => x.kind === 'rep').map((x) => khRepRow(x, t0, k))];
   const card = (r) => {
     const id = r ? r.id : '', mine = xs.filter((x) => khRoleIdOf(x.t) === id);
@@ -1102,10 +1113,10 @@ function khMonthNode(g, m) {
   const why = !g.months.length && g.moN ? khWhyBtn(`يظهر كل شهر لأنك لم تحدد أشهره: يتحقق في ${KH_UNIT.month(g.moN)} من السنة أيًّا كانت، فإذا تحقق عددها لم يظهر بقية السنة.`) : '';
   return `<div class="kh-node lv-month">
     <button type="button" class="kh-nh" data-action="kh-edit-mg" data-v="${g.id}"><small>هدف الشهر${khStat(g)}</small><b>${esc(g.text)}</b></button>${why}
-    ${yg ? `<small class="kh-serve">يخدم سنتك: ${esc(yg.text)}</small>` : ''}
+    ${yg ? `<small class="kh-serve kh-ygl">${esc(yg.text)}</small>` : ''}
     ${khProg(x, 'week', 'هذا الشهر')}
     ${g.status === 'open' && full ? khDoneBadge('تحقّق هذا الشهر') : ''}
-    ${ws.map((w) => khChainWeek(w, khYrStart(m), live, (t) => (isRepeat(t) || !t.due || khMoStart(khWeekOf(t.due)) === m) && !khMoLates(m).some((x) => x.t === t))).join('')}
+    ${ws.map((w) => khChainWeek(w, khYrStart(m), live, (t) => (isRepeat(t) || !t.due || khMoStart(khWeekOf(t.due)) === m) && !khMoLates(m).some((x) => x.t === t), yg ? `<small class="kh-serve kh-ygl">${esc(yg.text)}</small>` : '')).join('')}
     ${!ws.length && live && mgAhead(g) ? khCont('week', 'أكمل: ثم أسابيعك', ` data-step="2" data-month="${g.id}"`) : ''}
   </div>`;
 }
@@ -1136,9 +1147,9 @@ function khMonthHTML() {
 // a year goal's whole chain: its months, their weeks, the tasks of their days
 // a task of the chain as «سنتي» draws it (and «شهري», v146): its days or its day and time (tapped: its own days step, where its day
 // and time are changed, v144), its title (tapped: its sheet), what was done of it this year; and «★ قصوى» (v146)
-function khChainDay(t, y) {
+function khChainDay(t, y, yl) {
   const ds = Object.keys(t.completions).filter((d) => t.completions[d] && d >= y && d < khYrNext(y));
-  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : esc(khBookDaysText(t)) || (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
+  return `<div class="kh-node lv-day kh-dwrap"><button type="button" class="kh-leaf" data-action="open" data-id="${t.id}"><small class="kh-day-edit" data-action="kh-day-edit" data-v="${t.id}">${isRepeat(t) ? esc(khDaysText(t)) : esc(khBookDaysText(t)) || (t.due ? `لمرة: ${esc(dueLabel(t.due))}` : 'لمرة: بلا موعد')}${hasTime(t) ? ` | ${esc(timeLabel(t, today()))}` : ''}</small><b>${esc(t.title)}</b>${yl ? khYgLine(t) : ''}${isRepeat(t) && ds.length ? `<small>أنجزتها ${plural(ds.length, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')} هذه السنة</small>` : !isRepeat(t) && t.done ? '<small>✓ أنجزتها</small>' : ''}</button>${khImpBtn(t)}</div>`;
 }
 // (v151) a reading project's book task: its book's reading days (set in its card), not «لمرة»; none chosen yet: so it says
 function khBookDaysText(t) {
@@ -1147,10 +1158,10 @@ function khBookDaysText(t) {
   return `أيام قراءته: ${!b.rdays.length ? 'لم تُختر بعد' : b.rdays.length === 7 ? 'كل يوم' : DAY_ORDER.filter((d) => b.rdays.includes(d)).map((d) => AR_DAYS[d]).join(' و')}`;
 }
 // a week goal of the chain with its tasks (a year, or a month, gone by is shown, not built on)
-function khChainWeek(w, y, live, keep) {
+function khChainWeek(w, y, live, keep, yl) {
   const ts = keep ? kgTasks(w).filter(keep) : kgTasks(w);
-  return `<div class="kh-node lv-week"><button type="button" class="kh-nh" data-action="kh-edit-wg" data-v="${w.id}"><small>${esc(khWeeksText(w))}${khStat(w)}</small><b>${esc(w.text)}</b></button>
-    ${ts.map((t) => khChainDay(t, y)).join('')}
+  return `<div class="kh-node lv-week"><button type="button" class="kh-nh" data-action="kh-edit-wg" data-v="${w.id}"><small>${esc(khWeeksText(w))}${khStat(w)}</small><b>${esc(w.text)}</b>${yl || ''}</button>
+    ${ts.map((t) => khChainDay(t, y, !!yl)).join('')}
     ${live && !kgClosedOf(w) && mgAhead(kgOf(w.parent)) ? khCont('day', ts.length ? 'مهمة أخرى لهذا الهدف' : 'أكمل: ثم أيامك', ` data-step="3" data-week="${w.id}"`) : ''}</div>`;
 }
 function khChainHTML(yg, y) {
@@ -1649,7 +1660,7 @@ function khPlanPick(k, day) {
 function khWeekNode(g, k, rows) {
   const x = wgShare(g, k), full = x.target > 0 && x.done >= x.target, act = wgActive(g, k);
   return `<div class="kh-node lv-week">
-    <button type="button" class="kh-nh" data-action="kh-edit-wg" data-v="${g.id}"><small>هدف الأسبوع${khStat(g)}</small><b>${esc(g.text)}</b></button>${g.wkN && !g.wk.length ? khWhyBtn(`يظهر كل أسبوع لأنك لم تحدد أسابيعه: يتحقق في ${KH_UNIT.week(g.wkN)} من الشهر أيًّا كانت، فإذا تحقق عددها لم يظهر بقية الشهر.`) : ''}
+    <button type="button" class="kh-nh" data-action="kh-edit-wg" data-v="${g.id}"><small>هدف الأسبوع${khStat(g)}</small><b>${esc(g.text)}</b></button>${(() => { let y = kgOf(g.parent); y = y && kgOf(y.parent); return y && y.level === 'year' ? `<small class="kh-serve kh-ygl">${esc(y.text)}</small>` : ''; })()}${g.wkN && !g.wk.length ? khWhyBtn(`يظهر كل أسبوع لأنك لم تحدد أسابيعه: يتحقق في ${KH_UNIT.week(g.wkN)} من الشهر أيًّا كانت، فإذا تحقق عددها لم يظهر بقية الشهر.`) : ''}
     ${act ? khProg(x, 'times', 'هذا الأسبوع') : g.wkN ? `<small class="kh-serve">تحقّق في ${KH_UNIT.week(g.wkN)} هذا الشهر، فلا شيء له في بقيته</small>` : ''}
     ${act && g.status === 'open' && full ? khDoneBadge('تحقّق هذا الأسبوع') : ''}
     ${rows.length ? `<div class="kh-rows">${rows.join('')}</div>` : ''}
