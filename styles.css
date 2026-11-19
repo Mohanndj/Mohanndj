@@ -2346,3 +2346,17 @@ li.sel .sel-box { background: var(--high); }
 .wr-imp-ch span { display: grid; gap: 2px; }
 .wr-imp-ch small { color: var(--muted); }
 .wr-imp-gone { margin: 6px 0 14px; padding-inline-start: 1.2em; color: var(--muted); font-size: .9rem; display: grid; gap: 4px; }
+
+/* «أفكار عاجلة» in «مؤلفاتي» (v179) */
+.wr-ideas-btn { margin: 12px 0; border: 1.5px solid var(--accent); background: var(--accent-soft); }
+.wri-back { margin-bottom: 6px; }
+.wri-new { width: 100%; margin: 6px 0 10px; justify-content: center; }
+.wri-list { display: grid; gap: 8px; margin: 8px 0; }
+.wri-card { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.wri-tick { flex: none; width: 28px; height: 28px; margin-top: 2px; padding: 0; border: 2px solid var(--accent); border-radius: 50%; background: transparent; color: #fff; font-size: .95rem; display: inline-flex; align-items: center; justify-content: center; }
+.wri-tick[aria-pressed="true"] { background: var(--accent); }
+.wri-body { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: start; padding: 0; border: 0; background: none; color: var(--fg); }
+.wri-body b { font-size: 1.05rem; overflow-wrap: anywhere; }
+.wri-text { color: var(--muted); font-size: .92rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; overflow-wrap: anywhere; }
+.wri-body small { color: var(--muted); }
+.wri-card.done .wri-body b { text-decoration: line-through; color: var(--muted); }

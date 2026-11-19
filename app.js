@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 178;
+const APP_VERSION = 179;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -246,6 +246,7 @@ function load() {
   s.reminders = (Array.isArray(s.reminders) ? s.reminders : []).map(normalizeReminder);
   s.study = (Array.isArray(s.study) ? s.study : []).filter((x) => x && typeof x === 'object').map(normalizeScience);
   s.kunnasha = (Array.isArray(s.kunnasha) ? s.kunnasha : []).filter((x) => x && typeof x === 'object').map(normalizeKun);
+  s.wrIdeas = (Array.isArray(s.wrIdeas) ? s.wrIdeas : []).filter((x) => x && typeof x === 'object').map(normalizeWrIdea);
   s.roles = khWithSaw((Array.isArray(s.roles) ? s.roles : []).filter((x) => x && typeof x === 'object').map(normalizeRole));
   s.kgoals = (Array.isArray(s.kgoals) ? s.kgoals : []).filter((x) => x && typeof x === 'object').map(normalizeKGoal);
   s.settings.khMfrom = /^\d{4}-\d{2}-\d{2}$/.test(s.settings.khMfrom || '') ? s.settings.khMfrom : today(); // «فاتك يومها» asks about days from the first opening on
@@ -1998,7 +1999,7 @@ async function exportData() {
   // the books he writes (v154) are in this device's big store, not in S
   let writing = [];
   try { if (typeof WBooks !== 'undefined') writing = await WBooks.all(); } catch { toast('تنبيه: تعذّرت قراءة «مؤلفاتي»، فلم تدخل في هذه النسخة'); }
-  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, roles: S.roles, kgoals: S.kgoals, writing, settings: S.settings }, null, 2);
+  const data = JSON.stringify({ app: 'mahami', version: APP_VERSION, exported: new Date().toISOString(), tasks: S.tasks, projects: S.projects, sessions: S.sessions, memos: S.memos, books: S.books, benefits: S.benefits, inspire: S.inspire.filter((x) => x.type !== 'image'), archive: S.archive, ideas: S.ideas, journal: S.journal, jtemplates: S.jtemplates, hifz: S.hifz, hplans: S.hplans, finPlans: S.finPlans, finDebts: S.finDebts, finRights: S.finRights, finProjects: S.finProjects, finTx: S.finTx, cvs: S.cvs, meals: S.meals, mealDone: S.mealDone, shop: S.shop, lists: S.lists, fines: S.fines, reports: S.reports, subs: S.subs, later: S.later, weeks: S.weeks, people: S.people, decisions: S.decisions, quits: S.quits, reminders: S.reminders, study: S.study, kunnasha: S.kunnasha, wrIdeas: S.wrIdeas, roles: S.roles, kgoals: S.kgoals, writing, settings: S.settings }, null, 2);
   downloadFile(`mahami-${today()}.json`, data, 'application/json');
 }
 // the Android app's file (v112): from the site itself, saved as a backup is (a link to GitHub stopped at «جارٍ التنزيل»)
@@ -2053,7 +2054,7 @@ function importData(file) {
       S.ideas = (Array.isArray(data.ideas) ? data.ideas : []).map(normalizeIdea);
       S.journal = (Array.isArray(data.journal) ? data.journal : []).map(normalizeJournal);
       if (Array.isArray(data.jtemplates)) S.jtemplates = data.jtemplates.map(normalizeJTemplate);
-      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun], ['roles', normalizeRole], ['kgoals', normalizeKGoal]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
+      for (const [k, f] of [['hifz', normalizeHifz], ['hplans', normalizeHPlan], ['finPlans', normalizeFinPlan], ['finDebts', normalizeDebt], ['finRights', normalizeRight], ['finProjects', normalizeFinProject], ['finTx', normalizeTx], ['cvs', normalizeCV], ['meals', normalizeMeal], ['mealDone', normalizeMealDone], ['shop', normalizeShop], ['lists', normalizeList], ['fines', normalizeFine], ['reports', normalizeReport], ['subs', normalizeSub], ['later', normalizeLater], ['weeks', normalizeWeek], ['people', normalizePerson], ['decisions', normalizeDecision], ['quits', normalizeQuit], ['reminders', normalizeReminder], ['study', normalizeScience], ['kunnasha', normalizeKun], ['wrIdeas', normalizeWrIdea], ['roles', normalizeRole], ['kgoals', normalizeKGoal]]) S[k] = (Array.isArray(data[k]) ? data[k] : []).map(f);
       S.roles = khWithSaw(S.roles);
       if (!Array.isArray(data.lists)) S.lists = DEFAULT_LISTS.map(normalizeList);
       // photos stay on this device; imported phrases are added to them
@@ -2653,7 +2654,7 @@ document.addEventListener('click', (e) => {
     case 'import': $('importFile').click(); break;
     case 'wipe':
       if (confirm(Sync.connected() ? 'سيُحذف كل شيء نهائياً من هذا الجهاز ومن نسختك السحابية وكل أجهزتك المزامنة. هل أنت متأكد؟' : 'سيُحذف كل شيء نهائياً من هذا الجهاز. هل أنت متأكد؟')) {
-        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
+        S.tasks = []; S.projects = []; S.sessions = []; S.memos = []; S.books = []; S.benefits = []; S.inspire = []; S.archive = []; S.ideas = []; S.journal = []; S.jtemplates = DEFAULT_TEMPLATES.map(normalizeJTemplate); S.hifz = []; S.hplans = []; S.finPlans = []; S.finDebts = []; S.finRights = []; S.finProjects = []; S.finTx = []; S.cvs = []; S.meals = []; S.mealDone = []; S.shop = []; S.lists = DEFAULT_LISTS.map(normalizeList); S.fines = []; S.reports = []; S.subs = []; S.later = []; S.weeks = []; S.people = []; S.decisions = []; S.quits = []; S.reminders = []; S.study = []; S.kunnasha = []; S.wrIdeas = []; S.roles = khWithSaw([]); S.kgoals = []; S.fired = {}; S.snoozed = {}; S.timer = null;
         for (const k of ['health', 'readingGoal', 'payDay', 'closed', 'closeSkip', 'finActive', 'decTpl', 'benCats', 'wrKey', 'affTabs']) delete S.settings[k];
         try { indexedDB.deleteDatabase('mahami-media'); } catch {}
         try { if (typeof WBooks !== 'undefined') { WrCloud.wipe(); WBooks.forget(); indexedDB.deleteDatabase('mahami-writing'); wrUi.list = null; wrUi.book = ''; } } catch {}
@@ -2812,6 +2813,7 @@ window.addEventListener('popstate', () => {
   if (ui.tab === 'tasks' && ui.project) { go('tasks', ''); armBack(); return; }
   if (ui.tab === 'plan' && khUi.review) { khUi.review = ''; render(); armBack(); return; }
   if (ui.tab === 'writing' && wrUi.imp) { wrUi.imp = null; render(); armBack(); return; } // a Word file's preview: back to the books (v158)
+  if (ui.tab === 'writing' && wrUi.ideas && !wrUi.book) { wrUi.ideas = false; render(); armBack(); return; } // «أفكار عاجلة»: back to its tab (v179)
   if (ui.tab === 'writing' && wrUi.book) { wrUi.book = ''; render(); armBack(); return; } // a book of «مؤلفاتي»: back to its list (v154)
   if (MORE_TABS.includes(ui.tab) && ui.tab !== 'more') { go('more'); armBack(); return; }
   if (ui.tab !== 'today') { go('today'); armBack(); return; }

@@ -250,6 +250,7 @@ function viewWriting() {
   if (!wrUi.list) { wrLoad(); return `${moreCrumb()}<section class="panel"><p class="note-text">يُفتح…</p></section>`; }
   WrCloud.pull(); // (once: what is in the cloud and not here, or newer there, comes back)
   if (wrUi.imp) return wrImpHTML(); // (v158: a book from a Word file, its preview first)
+  if (wrUi.ideas && !wrUi.book) return wrIdeasHTML(); // (v179: «أفكار عاجلة» of this tab)
   const b = wrUi.book && wrBook(wrUi.book);
   if (wrUi.book && !b) wrUi.book = '';
   return b ? wrBookHTML(b) : wrListHTML();
@@ -287,6 +288,7 @@ function wrListHTML() {
   <section class="panel">
     <div class="section-head"><h2>${esc(pageName('writing'))}</h2></div>
     ${wrTabsHTML()}
+    ${wrIdeasBtn(k)}
     ${form}
     ${l.length ? `<div class="wr-books">${l.map(row).join('')}</div>`
     : `<p class="note-text">${k === 'book' ? 'لا كتب بعد. اكتب عنوان كتابك ثم «كتاب جديد».' : k === 'article' ? 'لا مقالات بعد. اكتب عنوانها ثم «مقالة جديدة».' : 'لا منشورات بعد. اضغط «منشور جديد».'}</p>`}
