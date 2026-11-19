@@ -53,8 +53,10 @@ function normalizeWBook(b) {
   const kind = WR_KINDS[b.kind] ? b.kind : 'book';
   const chapters = (Array.isArray(b.chapters) ? b.chapters : []).map(normalizeWChapter);
   if (kind !== 'book' && !chapters.length) chapters.push(normalizeWChapter({})); // (an article or a post is one text)
-  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
+  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
 }
+// (v183) the colour of what stands between ﴿ and ﴾ in a book, chosen for each book: [its name, its colour in Word]
+const WR_AYC = { blue: ['أزرق', '1D4ED8'], maroon: ['عنابي', '7F1D1D'] };
 // the three tabs (v156): a book of chapters, an article, a post
 const WR_KINDS = {
   book: { tab: 'الكتب', one: 'كتاب', none: 'كتاب بلا عنوان' },
@@ -445,6 +447,7 @@ function wrDialog() {
       <button type="button" class="icon-btn" data-wr="close" aria-label="رجوع وحفظ">${wrSvg('close')}</button>
       <input id="wrTitle" placeholder="عنوان الفصل" aria-label="العنوان" autocomplete="off">
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
+      <button type="button" class="icon-btn wr-ayc-btn" data-wr="ayc" aria-label="لون الآيات" title="لون الآيات" hidden>﴿﴾</button>
       <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
       <button type="button" class="icon-btn" data-wr="find" aria-label="بحث واستبدال">${wrSvg('find')}</button>
       <button type="button" class="icon-btn" data-wr="focus" aria-label="وضع التركيز">${wrSvg('focus')}</button>
@@ -502,6 +505,35 @@ function wrSetTheme(v) {
   for (const [k] of WR_THEMES) if (k) d.classList.toggle(`wr-th-${k}`, k === v);
   for (const b of d.querySelectorAll('[data-wtheme]')) b.classList.toggle('on', b.dataset.wtheme === v);
 }
+// (v183) what stands between ﴿ and ﴾ in the text takes the book's colour: painted over the text (CSS highlights), so
+// nothing is added to what is written, saved or undone; painted again whenever the text changes
+let wrAycObs = null;
+function wrAycPaint() {
+  if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+  const d = $('wrEditor'), body = $('wrBody');
+  if (!d || !body || !d.dataset.ayc) { CSS.highlights.delete('wr-ayah'); return; }
+  const hl = new Highlight(), w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  let open = null, n;
+  while ((n = w.nextNode())) {
+    for (let i = 0; i < n.data.length; i++) {
+      const c = n.data[i];
+      if (c === '﴿') open = [n, i];
+      else if (c === '﴾' && open) { const r = new Range(); r.setStart(open[0], open[1]); r.setEnd(n, i + 1); hl.add(r); open = null; }
+    }
+  }
+  CSS.highlights.set('wr-ayah', hl);
+}
+function wrAycSet(v) {
+  const d = $('wrEditor');
+  if (!d) return;
+  if (WR_AYC[v]) d.dataset.ayc = v; else delete d.dataset.ayc;
+  if (!wrAycObs && typeof MutationObserver !== 'undefined') {
+    let q = 0;
+    wrAycObs = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; wrAycPaint(); }); });
+    wrAycObs.observe($('wrBody'), { childList: true, characterData: true, subtree: true });
+  }
+  wrAycPaint();
+}
 const wrFocusOn = () => { try { return localStorage.getItem('mahami-wrfocus') === '1'; } catch { return false; } };
 function wrSetFocus(on, once) {
   if (!once) try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
@@ -521,6 +553,8 @@ function wrEdit(b, chId, find) {
   $('wrTitle').value = one ? b.title : c.title;
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
   $('wrCopyBtn').hidden = !one;
+  $('wrEditor').querySelector('[data-wr="ayc"]').hidden = one;
+  wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
   $('wrBody').innerHTML = c.html;
   $('wrNotes').innerHTML = '';
@@ -550,6 +584,7 @@ function wrClose(fromEvent) {
   wrState = null;
   if (typeof wrIdeasClose === 'function') wrIdeasClose();
   WrCloud.soon(1500);
+  wrAycSet('');
   try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {} // (the notes' editor as it was)
   wrPopsClose();
   const d = $('wrEditor');
@@ -915,6 +950,7 @@ function wrPalHTML(k) {
   if (k === 'color') return NOTE_COLORS.map(([c, n]) => `<button type="button" class="pal" data-wcolor="${c}" title="${n}" aria-label="لون ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : 'أ'}</button>`).join('');
   if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-whi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-wfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
+  if (k === 'ayc') { const on = (wrState && wrState.book.ayc) || ''; return '<span class="wr-ayc-l">لون الآيات:</span>' + [['', 'بلا لون'], ...Object.entries(WR_AYC).map(([v, [n]]) => [v, n])].map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wayc="${v}"${v ? ` data-ayc="${v}"` : ''}>${n}</button>`).join(''); }
   if (k === 'theme') { const on = wrThemeOf(); return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join(''); }
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-walign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-wlh="${v}">${n}</button>`).join('');
@@ -1008,14 +1044,14 @@ function wrReplace(all) {
 // the tools keep the cursor (and the selection) in the text
 document.addEventListener('pointerdown', (e) => {
   if (!wrState) return;
-  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab, [data-wr="theme"]')) e.preventDefault();
+  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab, [data-wr="theme"], [data-wr="ayc"]')) e.preventDefault();
   // a tap elsewhere closes what floats (not a tap in it, nor on what opens it)
-  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn, [data-wr="theme"]')) wrPopsClose();
+  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn, [data-wr="theme"], [data-wr="ayc"]')) wrPopsClose();
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wayc], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1033,11 +1069,21 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.wtm) { wrTm(t.dataset.wtm); return; }
+  if (t.dataset.wayc !== undefined) { // (v183) kept with the book; the palette stays open
+    if (!wrState) return;
+    wrState.book.ayc = t.dataset.wayc;
+    wrState.book.updated = Date.now();
+    wrSave(wrState.book);
+    wrAycSet(t.dataset.wayc);
+    for (const x of document.querySelectorAll('[data-wayc]')) x.classList.toggle('on', x.dataset.wayc === t.dataset.wayc);
+    return;
+  }
   if (t.dataset.wtheme !== undefined) { wrSetTheme(t.dataset.wtheme); return; } // (the palette stays open, to try one after another)
   if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
   if (a === 'close') wrClose();
   else if (a === 'theme') wrPal('theme');
+  else if (a === 'ayc') wrPal('ayc');
   else if (a === 'copy') { wrSaveNow(); wrCopy(wrState.book); }
   else if (a === 'focus') { $('wrFabMenu').hidden = true; wrSetFocus(!$('wrEditor').classList.contains('wr-focus')); }
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
@@ -1176,6 +1222,16 @@ function wrDocx(b) {
     return h ? (h[1].length === 3 ? h[1].replace(/./g, '$&$&') : h[1]).toUpperCase() : '';
   };
   const rpr = (f) => `<w:rPr>${f.font ? `<w:rFonts w:ascii="${x(f.font)}" w:hAnsi="${x(f.font)}" w:cs="${x(f.font)}"/>` : ''}${f.b ? '<w:b/><w:bCs/>' : ''}${f.i ? '<w:i/><w:iCs/>' : ''}${f.s ? '<w:strike/>' : ''}${f.color ? `<w:color w:val="${f.color}"/>` : ''}${f.em && f.em !== 1 ? `<w:sz w:val="${Math.round(f.base * f.em)}"/><w:szCs w:val="${Math.round(f.base * f.em)}"/>` : ''}${f.u ? '<w:u w:val="single"/>' : ''}${f.hi ? `<w:shd w:val="clear" w:color="auto" w:fill="${f.hi}"/>` : ''}<w:rtl/></w:rPr>`;
+  // (v183) the text between ﴿ and ﴾ in the book's colour, as in the editor
+  const AYC = WR_AYC[b.ayc] ? WR_AYC[b.ayc][1] : '';
+  let inAy = false;
+  const ayRun = (text, f) => (!AYC ? run(text, f) : text.split(/([﴿﴾])/).map((t) => {
+    if (!t) return '';
+    if (t === '﴿') inAy = true;
+    const o = run(t, inAy ? { ...f, color: AYC } : f);
+    if (t === '﴾') inAy = false;
+    return o;
+  }).join(''));
   const run = (text, f) => text.split('\n').map((line, i) => `<w:r>${rpr(f)}${i ? '<w:br/>' : ''}<w:t xml:space="preserve">${x(line)}</w:t></w:r>`).join('');
   const EMU = 9525, MAXW = 5731510; // (a picture as wide as the page's text at most)
   const pic = (img) => {
@@ -1199,7 +1255,7 @@ function wrDocx(b) {
   // (the parentheses held on the right by a right-to-left mark, so a footnote's number at a line's start reads «(١)» not «()١»)
   const NF = S.settings.digits === 'arab' ? 'hindiNumbers' : 'decimal';
   const runs = (node, f, ch) => [...node.childNodes].map((n) => {
-    if (n.nodeType === 3) return n.textContent ? run(n.textContent, f) : '';
+    if (n.nodeType === 3) return n.textContent ? ayRun(n.textContent, f) : '';
     if (n.nodeType !== 1) return '';
     const N = n.nodeName;
     if (N === 'BR') return '<w:r><w:br/></w:r>';
@@ -1235,6 +1291,7 @@ function wrDocx(b) {
   const styleOf = (el) => (el.nodeName === 'H2' ? 'Heading2' : el.nodeName === 'H3' ? 'Heading3' : el.nodeName === 'BLOCKQUOTE' ? 'Quote' : el.classList.contains('ayah') ? 'Ayah' : 'Normal');
   const block = (el, ch) => {
     const N = el.nodeName;
+    inAy = false; // (a ﴿ left open does not colour the paragraphs after it)
     if (N === 'DIV' && el.classList.contains('pgbreak')) return '<w:p><w:pPr><w:bidi/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>';
     if (N === 'HR') return para('Normal', '', '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>');
     if (N === 'UL' || N === 'OL') return [...el.children].filter((li) => li.nodeName === 'LI').map((li, i) => {
