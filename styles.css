@@ -2357,7 +2357,7 @@ li.sel .sel-box { background: var(--high); }
 .wri-tick[aria-pressed="true"] { background: var(--accent); }
 .wri-body { flex: 1; min-width: 0; display: grid; gap: 3px; text-align: start; padding: 0; border: 0; background: none; color: var(--fg); }
 .wri-body b { font-size: 1.05rem; overflow-wrap: anywhere; }
-.wri-text { color: var(--muted); font-size: .92rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; overflow-wrap: anywhere; }
+.wri-text { color: var(--muted); font-size: .92rem; display: block; white-space: pre-line; overflow-wrap: anywhere; }
 .wri-body small { color: var(--muted); }
 .wri-card.done .wri-body b { text-decoration: line-through; color: var(--muted); }
 
