@@ -53,8 +53,14 @@ function normalizeWBook(b) {
   const kind = WR_KINDS[b.kind] ? b.kind : 'book';
   const chapters = (Array.isArray(b.chapters) ? b.chapters : []).map(normalizeWChapter);
   if (kind !== 'book' && !chapters.length) chapters.push(normalizeWChapter({})); // (an article or a post is one text)
-  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
+  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', mark: wrMarkOk(b.mark), created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
 }
+// (v185) the bookmark of a book, «أعرف بها أين توقفت»: its chapter, where it stands in that chapter's text (counted in letters),
+// and the words that follow it (to find it again if text was written before it)
+function wrMarkOk(m) {
+  return m && typeof m === 'object' && typeof m.ch === 'string' && m.ch ? { ch: m.ch, at: Math.max(0, Number(m.at) || 0), snip: typeof m.snip === 'string' ? m.snip.slice(0, 40) : '' } : null;
+}
+const wrMarkCh = (b) => b.mark && b.chapters.find((c) => c.id === b.mark.ch);
 // (v183) the colour of what stands between ﴿ and ﴾ in a book, chosen for each book: [its name, its colour in Word]
 const WR_AYC = { blue: ['أزرق', '1D4ED8'], maroon: ['عنابي', '7F1D1D'] };
 // the three tabs (v156): a book of chapters, an article, a post
@@ -300,14 +306,15 @@ function wrListHTML() {
 
 function wrBookHTML(b) {
   const notes = b.chapters.reduce((n, c) => n + wrNoteIds(c.html).length, 0);
-  const del = wrUi.armed === `b:${b.id}`;
+  const del = wrUi.armed === `b:${b.id}`, mk = wrMarkCh(b);
   return `${moreCrumb()}
   <div class="crumbs"><button type="button" class="back" data-action="wr-list">${icon('back')} ${esc(pageName('writing'))}</button></div>
   <section class="panel">
     <div class="section-head"><h2>${esc(b.title || 'كتاب بلا عنوان')}</h2><button type="button" class="ghost sm" data-action="wr-rename">${icon('edit')} العنوان</button></div>
     <p class="book-line">الفصول: ${b.chapters.length} | الكلمات: ${wrBookWords(b)} | الحواشي: ${notes}</p>
+    ${mk ? `<button type="button" class="wr-mk-go" data-action="wr-ch" data-v="${mk.id}"><span aria-hidden="true">🔖</span><span>علامتك: ${esc(mk.title || `فصل ${wrNum(b.chapters.indexOf(mk) + 1)}`)}</span><small>افتح عندها</small></button>` : ''}
     ${b.chapters.length ? `<div class="wr-chs">${b.chapters.map((c, i) => `<div class="wr-ch">
-      <button type="button" class="wr-ch-open" data-action="wr-ch" data-v="${c.id}"><b>${esc(c.title || `فصل ${wrNum(i + 1)}`)}</b><small>الكلمات: ${wrChWords(c)}</small></button>
+      <button type="button" class="wr-ch-open" data-action="wr-ch" data-v="${c.id}"><b>${mk === c ? '<span class="wr-mk-tag" aria-label="فيه علامتك">🔖</span> ' : ''}${esc(c.title || `فصل ${wrNum(i + 1)}`)}</b><small>الكلمات: ${wrChWords(c)}</small></button>
       <button type="button" class="icon-btn" data-action="wr-up" data-v="${c.id}" aria-label="إلى الأعلى"${i ? '' : ' disabled'}>▲</button>
       <button type="button" class="icon-btn" data-action="wr-down" data-v="${c.id}" aria-label="إلى الأسفل"${i < b.chapters.length - 1 ? '' : ' disabled'}>▼</button>
       <button type="button" class="ghost sm danger-text" data-action="wr-ch-del" data-v="${c.id}">${wrUi.armed === `c:${c.id}` ? 'متأكد؟' : 'حذف'}</button>
@@ -403,7 +410,7 @@ document.addEventListener('click', (e) => {
     wrSave(b, 3000); render();
   } else if (a === 'wr-ch-del') {
     if (!wrArm(`c:${v}`)) return;
-    b.chapters = b.chapters.filter((c) => c.id !== v); wrSave(b, 3000); render(); toast('حُذف الفصل');
+    b.chapters = b.chapters.filter((c) => c.id !== v); if (b.mark && b.mark.ch === v) b.mark = null; wrSave(b, 3000); render(); toast('حُذف الفصل');
   } else if (a === 'wr-book-del') {
     if (!wrArm(`b:${v}`)) return;
     wrGone(v); wrUi.book = ''; render(); toast('حُذف الكتاب');
@@ -447,6 +454,7 @@ function wrDialog() {
       <button type="button" class="icon-btn" data-wr="close" aria-label="رجوع وحفظ">${wrSvg('close')}</button>
       <input id="wrTitle" placeholder="عنوان الفصل" aria-label="العنوان" autocomplete="off">
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
+      <button type="button" class="icon-btn wr-bmk-btn" data-wr="bmk" aria-label="علامة: أين توقفت" title="علامة: أين توقفت" hidden>🔖</button>
       <button type="button" class="icon-btn wr-ayc-btn" data-wr="ayc" aria-label="لون الآيات" title="لون الآيات" hidden>﴿﴾</button>
       <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
       <button type="button" class="icon-btn" data-wr="find" aria-label="بحث واستبدال">${wrSvg('find')}</button>
@@ -465,13 +473,14 @@ function wrDialog() {
     <div class="wr-scroll" id="wrScroll">
       <div id="wrBody" class="me-body wr-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="النص" data-placeholder="اكتب هنا…" dir="rtl"></div>
       <div class="wr-notes" id="wrNotes"></div>
+      <span class="wr-bmk" id="wrBmk" aria-hidden="true" hidden>🔖</span>
     </div>
     <div class="me-foot wr-foot"><small id="wrStatus"></small><button type="button" class="wr-tm" id="wrTmBtn" data-wr="tm" aria-label="مؤقت التركيز">⏱ مؤقت</button></div>
   </div>
   <div class="wr-bubble" id="wrBubble" role="toolbar" aria-label="أدوات النص المحدد" hidden>${WR_BUBBLE.map((c) => wrToolBtn(wrTool(c))).join('')}</div>
   <button type="button" class="wr-fab" id="wrFab" data-wr="fab" aria-label="الأدوات">✎</button>
   <div class="wr-fabmenu" id="wrFabMenu" role="toolbar" aria-label="الأدوات" hidden>${WR_FAB.map((c) => wrToolBtn(wrTool(c))).join('')}
-    <button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
+    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
   <div class="wr-float" id="wrFloat" hidden></div>
   <div class="wr-tmpop" id="wrTmPop" hidden></div>
   <input type="file" id="wrImgIn" accept="image/*" hidden>`;
@@ -529,11 +538,100 @@ function wrAycSet(v) {
   if (WR_AYC[v]) d.dataset.ayc = v; else delete d.dataset.ayc;
   if (!wrAycObs && typeof MutationObserver !== 'undefined') {
     let q = 0;
-    wrAycObs = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; wrAycPaint(); }); });
+    wrAycObs = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; wrAycPaint(); wrBmkPaint(); }); });
     wrAycObs.observe($('wrBody'), { childList: true, characterData: true, subtree: true });
   }
   wrAycPaint();
 }
+// (v185) the bookmark («🔖 علامة»): one for each book, put where the cursor stands; the chapter it is in opens at it.
+// Shown over the text (a colour on the word and 🔖 beside its line), so nothing enters what is written, saved or exported.
+// While the chapter is open it is a live range, which moves with what is written before it; saving writes where it stands.
+function wrBmkRange(n) {
+  const body = $('wrBody'), w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT), r = document.createRange();
+  let last = null;
+  while (w.nextNode()) {
+    const t = w.currentNode; last = t;
+    if (n <= t.data.length) { r.setStart(t, n); r.collapse(true); return r; }
+    n -= t.data.length;
+  }
+  if (last) r.setStart(last, last.data.length); else r.setStart(body, 0);
+  r.collapse(true);
+  return r;
+}
+function wrBmkAt(r) { const x = document.createRange(); x.selectNodeContents($('wrBody')); x.setEnd(r.startContainer, r.startOffset); return x.toString().length; }
+// where a saved mark stands now: its words nearest to where it was, else where it was
+function wrBmkFind(m) {
+  const full = $('wrBody').textContent;
+  for (const q of [m.snip, m.snip.slice(0, 12)]) {
+    if (!q || q.trim().length < 3) continue;
+    let best = -1, i = full.indexOf(q);
+    while (i !== -1) { if (best < 0 || Math.abs(i - m.at) < Math.abs(best - m.at)) best = i; i = full.indexOf(q, i + 1); }
+    if (best >= 0) return best;
+  }
+  return Math.min(m.at, full.length);
+}
+function wrBmkLive() {
+  if (!wrState) return null;
+  const b = wrState.book, m = b.kind === 'book' && b.mark && b.mark.ch === wrState.ch.id ? b.mark : null;
+  if (!m) { wrState.bmk = null; return null; }
+  const r = wrState.bmk;
+  if (r && r.startContainer.nodeType === 3 && $('wrBody').contains(r.startContainer)) return r;
+  return (wrState.bmk = wrBmkRange(wrBmkFind(m))); // (the text was put back whole, as «تراجع» does)
+}
+function wrBmkKeep() {
+  const r = wrBmkLive();
+  if (!r) return;
+  const at = wrBmkAt(r);
+  wrState.book.mark = { ch: wrState.ch.id, at, snip: $('wrBody').textContent.slice(at, at + 40) };
+}
+function wrBmkPaint() {
+  const chip = $('wrBmk');
+  const hl = typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight !== 'undefined';
+  const r = wrBmkLive();
+  if (!r) { if (hl) CSS.highlights.delete('wr-bmk'); if (chip) chip.hidden = true; return; }
+  // the word that follows the mark (or the word it ends)
+  const t = r.startContainer, i = r.startOffset, w = document.createRange();
+  let j = i; while (j < t.data.length && j - i < 25 && !/\s/.test(t.data[j])) j++;
+  let k = i; if (j === i) while (k > 0 && i - k < 25 && !/\s/.test(t.data[k - 1])) k--; // (at a word's end: that word)
+  w.setStart(t, k); w.setEnd(t, j);
+  if (hl) CSS.highlights.set('wr-bmk', new Highlight(w));
+  const sc = $('wrScroll'); let rc = w.getClientRects()[0]; if (!rc || !rc.height) rc = t.parentNode.getBoundingClientRect(); // (an empty spot: its line)
+  chip.hidden = false;
+  chip.style.top = `${Math.max(0, rc.top - sc.getBoundingClientRect().top + sc.scrollTop + rc.height / 2 - 9)}px`;
+}
+// on opening the chapter that holds it: there, in the middle of the screen
+function wrBmkOpen(go) {
+  wrState.bmk = null;
+  wrBmkPaint();
+  if (!go || !wrState.bmk) return;
+  const to = () => { const c = $('wrBmk'); if (!wrState || !c || c.hidden) return; wrBmkPaint(); const sc = $('wrScroll'); sc.scrollTop = Math.max(0, c.offsetTop - sc.clientHeight / 2); };
+  to(); setTimeout(() => { to(); const c = $('wrBmk'); if (c && !c.hidden) wrFlash(c); }, 250);
+}
+function wrBmkPalHTML() {
+  const b = wrState && wrState.book, m = b && b.mark, mc = b && wrMarkCh(b), here = mc && mc.id === wrState.ch.id;
+  const where = !mc ? '' : here ? 'علامتك في هذا الفصل' : `علامتك في «${esc(mc.title || `فصل ${wrNum(b.chapters.indexOf(mc) + 1)}`)}»`;
+  return `${where ? `<span class="wr-ayc-l">${where}</span>` : ''}<button type="button" class="chip" data-wbmk="set">${m && mc ? (here ? 'انقلها إلى المؤشر' : 'ضعها عند المؤشر') : 'ضع العلامة عند المؤشر'}</button>${mc ? '<button type="button" class="chip danger-text" data-wbmk="del">أزل العلامة</button>' : ''}`;
+}
+function wrBmkDo(k) {
+  if (!wrState || wrState.book.kind !== 'book') return;
+  const b = wrState.book;
+  if (k === 'del') { b.mark = null; wrState.bmk = null; wrSave(b); wrBmkPaint(); wrPopsClose(); toast('أُزيلت العلامة'); return; }
+  let at = wrCaret();
+  if (at < 0) { // no cursor in the text: the top of what is on the screen
+    const sc = $('wrScroll').getBoundingClientRect(), body = $('wrBody');
+    const y = Math.max(sc.top, body.getBoundingClientRect().top) + 24, x = sc.right - 30;
+    const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
+    at = cr && body.contains(cr.startContainer) ? wrBmkAt(cr) : 0;
+  }
+  b.mark = { ch: wrState.ch.id, at, snip: $('wrBody').textContent.slice(at, at + 40) };
+  wrState.bmk = wrBmkRange(at);
+  wrSave(b);
+  wrBmkPaint();
+  wrPopsClose();
+  const c = $('wrBmk'); if (c && !c.hidden) wrFlash(c);
+  toast('وُضعت العلامة 🔖');
+}
+window.addEventListener('resize', () => { if (wrState) wrBmkPaint(); });
 const wrFocusOn = () => { try { return localStorage.getItem('mahami-wrfocus') === '1'; } catch { return false; } };
 function wrSetFocus(on, once) {
   if (!once) try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
@@ -554,6 +652,7 @@ function wrEdit(b, chId, find) {
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
   $('wrCopyBtn').hidden = !one;
   $('wrEditor').querySelector('[data-wr="ayc"]').hidden = one;
+  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"]')) x.hidden = one;
   wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
   $('wrBody').innerHTML = c.html;
@@ -573,6 +672,7 @@ function wrEdit(b, chId, find) {
   wrSetTheme(wrThemeOf());
   wrPopsClose();
   $('wrScroll').scrollTop = 0;
+  wrBmkOpen(!find);
   if (find) setTimeout(() => wrFindNext(), 50);
   else if (!c.html) setTimeout(() => $(c.title || b.title || b.kind === 'post' ? 'wrBody' : 'wrTitle').focus(), 50);
 }
@@ -585,6 +685,7 @@ function wrClose(fromEvent) {
   if (typeof wrIdeasClose === 'function') wrIdeasClose();
   WrCloud.soon(1500);
   wrAycSet('');
+  wrBmkPaint();
   try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {} // (the notes' editor as it was)
   wrPopsClose();
   const d = $('wrEditor');
@@ -682,6 +783,7 @@ function wrSaveNow() {
   const c = wrState.ch, b = wrState.book;
   if (b.kind === 'book') c.title = $('wrTitle').value.trim(); else b.title = $('wrTitle').value.trim();
   wrEmSizes();
+  wrBmkKeep();
   c.html = wrSafe($('wrBody').innerHTML);
   c.updated = Date.now();
   wrState.dirty = false;
@@ -951,6 +1053,7 @@ function wrPalHTML(k) {
   if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-whi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-wfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
   if (k === 'ayc') { const on = (wrState && wrState.book.ayc) || ''; return '<span class="wr-ayc-l">لون الآيات:</span>' + [['', 'بلا لون'], ...Object.entries(WR_AYC).map(([v, [n]]) => [v, n])].map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wayc="${v}"${v ? ` data-ayc="${v}"` : ''}>${n}</button>`).join(''); }
+  if (k === 'bmk') return wrBmkPalHTML();
   if (k === 'theme') { const on = wrThemeOf(); return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join(''); }
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-walign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-wlh="${v}">${n}</button>`).join('');
@@ -1044,14 +1147,14 @@ function wrReplace(all) {
 // the tools keep the cursor (and the selection) in the text
 document.addEventListener('pointerdown', (e) => {
   if (!wrState) return;
-  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab, [data-wr="theme"], [data-wr="ayc"]')) e.preventDefault();
+  if (e.target.closest('#wrTools button, #wrPal button, #wrBubble button, #wrFabMenu button, #wrFloat button, #wrFab, [data-wr="theme"], [data-wr="ayc"], [data-wr="bmk"]')) e.preventDefault();
   // a tap elsewhere closes what floats (not a tap in it, nor on what opens it)
-  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn, [data-wr="theme"], [data-wr="ayc"]')) wrPopsClose();
+  if (!e.target.closest('#wrPal, #wrFloat, #wrFabMenu, #wrTmPop, #wrBubble, #wrTools, #wrFab, #wrTmBtn, [data-wr="theme"], [data-wr="ayc"], [data-wr="bmk"]')) wrPopsClose();
 });
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wayc], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wayc], [data-wbmk], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1078,12 +1181,14 @@ document.addEventListener('click', (e) => {
     for (const x of document.querySelectorAll('[data-wayc]')) x.classList.toggle('on', x.dataset.wayc === t.dataset.wayc);
     return;
   }
+  if (t.dataset.wbmk) { wrBmkDo(t.dataset.wbmk); return; }
   if (t.dataset.wtheme !== undefined) { wrSetTheme(t.dataset.wtheme); return; } // (the palette stays open, to try one after another)
   if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
   if (a === 'close') wrClose();
   else if (a === 'theme') wrPal('theme');
   else if (a === 'ayc') wrPal('ayc');
+  else if (a === 'bmk') wrPal('bmk');
   else if (a === 'copy') { wrSaveNow(); wrCopy(wrState.book); }
   else if (a === 'focus') { $('wrFabMenu').hidden = true; wrSetFocus(!$('wrEditor').classList.contains('wr-focus')); }
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }

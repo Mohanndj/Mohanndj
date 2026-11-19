@@ -2349,6 +2349,15 @@ li.sel .sel-box { background: var(--high); }
 }
 :root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-ayc="blue"] ::highlight(wr-ayah), #wrEditor.wr-th-night[data-ayc="blue"] ::highlight(wr-ayah) { color: #8fb0ff; }
 :root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-ayc="maroon"] ::highlight(wr-ayah), #wrEditor.wr-th-night[data-ayc="maroon"] ::highlight(wr-ayah) { color: #e8999b; }
+/* (v185) the bookmark: a colour on the word over the text, and 🔖 beside its line; its line on the book's page */
+.wr-scroll { position: relative; }
+.wr-bmk { position: absolute; right: 1px; font-size: 11px; line-height: 18px; pointer-events: none; border-radius: 4px; }
+#wrEditor ::highlight(wr-bmk) { background-color: #fdba74; color: #1c1c1c; }
+.wr-bmk-btn { font-size: 1.05rem; }
+.wr-mk-go { display: flex; align-items: center; gap: 8px; width: 100%; margin: 6px 0 10px; padding: 10px 14px; border: 1px solid #f59e0b; border-radius: 12px; background: #fff7ed; color: #7c2d12; text-align: start; font-weight: 700; }
+.wr-mk-go small { margin-inline-start: auto; font-weight: 400; color: #9a3412; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wr-mk-go { background: #3b2412; color: #fed7aa; } :root:not([data-theme="light"]) .wr-mk-go small { color: #fdba74; } }
+:root[data-theme="dark"] .wr-mk-go { background: #3b2412; color: #fed7aa; } :root[data-theme="dark"] .wr-mk-go small { color: #fdba74; }
 #wrEditor.wr-focus .me-head, #wrEditor.wr-focus #wrTools, #wrEditor.wr-focus #wrPal { display: none; }
 #wrEditor.wr-focus .wr-fab { display: grid; place-items: center; }
 #wrEditor.wr-focus .wr-foot { position: fixed; inset-inline: 0; bottom: 0; border: 0; background: transparent; pointer-events: none; justify-content: flex-end; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
