@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 180;
+const APP_VERSION = 181;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2794,7 +2794,7 @@ function closeTopLayer() {
   if ($('libSheet').open) { const back = ldraft && ldraft.back; closeLib(); libBack(back); return true; }
   if (psheet.open) { closeProjectSheet(); return true; }
   if (sheet.open) { closeSheet(); return true; }
-  if (typeof wrState !== 'undefined' && wrState) { if (!wrPopsClose()) wrClose(); return true; } // a chapter of «مؤلفاتي» (v154), under any window opened on it (a palette of its own first, v156)
+  if (typeof wrState !== 'undefined' && wrState) { if (!wrPopsClose() && !wrIdeasClose()) wrClose(); return true; } // a chapter of «مؤلفاتي» (v154), under any window opened on it (a palette of its own first, v156)
   return false;
 }
 window.addEventListener('popstate', () => {

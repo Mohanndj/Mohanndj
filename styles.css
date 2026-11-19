@@ -2372,3 +2372,12 @@ li.sel .sel-box { background: var(--high); }
 .bpd-ben { margin: 0 0 12pt; padding-bottom: 10pt; border-bottom: 0.5pt solid #ccc; break-inside: avoid-page; }
 .bpd-text { margin-top: 4pt; }
 .bpd-lesson { margin-top: 6pt; padding-inline-start: 8pt; border-inline-start: 2.5pt solid #d97706; }
+
+/* v181: «أفكار» of a book, a yellow light floating in its editor (wrideas.js) */
+.wr-light { position: fixed; inset-inline-end: 10px; top: 46%; z-index: 4; width: 46px; height: 46px; border-radius: 50%; padding: 0; border: 0; background: #fde047; color: #1c1c1c; font-size: 1.3rem; display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(253,224,71,.35), 0 0 18px 4px rgba(250,204,21,.7); }
+.wr-light[hidden], .wr-ideas[hidden] { display: none; }
+.wr-light span { position: absolute; top: -4px; inset-inline-start: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: .75rem; line-height: 20px; }
+.wr-ideas { position: fixed; z-index: 5; inset-inline-end: 10px; top: 110px; width: min(340px, calc(100% - 20px)); max-height: 45vh; display: flex; flex-direction: column; border: 1.5px solid #facc15; border-radius: 14px; background: var(--card); color: var(--fg); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.wr-ideas-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.wr-ideas-list { overflow-y: auto; padding: 8px; display: grid; gap: 6px; }
+.wr-ideas-text { white-space: pre-line; overflow-wrap: anywhere; font-size: .95rem; color: var(--fg); }

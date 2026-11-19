@@ -474,7 +474,7 @@ function wrDialog() {
   <input type="file" id="wrImgIn" accept="image/*" hidden>`;
   document.body.append(d);
   d.addEventListener('close', () => { if (wrState) wrClose(true); });
-  d.addEventListener('cancel', (e) => { if (wrPopsClose()) e.preventDefault(); }); // (Escape closes a palette first)
+  d.addEventListener('cancel', (e) => { if (wrPopsClose() || (typeof wrIdeasClose === 'function' && wrIdeasClose())) e.preventDefault(); }); // (Escape closes a palette first)
   return d;
 }
 
@@ -533,6 +533,7 @@ function wrEdit(b, chId, find) {
   wrMark();
   wrStatus('');
   wrTmShow();
+  if (typeof wrIdeaLight === 'function') wrIdeaLight(); // (v181) the yellow light of the book's ideas
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   d.classList.toggle('wr-focus', wrFocusOn());
   wrSetTheme(wrThemeOf());
@@ -547,6 +548,7 @@ function wrClose(fromEvent) {
   wrSaveNow();
   clearTimeout(wrState.htimer);
   wrState = null;
+  if (typeof wrIdeasClose === 'function') wrIdeasClose();
   WrCloud.soon(1500);
   try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {} // (the notes' editor as it was)
   wrPopsClose();
