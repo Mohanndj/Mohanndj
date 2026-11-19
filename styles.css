@@ -2360,3 +2360,15 @@ li.sel .sel-box { background: var(--high); }
 .wri-text { color: var(--muted); font-size: .92rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; overflow-wrap: anywhere; }
 .wri-body small { color: var(--muted); }
 .wri-card.done .wri-body b { text-decoration: line-through; color: var(--muted); }
+
+/* the benefits as a PDF (v179, benPdf in benplus.js): as many A4 pages as it takes */
+.bk-bens-x { margin: 10px 0; align-items: center; }
+.bpd { font-family: 'Amiri', 'Traditional Arabic', serif; color: #111; font-size: 13pt; line-height: 1.8; }
+.bpd h1 { font-size: 22pt; margin: 0 0 2pt; text-align: start; }
+.bpd h2 { font-size: 17pt; margin: 18pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5pt solid #0f766e; color: #0f766e; break-after: avoid; }
+.bpd h3 { font-size: 14pt; margin: 0; break-after: avoid; }
+.bpd p { margin: 0; }
+.bpd-meta { color: #555; font-size: 11pt; }
+.bpd-ben { margin: 0 0 12pt; padding-bottom: 10pt; border-bottom: 0.5pt solid #ccc; break-inside: avoid-page; }
+.bpd-text { margin-top: 4pt; }
+.bpd-lesson { margin-top: 6pt; padding-inline-start: 8pt; border-inline-start: 2.5pt solid #d97706; }

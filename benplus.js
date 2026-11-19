@@ -286,49 +286,64 @@ function saveBenImport() {
   return true;
 }
 
-// ---------- the benefits in Word ----------
+// ---------- the benefits in Word or PDF (v180: one book too, and PDF; his words: «اجعل الفوائد يمكن تصديرها مرتبطة بكتاب واحدٍ فقط» then «تصدير pdf وورد ومعهما صفحة الكتاب») ----------
+const benBookTitles = () => [...new Set(S.benefits.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'));
 function openBenWord() {
-  ldraft = { kind: 'benword', id: '', isNew: false };
+  ldraft = { kind: 'benword', id: '', isNew: false, fmt: 'word' };
   const cats = benCats(), n = (id) => S.benefits.filter((f) => (f.cats || []).includes(id)).length;
   const none = S.benefits.filter((f) => !benCatList(f).length).length;
-  const pre = benUi.cat && (benUi.cat === '-' || benCatName(benUi.cat)) ? benUi.cat : '';
-  $('libForm').innerHTML = `${sheetHead(`${esc(pageName('benefits'))} في ملف وورد`)}
+  const books = benBookTitles(), nb = (t) => S.benefits.filter((f) => benefitBookTitle(f) === t).length;
+  // what the page shows first: its book, else its category
+  const pre = libUi.benefitBook && books.includes(libUi.benefitBook) ? `b:${libUi.benefitBook}` : benUi.cat && (benUi.cat === '-' || benCatName(benUi.cat)) ? benUi.cat : '';
+  $('libForm').innerHTML = `${sheetHead(`تصدير ${esc(pageName('benefits'))}`)}
     <label class="field"><span>ما الذي تصدّره؟</span><select id="bwWhat">
-      <option value="">كل الفوائد (${S.benefits.length})</option>
+      <option value="">كل ${esc(pageName('benefits'))} (${S.benefits.length})</option>
       ${cats.map((c) => `<option value="${c.id}"${pre === c.id ? ' selected' : ''}>تصنيف: ${esc(c.name)} (${n(c.id)})</option>`).join('')}
       ${cats.length ? `<option value="-"${pre === '-' ? ' selected' : ''}>بلا تصنيف (${none})</option>` : ''}
+      ${books.map((t) => `<option value="b:${esc(t)}"${pre === `b:${t}` ? ' selected' : ''}>كتاب: ${esc(t)} (${nb(t)})</option>`).join('')}
     </select></label>
-    <label class="field"><span>رتّبها</span><select id="bwGroup">
+    <div class="field"><span>الصيغة</span><div class="seg" id="bwFmt" role="group"><button type="button" data-action="ben-fmt" data-v="word" aria-pressed="true">وورد</button><button type="button" data-action="ben-fmt" data-v="pdf" aria-pressed="false">PDF</button></div></div>
+    <label class="field" id="bwGroupF"${pre.startsWith('b:') ? ' hidden' : ''}><span>رتّبها</span><select id="bwGroup">
       ${cats.length ? '<option value="cat">بالتصنيفات</option>' : ''}<option value="book">بالكتب</option>
     </select></label>
-    <div class="sheet-actions"><button type="submit" class="primary">${icon('note')} نزّل ملف الوورد</button></div>`;
+    <div class="sheet-actions"><button type="submit" class="primary">${icon('note')} نزّل الملف</button></div>`;
   showLib();
 }
 function runBenWord() {
   const what = $('bwWhat').value, group = $('bwGroup').value;
-  const list = S.benefits.filter((f) => !what || (what === '-' ? !benCatList(f).length : (f.cats || []).includes(what)));
+  const book = what.startsWith('b:') ? what.slice(2) : '';
+  const list = S.benefits.filter((f) => book ? benefitBookTitle(f) === book : !what || (what === '-' ? !benCatList(f).length : (f.cats || []).includes(what)));
   if (!list.length) { toast('لا فوائد في هذا الاختيار.'); return false; }
+  const name = book || (what === '-' ? 'بلا تصنيف' : what ? benCatName(what) : '');
+  return benExport(list, name, book ? 'one' : what === '' ? group : group === 'cat' ? 'flat' : 'book', ldraft.fmt);
+}
+// group: 'cat' (by categories), 'book' (by books), 'flat' (one category, by books, the book under each title), 'one' (one book, by its pages)
+function benExport(list, name, group, fmt) {
   const ar = (s) => digitsOut(String(s));
-  const byBook = (a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || (a.page === '' ? 1e9 : a.page) - (b.page === '' ? 1e9 : b.page);
+  const pg = (f) => (f.page === '' ? 1e9 : f.page);
+  const byBook = (a, b) => benefitBookTitle(a).localeCompare(benefitBookTitle(b), 'ar') || pg(a) - pg(b);
   const groups = [];
-  if (group === 'cat' && what === '') {
-    for (const c of benCats()) { const g = list.filter((f) => (f.cats || []).includes(c.id)); if (g.length) groups.push([c.name, g]); }
+  if (group === 'one') groups.push(['', list.slice().sort((a, b) => pg(a) - pg(b))]);
+  else if (group === 'cat') {
+    for (const c of benCats()) { const g = list.filter((f) => (f.cats || []).includes(c.id)); if (g.length) groups.push([c.name, g.slice().sort(byBook)]); }
     const rest = list.filter((f) => !benCatList(f).length);
-    if (rest.length) groups.push(['بلا تصنيف', rest]);
-  } else for (const t of [...new Set(list.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'))) groups.push([t, list.filter((f) => benefitBookTitle(f) === t)]);
-  const name = what === '-' ? 'بلا تصنيف' : what ? benCatName(what) : '';
+    if (rest.length) groups.push(['بلا تصنيف', rest.slice().sort(byBook)]);
+  } else for (const t of [...new Set(list.map(benefitBookTitle))].sort((a, b) => a.localeCompare(b, 'ar'))) groups.push([t, list.filter((f) => benefitBookTitle(f) === t).sort(byBook)]);
   const head = `${pageName('benefits')}${name ? `: ${name}` : ''}`;
-  const P = [{ style: 'Title', text: head }, { style: 'Meta', text: ar(`${plural(list.length, 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة')} | ${dateBoth(today(), true)}`), center: true }];
+  const meta = `${plural(list.length, 'فائدة واحدة', 'فائدتان', 'فوائد', 'فائدة')} | ${dateBoth(today(), true)}`;
+  // under each title: its book (when the groups are not books), its page, its categories (when grouped by books)
+  const where = (f) => [group === 'cat' || group === 'flat' ? benefitBookTitle(f) : '', f.page !== '' ? `صفحة ${f.page}` : '', group === 'book' || group === 'one' ? benCatNames(f) : ''].filter(Boolean).join(' | ');
+  const body = (f) => [f.text, ...bvTexts(f)].filter(Boolean).join('\n');
+  if (fmt === 'pdf') { benPdf(head, meta, groups, where, body); return true; }
+  const P = [{ style: 'Title', text: head }, { style: 'Meta', text: ar(meta), center: true }];
   const lines = (s, last) => { const xs = String(s).split('\n').map((x) => x.trim()).filter(Boolean); xs.forEach((t, j) => P.push({ style: j === xs.length - 1 && last ? 'Normal' : 'Tight', text: ar(t) })); };
   groups.forEach(([g, fs], gi) => {
     if (gi) P.push({ style: 'Sep', text: '✦   ✦   ✦' });
-    P.push({ style: 'Heading1', text: ar(g) });
-    for (const f of fs.slice().sort(byBook)) {
+    if (g) P.push({ style: 'Heading1', text: ar(g) });
+    for (const f of fs) {
       P.push({ style: 'Question', text: ar(f.title || 'فائدة') });
-      const where = [group === 'cat' && what === '' ? benefitBookTitle(f) : group === 'book' ? '' : benefitBookTitle(f), f.page !== '' ? `صفحة ${f.page}` : '', group === 'book' ? benCatNames(f) : ''].filter(Boolean).join(' | ');
-      if (where) P.push({ style: 'Meta', text: ar(where) });
-      const body = [f.text, ...bvTexts(f)].filter(Boolean).join('\n');
-      if (body) lines(body, !f.lesson);
+      if (where(f)) P.push({ style: 'Meta', text: ar(where(f)) });
+      if (body(f)) lines(body(f), !f.lesson);
       if (f.lesson) lines(`يُستفاد منها: ${f.lesson}`, true);
     }
   });
@@ -344,6 +359,20 @@ function runBenWord() {
   setTimeout(() => toast('جُهّز ملف الوورد. تجده في التنزيلات.'), 300);
   return true;
 }
+// the same in a page printed or saved as PDF from the print window (as the plan is, planprint.js), on as many A4 pages as it takes
+function benPdf(head, meta, groups, where, body) {
+  let box = document.getElementById('print');
+  if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.appendChild(box); }
+  let pg = document.getElementById('pageSize');
+  if (!pg) { pg = document.createElement('style'); pg.id = 'pageSize'; document.head.appendChild(pg); }
+  pg.textContent = '@page{size:A4 portrait;margin:15mm}';
+  const lines = (s) => String(s).split('\n').map((x) => x.trim()).filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join('');
+  box.className = '';
+  box.innerHTML = `<div class="bpd" dir="rtl"><h1>${esc(head)}</h1><p class="bpd-meta">${esc(meta)}</p>
+    ${groups.map(([g, fs]) => `${g ? `<h2>${esc(g)}</h2>` : ''}${fs.map((f) => `<article class="bpd-ben"><h3>${esc(f.title || 'فائدة')}</h3>${where(f) ? `<p class="bpd-meta">${esc(where(f))}</p>` : ''}${body(f) ? `<div class="bpd-text">${lines(body(f))}</div>` : ''}${f.lesson ? `<div class="bpd-lesson"><b>يُستفاد منها:</b>${lines(f.lesson)}</div>` : ''}</article>`).join('')}`).join('')}</div>`;
+  toast('اختر «حفظ PDF» أو «حفظ في الملفات» من نافذة الطباعة');
+  setTimeout(() => window.print(), 300);
+}
 
 // ---------- events ----------
 document.addEventListener('click', (e) => {
@@ -356,6 +385,17 @@ document.addEventListener('click', (e) => {
     case 'ben-cats': openBenCats(); break;
     case 'ben-apps': openBenApps(); break;
     case 'ben-word': openBenWord(); break;
+    case 'ben-fmt':
+      ldraft.fmt = v === 'pdf' ? 'pdf' : 'word';
+      for (const b of $('bwFmt').children) b.setAttribute('aria-pressed', String(b.dataset.v === ldraft.fmt));
+      break;
+    case 'ben-book-x': { // the book's page, its benefits tab: this book's benefits alone (v180)
+      const b = ldraft && ldraft.kind === 'book' && getBook(ldraft.id);
+      const list = b ? benefitsOf(b.id) : [];
+      if (!list.length) { toast('لا فوائد من هذا الكتاب.'); break; }
+      benExport(list, b.title || 'كتاب بلا عنوان', 'one', v === 'pdf' ? 'pdf' : 'word');
+      break;
+    }
     case 'ben-cat-pick': {
       if (!ldraft || !ldraft.cats) break;
       ldraft.cats = ldraft.cats.includes(v) ? ldraft.cats.filter((x) => x !== v) : [...ldraft.cats, v];
@@ -414,4 +454,8 @@ document.addEventListener('click', (e) => {
       break;
     }
   }
+});
+// one book chosen: «رتّبها» means nothing, its benefits go by their pages (v180)
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'bwWhat' && $('bwGroupF')) $('bwGroupF').hidden = e.target.value.startsWith('b:');
 });

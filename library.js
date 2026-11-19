@@ -352,7 +352,7 @@ function viewBenefits() {
   return `${moreCrumb()}
   ${kunTabsHTML()}
   <section class="section">
-    <div class="section-head"><h2>الفوائد</h2><div class="btn-row">${S.benefits.length ? `<button type="button" class="xls-btn word-btn" data-action="ben-word">${icon('note')}وورد</button>${xlsBtn('benefits')}` : ''}${addBtn('lib-new-benefit', 'فائدة')}</div></div>
+    <div class="section-head"><h2>الفوائد</h2><div class="btn-row">${S.benefits.length ? `<button type="button" class="xls-btn word-btn" data-action="ben-word">${icon('note')}تصدير</button>${xlsBtn('benefits')}` : ''}${addBtn('lib-new-benefit', 'فائدة')}</div></div>
     ${S.benefits.length ? `<div class="toolbar">
       <input type="search" id="benefitSearch" placeholder="ابحث في الفوائد" aria-label="بحث" value="${esc(libUi.benefitQ)}">
       <select id="benefitBook" aria-label="الكتاب"><option value="">كل الكتب</option>${titles.map((t) => `<option value="${esc(t)}"${t === fb ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
@@ -417,6 +417,7 @@ function openLib(kind, id, preset = {}) {
       </div>
       </div>
       ${id ? `<div id="bkBens"${ldraft.tab === 'bens' ? '' : ' hidden'}><div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
+      ${n ? `<div class="btn-row bk-bens-x"><span class="note-text">صدّر فوائده:</span><button type="button" class="xls-btn word-btn" data-action="ben-book-x" data-v="word">${icon('note')}وورد</button><button type="button" class="xls-btn" data-action="ben-book-x" data-v="pdf">${icon('note')}PDF</button></div>` : ''}
       ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}</div>` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '', cats: benNewCats() });
