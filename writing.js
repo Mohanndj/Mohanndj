@@ -259,7 +259,7 @@ const wrNum = (n) => digitsOut(n);
 // ---------- a footnote written with the text's own tools (v186, his words: «تحرير الهوامش من نفس محرر نص المتن») ----------
 // it keeps what the text keeps, less what Word cannot hold in a footnote: headings, a verse box, a quotation, a footnote,
 // a table, a picture, a page break and a line (their words stay, as plain lines)
-const WR_NOTE_NO = new Set(['h2', 'h3', 'ayah', 'quote', 'note', 'pal:table', 'image', 'pgbreak', 'hr']);
+const WR_NOTE_NO = new Set(['h2', 'h3', 'ayah', 'quote', 'note', 'pal:table', 'image', 'pgbreak', 'hr', 'stars']);
 function wrNoteSafe(html) {
   const t = document.createElement('template');
   t.innerHTML = wrSafe(html);
@@ -491,13 +491,13 @@ const WR_TOOLS = [
   ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'],
   ['indent', '⇤', 'زِد الإزاحة'], ['outdent', '⇥', 'أنقص الإزاحة'], '|',
   ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'], ['note', 'حاشية', 'حاشية سفلية'], '|',
-  ['pal:table', 'جدول', 'جدول'], ['image', 'صورة', 'صورة'], ['pgbreak', 'فاصل صفحة', 'فاصل صفحة'], ['hr', '―', 'خط فاصل'], ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|',
+  ['pal:table', 'جدول', 'جدول'], ['image', 'صورة', 'صورة'], ['pgbreak', 'فاصل صفحة', 'فاصل صفحة'], ['hr', '―', 'خط فاصل'], ['stars', '❊❊❊', 'فاصل نجوم'], ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|',
   ['undo', wrSvg('undo'), 'تراجع'], ['redo', wrSvg('redo'), 'إعادة'],
 ];
 const wrToolBtn = ([c, face, name]) => `<button type="button" data-wcmd="${c}" aria-label="${name}" title="${name}">${face}</button>`;
 // in focus: what a selection needs (the bubble), and what needs none (the floating button)
 const WR_BUBBLE = ['bold', 'italic', 'underline', 'strike', 'pal:color', 'pal:hi', 'pal:font', 'bigger', 'smaller', 'clear'];
-const WR_FAB = ['h2', 'h3', 'p', 'ayah', 'quote', 'note', 'ul', 'ol', 'pal:align', 'pal:lh', 'pal:table', 'image', 'pgbreak', 'hr', 'undo', 'redo'];
+const WR_FAB = ['h2', 'h3', 'p', 'ayah', 'quote', 'note', 'ul', 'ol', 'pal:align', 'pal:lh', 'pal:table', 'image', 'pgbreak', 'hr', 'stars', 'undo', 'redo'];
 const wrTool = (c) => WR_TOOLS.find((t) => t[0] === c);
 function wrDialog() {
   let d = $('wrEditor');
@@ -718,6 +718,7 @@ function wrEdit(b, chId, find) {
   wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
   $('wrBody').innerHTML = c.html;
+  wrStarsMark($('wrBody'));
   $('wrNotes').innerHTML = '';
   $('wrFind').hidden = !find;
   $('wrQ').value = find || '';
@@ -810,6 +811,7 @@ function wrHistory(step) {
   wrState.hi = i;
   const snap = wrState.hist[i];
   $('wrBody').innerHTML = snap.html;
+  wrStarsMark($('wrBody'));
   const ns = JSON.parse(snap.notes);
   wrState.ch.notes = ns.n; wrState.ch.nhtml = ns.h;
   const was = wrState.noteEd && wrState.noteEd.dataset.fn;
@@ -823,8 +825,34 @@ function wrHistory(step) {
   wrState.timer = setTimeout(wrSaveNow, 700);
   wrStatus('يحفظ…');
 }
+// v189 (his words: «ليش صارت النجوم الفاصلة بين الفقرات كلها يمين، أليست المفترض أن تكون في الوسط؟», then «نفذهما» for
+// «أ: أي سطر كله نجوم أو علامات فصل يتوسّط وحده» and «ب: أداة «فاصل نجوم»»): a plain paragraph made only of stars or
+// separating marks stands in the middle, unless he chose its alignment himself; shown so, not written into the text.
+const WR_STARS = /^[\s*＊❊✻✱✲✳✴✵✶✷✸✹✺❉❋❃❂❁❀✿✽✾★☆✦✧⁂⁎⁑۞•·∙◆◇❖◈~ـ\-–—=°○●#×✕+]+$/u;
+function wrIsStars(el) {
+  if (!el || el.nodeName !== 'P' || el.classList.contains('ayah') || (el.style && el.style.textAlign)) return false;
+  if (el.querySelector('img, sup.fn, table')) return false;
+  const t = el.textContent;
+  return /\S/.test(t) && WR_STARS.test(t);
+}
+function wrStarsMark(root) {
+  if (!root) return;
+  for (const p of root.children) if (p.nodeName === 'P') p.classList.toggle('wr-stars', wrIsStars(p));
+}
+// (the tool: a line of its own after the paragraph the cursor is in, or that empty line itself; the cursor goes on below it)
+function wrStarsInsert(body) {
+  const top = wrBlock();
+  const sp = document.createElement('p'); sp.textContent = '❊ ❊ ❊';
+  const next = document.createElement('p'); next.append(document.createElement('br'));
+  if (top && top.nodeName === 'P' && !top.classList.contains('ayah') && !top.textContent.trim() && !top.querySelector('img, sup.fn, table, hr')) top.replaceWith(sp, next);
+  else if (top) top.after(sp, next);
+  else body.append(sp, next);
+  const r = document.createRange(); r.setStart(next, 0); r.collapse(true);
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
 function wrDirty() {
   if (!wrState) return;
+  wrStarsMark($('wrBody'));
   if (wrState.noteEd) wrNoteRead(wrState.noteEd); // (v186) a footnote's words and formatting into the chapter
   wrPaperSoon(); // (v187) the sheets follow what is written
   clearTimeout(wrState.htimer);
@@ -1089,6 +1117,7 @@ function wrCmd(cmd) {
   else if (cmd === 'indent' || cmd === 'outdent') wrIndent(cmd === 'indent' ? 1 : -1);
   else if (cmd === 'pgbreak') wrExec('insertHTML', '<div class="pgbreak" contenteditable="false">فاصل صفحة</div><p><br></p>');
   else if (cmd === 'hr') wrExec('insertHTML', '<hr><p><br></p>');
+  else if (cmd === 'stars') wrStarsInsert(body);
   else if (cmd === 'clear') {
     // (the footnote marks stay: the browser's own clearing takes a «sup» away)
     const marks = [...body.querySelectorAll('sup.fn')].map((m) => m.dataset.fn).join();
@@ -1502,6 +1531,7 @@ function wrDocx(b) {
     const ind = Number(el.dataset && el.dataset.ind) || 0;
     if (ind) o += `<w:ind w:left="${567 * ind}"/>`;
     if (JC[st.textAlign]) o += `<w:jc w:val="${JC[st.textAlign]}"/>`;
+    else if (wrIsStars(el)) o += '<w:jc w:val="center"/>'; // (v189: a line of stars in the middle)
     return o;
   };
   const para = (style, inner, extra = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="${style}"/>${extra}`)}</w:pPr>${inner}</w:p>`;
@@ -1656,6 +1686,7 @@ function wrPgBlocks(html, ayc, step = 37.8) {
       });
     } else out.push(el);
   }
+  for (const el of out) if (wrIsStars(el)) el.classList.add('wr-stars'); // (v189)
   if (ayc) for (const el of out) wrPgAyc(el, ayc);
   return out;
 }

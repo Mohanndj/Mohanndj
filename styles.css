@@ -2479,6 +2479,7 @@ li.sel .sel-box { background: var(--high); }
 #wrPaper #wrBody > blockquote { color: #444; margin: 8px 37.8px 0; padding: 0 0 8px; border: 0; background: none; border-radius: 0; }
 #wrPaper #wrBody > :is(ul, ol) { padding: 0 37.8px 0 0; }
 #wrPaper #wrBody li { padding-bottom: 8px; }
+#wrBody p.wr-stars, .wp-page p.wr-stars { text-align: center; text-align-last: center; }
 #wrPaper #wrBody hr { border: 0; border-bottom: 1px solid #999; margin: 0 0 8px; padding: 0; }
 #wrPaper #wrBody .pgbreak { margin: 0 0 8px; }
 #wrPaper #wrBody [data-ind="1"] { margin-inline-start: 0; padding-right: 37.8px; } #wrPaper #wrBody [data-ind="2"] { margin-inline-start: 0; padding-right: 75.6px; } #wrPaper #wrBody [data-ind="3"] { margin-inline-start: 0; padding-right: 113.4px; }
