@@ -479,7 +479,6 @@ let wrState = null; // { book, ch, timer, dirty, hist, hi, htimer, range }
 const WR_SVG = {
   close: '<path d="M9 18l6-6-6-6"/>', find: '<path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5"/>',
   undo: '<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>', redo: '<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
-  pages: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   focus: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>', copy: '<path d="M9 9h11v11H9zM5 15H4V4h11v1"/>',
 };
 const wrSvg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${WR_SVG[k]}</svg>`;
@@ -513,7 +512,6 @@ function wrDialog() {
       <input id="wrTitle" placeholder="عنوان الفصل" aria-label="العنوان" autocomplete="off">
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
       <button type="button" class="icon-btn wr-bmk-btn" data-wr="bmk" aria-label="علامة: أين توقفت" title="علامة: أين توقفت" hidden>🔖</button>
-      <button type="button" class="icon-btn wr-pg-btn" data-wr="pages" aria-label="عرض الصفحات" title="عرض الصفحات" hidden>${wrSvg('pages')}</button>
       <button type="button" class="icon-btn wr-paper-btn" data-wr="paper" aria-label="الكتابة في أوراق كالوورد" title="الكتابة في أوراق كالوورد" aria-pressed="false" hidden>📄</button>
       <button type="button" class="icon-btn wr-ayc-btn" data-wr="ayc" aria-label="لون الآيات" title="لون الآيات" hidden>﴿﴾</button>
       <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
@@ -540,17 +538,14 @@ function wrDialog() {
   <div class="wr-bubble" id="wrBubble" role="toolbar" aria-label="أدوات النص المحدد" hidden>${WR_BUBBLE.map((c) => wrToolBtn(wrTool(c))).join('')}</div>
   <button type="button" class="wr-fab" id="wrFab" data-wr="fab" aria-label="الأدوات">✎</button>
   <div class="wr-fabmenu" id="wrFabMenu" role="toolbar" aria-label="الأدوات" hidden>${WR_FAB.map((c) => wrToolBtn(wrTool(c))).join('')}
-    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="pages" class="wr-pg-fab">الصفحات</button><button type="button" data-wr="paper" class="wr-pg-fab" aria-pressed="false">📄 الورق</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
+    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="paper" aria-pressed="false">📄 الورق</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
   <div class="wr-float" id="wrFloat" hidden></div>
   <div class="wr-tmpop" id="wrTmPop" hidden></div>
   <input type="file" id="wrImgIn" accept="image/*" hidden>
-  <div class="wr-pages" id="wrPages" hidden>
-    <div class="wr-pg-bar"><b>عرض الصفحات</b><small id="wrPgInfo"></small><button type="button" class="wr-pg-back" data-wr="pagesoff">رجوع إلى الكتابة</button></div>
-    <div class="wr-pg-scroll" id="wrPgScroll"></div>
-  </div>`;
+`;
   document.body.append(d);
   d.addEventListener('close', () => { if (wrState) wrClose(true); });
-  d.addEventListener('cancel', (e) => { if (wrPagesClose() || wrPopsClose() || (typeof wrIdeasClose === 'function' && wrIdeasClose())) e.preventDefault(); }); // (Escape closes a palette first)
+  d.addEventListener('cancel', (e) => { if (wrPopsClose() || (typeof wrIdeasClose === 'function' && wrIdeasClose())) e.preventDefault(); }); // (Escape closes a palette first)
   return d;
 }
 
@@ -718,9 +713,8 @@ function wrEdit(b, chId, find) {
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
   $('wrCopyBtn').hidden = !one;
   $('wrEditor').querySelector('[data-wr="ayc"]').hidden = one;
-  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="pages"], [data-wr="paper"]')) x.hidden = one;
+  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="paper"]')) x.hidden = one;
   wrPaperSet(false, true); // (the sheets of the work before go: they come back below once this one is in)
-  wrPagesClose();
   wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
   $('wrBody').innerHTML = c.html;
@@ -1294,8 +1288,6 @@ document.addEventListener('click', (e) => {
   else if (a === 'focus') { $('wrFabMenu').hidden = true; wrSetFocus(!$('wrEditor').classList.contains('wr-focus')); }
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
   else if (a === 'tm') { const p = $('wrTmPop'), show = p.hidden; wrPopsClose(); if (show) { p.innerHTML = wrTmPopHTML(); p.hidden = false; } }
-  else if (a === 'pages') { $('wrFabMenu').hidden = true; wrPagesOpen(); }
-  else if (a === 'pagesoff') wrPagesClose();
   else if (a === 'paper') { $('wrFabMenu').hidden = true; wrPaperSet(!wrPaperIs()); toast(wrPaperIs() ? 'تكتب الآن في أوراق كالوورد' : 'رجعت إلى المحرر المعتاد'); }
   else if (a === 'zoom') wrZoomToggle();
   else if (a === 'fndel') wrNoteDel(t);
@@ -1642,20 +1634,11 @@ ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.op
   ];
   return new Blob([Xlsx.zip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
-// ---------- «عرض الصفحات» (v186, his words: «إذا أمكن تجعل الكتاب صفحات كالوورد لأعرف منتهى الصفحة ومبدأها»,
-// his choice «ب: زر عرض الصفحات»): the book laid out on pages as its Word file makes them (A4, its margins, Amiri, the
-// styles' sizes and spacing, each chapter from a new page, the footnotes at the foot of their page, the page's number at
-// the foot on the right, none on the title page), to read only. Near to Word's own pages, not the same to the line.
+// ---------- the pages as the book's Word file makes them (A4, its margins, Amiri, the styles' sizes and spacing, each
+// chapter from a new page, the footnotes at the foot of their page), laid out out of sight to count the pages before a
+// chapter, for the sheets of «الورق» to number theirs as the book does. (v186's «عرض الصفحات» view of them was taken
+// away in v188 at his word: «ما يحتاج».)
 const WP = { W: 794, H: 1123, M: 96, foot: 47 }; // (pixels at 96 to the inch: A4, margins of an inch, the footer 708 twips up)
-let wrPg = null;
-function wrPagesClose() {
-  const el = $('wrPages');
-  if (!el || el.hidden) return false;
-  el.hidden = true;
-  wrPg = null; // (a layout still going stops)
-  $('wrPgScroll').innerHTML = '';
-  return true;
-}
 // a block of the chapter as Word writes it: lists as lines with their «•» or «١-», the verse colour of the book
 function wrPgBlocks(html, ayc, step = 37.8) {
   const tpl = document.createElement('template');
@@ -1705,26 +1688,15 @@ function wrPgNote(c, id, n) {
   box.append(...blocks);
   return box;
 }
-// (v187) with «upto», a chapter's id: out of sight, the number of the pages before that chapter (the title's and the
-// chapters' before it), for the sheets of «الورق» to number their pages as the book does
-async function wrPagesOpen(upto) {
+// (v187) out of sight, the number of the pages before chapter «upto» (the title's and the chapters' before it), for
+// the sheets of «الورق» to number their pages as the book does
+async function wrPagesBefore(upto) {
   if (!wrState || wrState.book.kind !== 'book') return;
-  const b = wrState.book, cur = wrState.ch.id, run = {};
-  let box = $('wrPages');
-  const sc = $('wrPgScroll');
-  if (upto) { box = document.createElement('div'); box.className = 'wp-hold'; $('wrEditor').append(box); } // (out of sight and clipped: the editor does not widen)
-  if (!upto) {
-    wrSaveNow();
-    wrPopsClose();
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // (no keyboard nor microphone over the pages)
-    wrPg = run;
-    box.hidden = false;
-    sc.innerHTML = '<p class="wr-pg-wait">يرتّب الصفحات…</p>';
-    $('wrPgInfo').textContent = '';
-  }
-  const gone = () => (upto ? !wrState || wrState.ch.id !== upto : wrPg !== run);
+  const b = wrState.book;
+  const box = document.createElement('div'); box.className = 'wp-hold'; $('wrEditor').append(box); // (out of sight and clipped: the editor does not widen)
+  const gone = () => !wrState || wrState.ch.id !== upto;
   try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
-  if (gone()) { if (upto) box.remove(); return; }
+  if (gone()) { box.remove(); return; }
   // the place pages are made in, at their true size, out of sight
   const lab = document.createElement('div');
   lab.className = 'wp-lab';
@@ -1733,8 +1705,8 @@ async function wrPagesOpen(upto) {
   const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; lab.append(probe);
   const one = probe.getBoundingClientRect().height / 100 || 1.6;
   probe.remove();
-  (upto ? lab : box).style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
-  (upto ? lab : box).style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
+  lab.style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
+  lab.style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
   const AYC = WR_AYC[b.ayc] ? `#${WR_AYC[b.ayc][1]}` : '';
   const pages = [];
   let pg = null, body = null, fns = null;
@@ -1802,14 +1774,12 @@ async function wrPagesOpen(upto) {
   newPage();
   const t = document.createElement('div'); t.className = 'wp-title'; t.textContent = b.title || 'كتاب بلا عنوان';
   body.append(t);
-  let mine = [0, 0];
   for (let ci = 0; ci < b.chapters.length; ci++) {
-    if (gone()) { lab.remove(); if (upto) box.remove(); return; }
+    if (gone()) { box.remove(); return; }
     const ch = b.chapters[ci], nums = {};
-    if (upto && ch.id === upto) { box.remove(); return pages.length; }
+    if (ch.id === upto) { box.remove(); return pages.length; }
     wrNoteIds(ch.html).forEach((id, i) => { nums[id] = i + 1; });
     newPage();
-    const from = pages.length;
     const h = document.createElement('h1'); h.textContent = ch.title || `فصل ${wrNum(ci + 1)}`;
     body.append(h);
     for (const el of wrPgBlocks(ch.html, AYC)) {
@@ -1819,34 +1789,14 @@ async function wrPagesOpen(upto) {
       if (el.nodeName === 'TABLE') { place(el, ch, nums); const p = document.createElement('p'); p.append(document.createElement('br')); place(p, ch, nums); continue; }
       place(el, ch, nums);
     }
-    if (ch.id === cur) mine = [from, pages.length];
-    if (!upto) sc.querySelector('.wr-pg-wait') && (sc.querySelector('.wr-pg-wait').textContent = `يرتّب الصفحات… ${wrNum(pages.length)}`);
     await new Promise((ok) => setTimeout(ok, 0)); // (the screen breathes between chapters)
   }
-  if (gone() || upto) { lab.remove(); if (upto) box.remove(); return; }
-  // shown smaller, to the screen's width; the pages themselves as they were laid out
-  const s = Math.min(1, (sc.clientWidth - 24) / WP.W);
-  sc.innerHTML = '';
-  pages.forEach((p, i) => {
-    if (i) { const no = document.createElement('div'); no.className = 'wp-no'; no.textContent = wrNum(i + 1); p.append(no); }
-    if (!p.querySelector('.wp-fns').childElementCount) p.querySelector('.wp-fns').remove();
-    const slot = document.createElement('div'); slot.className = 'wp-slot';
-    slot.style.width = `${WP.W * s}px`;
-    slot.style.height = `${Math.max(WP.H, p.offsetHeight) * s}px`;
-    p.style.transform = `scale(${s})`;
-    slot.append(p);
-    sc.append(slot);
-  });
-  lab.remove();
-  const [a, z] = mine;
-  $('wrPgInfo').textContent = `الكتاب: ${plural(pages.length, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')} | هذا الفصل: ${a === z ? `صفحة ${wrNum(a)}` : `من صفحة ${wrNum(a)} إلى ${wrNum(z)}`}`;
-  const first = sc.children[a - 1];
-  if (first) sc.scrollTop += first.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8;
+  box.remove();
 }
 
 // ---------- «الورق» (v187, his words: «كنت أقصد أن يكون نفس الوورد التحرير كله في صفحة كالورد», his choices
 // «أ: زر يبدّل بينهما» and «ج: الاثنتان بزر تكبير»): the chapter written on A4 sheets as its Word file makes them (the
-// measures of «عرض الصفحات»), its words going on to the next sheet by themselves, a line at a time, its footnotes written
+// measures of `WP`), its words going on to the next sheet by themselves, a line at a time, its footnotes written
 // at the foot of their sheet and the page's number under it. The text stays the one editor (#wrBody): beside it, out of
 // the text, a column of floats (#wrFlow) — the height a sheet holds, then the room between two sheets — which its lines
 // go around, so a paragraph goes on to the next sheet from the line that does not fit, as Word's does.
@@ -1883,7 +1833,7 @@ function wrPaperSet(on, keep) {
   d.classList.add('wr-paper');
   wrState.pgFrom = 0;
   if (typeof ResizeObserver === 'function') { if (!wrPaperRO) wrPaperRO = new ResizeObserver(() => wrPaperSoon()); wrPaperRO.observe(body); }
-  // the line of Amiri as Word spaces it (as in «عرض الصفحات»), once the font is there
+  // the line of Amiri as Word spaces it (as in the measure of the pages, `WP`), once the font is there
   const lines = () => {
     const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; pp.append(probe);
     const one = probe.getBoundingClientRect().height / 100 / (wrPaperZoom() || 1) || 1.6;
@@ -1900,7 +1850,7 @@ function wrPaperSet(on, keep) {
     if (!wrState || wrState.ch.id !== ch || !wrPaperIs()) return;
     lines(); wrPaperLay(true);
     // the number of its first page in the book
-    const n = await wrPagesOpen(ch);
+    const n = await wrPagesBefore(ch);
     if (!wrState || wrState.ch.id !== ch || !wrPaperIs() || typeof n !== 'number') return;
     wrState.pgFrom = n; wrPaperLay(true);
   })();
@@ -1949,7 +1899,7 @@ function wrPaperLay(now) {
   const body = $('wrBody'), flow = $('wrFlow'), sheets = $('wrSheets'), notes = $('wrNotes'), h1 = $('wrPH1');
   const CH = WP.H - 2 * WP.M, STEP = WP.H + WRP.G;
   const one = parseFloat(getComputedStyle($('wrScroll')).getPropertyValue('--wp-l1')) || 1.6;
-  const SEP = one * 21.333; // (the short line over the footnotes, as in «عرض الصفحات»)
+  const SEP = one * 21.333; // (the short line over the footnotes, as Word draws it)
   const ci = wrState.book.chapters.indexOf(wrState.ch);
   h1.textContent = $('wrTitle').value.trim() || `فصل ${wrNum(ci + 1)}`;
   const fresh = (pp.dataset.w || '') !== String(WP.W);
