@@ -514,6 +514,7 @@ function wrDialog() {
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
       <button type="button" class="icon-btn wr-bmk-btn" data-wr="bmk" aria-label="علامة: أين توقفت" title="علامة: أين توقفت" hidden>🔖</button>
       <button type="button" class="icon-btn wr-pg-btn" data-wr="pages" aria-label="عرض الصفحات" title="عرض الصفحات" hidden>${wrSvg('pages')}</button>
+      <button type="button" class="icon-btn wr-paper-btn" data-wr="paper" aria-label="الكتابة في أوراق كالوورد" title="الكتابة في أوراق كالوورد" aria-pressed="false" hidden>📄</button>
       <button type="button" class="icon-btn wr-ayc-btn" data-wr="ayc" aria-label="لون الآيات" title="لون الآيات" hidden>﴿﴾</button>
       <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
       <button type="button" class="icon-btn" data-wr="find" aria-label="بحث واستبدال">${wrSvg('find')}</button>
@@ -534,12 +535,12 @@ function wrDialog() {
       <div class="wr-notes" id="wrNotes"></div>
       <span class="wr-bmk" id="wrBmk" aria-hidden="true" hidden>🔖</span>
     </div>
-    <div class="me-foot wr-foot"><small id="wrStatus"></small><button type="button" class="wr-tm" id="wrTmBtn" data-wr="tm" aria-label="مؤقت التركيز">⏱ مؤقت</button></div>
+    <div class="me-foot wr-foot"><small id="wrStatus"></small><button type="button" class="wr-tm wr-zoom" id="wrZoomBtn" data-wr="zoom">🔍 كبّر الورقة</button><button type="button" class="wr-tm" id="wrTmBtn" data-wr="tm" aria-label="مؤقت التركيز">⏱ مؤقت</button></div>
   </div>
   <div class="wr-bubble" id="wrBubble" role="toolbar" aria-label="أدوات النص المحدد" hidden>${WR_BUBBLE.map((c) => wrToolBtn(wrTool(c))).join('')}</div>
   <button type="button" class="wr-fab" id="wrFab" data-wr="fab" aria-label="الأدوات">✎</button>
   <div class="wr-fabmenu" id="wrFabMenu" role="toolbar" aria-label="الأدوات" hidden>${WR_FAB.map((c) => wrToolBtn(wrTool(c))).join('')}
-    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="pages" class="wr-pg-fab">الصفحات</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
+    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="pages" class="wr-pg-fab">الصفحات</button><button type="button" data-wr="paper" class="wr-pg-fab" aria-pressed="false">📄 الورق</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
   <div class="wr-float" id="wrFloat" hidden></div>
   <div class="wr-tmpop" id="wrTmPop" hidden></div>
   <input type="file" id="wrImgIn" accept="image/*" hidden>
@@ -682,7 +683,7 @@ function wrBmkDo(k) {
   let at = wrCaret();
   if (at < 0) { // no cursor in the text: the top of what is on the screen
     const sc = $('wrScroll').getBoundingClientRect(), body = $('wrBody');
-    const y = Math.max(sc.top, body.getBoundingClientRect().top) + 24, x = sc.right - 30;
+    const br = body.getBoundingClientRect(), y = Math.max(sc.top, br.top) + 24, x = Math.min(sc.right, br.right) - 10; // (v187: on the sheets the text is narrower than the screen)
     const cr = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
     at = cr && body.contains(cr.startContainer) ? wrBmkAt(cr) : 0;
   }
@@ -694,7 +695,7 @@ function wrBmkDo(k) {
   const c = $('wrBmk'); if (c && !c.hidden) wrFlash(c);
   toast('وُضعت العلامة 🔖');
 }
-window.addEventListener('resize', () => { if (wrState) wrBmkPaint(); });
+window.addEventListener('resize', () => { if (!wrState) return; if (wrPaperIs()) { wrPaperZoomSet(); wrPaperLay(); } wrBmkPaint(); });
 const wrFocusOn = () => { try { return localStorage.getItem('mahami-wrfocus') === '1'; } catch { return false; } };
 function wrSetFocus(on, once) {
   if (!once) try { localStorage.setItem('mahami-wrfocus', on ? '1' : '0'); } catch {}
@@ -717,7 +718,8 @@ function wrEdit(b, chId, find) {
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
   $('wrCopyBtn').hidden = !one;
   $('wrEditor').querySelector('[data-wr="ayc"]').hidden = one;
-  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="pages"]')) x.hidden = one;
+  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="pages"], [data-wr="paper"]')) x.hidden = one;
+  wrPaperSet(false, true); // (the sheets of the work before go: they come back below once this one is in)
   wrPagesClose();
   wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
@@ -737,6 +739,7 @@ function wrEdit(b, chId, find) {
   d.classList.toggle('wr-focus', wrFocusOn());
   wrSetTheme(wrThemeOf());
   wrPopsClose();
+  if (!one && wrPaperOn()) wrPaperSet(true, true); // (v187) on the sheets, as he left the editor
   $('wrScroll').scrollTop = 0;
   wrBmkOpen(!find);
   if (find) setTimeout(() => wrFindNext(), 50);
@@ -746,6 +749,7 @@ function wrEdit(b, chId, find) {
 function wrClose(fromEvent) {
   if (!wrState) return;
   wrSaveNow();
+  wrPaperSet(false, true);
   clearTimeout(wrState.htimer);
   wrState = null;
   if (typeof wrIdeasClose === 'function') wrIdeasClose();
@@ -828,6 +832,7 @@ function wrHistory(step) {
 function wrDirty() {
   if (!wrState) return;
   if (wrState.noteEd) wrNoteRead(wrState.noteEd); // (v186) a footnote's words and formatting into the chapter
+  wrPaperSoon(); // (v187) the sheets follow what is written
   clearTimeout(wrState.htimer);
   wrState.htimer = setTimeout(wrMark, 500);
   wrState.dirty = true;
@@ -886,12 +891,13 @@ function wrRenumber() {
   });
   const box = $('wrNotes');
   const ids = marks.map((m) => m.dataset.fn);
-  if (!ids.length) { box.innerHTML = ''; return; }
+  if (!ids.length) { box.innerHTML = ''; wrPaperSoon(); return; }
   const have = [...box.querySelectorAll('.wr-fn-ed')].map((x) => x.dataset.fn).join();
-  if (have === ids.join()) { box.querySelectorAll('.wr-note > b').forEach((x, i) => { x.textContent = `(${wrNum(i + 1)})`; }); wrNoteBar(); return; }
+  if (have === ids.join()) { box.querySelectorAll('.wr-note > b').forEach((x, i) => { x.textContent = `(${wrNum(i + 1)})`; }); wrNoteBar(); wrPaperSoon(); return; }
   // (v186) each footnote is written like the text, with its tools
   box.innerHTML = `<h3>الحواشي</h3><p class="wr-ntip" id="wrNTip" hidden></p>${ids.map((id, i) => `<div class="wr-note"><b data-wr="fngo" data-fn="${id}" role="button" aria-label="إلى موضعها في النص">(${wrNum(i + 1)})</b><div class="wr-fn-ed" contenteditable="true" role="textbox" aria-multiline="true" dir="rtl" data-fn="${id}" aria-label="الحاشية ${i + 1}">${wrNoteHTML(c, id)}</div><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
   wrNoteBar();
+  wrPaperLay(); // (v187) at once: a new footnote stands at the foot of its sheet
 }
 // between a footnote and its mark: the one gone to is in the middle of the screen and glows a moment
 // (an animation, not a class: nothing of it goes into the text, its saves or its undo steps)
@@ -1290,6 +1296,8 @@ document.addEventListener('click', (e) => {
   else if (a === 'tm') { const p = $('wrTmPop'), show = p.hidden; wrPopsClose(); if (show) { p.innerHTML = wrTmPopHTML(); p.hidden = false; } }
   else if (a === 'pages') { $('wrFabMenu').hidden = true; wrPagesOpen(); }
   else if (a === 'pagesoff') wrPagesClose();
+  else if (a === 'paper') { $('wrFabMenu').hidden = true; wrPaperSet(!wrPaperIs()); toast(wrPaperIs() ? 'تكتب الآن في أوراق كالوورد' : 'رجعت إلى المحرر المعتاد'); }
+  else if (a === 'zoom') wrZoomToggle();
   else if (a === 'fndel') wrNoteDel(t);
   else if (a === 'fngo') wrToMark(t.dataset.fn);
   else if (a === 'find') { $('wrFabMenu').hidden = true; const f = $('wrFind'); f.hidden = !f.hidden; if (!f.hidden) { if ($('wrEditor').classList.contains('wr-focus')) wrSetFocus(false, true); /* (this time only: focus stays his choice) */ const s = getSelection().toString(); if (s && s.length < 80) $('wrQ').value = s; $('wrQ').focus(); } }
@@ -1697,19 +1705,26 @@ function wrPgNote(c, id, n) {
   box.append(...blocks);
   return box;
 }
-async function wrPagesOpen() {
+// (v187) with «upto», a chapter's id: out of sight, the number of the pages before that chapter (the title's and the
+// chapters' before it), for the sheets of «الورق» to number their pages as the book does
+async function wrPagesOpen(upto) {
   if (!wrState || wrState.book.kind !== 'book') return;
-  wrSaveNow();
-  wrPopsClose();
-  if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // (no keyboard nor microphone over the pages)
   const b = wrState.book, cur = wrState.ch.id, run = {};
-  wrPg = run;
-  const box = $('wrPages'), sc = $('wrPgScroll');
-  box.hidden = false;
-  sc.innerHTML = '<p class="wr-pg-wait">يرتّب الصفحات…</p>';
-  $('wrPgInfo').textContent = '';
+  let box = $('wrPages');
+  const sc = $('wrPgScroll');
+  if (upto) { box = document.createElement('div'); box.className = 'wp-hold'; $('wrEditor').append(box); } // (out of sight and clipped: the editor does not widen)
+  if (!upto) {
+    wrSaveNow();
+    wrPopsClose();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // (no keyboard nor microphone over the pages)
+    wrPg = run;
+    box.hidden = false;
+    sc.innerHTML = '<p class="wr-pg-wait">يرتّب الصفحات…</p>';
+    $('wrPgInfo').textContent = '';
+  }
+  const gone = () => (upto ? !wrState || wrState.ch.id !== upto : wrPg !== run);
   try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
-  if (wrPg !== run) return;
+  if (gone()) { if (upto) box.remove(); return; }
   // the place pages are made in, at their true size, out of sight
   const lab = document.createElement('div');
   lab.className = 'wp-lab';
@@ -1718,8 +1733,8 @@ async function wrPagesOpen() {
   const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; lab.append(probe);
   const one = probe.getBoundingClientRect().height / 100 || 1.6;
   probe.remove();
-  box.style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
-  box.style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
+  (upto ? lab : box).style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
+  (upto ? lab : box).style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
   const AYC = WR_AYC[b.ayc] ? `#${WR_AYC[b.ayc][1]}` : '';
   const pages = [];
   let pg = null, body = null, fns = null;
@@ -1789,8 +1804,9 @@ async function wrPagesOpen() {
   body.append(t);
   let mine = [0, 0];
   for (let ci = 0; ci < b.chapters.length; ci++) {
-    if (wrPg !== run) { lab.remove(); return; }
+    if (gone()) { lab.remove(); if (upto) box.remove(); return; }
     const ch = b.chapters[ci], nums = {};
+    if (upto && ch.id === upto) { box.remove(); return pages.length; }
     wrNoteIds(ch.html).forEach((id, i) => { nums[id] = i + 1; });
     newPage();
     const from = pages.length;
@@ -1804,10 +1820,10 @@ async function wrPagesOpen() {
       place(el, ch, nums);
     }
     if (ch.id === cur) mine = [from, pages.length];
-    sc.querySelector('.wr-pg-wait') && (sc.querySelector('.wr-pg-wait').textContent = `يرتّب الصفحات… ${wrNum(pages.length)}`);
+    if (!upto) sc.querySelector('.wr-pg-wait') && (sc.querySelector('.wr-pg-wait').textContent = `يرتّب الصفحات… ${wrNum(pages.length)}`);
     await new Promise((ok) => setTimeout(ok, 0)); // (the screen breathes between chapters)
   }
-  if (wrPg !== run) { lab.remove(); return; }
+  if (gone() || upto) { lab.remove(); if (upto) box.remove(); return; }
   // shown smaller, to the screen's width; the pages themselves as they were laid out
   const s = Math.min(1, (sc.clientWidth - 24) / WP.W);
   sc.innerHTML = '';
@@ -1826,6 +1842,182 @@ async function wrPagesOpen() {
   $('wrPgInfo').textContent = `الكتاب: ${plural(pages.length, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')} | هذا الفصل: ${a === z ? `صفحة ${wrNum(a)}` : `من صفحة ${wrNum(a)} إلى ${wrNum(z)}`}`;
   const first = sc.children[a - 1];
   if (first) sc.scrollTop += first.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8;
+}
+
+// ---------- «الورق» (v187, his words: «كنت أقصد أن يكون نفس الوورد التحرير كله في صفحة كالورد», his choices
+// «أ: زر يبدّل بينهما» and «ج: الاثنتان بزر تكبير»): the chapter written on A4 sheets as its Word file makes them (the
+// measures of «عرض الصفحات»), its words going on to the next sheet by themselves, a line at a time, its footnotes written
+// at the foot of their sheet and the page's number under it. The text stays the one editor (#wrBody): beside it, out of
+// the text, a column of floats (#wrFlow) — the height a sheet holds, then the room between two sheets — which its lines
+// go around, so a paragraph goes on to the next sheet from the line that does not fit, as Word's does.
+const WRP = { G: 32 }; // (the grey between two sheets)
+let wrPaperRO = null;
+const wrPaperOn = () => { try { return localStorage.getItem('mahami-wrpaper') === '1'; } catch { return false; } };
+const wrZoomBig = () => { try { return localStorage.getItem('mahami-wrzoom') === 'big'; } catch { return false; } };
+function wrPaperIs() { return !!$('wrPaper'); }
+function wrPaperSet(on, keep) {
+  if (!wrState) return;
+  on = !!on && wrState.book.kind === 'book';
+  if (!keep) try { localStorage.setItem('mahami-wrpaper', on ? '1' : '0'); } catch {}
+  const d = $('wrEditor'), sc = $('wrScroll'), body = $('wrBody'), notes = $('wrNotes');
+  for (const x of d.querySelectorAll('[data-wr="paper"]')) x.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on) {
+    const pp = $('wrPaper');
+    if (!pp) return;
+    if (wrPaperRO) wrPaperRO.disconnect();
+    sc.prepend(body, notes);
+    pp.remove();
+    for (const n of notes.querySelectorAll('.wr-note')) n.style.top = '';
+    d.classList.remove('wr-paper', 'wr-zbig');
+    sc.style.removeProperty('--wp-lh'); sc.style.removeProperty('--wp-l1');
+    wrBmkPaint();
+    return;
+  }
+  d.classList.toggle('wr-zbig', wrZoomBig());
+  if (wrPaperIs()) { wrPaperLay(); return; }
+  const pp = document.createElement('div');
+  pp.id = 'wrPaper'; pp.className = 'wrp-paper';
+  pp.innerHTML = '<div class="wrp-sheets" id="wrSheets" aria-hidden="true"></div><div class="wrp-flow" id="wrFlow" aria-hidden="true"></div><h1 class="wrp-h1" id="wrPH1"></h1>';
+  sc.prepend(pp);
+  pp.append(body, notes);
+  d.classList.add('wr-paper');
+  wrState.pgFrom = 0;
+  if (typeof ResizeObserver === 'function') { if (!wrPaperRO) wrPaperRO = new ResizeObserver(() => wrPaperSoon()); wrPaperRO.observe(body); }
+  // the line of Amiri as Word spaces it (as in «عرض الصفحات»), once the font is there
+  const lines = () => {
+    const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; pp.append(probe);
+    const one = probe.getBoundingClientRect().height / 100 / (wrPaperZoom() || 1) || 1.6;
+    probe.remove();
+    sc.style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
+    sc.style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
+  };
+  wrPaperZoomSet();
+  lines();
+  wrPaperLay(true);
+  const ch = wrState.ch.id;
+  (async () => {
+    try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
+    if (!wrState || wrState.ch.id !== ch || !wrPaperIs()) return;
+    lines(); wrPaperLay(true);
+    // the number of its first page in the book
+    const n = await wrPagesOpen(ch);
+    if (!wrState || wrState.ch.id !== ch || !wrPaperIs() || typeof n !== 'number') return;
+    wrState.pgFrom = n; wrPaperLay(true);
+  })();
+}
+// the sheets on the screen's width («الورقة كاملة»), or larger, the line read at ease, the sheet moved sideways («مكبّرة»)
+function wrPaperZoom() {
+  const sc = $('wrScroll'); if (!sc) return 1;
+  const fit = Math.min(1, (sc.clientWidth - 16) / WP.W);
+  return Math.round((wrZoomBig() ? Math.max(fit, Math.min(1, 0.8)) : fit) * 1000) / 1000;
+}
+function wrPaperZoomSet() {
+  const pp = $('wrPaper'); if (!pp) return;
+  pp.style.zoom = String(wrPaperZoom());
+  const b = $('wrZoomBtn'); if (b) b.textContent = wrZoomBig() ? '🔍 الورقة كاملة' : '🔍 كبّر الورقة';
+}
+function wrZoomToggle() {
+  try { localStorage.setItem('mahami-wrzoom', wrZoomBig() ? 'fit' : 'big'); } catch {}
+  $('wrEditor').classList.toggle('wr-zbig', wrZoomBig());
+  const sc = $('wrScroll'), pp = $('wrPaper');
+  if (!pp) return;
+  // (what was in the middle of the screen stays there)
+  const r0 = pp.getBoundingClientRect(), mid = (sc.getBoundingClientRect().top + sc.clientHeight / 2 - r0.top) / r0.height;
+  wrPaperZoomSet();
+  const r1 = pp.getBoundingClientRect();
+  sc.scrollTop += r1.top + mid * r1.height - (sc.getBoundingClientRect().top + sc.clientHeight / 2);
+  sc.scrollLeft = 0;
+  wrPaperLay(true);
+}
+let wrPaperT = 0;
+// a touch on a sheet out of the text (its margins, below its last line): the cursor in the text, at its end if below it
+document.addEventListener('pointerup', (e) => {
+  const pp = $('wrPaper');
+  if (!wrState || !pp || !pp.contains(e.target) || e.target.closest('#wrBody, .wr-note') || wrState.noteEd || String(getSelection())) return;
+  const body = $('wrBody');
+  body.focus({ preventScroll: true });
+  if (e.clientY > body.getBoundingClientRect().bottom) {
+    const last = body.lastElementChild;
+    if (last) wrCaretEnd(last);
+  }
+});
+function wrPaperSoon() { if (!wrPaperIs()) return; clearTimeout(wrPaperT); wrPaperT = setTimeout(() => wrPaperLay(), 90); }
+// where each sheet ends: the footnotes of its marks at its foot, the room they take off its text, again until it holds
+function wrPaperLay(now) {
+  const pp = $('wrPaper');
+  if (!pp || !wrState) return;
+  const body = $('wrBody'), flow = $('wrFlow'), sheets = $('wrSheets'), notes = $('wrNotes'), h1 = $('wrPH1');
+  const CH = WP.H - 2 * WP.M, STEP = WP.H + WRP.G;
+  const one = parseFloat(getComputedStyle($('wrScroll')).getPropertyValue('--wp-l1')) || 1.6;
+  const SEP = one * 21.333; // (the short line over the footnotes, as in «عرض الصفحات»)
+  const ci = wrState.book.chapters.indexOf(wrState.ch);
+  h1.textContent = $('wrTitle').value.trim() || `فصل ${wrNum(ci + 1)}`;
+  const fresh = (pp.dataset.w || '') !== String(WP.W);
+  pp.dataset.w = String(WP.W);
+  const scale = () => pp.getBoundingClientRect().width / WP.W || 1;
+  const ids = [...body.querySelectorAll('sup.fn')].map((m) => m.dataset.fn);
+  const boxes = {}; for (const n of notes.querySelectorAll('.wr-note')) { const ed = n.querySelector('.wr-fn-ed'); if (ed) boxes[ed.dataset.fn] = n; }
+  const k = scale();
+  const nh = {}; for (const id of ids) nh[id] = boxes[id] ? boxes[id].getBoundingClientRect().height / k : 0;
+  let foot = (wrState.pgFoot || []).slice(), n = 1, at = {};
+  const build = () => {
+    let h = '';
+    for (let i = 0; i < n; i++) {
+      const f = Math.min(foot[i] || 0, CH - 3 * one * 21.333);
+      h += `<div class="wrp-push" style="height:${CH - f}px"></div>`;
+      if (i < n - 1) h += `<div class="wrp-gap" style="height:${f + 2 * WP.M + WRP.G}px"></div>`;
+    }
+    flow.innerHTML = h;
+  };
+  // a mark whose footnote's room sends its line on to the next sheet: its room stays on both (that line goes over, as
+  // in Word, its footnote with it), so the two do not chase each other
+  const seen = {};
+  let real = [];
+  for (let round = 0; round < 8; round++) {
+    n = Math.max(1, foot.length);
+    build();
+    const top = flow.getBoundingClientRect().top;
+    const end = (body.getBoundingClientRect().bottom - top) / k;
+    const pages = Math.max(1, Math.floor(Math.max(0, end - 0.5) / STEP) + 1);
+    let grew = false;
+    for (const m of body.querySelectorAll('sup.fn')) {
+      const id = m.dataset.fn, y = (m.getBoundingClientRect().top - top) / k, pg = Math.min(pages - 1, Math.max(0, Math.floor(y / STEP)));
+      if (!seen[id]) seen[id] = new Set();
+      if (!seen[id].has(pg)) { seen[id].add(pg); grew = true; }
+      at[id] = Math.max(...seen[id]);
+    }
+    const last = Math.max(pages, ...Object.values(at).map((v) => v + 1));
+    const nf = new Array(last).fill(0); real = new Array(last).fill(0);
+    for (const id of Object.keys(at)) {
+      for (const pg of seen[id]) nf[pg] += nh[id] || 0;
+      real[at[id]] += nh[id] || 0;
+    }
+    for (let i = 0; i < last; i++) { if (nf[i]) nf[i] += SEP; if (real[i]) real[i] += SEP; }
+    const same = nf.length === foot.length && nf.every((v, i) => Math.abs(v - foot[i]) < 0.5);
+    foot = nf;
+    if (same && !grew) break;
+  }
+  n = foot.length;
+  build();
+  wrState.pgFoot = foot;
+  // the sheets, their numbers, the line over their footnotes; and each footnote at the foot of its sheet
+  const from = wrState.pgFrom || 0;
+  pp.style.height = `${n * STEP - WRP.G - 2 * WP.M}px`;
+  let sh = '';
+  for (let i = 0; i < n; i++) {
+    const f = Math.min(real[i] || 0, CH - 3 * one * 21.333);
+    sh += `<div class="wrp-sheet" style="top:${i * STEP}px">${f ? `<i class="wrp-sep" style="top:${WP.M + CH - f + one * 10.67}px"></i>` : ''}${from ? `<b class="wrp-no">${wrNum(from + i + 1)}</b>` : ''}</div>`;
+  }
+  sheets.innerHTML = sh;
+  const y0 = {};
+  for (const id of ids) {
+    const b = boxes[id]; if (!b) continue;
+    const pg = at[id] || 0, f = Math.min(real[pg] || 0, CH - 3 * one * 21.333);
+    if (y0[pg] == null) y0[pg] = WP.M + pg * STEP + CH - f + SEP;
+    b.style.top = `${y0[pg]}px`;
+    y0[pg] += nh[id];
+  }
+  wrBmkPaint();
 }
 
 function wrDocxSave(b) {

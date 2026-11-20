@@ -2266,7 +2266,7 @@ li.sel .sel-box { background: var(--high); }
 .wr-ch .icon-btn[disabled] { opacity: .3; }
 .wr-ch .ghost.sm { color: var(--high); }
 .wr-scroll { flex: 1; overflow-y: auto; }
-.wr-body { flex: none; overflow: visible; min-height: 55vh; text-align: justify; }
+.wr-body { flex: none; overflow: visible; min-height: 55vh; text-align: justify; text-align-last: start; } /* (v187: justified, the last line of a paragraph not spread) */
 .wr-body h2 { text-align: center; }
 .wr-body p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .6em 1.2em; }
 .wr-body sup.fn { color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 2px; user-select: none; }
@@ -2410,7 +2410,7 @@ li.sel .sel-box { background: var(--high); }
 .wr-ideas-text { white-space: pre-line; overflow-wrap: anywhere; font-size: .95rem; color: var(--fg); }
 
 /* v186: a footnote written with the text's own tools («تحرير الهوامش من نفس محرر نص المتن») */
-.wr-fn-ed { min-height: 2.6em; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); line-height: 1.8; text-align: justify; outline: none; overflow-wrap: anywhere; }
+.wr-fn-ed { min-height: 2.6em; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); line-height: 1.8; text-align: justify; text-align-last: start; outline: none; overflow-wrap: anywhere; }
 .wr-fn-ed:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .wr-fn-ed p { margin: 0; }
 .wr-fn-ed ul, .wr-fn-ed ol { margin: .2em 0; padding-inline-start: 1.6em; }
@@ -2436,7 +2436,7 @@ li.sel .sel-box { background: var(--high); }
 .wp-slot { position: relative; margin: 0 auto 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.18); background: #fff; }
 .wp-lab { position: absolute; top: 0; left: -20000px; width: 794px; visibility: hidden; pointer-events: none; }
 .wp-probe { display: inline-block; font: 100px/normal Amiri, serif; }
-.wp-page { position: relative; box-sizing: border-box; width: 794px; min-height: 1123px; padding: 96px; background: #fff; color: #111; direction: rtl; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; transform-origin: top right; position: absolute; top: 0; right: 0; }
+.wp-page { position: relative; box-sizing: border-box; width: 794px; min-height: 1123px; padding: 96px; background: #fff; color: #111; direction: rtl; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; transform-origin: top right; position: absolute; top: 0; right: 0; }
 .wp-lab .wp-page { position: relative; }
 .wp-body { display: flow-root; }
 .wp-body > * { margin: 0; padding: 0 0 8px; }
@@ -2468,3 +2468,41 @@ body:has(#wrPages:not([hidden])) :is(.mic-btn, .mic-bubble) { display: none !imp
 /* (v186) one button more in the editor's head: on a phone its buttons stand a little closer, so the title keeps its room */
 @media (max-width: 480px) { #wrEditor .me-head .icon-btn { padding: 8px 5px; } }
 .wr-fn-ed { padding-left: 52px; } /* (room for the microphone, as in the affirmations' box) */
+
+/* v187: «الورق» — the chapter written on A4 sheets as its Word file makes them (the measures of «عرض الصفحات») */
+.wr-zoom { display: none; }
+#wrEditor.wr-paper .wr-zoom { display: inline-block; margin-inline-end: 6px; }
+#wrEditor.wr-paper .wr-scroll { background: #d9dde3; overflow: auto; }
+.wrp-paper { position: relative; box-sizing: content-box; width: 602px; padding: 96px; margin: 16px auto 24px; display: flow-root; direction: rtl; color: #111; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }
+.wrp-sheets { position: absolute; top: 0; right: 0; left: 0; height: 0; z-index: 0; }
+.wrp-sheet { position: absolute; right: 0; width: 794px; height: 1123px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.wrp-sep { position: absolute; right: 96px; width: 192px; border-top: 1px solid #111; }
+.wrp-no { position: absolute; right: 96px; bottom: 47px; font-size: 21.333px; line-height: 1; font-weight: 400; color: #111; }
+.wrp-flow > div { float: right; clear: right; width: 0; }
+.wrp-flow > .wrp-gap { width: 100%; }
+.wrp-paper > :is(.wrp-h1, #wrBody) { position: relative; z-index: 1; }
+.wrp-h1 { margin: 0; padding: 16px 0; font-family: inherit; font-size: 29.33px; font-weight: 700; line-height: inherit; color: #111; letter-spacing: 0; }
+#wrPaper #wrBody { padding: 0; min-height: 0; font-size: inherit; line-height: inherit; color: #111; background: transparent; overflow: visible; overflow-wrap: anywhere; }
+#wrPaper #wrBody > * { margin: 0; padding: 0 0 8px; }
+#wrPaper #wrBody > :is(h2, h3) { color: #111; font-family: inherit; line-height: inherit; letter-spacing: 0; text-align: start; font-weight: 700; }
+#wrPaper #wrBody > h2 { font-size: 25.33px; padding: 16px 0 8px; }
+#wrPaper #wrBody > h3 { font-size: 22.67px; padding: 12px 0 5.3px; }
+#wrPaper #wrBody > p.ayah { font-size: 22.67px; font-weight: 700; margin: 10.7px 37.8px; padding: 5.3px; border: 1px solid #0f6e5e; border-radius: 0; text-align: start; }
+#wrPaper #wrBody > blockquote { color: #444; margin: 8px 37.8px 0; padding: 0 0 8px; border: 0; background: none; border-radius: 0; }
+#wrPaper #wrBody > :is(ul, ol) { padding: 0 37.8px 0 0; }
+#wrPaper #wrBody li { padding-bottom: 8px; }
+#wrPaper #wrBody hr { border: 0; border-bottom: 1px solid #999; margin: 0 0 8px; padding: 0; }
+#wrPaper #wrBody .pgbreak { margin: 0 0 8px; }
+#wrPaper #wrBody [data-ind="1"] { margin-inline-start: 0; padding-right: 37.8px; } #wrPaper #wrBody [data-ind="2"] { margin-inline-start: 0; padding-right: 75.6px; } #wrPaper #wrBody [data-ind="3"] { margin-inline-start: 0; padding-right: 113.4px; }
+#wrPaper #wrBody [data-ind="4"] { margin-inline-start: 0; padding-right: 151.2px; } #wrPaper #wrBody [data-ind="5"] { margin-inline-start: 0; padding-right: 189px; } #wrPaper #wrBody [data-ind="6"] { margin-inline-start: 0; padding-right: 226.8px; }
+#wrPaper #wrBody img { margin: 0 0 8px; border-radius: 0; }
+#wrPaper .wr-notes { position: absolute; top: 0; right: 96px; width: 602px; height: 0; padding: 0; border: 0; z-index: 2; }
+#wrPaper .wr-notes > :is(h3, .wr-ntip) { display: none; }
+#wrPaper .wr-note { position: absolute; right: 0; left: 0; margin: 0; display: flex; gap: 4px; align-items: baseline; font-size: 16px; line-height: var(--wp-l1, 1.6); color: #111; }
+#wrPaper .wr-note > b { color: #111; padding: 0; font-weight: 400; flex: none; }
+#wrPaper .wr-fn-ed { flex: 1; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #111; line-height: inherit; }
+#wrPaper .wr-fn-ed p { margin: 0; }
+#wrPaper .wr-note > button { position: absolute; left: -92px; top: 0; display: none; font-size: 14px; }
+#wrPaper .wr-note:focus-within > button { display: inline-block; }
+#wrPaper .wr-note:focus-within .wr-fn-ed { background: rgba(15,118,110,.06); }
+.wp-hold { position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; }
