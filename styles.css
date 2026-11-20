@@ -2274,7 +2274,7 @@ li.sel .sel-box { background: var(--high); }
 .wr-notes:empty { display: none; }
 .wr-notes h3 { font-size: 1rem; margin: 12px 0 8px; color: var(--muted); }
 .wr-note { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; margin-bottom: 8px; }
-.wr-note b { color: var(--accent); padding-top: 8px; }
+.wr-note > b { color: var(--accent); padding-top: 8px; }
 .wr-note textarea { width: 100%; min-height: 2.6em; resize: vertical; }
 .wr-find input { flex: 1 1 120px; min-width: 0; }
 .wr-find small { width: 100%; color: var(--muted); }
@@ -2290,7 +2290,7 @@ li.sel .sel-box { background: var(--high); }
 .wr-body u { text-decoration: underline; }
 .wr-body s { text-decoration: line-through; }
 .wr-body sup.fn { font-size: .62em; }
-.wr-note b[data-wr="fngo"] { cursor: pointer; }
+.wr-note > b[data-wr="fngo"] { cursor: pointer; }
 .wr-body [data-ind="1"] { margin-inline-start: 1.5em; } .wr-body [data-ind="2"] { margin-inline-start: 3em; } .wr-body [data-ind="3"] { margin-inline-start: 4.5em; }
 .wr-body [data-ind="4"] { margin-inline-start: 6em; } .wr-body [data-ind="5"] { margin-inline-start: 7.5em; } .wr-body [data-ind="6"] { margin-inline-start: 9em; }
 @counter-style wr-ar { system: extends arabic-indic; suffix: "- "; }
@@ -2408,3 +2408,63 @@ li.sel .sel-box { background: var(--high); }
 .wr-ideas-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .wr-ideas-list { overflow-y: auto; padding: 8px; display: grid; gap: 6px; }
 .wr-ideas-text { white-space: pre-line; overflow-wrap: anywhere; font-size: .95rem; color: var(--fg); }
+
+/* v186: a footnote written with the text's own tools («تحرير الهوامش من نفس محرر نص المتن») */
+.wr-fn-ed { min-height: 2.6em; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); line-height: 1.8; text-align: justify; outline: none; overflow-wrap: anywhere; }
+.wr-fn-ed:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.wr-fn-ed p { margin: 0; }
+.wr-fn-ed ul, .wr-fn-ed ol { margin: .2em 0; padding-inline-start: 1.6em; }
+.wr-fn-ed ol { list-style: wr-num; }
+.wr-arabic .wr-fn-ed ol { list-style: wr-ar; }
+.wr-fn-ed u { text-decoration: underline; }
+.wr-fn-ed s { text-decoration: line-through; }
+.wr-fn-ed [data-ind="1"] { margin-inline-start: 1.5em; } .wr-fn-ed [data-ind="2"] { margin-inline-start: 3em; } .wr-fn-ed [data-ind="3"] { margin-inline-start: 4.5em; }
+.wr-fn-ed [data-ind="4"] { margin-inline-start: 6em; } .wr-fn-ed [data-ind="5"] { margin-inline-start: 7.5em; } .wr-fn-ed [data-ind="6"] { margin-inline-start: 9em; }
+#wrEditor.wr-th-night .wr-fn-ed [style*="background-color"] { color: #1c1c1c; }
+.wr-ntip { margin: 0 0 8px; padding: 6px 10px; border-radius: 8px; background: #fef3c7; color: #92400e; font-size: .85rem; }
+#wrEditor.wr-in-note :is(#wrTools, #wrFabMenu) :is([data-wcmd="h2"], [data-wcmd="h3"], [data-wcmd="ayah"], [data-wcmd="quote"], [data-wcmd="note"], [data-wcmd="pal:table"], [data-wcmd="image"], [data-wcmd="pgbreak"], [data-wcmd="hr"]) { opacity: .3; }
+
+/* v186: «عرض الصفحات» — the book on pages as its Word file makes them, to read only */
+.wr-pages { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: #d9dde3; }
+.wr-pg-bar { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--accent); color: #fff; }
+.wr-pg-bar b { font-size: 1.05rem; }
+.wr-pg-bar b { flex: 1; }
+.wr-pg-bar small { order: 3; flex: 1 1 100%; opacity: .92; }
+.wr-pg-back { background: #fff; color: var(--accent); border: 0; border-radius: 99px; padding: 6px 14px; font-weight: 700; }
+.wr-pg-scroll { flex: 1; overflow-y: auto; padding: 12px 0 40px; }
+.wr-pg-wait { text-align: center; color: #374151; margin-top: 40px; }
+.wp-slot { position: relative; margin: 0 auto 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.18); background: #fff; }
+.wp-lab { position: absolute; top: 0; left: -20000px; width: 794px; visibility: hidden; pointer-events: none; }
+.wp-probe { display: inline-block; font: 100px/normal Amiri, serif; }
+.wp-page { position: relative; box-sizing: border-box; width: 794px; min-height: 1123px; padding: 96px; background: #fff; color: #111; direction: rtl; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; transform-origin: top right; position: absolute; top: 0; right: 0; }
+.wp-lab .wp-page { position: relative; }
+.wp-body { display: flow-root; }
+.wp-body > * { margin: 0; padding: 0 0 8px; }
+.wp-body > .wp-cont { text-align-last: justify; }
+.wp-body > .wp-li { text-indent: -18.9px; }
+.wp-body > .wp-li-more { text-indent: 0; }
+.wp-title { font-size: 37.33px; font-weight: 700; padding: 160px 0 32px !important; }
+.wp-body > :is(h1, h2, h3) { color: #111; font-family: inherit; line-height: inherit; letter-spacing: 0; }
+.wp-body > h1 { font-size: 29.33px; font-weight: 700; padding: 16px 0 16px; }
+body:has(#wrPages:not([hidden])) :is(.mic-btn, .mic-bubble) { display: none !important; }
+.wp-body > h2 { font-size: 25.33px; font-weight: 700; padding: 16px 0 8px; font-family: inherit; }
+.wp-body > h3 { font-size: 22.67px; font-weight: 700; padding: 12px 0 5.3px; }
+.wp-body > p.ayah { font-size: 22.67px; font-weight: 700; margin: 10.7px 37.8px; padding: 5.3px; border: 1px solid #0f6e5e; }
+.wp-body > blockquote { color: #444; margin: 8px 37.8px 0; padding: 0 0 8px; border: 0; background: none; }
+.wp-body > .wp-hr { border-bottom: 1px solid #999; margin-bottom: 8px; padding-bottom: 0; }
+.wp-body [data-ind="1"] { padding-right: 37.8px; } .wp-body [data-ind="2"] { padding-right: 75.6px; } .wp-body [data-ind="3"] { padding-right: 113.4px; }
+.wp-body [data-ind="4"] { padding-right: 151.2px; } .wp-body [data-ind="5"] { padding-right: 189px; } .wp-body [data-ind="6"] { padding-right: 226.8px; }
+.wp-body img { display: block; max-width: 100%; height: auto; }
+.wp-body table { width: 100%; border-collapse: collapse; table-layout: fixed; padding: 0; }
+.wp-body td, .wp-body th { border: 1px solid #999; vertical-align: top; padding: 0 5px; overflow-wrap: anywhere; }
+.wp-body td p, .wp-body th p { margin: 0 0 8px; }
+.wp-page u { text-decoration: underline; } .wp-page s { text-decoration: line-through; }
+.wp-page sup.fn { font-size: .62em; line-height: 0; }
+.wp-fns { position: absolute; right: 96px; left: 96px; bottom: 96px; font-size: 16px; line-height: var(--wp-l1, 1.6); }
+.wp-fns::before { content: ''; display: block; width: 192px; height: calc(var(--wp-l1, 1.6) * 21.333px); border-top: 1px solid #111; box-sizing: border-box; margin-top: calc(var(--wp-l1, 1.6) * 10.67px); height: calc(var(--wp-l1, 1.6) * 10.67px); }
+.wp-fn p { margin: 0; }
+.wp-fn .wp-li { padding-right: 28.3px; text-indent: -18.9px; }
+.wp-no { position: absolute; right: 96px; bottom: 47px; font-size: 21.333px; line-height: 1; }
+/* (v186) one button more in the editor's head: on a phone its buttons stand a little closer, so the title keeps its room */
+@media (max-width: 480px) { #wrEditor .me-head .icon-btn { padding: 8px 5px; } }
+.wr-fn-ed { padding-left: 52px; } /* (room for the microphone, as in the affirmations' box) */

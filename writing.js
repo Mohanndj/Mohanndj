@@ -46,7 +46,10 @@ function normalizeWChapter(c) {
   c = c && typeof c === 'object' ? c : {};
   const notes = {};
   if (c.notes && typeof c.notes === 'object') for (const [k, v] of Object.entries(c.notes)) if (typeof v === 'string') notes[k] = v;
-  return { id: c.id || uid(), title: typeof c.title === 'string' ? c.title : '', html: typeof c.html === 'string' ? c.html : '', notes, updated: Number(c.updated) || Date.now() };
+  // (v186) a footnote with formatting (lists, bold, colour…) keeps it here; its words stay in «notes» for every other reader
+  const nhtml = {};
+  if (c.nhtml && typeof c.nhtml === 'object') for (const [k, v] of Object.entries(c.nhtml)) if (typeof v === 'string' && v && k in notes) nhtml[k] = v;
+  return { id: c.id || uid(), title: typeof c.title === 'string' ? c.title : '', html: typeof c.html === 'string' ? c.html : '', notes, nhtml, updated: Number(c.updated) || Date.now() };
 }
 function normalizeWBook(b) {
   b = b && typeof b === 'object' ? b : {};
@@ -253,6 +256,60 @@ const wrBookWords = (b) => b.chapters.reduce((n, c) => n + wrChWords(c), 0);
 const wrNoteIds = (html) => { const t = document.createElement('template'); t.innerHTML = html || ''; return [...t.content.querySelectorAll('sup.fn')].map((s) => s.dataset.fn); };
 const wrNum = (n) => digitsOut(n);
 
+// ---------- a footnote written with the text's own tools (v186, his words: «تحرير الهوامش من نفس محرر نص المتن») ----------
+// it keeps what the text keeps, less what Word cannot hold in a footnote: headings, a verse box, a quotation, a footnote,
+// a table, a picture, a page break and a line (their words stay, as plain lines)
+const WR_NOTE_NO = new Set(['h2', 'h3', 'ayah', 'quote', 'note', 'pal:table', 'image', 'pgbreak', 'hr']);
+function wrNoteSafe(html) {
+  const t = document.createElement('template');
+  t.innerHTML = wrSafe(html);
+  const c = t.content;
+  for (const el of c.querySelectorAll('sup.fn, img, hr, .pgbreak')) el.remove();
+  for (const el of c.querySelectorAll('table')) { const p = document.createElement('p'); p.textContent = el.textContent; el.replaceWith(p); }
+  for (const el of c.querySelectorAll('h2, h3, blockquote')) {
+    const p = document.createElement('p');
+    p.style.cssText = el.style.cssText; if (el.dataset.ind) p.dataset.ind = el.dataset.ind;
+    p.append(...el.childNodes); el.replaceWith(p);
+  }
+  for (const el of c.querySelectorAll('p.ayah')) el.removeAttribute('class');
+  const d = document.createElement('div'); d.append(c);
+  return d.textContent.trim() ? d.innerHTML : '';
+}
+// its words, line by line, a list's lines with their «•» or «١-» (for copying, searching and anything that reads text)
+function wrNoteText(html) {
+  const t = document.createElement('template');
+  t.innerHTML = (html || '').replace(/<br\s*\/?>/gi, '\n');
+  const lines = [];
+  for (const el of t.content.children) {
+    if (el.nodeName === 'UL' || el.nodeName === 'OL') [...el.children].forEach((li, i) => lines.push(`${el.nodeName === 'UL' ? '• ' : `${wrNum((Number(el.getAttribute('start')) || 1) + i)}- `}${li.textContent}`));
+    else lines.push(el.textContent);
+  }
+  return lines.join('\n').replace(/\u00a0/g, ' ').trim();
+}
+const wrNoteLines = (text) => (text || '').split(/\r?\n/).map((l) => `<p>${esc(l) || '<br>'}</p>`).join('');
+const wrNoteHTML = (c, id) => (c.nhtml && c.nhtml[id]) || wrNoteLines(c.notes[id] || '');
+// what is written in a footnote, read into the chapter: its words always, its formatting when it has some
+function wrNoteRead(ed) {
+  if (!wrState || !ed || !ed.isConnected) return;
+  const c = wrState.ch, id = ed.dataset.fn;
+  if (!id || !(id in c.notes)) return;
+  const h = wrNoteSafe(ed.innerHTML);
+  c.notes[id] = wrNoteText(h);
+  if (!c.nhtml) c.nhtml = {};
+  if (h && /<(b|i|u|s|span|ul|ol)\b|style=|data-ind/.test(h)) c.nhtml[id] = h; else delete c.nhtml[id];
+}
+// where the tools work: the footnote being written in, else the text
+function wrEd() { const n = wrState && wrState.noteEd; return n && n.isConnected ? n : $('wrBody'); }
+function wrNoteBar() {
+  const d = $('wrEditor'), ed = wrState && wrState.noteEd && wrState.noteEd.isConnected ? wrState.noteEd : null;
+  if (!d) return;
+  d.classList.toggle('wr-in-note', !!ed);
+  const tip = $('wrNTip');
+  if (!tip) return;
+  tip.hidden = !ed;
+  if (ed) { const i = [...$('wrNotes').querySelectorAll('.wr-fn-ed')].indexOf(ed); tip.textContent = `تكتب في الحاشية (${wrNum(i + 1)}): أدوات الكتابة تعمل فيها`; }
+}
+
 // ---------- the page ----------
 function viewWriting() {
   if (!wrUi.list) { wrLoad(); return `${moreCrumb()}<section class="panel"><p class="note-text">يُفتح…</p></section>`; }
@@ -422,6 +479,7 @@ let wrState = null; // { book, ch, timer, dirty, hist, hi, htimer, range }
 const WR_SVG = {
   close: '<path d="M9 18l6-6-6-6"/>', find: '<path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5"/>',
   undo: '<path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/>', redo: '<path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  pages: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
   focus: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>', copy: '<path d="M9 9h11v11H9zM5 15H4V4h11v1"/>',
 };
 const wrSvg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${WR_SVG[k]}</svg>`;
@@ -455,6 +513,7 @@ function wrDialog() {
       <input id="wrTitle" placeholder="عنوان الفصل" aria-label="العنوان" autocomplete="off">
       <button type="button" class="icon-btn" data-wr="copy" id="wrCopyBtn" aria-label="نسخ النص" hidden>${wrSvg('copy')}</button>
       <button type="button" class="icon-btn wr-bmk-btn" data-wr="bmk" aria-label="علامة: أين توقفت" title="علامة: أين توقفت" hidden>🔖</button>
+      <button type="button" class="icon-btn wr-pg-btn" data-wr="pages" aria-label="عرض الصفحات" title="عرض الصفحات" hidden>${wrSvg('pages')}</button>
       <button type="button" class="icon-btn wr-ayc-btn" data-wr="ayc" aria-label="لون الآيات" title="لون الآيات" hidden>﴿﴾</button>
       <button type="button" class="icon-btn" data-wr="theme" aria-label="لون الصفحة" title="لون الصفحة">${wrSvg('theme')}</button>
       <button type="button" class="icon-btn" data-wr="find" aria-label="بحث واستبدال">${wrSvg('find')}</button>
@@ -480,13 +539,17 @@ function wrDialog() {
   <div class="wr-bubble" id="wrBubble" role="toolbar" aria-label="أدوات النص المحدد" hidden>${WR_BUBBLE.map((c) => wrToolBtn(wrTool(c))).join('')}</div>
   <button type="button" class="wr-fab" id="wrFab" data-wr="fab" aria-label="الأدوات">✎</button>
   <div class="wr-fabmenu" id="wrFabMenu" role="toolbar" aria-label="الأدوات" hidden>${WR_FAB.map((c) => wrToolBtn(wrTool(c))).join('')}
-    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
+    <button type="button" data-wr="bmk" class="wr-bmk-fab" aria-label="علامة: أين توقفت">🔖 علامة</button><button type="button" data-wr="pages" class="wr-pg-fab">الصفحات</button><button type="button" data-wr="find" aria-label="بحث واستبدال">بحث</button><button type="button" data-wr="focus" class="wr-unfocus">كل الأدوات</button></div>
   <div class="wr-float" id="wrFloat" hidden></div>
   <div class="wr-tmpop" id="wrTmPop" hidden></div>
-  <input type="file" id="wrImgIn" accept="image/*" hidden>`;
+  <input type="file" id="wrImgIn" accept="image/*" hidden>
+  <div class="wr-pages" id="wrPages" hidden>
+    <div class="wr-pg-bar"><b>عرض الصفحات</b><small id="wrPgInfo"></small><button type="button" class="wr-pg-back" data-wr="pagesoff">رجوع إلى الكتابة</button></div>
+    <div class="wr-pg-scroll" id="wrPgScroll"></div>
+  </div>`;
   document.body.append(d);
   d.addEventListener('close', () => { if (wrState) wrClose(true); });
-  d.addEventListener('cancel', (e) => { if (wrPopsClose() || (typeof wrIdeasClose === 'function' && wrIdeasClose())) e.preventDefault(); }); // (Escape closes a palette first)
+  d.addEventListener('cancel', (e) => { if (wrPagesClose() || wrPopsClose() || (typeof wrIdeasClose === 'function' && wrIdeasClose())) e.preventDefault(); }); // (Escape closes a palette first)
   return d;
 }
 
@@ -646,13 +709,16 @@ function wrEdit(b, chId, find) {
   if (!c) return;
   const d = wrDialog();
   wrFonts();
-  wrState = { book: b, ch: c, timer: null, dirty: false, hist: [], hi: -1, htimer: null, range: null, others: wrBookWords(b) - wrChWords(c) };
+  if (!c.nhtml) c.nhtml = {};
+  wrState = { book: b, ch: c, timer: null, dirty: false, hist: [], hi: -1, htimer: null, range: null, noteEd: null, others: wrBookWords(b) - wrChWords(c) };
+  d.classList.remove('wr-in-note');
   const one = b.kind !== 'book';
   $('wrTitle').value = one ? b.title : c.title;
   $('wrTitle').placeholder = b.kind === 'article' ? 'عنوان المقالة' : b.kind === 'post' ? 'عنوان (اختياري، لا يُنسخ)' : 'عنوان الفصل';
   $('wrCopyBtn').hidden = !one;
   $('wrEditor').querySelector('[data-wr="ayc"]').hidden = one;
-  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"]')) x.hidden = one;
+  for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="pages"]')) x.hidden = one;
+  wrPagesClose();
   wrAycSet(one ? '' : b.ayc);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
   $('wrBody').innerHTML = c.html;
@@ -708,25 +774,28 @@ function wrStatus(s) {
 }
 // the editor keeps its own history of the chapter (text, footnotes and the cursor), so «تراجع» also undoes
 // a «استبدل الكل», a footnote or a verse box, which the browser's own undo does not know
-function wrCaret() {
-  const sel = getSelection(), body = $('wrBody');
+function wrCaret(body = $('wrBody')) {
+  const sel = getSelection();
   if (!sel.rangeCount || !body.contains(sel.anchorNode)) return -1;
   const r = document.createRange(); r.selectNodeContents(body); r.setEnd(sel.anchorNode, sel.anchorOffset);
   return r.toString().length;
 }
-function wrSetCaret(n) {
+function wrSetCaret(n, root = $('wrBody')) {
   if (n < 0) return;
-  const w = document.createTreeWalker($('wrBody'), NodeFilter.SHOW_TEXT);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   while (w.nextNode()) {
     const t = w.currentNode;
     if (n <= t.textContent.length) { const r = document.createRange(); r.setStart(t, n); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); return; }
     n -= t.textContent.length;
   }
 }
+// the cursor at the end of a footnote
+function wrCaretEnd(el) { const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+const wrNotesSnap = (c) => JSON.stringify({ n: c.notes, h: c.nhtml || {} });
 function wrMark() {
   if (!wrState) return;
   clearTimeout(wrState.htimer);
-  const snap = { html: $('wrBody').innerHTML, notes: JSON.stringify(wrState.ch.notes), caret: wrCaret() };
+  const snap = { html: $('wrBody').innerHTML, notes: wrNotesSnap(wrState.ch), caret: wrCaret() };
   const cur = wrState.hist[wrState.hi];
   if (cur && cur.html === snap.html && cur.notes === snap.notes) { cur.caret = snap.caret; return; }
   wrState.hist = wrState.hist.slice(0, wrState.hi + 1);
@@ -743,11 +812,14 @@ function wrHistory(step) {
   wrState.hi = i;
   const snap = wrState.hist[i];
   $('wrBody').innerHTML = snap.html;
-  wrState.ch.notes = JSON.parse(snap.notes);
+  const ns = JSON.parse(snap.notes);
+  wrState.ch.notes = ns.n; wrState.ch.nhtml = ns.h;
+  const was = wrState.noteEd && wrState.noteEd.dataset.fn;
+  wrState.noteEd = null;
   $('wrNotes').innerHTML = '';
   wrRenumber();
-  $('wrBody').focus();
-  wrSetCaret(snap.caret);
+  const ned = was && $('wrNotes').querySelector(`.wr-fn-ed[data-fn="${was}"]`);
+  if (ned) { ned.focus(); wrCaretEnd(ned); } else { $('wrBody').focus(); wrSetCaret(snap.caret); }
   wrState.dirty = true;
   clearTimeout(wrState.timer);
   wrState.timer = setTimeout(wrSaveNow, 700);
@@ -755,6 +827,7 @@ function wrHistory(step) {
 }
 function wrDirty() {
   if (!wrState) return;
+  if (wrState.noteEd) wrNoteRead(wrState.noteEd); // (v186) a footnote's words and formatting into the chapter
   clearTimeout(wrState.htimer);
   wrState.htimer = setTimeout(wrMark, 500);
   wrState.dirty = true;
@@ -799,9 +872,12 @@ function wrRenumber() {
   marks.forEach((m, i) => {
     let id = m.dataset.fn;
     if (seen.has(id) || !(id in c.notes)) { // a mark copied, or brought from another chapter: its own note
-      const text = c.notes[id] != null ? c.notes[id] : (wrState.book.chapters.find((x) => x.notes[id] != null) || { notes: {} }).notes[id] || '';
+      const from = c.notes[id] != null ? c : wrState.book.chapters.find((x) => x.notes[id] != null);
+      const text = from ? from.notes[id] : '', fmt = from && from.nhtml ? from.nhtml[id] : '';
       if (seen.has(id)) { id = uid(); m.dataset.fn = id; }
       c.notes[id] = text;
+      if (!c.nhtml) c.nhtml = {};
+      if (fmt) c.nhtml[id] = fmt;
     }
     seen.add(id);
     m.contentEditable = 'false';
@@ -811,9 +887,11 @@ function wrRenumber() {
   const box = $('wrNotes');
   const ids = marks.map((m) => m.dataset.fn);
   if (!ids.length) { box.innerHTML = ''; return; }
-  const have = [...box.querySelectorAll('textarea')].map((x) => x.dataset.fn).join();
-  if (have === ids.join()) { box.querySelectorAll('.wr-note b').forEach((x, i) => { x.textContent = `(${wrNum(i + 1)})`; }); return; }
-  box.innerHTML = `<h3>الحواشي</h3>${ids.map((id, i) => `<div class="wr-note"><b data-wr="fngo" data-fn="${id}" role="button" aria-label="إلى موضعها في النص">(${wrNum(i + 1)})</b><textarea data-fn="${id}" rows="2" aria-label="الحاشية ${i + 1}">${esc(c.notes[id] || '')}</textarea><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
+  const have = [...box.querySelectorAll('.wr-fn-ed')].map((x) => x.dataset.fn).join();
+  if (have === ids.join()) { box.querySelectorAll('.wr-note > b').forEach((x, i) => { x.textContent = `(${wrNum(i + 1)})`; }); wrNoteBar(); return; }
+  // (v186) each footnote is written like the text, with its tools
+  box.innerHTML = `<h3>الحواشي</h3><p class="wr-ntip" id="wrNTip" hidden></p>${ids.map((id, i) => `<div class="wr-note"><b data-wr="fngo" data-fn="${id}" role="button" aria-label="إلى موضعها في النص">(${wrNum(i + 1)})</b><div class="wr-fn-ed" contenteditable="true" role="textbox" aria-multiline="true" dir="rtl" data-fn="${id}" aria-label="الحاشية ${i + 1}">${wrNoteHTML(c, id)}</div><button type="button" class="ghost sm danger-text" data-wr="fndel" data-fn="${id}">حذف</button></div>`).join('')}`;
+  wrNoteBar();
 }
 // between a footnote and its mark: the one gone to is in the middle of the screen and glows a moment
 // (an animation, not a class: nothing of it goes into the text, its saves or its undo steps)
@@ -822,9 +900,9 @@ function wrFlash(el) {
   try { el.animate([{ backgroundColor: c, boxShadow: `0 0 0 3px ${c}` }, { backgroundColor: c, boxShadow: `0 0 0 3px ${c}`, offset: 0.4 }, { backgroundColor: 'transparent', boxShadow: '0 0 0 3px transparent' }], { duration: 1500, easing: 'ease-out' }); } catch {}
 }
 function wrToNote(id) {
-  const ta = $('wrNotes').querySelector(`textarea[data-fn="${id}"]`);
+  const ta = $('wrNotes').querySelector(`.wr-fn-ed[data-fn="${id}"]`);
   if (!ta) return;
-  ta.focus({ preventScroll: true }); ta.scrollIntoView({ block: 'center' }); wrFlash(ta.closest('.wr-note'));
+  ta.focus({ preventScroll: true }); wrCaretEnd(ta); ta.scrollIntoView({ block: 'center' }); wrFlash(ta.closest('.wr-note'));
 }
 function wrToMark(id) {
   const m = $('wrBody').querySelector(`sup.fn[data-fn="${id}"]`);
@@ -847,6 +925,7 @@ function wrNoteDel(btn) {
   wrMark();
   for (const m of $('wrBody').querySelectorAll(`sup.fn[data-fn="${id}"]`)) m.remove();
   delete wrState.ch.notes[id];
+  if (wrState.ch.nhtml) delete wrState.ch.nhtml[id];
   wrRenumber();
   wrDirty();
   wrMark();
@@ -858,14 +937,14 @@ function wrBlock() {
   const sel = getSelection();
   if (!sel.rangeCount) return null;
   let n = sel.getRangeAt(0).startContainer;
-  const body = $('wrBody');
+  const body = wrEd();
   if (!body.contains(n)) return null;
   while (n && n.parentNode !== body) n = n.parentNode;
   return n && n.nodeType === 1 ? n : null;
 }
 // the paragraphs (and list items, table cells) the selection touches
 function wrBlocks() {
-  const sel = getSelection(), body = $('wrBody');
+  const sel = getSelection(), body = wrEd();
   if (!sel.rangeCount || !body.contains(sel.anchorNode)) return [];
   const r = sel.getRangeAt(0);
   const pick = () => [...body.querySelectorAll('p, h2, h3, blockquote, li, td, th')].filter((b) => r.intersectsNode(b) && !b.querySelector('p, h2, h3, blockquote, li'));
@@ -874,9 +953,19 @@ function wrBlocks() {
   return l;
 }
 // the selection kept while a palette is open, and put back before a tool works on it
-function wrKeep() { const sel = getSelection(); if (wrState && sel.rangeCount && $('wrBody').contains(sel.anchorNode)) wrState.range = sel.getRangeAt(0).cloneRange(); }
+// (v186) and which one the tools work in: the text, or the footnote the selection is in
+function wrKeep() {
+  const sel = getSelection();
+  if (!wrState || !sel.rangeCount || !sel.anchorNode) return;
+  const a = sel.anchorNode, el = a.nodeType === 1 ? a : a.parentNode;
+  const ed = el && el.closest ? el.closest('#wrBody, #wrNotes .wr-fn-ed') : null;
+  if (!ed) return;
+  const note = ed.id === 'wrBody' ? null : ed;
+  if (note !== (wrState.noteEd || null)) { wrState.noteEd = note; wrNoteBar(); }
+  wrState.range = sel.getRangeAt(0).cloneRange();
+}
 function wrBack() {
-  const sel = getSelection(), body = $('wrBody');
+  const sel = getSelection(), body = wrEd();
   if (sel.rangeCount && body.contains(sel.anchorNode)) return;
   body.focus();
   if (wrState && wrState.range && body.contains(wrState.range.startContainer)) { sel.removeAllRanges(); sel.addRange(wrState.range); }
@@ -884,7 +973,7 @@ function wrBack() {
 const wrExec = (cmd, val, css) => { try { document.execCommand('styleWithCSS', false, !!css); } catch {} return document.execCommand(cmd, false, val); };
 // a colour, highlight or font back to the text's own: applied with a marker, then that marker's style taken off
 function wrUnstyle(prop, test) {
-  for (const sp of [...$('wrBody').querySelectorAll('span, font')]) {
+  for (const sp of [...wrEd().querySelectorAll('span, font')]) {
     if (!test(sp)) continue;
     for (const inner of sp.querySelectorAll('span')) inner.style[prop] = '';
     sp.style[prop] = '';
@@ -894,7 +983,7 @@ function wrUnstyle(prop, test) {
 }
 // the selected text larger or smaller: a step of 15%, between 0.6 and 3 times its paragraph's size
 function wrResize(f) {
-  const body = $('wrBody'), sel = getSelection();
+  const body = wrEd(), sel = getSelection();
   if (!sel.rangeCount || sel.isCollapsed || !body.contains(sel.anchorNode)) { toast('حدّد النص الذي تريد تكبيره أو تصغيره'); return false; }
   const r = sel.getRangeAt(0);
   let el = r.startContainer.nodeType === 3 ? r.startContainer.parentNode : r.startContainer.childNodes[r.startOffset] || r.startContainer;
@@ -918,8 +1007,8 @@ function wrResize(f) {
 // a list made of the paragraphs selected, or (on a list of the same kind) undone: by hand, as the browser's own put the
 // list inside the paragraph and its cursor at the line's start
 function wrList(tag) {
-  const T = tag.toUpperCase(), caret = wrCaret();
-  const blks = wrBlocks().filter((b) => b.nodeName === 'LI' || b.parentNode === $('wrBody'));
+  const root = wrEd(), T = tag.toUpperCase(), caret = wrCaret(root);
+  const blks = wrBlocks().filter((b) => b.nodeName === 'LI' || b.parentNode === root);
   if (!blks.length) return;
   const move = (from, to) => { to.style.cssText = from.style.cssText; if (from.dataset.ind) to.dataset.ind = from.dataset.ind; if (from.classList.contains('ayah') && to.nodeName === 'P') to.className = 'ayah'; while (from.firstChild) to.append(from.firstChild); };
   if (blks.every((b) => b.nodeName === 'LI' && b.parentNode.nodeName === T)) {
@@ -940,7 +1029,7 @@ function wrList(tag) {
       list.append(li); b.remove();
     }
   }
-  wrSetCaret(caret);
+  wrSetCaret(caret, root);
 }
 function wrIndent(step) {
   for (const b of wrBlocks()) {
@@ -949,7 +1038,7 @@ function wrIndent(step) {
   }
 }
 // a table: inserted with its size, then a row or a column after the cursor's, or one taken away
-function wrCell() { const sel = getSelection(); const n = sel.rangeCount && sel.anchorNode; const el = n && (n.nodeType === 1 ? n : n.parentNode); return el && $('wrBody').contains(el) ? el.closest('td, th') : null; }
+function wrCell() { const sel = getSelection(); const n = sel.rangeCount && sel.anchorNode; const el = n && (n.nodeType === 1 ? n : n.parentNode); return el && wrEd().contains(el) ? el.closest('td, th') : null; }
 function wrTable(op, rows, cols) {
   const cell = wrCell();
   if (op === 'ins') {
@@ -986,7 +1075,8 @@ function wrImage(file) {
 }
 
 function wrCmd(cmd) {
-  const body = $('wrBody');
+  if (wrState && wrState.noteEd && wrState.noteEd.isConnected && WR_NOTE_NO.has(cmd)) { toast('هذه الأداة لا تعمل في الحاشية'); return; }
+  const body = wrEd();
   if (cmd.startsWith('pal:')) { wrPal(cmd.slice(4)); return; }
   wrBack();
   if (cmd === 'undo' || cmd === 'redo') { wrHistory(cmd === 'undo' ? -1 : 1); return; }
@@ -1036,8 +1126,8 @@ function wrCmd(cmd) {
     r.setStartAfter(sup); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
     wrRenumber();
     wrPopsClose();
-    const ta = $('wrNotes').querySelector(`textarea[data-fn="${id}"]`);
-    if (ta) setTimeout(() => { ta.focus(); ta.scrollIntoView({ block: 'center' }); }, 30);
+    const ta = $('wrNotes').querySelector(`.wr-fn-ed[data-fn="${id}"]`);
+    if (ta) setTimeout(() => { ta.focus(); wrCaretEnd(ta); ta.scrollIntoView({ block: 'center' }); }, 30);
   }
   wrRenumber();
   wrDirty();
@@ -1083,7 +1173,7 @@ function wrPopsClose() {
 function wrBubble() {
   const bub = $('wrBubble');
   if (!bub) return;
-  const sel = getSelection(), body = $('wrBody');
+  const sel = getSelection(), body = wrEd();
   const on = wrState && $('wrEditor').classList.contains('wr-focus') && sel.rangeCount && !sel.isCollapsed && body.contains(sel.anchorNode) && body.contains(sel.focusNode);
   if (!on) { if (!$('wrFloat').hidden && $('wrFloat').dataset.k && WR_BUBBLE.includes(`pal:${$('wrFloat').dataset.k}`)) return; bub.hidden = true; return; }
   const r = sel.getRangeAt(0).getBoundingClientRect();
@@ -1139,7 +1229,12 @@ function wrReplace(all) {
   wrMark();
   let n = 0;
   for (const t of wrTextNodes()) { const k = wrCount(t.textContent, q); if (k) { n += k; t.textContent = t.textContent.split(q).join(r); } }
-  for (const ta of $('wrNotes').querySelectorAll('textarea')) { const k = wrCount(ta.value, q); if (k) { n += k; ta.value = ta.value.split(q).join(r); wrState.ch.notes[ta.dataset.fn] = ta.value; } }
+  for (const ed of $('wrNotes').querySelectorAll('.wr-fn-ed')) {
+    let m = 0;
+    const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+    for (const t of (() => { const l = []; while (w.nextNode()) l.push(w.currentNode); return l; })()) { const k = wrCount(t.textContent, q); if (k) { m += k; t.textContent = t.textContent.split(q).join(r); } }
+    if (m) { n += m; const keep = wrState.noteEd; wrState.noteEd = ed; wrNoteRead(ed); wrState.noteEd = keep; }
+  }
   $('wrFound').textContent = n ? `استُبدل ${wrNum(n)} مرة في هذا الفصل` : 'لم يوجد في هذا الفصل';
   if (n) { wrDirty(); wrMark(); }
 }
@@ -1193,6 +1288,8 @@ document.addEventListener('click', (e) => {
   else if (a === 'focus') { $('wrFabMenu').hidden = true; wrSetFocus(!$('wrEditor').classList.contains('wr-focus')); }
   else if (a === 'fab') { const m = $('wrFabMenu'), show = m.hidden; wrPopsClose(); m.hidden = !show; }
   else if (a === 'tm') { const p = $('wrTmPop'), show = p.hidden; wrPopsClose(); if (show) { p.innerHTML = wrTmPopHTML(); p.hidden = false; } }
+  else if (a === 'pages') { $('wrFabMenu').hidden = true; wrPagesOpen(); }
+  else if (a === 'pagesoff') wrPagesClose();
   else if (a === 'fndel') wrNoteDel(t);
   else if (a === 'fngo') wrToMark(t.dataset.fn);
   else if (a === 'find') { $('wrFabMenu').hidden = true; const f = $('wrFind'); f.hidden = !f.hidden; if (!f.hidden) { if ($('wrEditor').classList.contains('wr-focus')) wrSetFocus(false, true); /* (this time only: focus stays his choice) */ const s = getSelection().toString(); if (s && s.length < 80) $('wrQ').value = s; $('wrQ').focus(); } }
@@ -1223,21 +1320,35 @@ document.addEventListener('input', (e) => {
     if (/^(insert(Text|Paragraph|LineBreak|ReplacementText|CompositionText|FromPaste)|delete)/.test(e.inputType || '')) { wrPopsClose(); wrBubble(); }
   }
   else if (e.target.id === 'wrTitle') wrDirty();
-  else if (e.target.matches && e.target.matches('#wrNotes textarea')) { wrState.ch.notes[e.target.dataset.fn] = e.target.value; wrDirty(); }
+  else if (e.target.matches && e.target.matches('#wrNotes .wr-fn-ed')) {
+    if (wrState.noteEd !== e.target) { wrState.noteEd = e.target; wrNoteBar(); }
+    wrDirty();
+    if (/^(insert(Text|Paragraph|LineBreak|ReplacementText|CompositionText|FromPaste)|delete)/.test(e.inputType || '')) { wrPopsClose(); wrBubble(); }
+  }
+});
+// (v186) the tools go to the footnote written in, or back to the text
+document.addEventListener('focusin', (e) => {
+  if (!wrState || !e.target.closest) return;
+  const note = e.target.closest('#wrNotes .wr-fn-ed');
+  if (note) {
+    if (!note.firstChild) { const p = document.createElement('p'); p.append(document.createElement('br')); note.append(p); wrCaretEnd(note); }
+    if (wrState.noteEd !== note) { wrState.noteEd = note; wrNoteBar(); }
+  } else if ((e.target.id === 'wrBody' || e.target.id === 'wrTitle') && wrState.noteEd) { wrState.noteEd = null; wrNoteBar(); }
 });
 document.addEventListener('keydown', (e) => {
   if (!wrState) return;
   if (e.target.id === 'wrTitle' && e.key === 'Enter') { e.preventDefault(); $('wrBody').focus(); }
   if ((e.target.id === 'wrQ' || e.target.id === 'wrR') && e.key === 'Enter') { e.preventDefault(); wrFindNext(); }
-  if (e.target.id === 'wrBody' && (e.ctrlKey || e.metaKey) && /^[zy]$/i.test(e.key)) { e.preventDefault(); wrHistory(e.key.toLowerCase() === 'y' || e.shiftKey ? 1 : -1); }
+  if ((e.target.id === 'wrBody' || (e.target.matches && e.target.matches('#wrNotes .wr-fn-ed'))) && (e.ctrlKey || e.metaKey) && /^[zy]$/i.test(e.key)) { e.preventDefault(); wrHistory(e.key.toLowerCase() === 'y' || e.shiftKey ? 1 : -1); }
 });
 document.addEventListener('beforeinput', (e) => {
-  if (!wrState || e.target.id !== 'wrBody') return;
+  if (!wrState || !(e.target.id === 'wrBody' || (e.target.matches && e.target.matches('#wrNotes .wr-fn-ed')))) return;
   if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { e.preventDefault(); wrHistory(e.inputType === 'historyUndo' ? -1 : 1); }
 });
 // pasted text keeps only what a chapter keeps (Word's own markup goes)
 document.addEventListener('paste', (e) => {
-  if (!wrState || !(e.target.closest && e.target.closest('#wrBody'))) return;
+  const inNote = !!(e.target.closest && e.target.closest('#wrNotes .wr-fn-ed'));
+  if (!wrState || !(e.target.closest && (e.target.closest('#wrBody') || inNote))) return;
   const html = e.clipboardData && e.clipboardData.getData('text/html');
   const text = e.clipboardData && e.clipboardData.getData('text/plain');
   if (!html && !text) return;
@@ -1245,6 +1356,7 @@ document.addEventListener('paste', (e) => {
   const plain = () => (text || '').split(/\r?\n/).map((l) => `<p>${esc(l) || '<br>'}</p>`).join('');
   let clean = html ? wrClean(html) : '';
   if (!clean.replace(/<[^>]+>/g, '').trim() && !/sup class="fn"/.test(clean)) clean = plain(); // (markup that cleans to nothing: its plain text)
+  if (inNote) clean = wrNoteSafe(clean) || plain(); // (v186: a footnote keeps what a footnote can hold)
   wrMark();
   document.execCommand('insertHTML', false, clean);
   wrRenumber();
@@ -1329,8 +1441,8 @@ function wrDocx(b) {
   const rpr = (f) => `<w:rPr>${f.font ? `<w:rFonts w:ascii="${x(f.font)}" w:hAnsi="${x(f.font)}" w:cs="${x(f.font)}"/>` : ''}${f.b ? '<w:b/><w:bCs/>' : ''}${f.i ? '<w:i/><w:iCs/>' : ''}${f.s ? '<w:strike/>' : ''}${f.color ? `<w:color w:val="${f.color}"/>` : ''}${f.em && f.em !== 1 ? `<w:sz w:val="${Math.round(f.base * f.em)}"/><w:szCs w:val="${Math.round(f.base * f.em)}"/>` : ''}${f.u ? '<w:u w:val="single"/>' : ''}${f.hi ? `<w:shd w:val="clear" w:color="auto" w:fill="${f.hi}"/>` : ''}<w:rtl/></w:rPr>`;
   // (v183) the text between ﴿ and ﴾ in the book's colour, as in the editor
   const AYC = WR_AYC[b.ayc] ? WR_AYC[b.ayc][1] : '';
-  let inAy = false;
-  const ayRun = (text, f) => (!AYC ? run(text, f) : text.split(/([﴿﴾])/).map((t) => {
+  let inAy = false, ayOff = false;
+  const ayRun = (text, f) => (!AYC || ayOff ? run(text, f) : text.split(/([﴿﴾])/).map((t) => {
     if (!t) return '';
     if (t === '﴿') inAy = true;
     const o = run(t, inAy ? { ...f, color: AYC } : f);
@@ -1366,7 +1478,7 @@ function wrDocx(b) {
     if (N === 'BR') return '<w:r><w:br/></w:r>';
     if (N === 'IMG') return pic(n);
     if (N === 'SUP' && n.classList.contains('fn')) {
-      notes.push(ch.notes[n.dataset.fn] || '');
+      notes.push({ t: ch.notes[n.dataset.fn] || '', h: (ch.nhtml && ch.nhtml[n.dataset.fn]) || '' });
       return `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteReference w:id="${notes.length}"/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r>`;
     }
     const st = n.style || {}, g = { ...f };
@@ -1441,11 +1553,30 @@ function wrDocx(b) {
   const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sect(b.chapters.length < 2)}</w:body></w:document>`;
   // (v157) the page: A4, its number at the foot on the right (in the app's digits), none on the title page
   const ftr = (inner) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:ftr xmlns:w="${W}"><w:p><w:pPr><w:bidi/></w:pPr>${inner}</w:p></w:ftr>`;
-  const fnPara = (inner, first) => `<w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/></w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
+  const fnPara = (inner, first, ppr = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="FootnoteText"/>${ppr}`)}</w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
+  // (v186) a footnote with its formatting: its paragraphs, and its lists' lines each with its «•» or «١-», as in the text
+  const fnBody = (n) => {
+    if (!n.h) return (n.t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, {}), !k)).join('');
+    const tpl = document.createElement('template');
+    tpl.innerHTML = n.h;
+    const out = [];
+    ayOff = true; // (the verses' colour is the text's, as in the editor: not in a footnote)
+    for (const el of tpl.content.children) {
+      if (el.nodeName === 'UL' || el.nodeName === 'OL') {
+        [...el.children].filter((li) => li.nodeName === 'LI').forEach((li, i) => {
+          const lead = el.nodeName === 'UL' ? '• ' : `${wrNum((Number(el.getAttribute('start')) || 1) + i)}- `;
+          out.push([run(lead, { base: 24 }) + runs(li, { base: 24 }, null), `<w:ind w:left="${425 * (1 + (Number(li.dataset.ind) || 0))}" w:hanging="283"/>${pprOf(li).replace(/<w:ind[^>]*\/>/, '')}`]);
+        });
+      } else out.push([runs(el, { base: 24 }, null), pprOf(el)]);
+    }
+    ayOff = false;
+    if (!out.length) out.push(['', '']);
+    return out.map(([inner, ppr], k) => fnPara(inner, !k, ppr)).join('');
+  };
   const footnotes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:footnotes xmlns:w="${W}">`
     + '<w:footnote w:type="separator" w:id="-1"><w:p><w:pPr><w:bidi/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:separator/></w:r></w:p></w:footnote>'
     + '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:pPr><w:bidi/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>'
-    + notes.map((t, i) => `<w:footnote w:id="${i + 1}">${(t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, {}), !k)).join('')}</w:footnote>`).join('')
+    + notes.map((n, i) => `<w:footnote w:id="${i + 1}">${fnBody(n)}</w:footnote>`).join('')
     + '</w:footnotes>';
   const pstyle = (id, name, rpr, ppr, extra = '') => `<w:style w:type="paragraph"${id === 'Normal' ? ' w:default="1"' : ''} w:styleId="${id}"><w:name w:val="${name}"/>${id === 'Normal' ? '' : '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'}${extra}<w:qFormat/><w:pPr>${ordered(ppr)}</w:pPr><w:rPr>${rpr}<w:rtl/></w:rPr></w:style>`;
   const sz = (n) => `<w:sz w:val="${n}"/><w:szCs w:val="${n}"/>`;
@@ -1503,6 +1634,200 @@ ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.op
   ];
   return new Blob([Xlsx.zip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
+// ---------- «عرض الصفحات» (v186, his words: «إذا أمكن تجعل الكتاب صفحات كالوورد لأعرف منتهى الصفحة ومبدأها»,
+// his choice «ب: زر عرض الصفحات»): the book laid out on pages as its Word file makes them (A4, its margins, Amiri, the
+// styles' sizes and spacing, each chapter from a new page, the footnotes at the foot of their page, the page's number at
+// the foot on the right, none on the title page), to read only. Near to Word's own pages, not the same to the line.
+const WP = { W: 794, H: 1123, M: 96, foot: 47 }; // (pixels at 96 to the inch: A4, margins of an inch, the footer 708 twips up)
+let wrPg = null;
+function wrPagesClose() {
+  const el = $('wrPages');
+  if (!el || el.hidden) return false;
+  el.hidden = true;
+  wrPg = null; // (a layout still going stops)
+  $('wrPgScroll').innerHTML = '';
+  return true;
+}
+// a block of the chapter as Word writes it: lists as lines with their «•» or «١-», the verse colour of the book
+function wrPgBlocks(html, ayc, step = 37.8) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = wrSafe(html);
+  const out = [];
+  for (const el of [...tpl.content.children]) {
+    if (el.nodeName === 'UL' || el.nodeName === 'OL') {
+      [...el.children].filter((li) => li.nodeName === 'LI').forEach((li, i) => {
+        const p = document.createElement('p');
+        p.className = 'wp-li';
+        p.style.cssText = li.style.cssText;
+        p.style.paddingRight = `${step * (1 + (Number(li.dataset.ind) || 0))}px`;
+        p.append(el.nodeName === 'UL' ? '• ' : `${wrNum((Number(el.getAttribute('start')) || 1) + i)}- `, ...li.childNodes);
+        out.push(p);
+      });
+    } else out.push(el);
+  }
+  if (ayc) for (const el of out) wrPgAyc(el, ayc);
+  return out;
+}
+// (as in the Word file: what stands between ﴿ and ﴾ in a paragraph takes the book's colour)
+function wrPgAyc(el, color) {
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), list = [];
+  while (w.nextNode()) list.push(w.currentNode);
+  let open = false;
+  for (const t of list) {
+    const parts = t.data.split(/([﴿﴾])/);
+    if (parts.length === 1 && !open) continue;
+    const frag = document.createDocumentFragment();
+    for (const s of parts) {
+      if (!s) continue;
+      if (s === '﴿') open = true;
+      if (open) { const sp = document.createElement('span'); sp.style.color = color; sp.textContent = s; frag.append(sp); } else frag.append(s);
+      if (s === '﴾') open = false;
+    }
+    t.replaceWith(frag);
+  }
+}
+// a footnote at the foot of the page: «(١)» then its words, its lists' lines each on its own
+function wrPgNote(c, id, n) {
+  const box = document.createElement('div');
+  box.className = 'wp-fn';
+  const h = c.nhtml && c.nhtml[id];
+  const blocks = h ? wrPgBlocks(h, '', 28.3) : wrNoteLines(c.notes[id] || '').length ? [...(() => { const t = document.createElement('template'); t.innerHTML = wrNoteLines(c.notes[id] || ''); return t.content.children; })()] : [];
+  if (!blocks.length) blocks.push(document.createElement('p'));
+  blocks[0].prepend(`(${wrNum(n)}) `);
+  box.append(...blocks);
+  return box;
+}
+async function wrPagesOpen() {
+  if (!wrState || wrState.book.kind !== 'book') return;
+  wrSaveNow();
+  wrPopsClose();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // (no keyboard nor microphone over the pages)
+  const b = wrState.book, cur = wrState.ch.id, run = {};
+  wrPg = run;
+  const box = $('wrPages'), sc = $('wrPgScroll');
+  box.hidden = false;
+  sc.innerHTML = '<p class="wr-pg-wait">يرتّب الصفحات…</p>';
+  $('wrPgInfo').textContent = '';
+  try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
+  if (wrPg !== run) return;
+  // the place pages are made in, at their true size, out of sight
+  const lab = document.createElement('div');
+  lab.className = 'wp-lab';
+  box.append(lab);
+  // a line of Amiri as Word spaces it: its own height, times 1.25 («300» of «240»)
+  const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; lab.append(probe);
+  const one = probe.getBoundingClientRect().height / 100 || 1.6;
+  probe.remove();
+  box.style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
+  box.style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
+  const AYC = WR_AYC[b.ayc] ? `#${WR_AYC[b.ayc][1]}` : '';
+  const pages = [];
+  let pg = null, body = null, fns = null;
+  const CH = WP.H - 2 * WP.M;
+  const newPage = () => {
+    pg = document.createElement('div'); pg.className = 'wp-page';
+    body = document.createElement('div'); body.className = 'wp-body';
+    fns = document.createElement('div'); fns.className = 'wp-fns';
+    pg.append(body, fns);
+    lab.append(pg);
+    pages.push(pg);
+  };
+  const fits = () => body.offsetHeight + (fns.childElementCount ? fns.offsetHeight : 0) <= CH + 0.5;
+  // a block and its footnotes on the page; true if they fit
+  const put = (el, ch, nums) => {
+    body.append(el);
+    const added = [];
+    for (const m of el.querySelectorAll('sup.fn')) { const n = wrPgNote(ch, m.dataset.fn, nums[m.dataset.fn] || 0); fns.append(n); added.push(n); }
+    if (fits()) return true;
+    el.remove(); for (const n of added) n.remove();
+    return false;
+  };
+  // the words of a paragraph up to a point, and from it on
+  const cut = (el, node, off) => {
+    const a = document.createRange(); a.setStart(el, 0); a.setEnd(node, off);
+    const z = document.createRange(); z.setStart(node, off); z.setEnd(el, el.childNodes.length);
+    const first = el.cloneNode(false), rest = el.cloneNode(false);
+    first.append(a.cloneContents()); rest.append(z.cloneContents());
+    first.classList.add('wp-cont'); // (its last line spread as Word spreads a line that goes on)
+    if (el.classList.contains('wp-li')) rest.classList.add('wp-li-more');
+    return [first, rest];
+  };
+  const place = (el, ch, nums, fresh) => {
+    if (put(el, ch, nums)) return;
+    // a paragraph goes on to the next page from the last word that fits
+    if (/^(P|BLOCKQUOTE)$/.test(el.nodeName) && !el.querySelector('img, table')) {
+      const pts = [], w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) { const t = w.currentNode; for (let i = 0; i < t.data.length; i++) if (t.data[i] === ' ') pts.push([t, i + 1]); }
+      let lo = 0, hi = pts.length - 1, best = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1, [f] = cut(el, ...pts[mid]);
+        if (put(f, ch, nums)) { f.remove(); for (const m of f.querySelectorAll('sup.fn')) { const x = fns.lastElementChild; if (x) x.remove(); } best = mid; lo = mid + 1; } else hi = mid - 1;
+      }
+      if (best >= 0) {
+        const [f, rest] = cut(el, ...pts[best]);
+        put(f, ch, nums);
+        newPage();
+        place(rest, ch, nums, true);
+        return;
+      }
+    }
+    if (!fresh && body.childElementCount) {
+      // a heading does not stay alone at a page's foot: it goes over with what follows it
+      const last = body.lastElementChild, carry = last && /^(H1|H2|H3)$/.test(last.nodeName) && body.childElementCount > 1 ? last : null;
+      const k = carry ? carry.querySelectorAll('sup.fn').length : 0, cfn = k ? [...fns.children].slice(-k) : []; // (its footnotes go over with it)
+      newPage();
+      if (carry) { body.append(carry); for (const n of cfn) fns.append(n); }
+      place(el, ch, nums, !carry);
+      return;
+    }
+    // (too tall for a page of its own: it stands there as it is)
+    body.append(el);
+    for (const m of el.querySelectorAll('sup.fn')) fns.append(wrPgNote(ch, m.dataset.fn, nums[m.dataset.fn] || 0));
+  };
+  newPage();
+  const t = document.createElement('div'); t.className = 'wp-title'; t.textContent = b.title || 'كتاب بلا عنوان';
+  body.append(t);
+  let mine = [0, 0];
+  for (let ci = 0; ci < b.chapters.length; ci++) {
+    if (wrPg !== run) { lab.remove(); return; }
+    const ch = b.chapters[ci], nums = {};
+    wrNoteIds(ch.html).forEach((id, i) => { nums[id] = i + 1; });
+    newPage();
+    const from = pages.length;
+    const h = document.createElement('h1'); h.textContent = ch.title || `فصل ${wrNum(ci + 1)}`;
+    body.append(h);
+    for (const el of wrPgBlocks(ch.html, AYC)) {
+      if (el.nodeName === 'DIV' && el.classList.contains('pgbreak')) { newPage(); continue; }
+      if (el.nodeName === 'HR') { const p = document.createElement('p'); p.className = 'wp-hr'; p.append(document.createElement('br')); place(p, ch, nums); continue; }
+      if (el.nodeName === 'IMG') { const p = document.createElement('p'); p.append(el); place(p, ch, nums); continue; }
+      if (el.nodeName === 'TABLE') { place(el, ch, nums); const p = document.createElement('p'); p.append(document.createElement('br')); place(p, ch, nums); continue; }
+      place(el, ch, nums);
+    }
+    if (ch.id === cur) mine = [from, pages.length];
+    sc.querySelector('.wr-pg-wait') && (sc.querySelector('.wr-pg-wait').textContent = `يرتّب الصفحات… ${wrNum(pages.length)}`);
+    await new Promise((ok) => setTimeout(ok, 0)); // (the screen breathes between chapters)
+  }
+  if (wrPg !== run) { lab.remove(); return; }
+  // shown smaller, to the screen's width; the pages themselves as they were laid out
+  const s = Math.min(1, (sc.clientWidth - 24) / WP.W);
+  sc.innerHTML = '';
+  pages.forEach((p, i) => {
+    if (i) { const no = document.createElement('div'); no.className = 'wp-no'; no.textContent = wrNum(i + 1); p.append(no); }
+    if (!p.querySelector('.wp-fns').childElementCount) p.querySelector('.wp-fns').remove();
+    const slot = document.createElement('div'); slot.className = 'wp-slot';
+    slot.style.width = `${WP.W * s}px`;
+    slot.style.height = `${Math.max(WP.H, p.offsetHeight) * s}px`;
+    p.style.transform = `scale(${s})`;
+    slot.append(p);
+    sc.append(slot);
+  });
+  lab.remove();
+  const [a, z] = mine;
+  $('wrPgInfo').textContent = `الكتاب: ${plural(pages.length, 'صفحة واحدة', 'صفحتان', 'صفحات', 'صفحة')} | هذا الفصل: ${a === z ? `صفحة ${wrNum(a)}` : `من صفحة ${wrNum(a)} إلى ${wrNum(z)}`}`;
+  const first = sc.children[a - 1];
+  if (first) sc.scrollTop += first.getBoundingClientRect().top - sc.getBoundingClientRect().top - 8;
+}
+
 function wrDocxSave(b) {
   try { downloadBlob(wrDocx(b), `mahami-book-${today()}.docx`); toast('حُفظ ملف وورد'); }
   catch { toast('تعذّر صنع ملف وورد'); }
