@@ -573,6 +573,18 @@ function wrSetTheme(v) {
   for (const [k] of WR_THEMES) if (k) d.classList.toggle(`wr-th-${k}`, k === v);
   for (const b of d.querySelectorAll('[data-wtheme]')) b.classList.toggle('on', b.dataset.wtheme === v);
 }
+// v190 («تلوين الصفحات a4 بألوان ورقية هادئة», his choice: inside «لون الصفحة»): the colour of the A4 sheets in paper
+// mode, on screen only (Word stays white), kept on this device
+const WR_SHEETS = [['', 'أبيض', '#fff'], ['ivory', 'عاجي', '#fbf6e9'], ['cream', 'كريمي', '#f5ecd7'], ['sand', 'رملي فاتح', '#efe6d2'], ['sage', 'أخضر ورقي', '#edf2e6'], ['mist', 'رمادي مزرق', '#ecf0f3']];
+const wrSheetOf = () => { try { const v = localStorage.getItem('mahami-wrsheet') || ''; return WR_SHEETS.some(([k]) => k === v) ? v : ''; } catch { return ''; } };
+function wrSetSheet(v) {
+  try { localStorage.setItem('mahami-wrsheet', v); } catch {}
+  const d = $('wrEditor');
+  if (!d) return;
+  const c = (WR_SHEETS.find(([k]) => k === v) || WR_SHEETS[0])[2];
+  d.style.setProperty('--wrp-bg', c);
+  for (const b of d.querySelectorAll('[data-wsheet]')) b.classList.toggle('on', b.dataset.wsheet === v);
+}
 // (v183) what stands between ﴿ and ﴾ in the text takes the book's colour: painted over the text (CSS highlights), so
 // nothing is added to what is written, saved or undone; painted again whenever the text changes
 let wrAycObs = null;
@@ -733,6 +745,7 @@ function wrEdit(b, chId, find) {
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
   d.classList.toggle('wr-focus', wrFocusOn());
   wrSetTheme(wrThemeOf());
+  wrSetSheet(wrSheetOf());
   wrPopsClose();
   if (!one && wrPaperOn()) wrPaperSet(true, true); // (v187) on the sheets, as he left the editor
   $('wrScroll').scrollTop = 0;
@@ -1173,7 +1186,11 @@ function wrPalHTML(k) {
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-wfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
   if (k === 'ayc') { const on = (wrState && wrState.book.ayc) || ''; return '<span class="wr-ayc-l">لون الآيات:</span>' + [['', 'بلا لون'], ...Object.entries(WR_AYC).map(([v, [n]]) => [v, n])].map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wayc="${v}"${v ? ` data-ayc="${v}"` : ''}>${n}</button>`).join(''); }
   if (k === 'bmk') return wrBmkPalHTML();
-  if (k === 'theme') { const on = wrThemeOf(); return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join(''); }
+  if (k === 'theme') {
+    const on = wrThemeOf(), sh = wrSheetOf();
+    return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join('')
+      + (wrState && wrState.book.kind === 'book' ? '<span class="wr-pal-br"></span><span class="wr-ayc-l">لون الورقة:</span>' + WR_SHEETS.map(([v, n, c]) => `<button type="button" class="wr-thb${v === sh ? ' on' : ''}" data-wsheet="${v}" style="background:${c};color:#3a2e20">${n}</button>`).join('') : '');
+  }
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-walign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-wlh="${v}">${n}</button>`).join('');
   if (k === 'table') return wrCell()
@@ -1278,7 +1295,7 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wayc], [data-wbmk], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wsheet], [data-wayc], [data-wbmk], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1306,6 +1323,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.wbmk) { wrBmkDo(t.dataset.wbmk); return; }
+  if (t.dataset.wsheet !== undefined) { wrSetSheet(t.dataset.wsheet); return; }
   if (t.dataset.wtheme !== undefined) { wrSetTheme(t.dataset.wtheme); return; } // (the palette stays open, to try one after another)
   if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
