@@ -2535,5 +2535,5 @@ li.sel .sel-box { background: var(--high); }
 .rn-pgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rn-pgs .field { margin: 0 0 8px; }
 /* v194 (his ask: «أرقام الصفحات ضعها بشريط داخل البطاقة واضح»): the pages as a clear band across the card's top */
-.bk-after { padding-top: 0; overflow: hidden; }
+.bk-after { padding-top: 0; overflow: hidden; cursor: pointer; }
 .after-band { margin: 0 -10px 4px; padding: 6px 14px; background: #0f766e; color: #fff; font-weight: 700; font-size: 1.1rem; text-align: center; word-spacing: .15em; }

@@ -483,7 +483,7 @@ function libBackFrom() {
   if (!ldraft) return null;
   const scroll = $('libForm').scrollTop;
   if (ldraft.kind === 'bookbens') return { kind: 'bookbens', id: ldraft.id, scroll };
-  if (ldraft.kind === 'book' && ldraft.tab === 'bens') return { kind: 'book', id: ldraft.id, scroll };
+  if (ldraft.kind === 'book' && (ldraft.tab === 'bens' || ldraft.tab === 'after')) return { kind: 'book', id: ldraft.id, tab: ldraft.tab, scroll };
   return null;
 }
 function libBack(back) {
@@ -491,7 +491,7 @@ function libBack(back) {
   // an option or a criterion of a decision goes back to its decision, on the tab it came from
   if (back.kind === 'decision') { if (getDec(back.id)) { openDecision(back.id, false, back.tab); $('libForm').scrollTop = back.scroll || 0; } return; }
   if (!getBook(back.id)) return;
-  if (back.kind === 'bookbens') openBookBenefits(back.id); else openLib('book', back.id, { tab: 'bens' });
+  if (back.kind === 'bookbens') openBookBenefits(back.id); else openLib('book', back.id, { tab: back.tab || 'bens' });
   $('libForm').scrollTop = back.scroll || 0;
 }
 
@@ -568,6 +568,7 @@ function saveLib() {
 function deleteLib() {
   const { kind, id } = ldraft;
   if (kind === 'memo') S.memos = S.memos.filter((m) => m.id !== id);
+  if (kind === 'after') { const b = getBook(ldraft.bookId); if (b) b.after = b.after.filter((e) => e.id !== id); }
   if (kind === 'book') {
     // benefits keep the book's name as text
     for (const f of benefitsOf(id)) { f.book = getBook(id).title; f.bookId = ''; }
@@ -794,6 +795,13 @@ document.addEventListener('click', (e) => {
       ldraft.back = back;
       break;
     }
+    case 'lib-after-open': { // (v195) the book's own changes are kept first, as for a benefit
+      const back = libBackFrom();
+      if (back && back.kind === 'book' && !saveLib()) break;
+      openAfter(back ? back.id : ldraft.id, v);
+      ldraft.back = back;
+      break;
+    }
     case 'lib-bk-tab':
       ldraft.tab = v;
       $('bkData').hidden = v !== 'data';
@@ -913,7 +921,7 @@ document.addEventListener('submit', (e) => {
   }
   if (ldraft.kind === 'jexport') { if (runJExport()) closeLib(); return; }
   const kind = ldraft.kind, quick = ldraft.quick, back = ldraft.back;
-  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, khrole: khSaveRole, khwiz: khWizNext, khgoal: khSaveGoal, khpick: () => false, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, afftab: saveAffTab, benapps: saveBenApps, benword: runBenWord, wridea: saveWrIdea }[kind] || saveLib;
+  const saver = { quote: saveQuote, arch: saveArch, idea: saveIdea, jtpl: saveJTpl, hifz: saveHifz, hplan: savePlan, readnote: saveReadNote, layout: saveLayout, list: saveList, fine: saveFine, debt: saveLedger, right: saveLedger, owe: saveLedger, pay: savePayment, finimport: runFinImport, finnew: saveFinNew, finmove: saveFinMove, finexp: runFinExport, meal: saveMeal, mealimp: saveMealImport, sub: saveSub, later: saveLater, cvsec: saveCVSection, person: savePerson, contact: saveContact, decision: saveDecision, quit: saveQuit, slip: saveSlip, brev: saveBookReview, dur: saveDuration, remquick: saveRemQuick, decopt: saveDecOpt, deccrit: saveDecCrit, ssci: saveSci, sbook: saveSBook, slesson: saveLesson, spaste: saveStudyPaste, qzedit: saveQuizEdit, qztake: qzSubmit, qzview: () => false, qzres: () => false, kun: saveKun, khrole: khSaveRole, khwiz: khWizNext, khgoal: khSaveGoal, khpick: () => false, tbulk: saveTaskBulk, benimp: saveBenImport, bencats: saveBenCats, afftab: saveAffTab, benapps: saveBenApps, benword: runBenWord, wridea: saveWrIdea, after: saveAfter }[kind] || saveLib;
   const silent = ['contact', 'slip', 'brev', 'hifz', 'pay', 'finimport', 'cvsec', 'finmove', 'finexp', 'mealimp', 'layout', 'readnote', 'dur', 'remquick', 'spaste', 'tbulk', 'benimp', 'bencats', 'afftab', 'benapps', 'benword', 'khwiz', 'khrole'].includes(kind);
   // a new benefit can take the user straight to an app of theirs (benplus.js)
   const goBen = kind === 'benefit' && wasNew ? ldraft.id : '';
