@@ -1584,7 +1584,7 @@ input.has-mic, textarea.has-mic { padding-left: 50px; }
 /* ================= v37: remaining budget hint, reading note ================= */
 .td-hint { color: var(--muted); font-size: .82rem; min-height: 1em; }
 .td-hint.late { color: var(--high); }
-#rnText { width: 100%; }
+.rs-after textarea { width: 100%; }
 .fin-meta input[type=month] { width: auto; flex: 0 1 auto; }
 
 /* ================= v38: day close, calendar projects, fines ================= */
@@ -2521,3 +2521,13 @@ li.sel .sel-box { background: var(--high); }
 :root[data-theme="dark"] .rm-row { background: color-mix(in srgb, #b08a3e 6%, var(--card)); }
 :root[data-theme="dark"] .rm-row:nth-child(odd) { background: color-mix(in srgb, #b08a3e 12%, var(--card)); }
 :root[data-theme="dark"] .rm-n b { color: #0b1513; }
+/* (v192) section headings inside «متن القراءة المستوعبة», and the question / its explanation */
+.rm-sec { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 14px 7px; border-top: 1px solid color-mix(in srgb, #b08a3e 25%, var(--line)); background: color-mix(in srgb, #0f766e 9%, var(--card)); font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; color: var(--accent); }
+.rm-sec i { display: block; flex: 1; max-width: 70px; height: 1px; background: linear-gradient(to left, transparent, color-mix(in srgb, #b08a3e 70%, transparent)); }
+.rm-sec i:last-child { background: linear-gradient(to right, transparent, color-mix(in srgb, #b08a3e 70%, transparent)); }
+.rm-row p strong { font-weight: 700; }
+.rm-x { color: var(--muted); }
+.rs-after { margin-top: 6px; padding: 10px 12px 2px; border-radius: 14px; border: 1px solid color-mix(in srgb, #b08a3e 30%, var(--line)); background: color-mix(in srgb, #f5ead0 30%, var(--card)); }
+.rs-after > b { display: block; text-align: center; font-family: var(--font-display); font-size: 1.15rem; color: var(--accent); margin-bottom: 4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rs-after { background: color-mix(in srgb, #b08a3e 8%, var(--card)); } }
+:root[data-theme="dark"] .rs-after { background: color-mix(in srgb, #b08a3e 8%, var(--card)); }

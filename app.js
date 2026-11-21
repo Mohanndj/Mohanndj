@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 191;
+const APP_VERSION = 192;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -682,16 +682,17 @@ function smartPreviewHTML() {
 
 // (v191) «متن القراءة المستوعبة»: a fixed reading reminder at the top of «اليوم», from the user's own card
 // (his words: «تضعها أعلى صفحة يومي لتكون مذكرا لي كلما دخلت»). The text changes only on his request.
-const RM_LINES = [
-  ['اسْتَكْشِفْ قَبْلَ أَنْ تَقْرَأَ، وَبِسُؤَالٍ ابْدَأْ.'],
-  ['تَمَهَّلْ عِنْدَ الحُجَّةِ، وَأَسْرِعْ فِيمَا فَهِمْتَ.'],
-  ['عَلِّمْ مَا أَشْكَلَ فِي الأُولَى وَامْضِ،', 'وَلَخِّصِ الفَصْلَ مِنْ ذِهْنِكَ إِذَا انْقَضَى.'],
-  ['<em>وَسَلْ:</em> مَا المَسْأَلَةُ الَّتِي جَاءَ الكِتَابُ لِجَوَابِهَا؟', 'وَمَا الَّذِي يُرِيدُ إِقْنَاعِي بِهِ، وَمَا دَلِيلُهُ؟', 'وَمَا السَّطْرُ البَاقِي مِنْ كُلِّ فَصْلٍ؟'],
-  ['<em>فَإِذَا خَتَمْتَ فَسَلْ:</em>', 'مَا الفِكْرَةُ الَّتِي إِنْ سَقَطَتْ سَقَطَ الكِتَابُ مَعَهَا؟', 'وَأَيْنَ أُخَالِفُهُ، وَلِمَ؟ وَمَا الَّذِي تَغَيَّرَ فِيَّ؟'],
+// (v192) his new text: two parts here («قبل القراءة», «أثناء القراءة»); «بعد الجلسة» moved to the reading-session sheet.
+// each item: [question, explanation after «–» or ''].
+const RM_SECS = [
+  ['قبل القراءة', [['ما الذي سأقرؤه؟', 'أتصفّح العناوين.'], ['ماذا أريد منه؟', '']]],
+  ['أثناء القراءة', [['ما الفكرة هنا؟', ''], ['ما دليلها؟', ''], ['هل فهمت؟', 'إن فهمت أسرعت، وإن لم أفهم وضعت علامة وأكملت.']]],
 ];
 const rmStar = (fill) => `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="${fill}" stroke="${fill}" stroke-width="1"><rect x="9" y="9" width="22" height="22"/><rect x="9" y="9" width="22" height="22" transform="rotate(45 20 20)"/></g></svg>`;
 function readMindHTML() {
-  const rows = RM_LINES.map((l, i) => `<div class="rm-row${i > 2 ? ' rm-q' : ''}"><span class="rm-n">${rmStar('currentColor')}<b>${'١٢٣٤٥'[i]}</b></span><p>${l.join('<br>')}</p></div>`).join('');
+  let n = 0;
+  const rows = RM_SECS.map(([head, items], si) => `<div class="rm-sec"><i></i><span>${head}</span><i></i></div>`
+    + items.map(([q, x]) => `<div class="rm-row${si ? ' rm-q' : ''}"><span class="rm-n">${rmStar('currentColor')}<b>${'١٢٣٤٥٦٧٨٩'[n++]}</b></span><p><strong>${q}</strong>${x ? ` <span class="rm-x">– ${x}</span>` : ''}</p></div>`).join('')).join('');
   return `<section class="rmind" aria-label="متن القراءة المستوعبة"><div class="rm-hd"><h3>مَتْنُ القِرَاءَةِ المُسْتَوْعِبَة</h3><div class="rm-orn"><i></i><svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="#f3dfa8" stroke-width="1.6"><rect x="9" y="9" width="22" height="22"/><rect x="9" y="9" width="22" height="22" transform="rotate(45 20 20)"/></g><circle cx="20" cy="20" r="3.2" fill="#f3dfa8"/></svg><i></i></div></div>${rows}</section>`;
 }
 
