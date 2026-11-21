@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 190;
+const APP_VERSION = 191;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -680,6 +680,21 @@ function smartPreviewHTML() {
     <div class="smart-actions"><button type="button" class="ghost" data-action="smart-edit">تعديل قبل الإضافة</button></div>`;
 }
 
+// (v191) «متن القراءة المستوعبة»: a fixed reading reminder at the top of «اليوم», from the user's own card
+// (his words: «تضعها أعلى صفحة يومي لتكون مذكرا لي كلما دخلت»). The text changes only on his request.
+const RM_LINES = [
+  ['اسْتَكْشِفْ قَبْلَ أَنْ تَقْرَأَ، وَبِسُؤَالٍ ابْدَأْ.'],
+  ['تَمَهَّلْ عِنْدَ الحُجَّةِ، وَأَسْرِعْ فِيمَا فَهِمْتَ.'],
+  ['عَلِّمْ مَا أَشْكَلَ فِي الأُولَى وَامْضِ،', 'وَلَخِّصِ الفَصْلَ مِنْ ذِهْنِكَ إِذَا انْقَضَى.'],
+  ['<em>وَسَلْ:</em> مَا المَسْأَلَةُ الَّتِي جَاءَ الكِتَابُ لِجَوَابِهَا؟', 'وَمَا الَّذِي يُرِيدُ إِقْنَاعِي بِهِ، وَمَا دَلِيلُهُ؟', 'وَمَا السَّطْرُ البَاقِي مِنْ كُلِّ فَصْلٍ؟'],
+  ['<em>فَإِذَا خَتَمْتَ فَسَلْ:</em>', 'مَا الفِكْرَةُ الَّتِي إِنْ سَقَطَتْ سَقَطَ الكِتَابُ مَعَهَا؟', 'وَأَيْنَ أُخَالِفُهُ، وَلِمَ؟ وَمَا الَّذِي تَغَيَّرَ فِيَّ؟'],
+];
+const rmStar = (fill) => `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="${fill}" stroke="${fill}" stroke-width="1"><rect x="9" y="9" width="22" height="22"/><rect x="9" y="9" width="22" height="22" transform="rotate(45 20 20)"/></g></svg>`;
+function readMindHTML() {
+  const rows = RM_LINES.map((l, i) => `<div class="rm-row${i > 2 ? ' rm-q' : ''}"><span class="rm-n">${rmStar('currentColor')}<b>${'١٢٣٤٥'[i]}</b></span><p>${l.join('<br>')}</p></div>`).join('');
+  return `<section class="rmind" aria-label="متن القراءة المستوعبة"><div class="rm-hd"><h3>مَتْنُ القِرَاءَةِ المُسْتَوْعِبَة</h3><div class="rm-orn"><i></i><svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="#f3dfa8" stroke-width="1.6"><rect x="9" y="9" width="22" height="22"/><rect x="9" y="9" width="22" height="22" transform="rotate(45 20 20)"/></g><circle cx="20" cy="20" r="3.2" fill="#f3dfa8"/></svg><i></i></div></div>${rows}</section>`;
+}
+
 function viewToday() {
   syncReading(); // books' reading goals and project tasks, before today's list is read
   const d = today();
@@ -696,6 +711,7 @@ function viewToday() {
   const open = items.length - done;
   const summary = items.length ? (open ? `باقٍ ${open} من ${items.length}` : 'أنجزت كل ما لديك اليوم') : 'لا شيء مجدول لليوم';
   const parts = {
+    readmin: readMindHTML,
     close: closeTodayHTML,
     quote: dailyQuoteHTML,
     affirm: affTodayHTML, // (v169) his affirmations in their tabs, in place of «عبارة اليوم»
