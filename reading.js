@@ -124,6 +124,7 @@ function syncTopicProject(p) {
 // keep goals and reading projects in step with the books; saves only when something changed
 function syncReading() {
   readingChanged = false;
+  afterFromBenefits();
   // (v155) v151's one-time step that emptied a linked book's reading days in a reading project is gone: the owner's
   // «براهين وجود الله» lost the days he had for it, and no step of the app empties a book's days by itself
   for (const b of S.books) syncBookGoal(b);
@@ -219,15 +220,41 @@ function readingSession(t, d) {
 // (v192) «بعد الجلسة» from his reading card, asked here after the session (his choice: a box for each)
 const RN_QS = [['ماذا بقي في ذهني؟', 'أجيب والكتاب مغلق.'], ['هل أوافقه؟ ولماذا؟', '']];
 // the two boxes, here and (v193) under «كم استغرقت؟» for a linked book's own task in «خطِّط»
-const rnQsHTML = (bare) => `<div class="rs-after">${bare ? '' : '<b>بعد الجلسة</b>'}${RN_QS.map(([q, x], i) => `<label class="field"><span>${'٦٧'[i]}- ${q}${x ? ` – ${x}` : ''}</span><textarea id="rnQ${i}" rows="3"></textarea></label>`).join('')}</div>`;
-// the answers: one benefit in the book's benefits, each answer under its question (none = nothing saved)
-function rnQsSave(b) {
+// (v194) pages: for a linked book's task in «خطِّط» (no page asked there, decision 141), his choice «أ: خانتا
+// الصفحات»: «من صفحة» and «إلى صفحة» for «بعد الجلسة» only; the book's page does not move
+const rnQsHTML = (bare, pages) => `<div class="rs-after">${bare ? '' : '<b>بعد الجلسة</b>'}${pages ? `<div class="rn-pgs"><label class="field"><span>من صفحة</span><input type="text" inputmode="numeric" id="rnFrom" class="num-in" placeholder="${pages.page ? digitsOut(String(pages.page)) : 'مثل: ٢٠'}" data-novoice autocomplete="off"></label><label class="field"><span>إلى صفحة</span><input type="text" inputmode="numeric" id="rnTo" class="num-in" placeholder="مثل: ${digitsOut(String((pages.page || 0) + 20))}" data-novoice autocomplete="off"></label></div>` : ''}${RN_QS.map(([q, x], i) => `<label class="field"><span>${'٦٧'[i]}- ${q}${x ? ` – ${x}` : ''}</span><textarea id="rnQ${i}" rows="3"></textarea></label>`).join('')}</div>`;
+// (v194) the answers: one entry in the book's own tab «بعد الجلسة» (no longer a benefit), from page to page,
+// each answer under its question (none = nothing saved)
+function rnQsSave(b, from, to, d) {
   const ans = RN_QS.map((_, i) => ($(`rnQ${i}`) ? $(`rnQ${i}`).value.trim() : ''));
-  if (!ans.some(Boolean)) return '';
-  const text = RN_QS.map(([q], i) => (ans[i] ? `${q}\n${ans[i]}` : '')).filter(Boolean).join('\n\n');
-  const first = ans.find(Boolean).split(/\n|[.؟!]/)[0].trim();
-  S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), text }));
-  return `حُفظ جوابك في فوائد «${b ? b.title : 'الكتاب'}»`;
+  if (!ans.some(Boolean) || !b) return '';
+  b.after.push(normalizeAfter({ id: uid(), d: d || today(), from, to, a: ans }));
+  return `حُفظ جوابك في «بعد الجلسة» من «${b.title}»`;
+}
+// (v194, his choice «أ: انقلها إلى التبويب») answers saved as a benefit by v192/v193 (and by a device still on
+// them) move to «بعد الجلسة»: the same id, the page saved as the page reached, no «from»
+function afterFromBenefits() {
+  const qs = RN_QS.map(([q]) => q);
+  const keep = [];
+  let moved = false;
+  for (const f of S.benefits) {
+    const b = f.bookId && !f.lesson && !(f.voices || []).length ? getBook(f.bookId) : null;
+    const parts = b ? f.text.split(/\n\n(?=(?:ماذا بقي في ذهني؟|هل أوافقه؟ ولماذا؟)\n)/) : [];
+    const a = ['', ''];
+    const ok = parts.length && parts.every((x) => { const i = qs.findIndex((q) => x.startsWith(`${q}\n`)); if (i < 0 || a[i]) return false; a[i] = x.slice(qs[i].length + 1).trim(); return true; });
+    if (!ok) { keep.push(f); continue; }
+    if (!b.after.some((e) => e.id === f.id)) b.after.push(normalizeAfter({ id: f.id, d: iso(new Date(f.created)), from: '', to: f.page, a }));
+    moved = true;
+  }
+  if (moved) { S.benefits = keep; readingChanged = true; }
+}
+// the heading of an entry: «من ص ٢٠ إلى ص ٤٠» (or the one page known)
+const afterHead = (e) => (e.from !== '' && e.to !== '' && e.to !== e.from ? `من ص ${e.from} إلى ص ${e.to}` : e.to !== '' ? `ص ${e.to}` : e.from !== '' ? `ص ${e.from}` : fmtDate(e.d, { weekday: 'long', day: 'numeric', month: 'long' }));
+const afterSorted = (b) => [...b.after].sort((x, y) => ((x.from === '' ? x.to : x.from) === '' ? 1e9 : (x.from === '' ? x.to : x.from)) - ((y.from === '' ? y.to : y.from) === '' ? 1e9 : (y.from === '' ? y.to : y.from)) || x.d.localeCompare(y.d));
+function afterHTML(b) {
+  const n = b.after.length;
+  return `<p class="note-text">${n ? `${n} ${n === 1 ? 'جلسة' : n === 2 ? 'جلستان' : 'جلسات'} من هذا الكتاب` : 'لا شيء بعد: يُكتب هنا ما تجيب به عن سؤالي «بعد الجلسة»'}</p>
+    ${n ? `<div class="bk-bens">${afterSorted(b).map((e) => `<div class="bk-ben bk-after"><div class="after-band">${esc(afterHead(e))}</div>${RN_QS.map(([q], i) => (e.a[i] ? `<div class="${i ? 'ben-lesson' : 'ben-text'}"><b class="ben-lbl">${esc(q)}</b>${esc(e.a[i])}</div>` : '')).join('')}</div>`).join('')}</div>` : ''}`;
 }
 // (v193) the book a task of «خطِّط» belongs to: one of the tasks he wrote under a linked book's year goal
 const bookOfPlanTask = (t) => (t && !t.bookId && !t.sciId ? S.books.find((b) => bookGoal(b) && khGoalTasks(bookGoal(b)).some((x) => x.id === t.id)) || null : null);
@@ -257,6 +284,7 @@ function saveReadNote() {
   const t = getTask(ldraft.taskId);
   const d = ldraft.d;
   const said = [];
+  let pgFrom = b ? b.page || 0 : '', pgTo = pgFrom; // (v194) the session's pages, for «بعد الجلسة»
   // the pages actually read: «إلى أي صفحة وصلت؟» today, or «كم صفحة قرأت؟» for a past day
   if (b && t && t.completions[d]) {
     let n = 0;
@@ -270,6 +298,7 @@ function saveReadNote() {
       const real = (b.page || 0) - before;
       t.readPages = t.readPages || {};
       t.readPages[d] = (t.readPages[d] || 0) + real;
+      if (ldraft.past) { const e = b.log.find((x) => x.d === d); pgTo = e ? e.p : b.page || 0; pgFrom = pgTo - real; } else pgTo = b.page || 0;
       if (real) said.push(`${real > 0 ? `قرأت ${pagesWord(real)}` : `رجعت ${pagesWord(-real)}`} | وصلت صفحة ${b.page}${b.pages ? ` من ${b.pages}` : ''}`);
     }
   }
@@ -281,9 +310,9 @@ function saveReadNote() {
     S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
     said.push(`سُجّل ${fmtDur(m * 60000)}`);
   }
-  // (v192) «بعد الجلسة»: his two questions replace «ما أهم فكرة اليوم؟»; the answers go into the book's benefits
-  // as one benefit, each answer under its question
-  { const x = rnQsSave(b); if (x) said.push(x); }
+  // (v192) «بعد الجلسة»: his two questions replace «ما أهم فكرة اليوم؟»; (v194) the answers go into the book's
+  // own tab «بعد الجلسة», from the page before the session to the page reached
+  { const x = rnQsSave(b, pgFrom, pgTo, d); if (x) said.push(x); }
   syncReading();
   save();
   if (said.length) toast(said.join(' | '));

@@ -2531,3 +2531,9 @@ li.sel .sel-box { background: var(--high); }
 .rs-after > b { display: block; text-align: center; font-family: var(--font-display); font-size: 1.15rem; color: var(--accent); margin-bottom: 4px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rs-after { background: color-mix(in srgb, #b08a3e 8%, var(--card)); } }
 :root[data-theme="dark"] .rs-after { background: color-mix(in srgb, #b08a3e 8%, var(--card)); }
+/* v194: «من صفحة» and «إلى صفحة» side by side above the «بعد الجلسة» questions */
+.rn-pgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rn-pgs .field { margin: 0 0 8px; }
+/* v194 (his ask: «أرقام الصفحات ضعها بشريط داخل البطاقة واضح»): the pages as a clear band across the card's top */
+.bk-after { padding-top: 0; overflow: hidden; }
+.after-band { margin: 0 -10px 4px; padding: 6px 14px; background: #0f766e; color: #fff; font-weight: 700; font-size: 1.1rem; text-align: center; word-spacing: .15em; }

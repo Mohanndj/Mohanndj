@@ -40,8 +40,12 @@ function normalizeBook(b) {
     // spaced recall of a finished book
     rv: !!b.rv, rvPoints: String(b.rvPoints || ''), rvStep: Number(b.rvStep) || 0, rvDue: b.rvDue || '',
     rvLog: Array.isArray(b.rvLog) ? b.rvLog.filter((e) => e && e.d) : [],
+    // (v194) «بعد الجلسة»: his answers to the two questions after each session, from page to page (not benefits)
+    after: Array.isArray(b.after) ? b.after.filter((e) => e && e.id).map(normalizeAfter) : [],
   };
 }
+const afterPg = (v) => (Number(v) > 0 ? Math.round(Number(v)) : '');
+const normalizeAfter = (e) => ({ id: String(e.id), d: e.d || '', from: afterPg(e.from), to: afterPg(e.to), a: [0, 1].map((i) => String((e.a || [])[i] || '')) });
 
 const BOOK_RV = [7, 30, 90, 180, 365];
 const booksDue = () => S.books.filter((b) => b.rv && b.status === 'read' && b.rvDue && b.rvDue <= today());
@@ -388,10 +392,10 @@ function openLib(kind, id, preset = {}) {
     ldraft.status = b.status;
     const n = id ? benefitsOf(id).length : 0;
     // an existing book opens on two tabs: its data, and its benefits (not under the data)
-    ldraft.tab = id && preset.tab === 'bens' ? 'bens' : 'data';
+    ldraft.tab = id && (preset.tab === 'bens' || preset.tab === 'after') ? preset.tab : 'data';
     body = `
-      ${id ? `<div class="seg" id="bkTabs" role="group"><button type="button" data-action="lib-bk-tab" data-v="data" aria-pressed="${ldraft.tab === 'data'}">البيانات</button><button type="button" data-action="lib-bk-tab" data-v="bens" aria-pressed="${ldraft.tab === 'bens'}">💡 الفوائد (${n})</button></div>` : ''}
-      <div id="bkData"${ldraft.tab === 'bens' ? ' hidden' : ''}>
+      ${id ? `<div class="seg" id="bkTabs" role="group"><button type="button" data-action="lib-bk-tab" data-v="data" aria-pressed="${ldraft.tab === 'data'}">البيانات</button><button type="button" data-action="lib-bk-tab" data-v="bens" aria-pressed="${ldraft.tab === 'bens'}">💡 الفوائد (${n})</button><button type="button" data-action="lib-bk-tab" data-v="after" aria-pressed="${ldraft.tab === 'after'}">بعد الجلسة (${b.after.length})</button></div>` : ''}
+      <div id="bkData"${ldraft.tab !== 'data' ? ' hidden' : ''}>
       <label class="field"><span>اسم الكتاب</span><input type="text" id="lTitle" value="${esc(b.title)}" autocomplete="off" placeholder="مثال: الأيام"></label>
       <label class="field"><span>المؤلف (اختياري)</span><input type="text" id="lAuthor" value="${esc(b.author)}" autocomplete="off" placeholder="مثال: طه حسين"></label>
       ${S.study.length || b.studyId ? `<label class="field"><span>كتاب إثرائي في علم (اختياري)</span><select id="lStudy"><option value="">لا</option>${S.study.map((s) => `<option value="${s.id}"${b.studyId === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>` : ''}
@@ -418,7 +422,8 @@ function openLib(kind, id, preset = {}) {
       </div>
       ${id ? `<div id="bkBens"${ldraft.tab === 'bens' ? '' : ' hidden'}><div class="row-between"><span class="note-text">${n ? `${n} ${n === 1 ? 'فائدة' : 'فوائد'} من هذا الكتاب` : 'لا فوائد مسجلة من هذا الكتاب'}</span><button type="button" class="ghost" data-action="lib-benefit-from-book">${icon('plus')} أضف فائدة منه</button></div>
       ${n ? `<div class="btn-row bk-bens-x"><span class="note-text">صدّر فوائده:</span><button type="button" class="xls-btn word-btn" data-action="ben-book-x" data-v="word">${icon('note')}وورد</button><button type="button" class="xls-btn" data-action="ben-book-x" data-v="pdf">${icon('note')}PDF</button></div>` : ''}
-      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}</div>` : ''}`;
+      ${n ? `<div class="bk-bens">${benefitsOf(id).sort((a, c) => (a.page || 0) - (c.page || 0)).map((fb) => `<button type="button" class="bk-ben" data-action="lib-open-benefit" data-v="${fb.id}"><span class="ben-head"><b>${esc(fb.title || 'فائدة')}</b>${fb.page !== '' ? `<small>صفحة ${fb.page}</small>` : ''}</span>${benBody(fb)}</button>`).join('')}</div>` : ''}</div>` : ''}
+      ${id ? `<div id="bkAfter"${ldraft.tab === 'after' ? '' : ' hidden'}>${afterHTML(b)}</div>` : ''}`;
   } else {
     const fx = id ? getBenefit(id) : normalizeBenefit({ bookId: preset.bookId || '', book: preset.book || '', cats: benNewCats() });
     ldraft.voices = (fx.voices || []).map((x) => ({ ...x }));
@@ -793,6 +798,7 @@ document.addEventListener('click', (e) => {
       ldraft.tab = v;
       $('bkData').hidden = v !== 'data';
       $('bkBens').hidden = v !== 'bens';
+      $('bkAfter').hidden = v !== 'after';
       for (const b of $('bkTabs').children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
       break;
     case 'lib-book-status': libUi.bookStatus = v; libUi.bookQ = ''; render(); break;

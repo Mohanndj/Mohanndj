@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 193;
+const APP_VERSION = 194;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2143,7 +2143,7 @@ function askDuration(t, d) {
       ${time ? `<p class="note-text">«${esc(t.title)}»: اختر المدة أو اكتبها، أو تخطَّ.</p>
       <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : m === 90 ? 'ساعة ونصف' : 'ساعتان'}</button>`).join('')}</div>
       <label class="field"><span>المدة بالدقائق</span><input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="مثل: ٢٥" data-novoice autocomplete="off"></label>` : `<p class="note-text">«${esc(t.title)}»</p>`}
-      ${bk ? rnQsHTML(!time) : ''}
+      ${bk ? rnQsHTML(!time, bk) : ''}
       <div class="sheet-actions"><button type="submit" class="primary">${time && !bk ? 'سجّل الوقت' : 'احفظ'}</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
     showLib();
   }, 250);
@@ -2158,7 +2158,12 @@ function saveDuration() {
     said.push(`سُجّل ${fmtDur(m * 60000)}${t && !ldraft.bookId ? ` لـ«${t.title}»` : ''}`);
   }
   const b = ldraft.bookId ? getBook(ldraft.bookId) : null;
-  if (b) { const x = rnQsSave(b); if (x) said.push(x); }
+  if (b) {
+    // (v194) the pages he typed, for «بعد الجلسة» only («من صفحة» left empty = where the book is)
+    const pg = (id) => { const x = ($(id) ? $(id).value : '').match(/[0-9٠-٩۰-۹]+/); return x ? Math.round(num(x[0])) : ''; };
+    const to = pg('rnTo'), from = pg('rnFrom') !== '' ? pg('rnFrom') : to !== '' ? b.page || '' : '';
+    const x = rnQsSave(b, from, to, ldraft.d); if (x) said.push(x);
+  }
   if (!said.length) return true; // nothing chosen: same as skipping
   save();
   toast(said.join(' | '));
