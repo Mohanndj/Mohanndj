@@ -218,6 +218,19 @@ function readingSession(t, d) {
 // and (v192) his «بعد الجلسة» questions; each optional. The planned pages are a hope, not what was read.
 // (v192) «بعد الجلسة» from his reading card, asked here after the session (his choice: a box for each)
 const RN_QS = [['ماذا بقي في ذهني؟', 'أجيب والكتاب مغلق.'], ['هل أوافقه؟ ولماذا؟', '']];
+// the two boxes, here and (v193) under «كم استغرقت؟» for a linked book's own task in «خطِّط»
+const rnQsHTML = (bare) => `<div class="rs-after">${bare ? '' : '<b>بعد الجلسة</b>'}${RN_QS.map(([q, x], i) => `<label class="field"><span>${'٦٧'[i]}- ${q}${x ? ` – ${x}` : ''}</span><textarea id="rnQ${i}" rows="3"></textarea></label>`).join('')}</div>`;
+// the answers: one benefit in the book's benefits, each answer under its question (none = nothing saved)
+function rnQsSave(b) {
+  const ans = RN_QS.map((_, i) => ($(`rnQ${i}`) ? $(`rnQ${i}`).value.trim() : ''));
+  if (!ans.some(Boolean)) return '';
+  const text = RN_QS.map(([q], i) => (ans[i] ? `${q}\n${ans[i]}` : '')).filter(Boolean).join('\n\n');
+  const first = ans.find(Boolean).split(/\n|[.؟!]/)[0].trim();
+  S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), text }));
+  return `حُفظ جوابك في فوائد «${b ? b.title : 'الكتاب'}»`;
+}
+// (v193) the book a task of «خطِّط» belongs to: one of the tasks he wrote under a linked book's year goal
+const bookOfPlanTask = (t) => (t && !t.bookId && !t.sciId ? S.books.find((b) => bookGoal(b) && khGoalTasks(bookGoal(b)).some((x) => x.id === t.id)) || null : null);
 function askReadingNote(b, t, day) {
   setTimeout(() => {
     if (lsheet().open) return;
@@ -233,7 +246,7 @@ function askReadingNote(b, t, day) {
       ${askTime ? `<div class="field"><span>كم استغرقت؟</span>
         <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : 'ساعة ونصف'}</button>`).join('')}</div>
         <input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="أو اكتب الدقائق، مثل: ٢٥" data-novoice autocomplete="off"></div>` : ''}
-      <div class="rs-after"><b>بعد الجلسة</b>${RN_QS.map(([q, x], i) => `<label class="field"><span>${'٦٧'[i]}- ${q}${x ? ` – ${x}` : ''}</span><textarea id="rnQ${i}" rows="3"></textarea></label>`).join('')}</div>
+      ${rnQsHTML()}
       <div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
     showLib();
     setTimeout(() => { const x = $(past ? 'rnRead' : 'rnPage'); if (x) x.focus(); }, 60);
@@ -270,13 +283,7 @@ function saveReadNote() {
   }
   // (v192) «بعد الجلسة»: his two questions replace «ما أهم فكرة اليوم؟»; the answers go into the book's benefits
   // as one benefit, each answer under its question
-  const ans = RN_QS.map((_, i) => ($(`rnQ${i}`) ? $(`rnQ${i}`).value.trim() : ''));
-  if (ans.some(Boolean)) {
-    const text = RN_QS.map(([q], i) => (ans[i] ? `${q}\n${ans[i]}` : '')).filter(Boolean).join('\n\n');
-    const first = ans.find(Boolean).split(/\n|[.؟!]/)[0].trim();
-    S.benefits.push(normalizeBenefit({ bookId: b ? b.id : '', book: b ? b.title : '', page: b ? b.page || '' : '', title: excerpt(first, 60), text }));
-    said.push(`حُفظ جوابك في فوائد «${b ? b.title : 'الكتاب'}»`);
-  }
+  { const x = rnQsSave(b); if (x) said.push(x); }
   syncReading();
   save();
   if (said.length) toast(said.join(' | '));

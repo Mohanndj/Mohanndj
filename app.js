@@ -1,6 +1,6 @@
 'use strict';
 
-const APP_VERSION = 192;
+const APP_VERSION = 193;
 
 // ---------- constants ----------
 const KEY = 'mahami-v2';
@@ -2130,27 +2130,38 @@ const sessionsOf = (id) => S.sessions.filter((x) => x.taskId === id);
 // like the timer's, so the stats and the reports count it). Not for books (they ask for the idea of the
 // day instead), nor when the timer already recorded time for it that day; off from the settings.
 function askDuration(t, d) {
-  if (S.settings.askTime === false || t.bookId) return;
-  if (sessionsOf(t.id).some((x) => sessionDay(x) === d)) return;
+  if (t.bookId) return;
+  // (v193) a task of a book linked to a year goal in «خطِّط» (his own chain task, no reading sheet) also asks
+  // his «بعد الجلسة» questions here (his choice: under «كم استغرقت؟»)
+  const bk = typeof bookOfPlanTask === 'function' ? bookOfPlanTask(t) : null;
+  const time = S.settings.askTime !== false && !sessionsOf(t.id).some((x) => sessionDay(x) === d);
+  if (!time && !bk) return;
   setTimeout(() => {
     if (lsheet().open) return;
-    ldraft = { kind: 'dur', id: uid(), isNew: true, taskId: t.id, d };
-    $('libForm').innerHTML = `${sheetHead('كم استغرقت؟')}
-      <p class="note-text">«${esc(t.title)}»: اختر المدة أو اكتبها، أو تخطَّ.</p>
+    ldraft = { kind: 'dur', id: uid(), isNew: true, taskId: t.id, d, time, bookId: bk ? bk.id : '' };
+    $('libForm').innerHTML = `${sheetHead(time ? 'كم استغرقت؟' : 'بعد الجلسة')}
+      ${time ? `<p class="note-text">«${esc(t.title)}»: اختر المدة أو اكتبها، أو تخطَّ.</p>
       <div class="chips wrap dur-chips">${[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => `<button type="button" class="chip" data-action="dur-pick" data-v="${m}">${m < 60 ? `${m} د` : m === 60 ? 'ساعة' : m === 90 ? 'ساعة ونصف' : 'ساعتان'}</button>`).join('')}</div>
-      <label class="field"><span>المدة بالدقائق</span><input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="مثل: ٢٥" data-novoice autocomplete="off"></label>
-      <div class="sheet-actions"><button type="submit" class="primary">سجّل الوقت</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
+      <label class="field"><span>المدة بالدقائق</span><input type="text" inputmode="numeric" id="durMin" class="num-in" placeholder="مثل: ٢٥" data-novoice autocomplete="off"></label>` : `<p class="note-text">«${esc(t.title)}»</p>`}
+      ${bk ? rnQsHTML(!time) : ''}
+      <div class="sheet-actions"><button type="submit" class="primary">${time && !bk ? 'سجّل الوقت' : 'احفظ'}</button><button type="button" class="ghost" data-action="lib-close">تخطَّ</button></div>`;
     showLib();
   }, 250);
 }
 function saveDuration() {
-  const m = Math.round(num($('durMin').value));
-  if (!m) return true; // nothing chosen: same as skipping
+  const said = [];
+  const m = $('durMin') ? Math.round(num($('durMin').value)) : 0;
   const t = getTask(ldraft.taskId);
-  const end = ldraft.d === today() ? Date.now() : parse(ldraft.d).getTime() + 12 * 3600000;
-  S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
+  if (m) {
+    const end = ldraft.d === today() ? Date.now() : parse(ldraft.d).getTime() + 12 * 3600000;
+    S.sessions.push({ id: uid(), taskId: ldraft.taskId, start: end - m * 60000, end, ms: m * 60000, mode: 'manual' });
+    said.push(`سُجّل ${fmtDur(m * 60000)}${t && !ldraft.bookId ? ` لـ«${t.title}»` : ''}`);
+  }
+  const b = ldraft.bookId ? getBook(ldraft.bookId) : null;
+  if (b) { const x = rnQsSave(b); if (x) said.push(x); }
+  if (!said.length) return true; // nothing chosen: same as skipping
   save();
-  toast(`سُجّل ${fmtDur(m * 60000)}${t ? ` لـ«${t.title}»` : ''}`);
+  toast(said.join(' | '));
   return true;
 }
 document.addEventListener('click', (e) => {
