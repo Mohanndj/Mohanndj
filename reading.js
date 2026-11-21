@@ -251,10 +251,35 @@ function afterFromBenefits() {
 // the heading of an entry: «من ص ٢٠ إلى ص ٤٠» (or the one page known)
 const afterHead = (e) => (e.from !== '' && e.to !== '' && e.to !== e.from ? `من ص ${e.from} إلى ص ${e.to}` : e.to !== '' ? `ص ${e.to}` : e.from !== '' ? `ص ${e.from}` : fmtDate(e.d, { weekday: 'long', day: 'numeric', month: 'long' }));
 const afterSorted = (b) => [...b.after].sort((x, y) => ((x.from === '' ? x.to : x.from) === '' ? 1e9 : (x.from === '' ? x.to : x.from)) - ((y.from === '' ? y.to : y.from) === '' ? 1e9 : (y.from === '' ? y.to : y.from)) || x.d.localeCompare(y.d));
+// (v195) one session of «بعد الجلسة», edited after it was added: its pages and its two answers
+function openAfter(bookId, id) {
+  const b = getBook(bookId), e = b && b.after.find((x) => x.id === id);
+  if (!e) return;
+  ldraft = { kind: 'after', id, bookId, isNew: false };
+  libArmed = false;
+  const pgIn = (k, v, ph) => `<label class="field"><span>${k === 'from' ? 'من صفحة' : 'إلى صفحة'}</span><input type="text" inputmode="numeric" id="${k === 'from' ? 'afFrom' : 'afTo'}" class="num-in" value="${v === '' ? '' : digitsOut(String(v))}" placeholder="${ph}" data-novoice autocomplete="off"></label>`;
+  $('libForm').innerHTML = `${sheetHead('تعديل الجلسة')}
+    <p class="note-text">«${esc(b.title)}» | ${esc(fmtDate(e.d, { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
+    <div class="rs-after"><div class="rn-pgs">${pgIn('from', e.from, 'مثل: ٢٠')}${pgIn('to', e.to, 'مثل: ٣٥')}</div>
+    ${RN_QS.map(([q, x], i) => `<label class="field"><span>${'٦٧'[i]}- ${q}${x ? ` – ${x}` : ''}</span><textarea id="afQ${i}" rows="4">${esc(e.a[i])}</textarea></label>`).join('')}</div>
+    <div class="sheet-actions"><button type="submit" class="primary">احفظ</button><button type="button" class="danger" data-action="lib-delete">حذف</button></div>`;
+  showLib();
+  $('libForm').scrollTop = 0;
+}
+function saveAfter() {
+  const b = getBook(ldraft.bookId), e = b && b.after.find((x) => x.id === ldraft.id);
+  if (!e) return true;
+  const pg = (id) => { const x = $(id).value.match(/[0-9٠-٩۰-۹]+/); return x ? Math.round(num(x[0])) : ''; };
+  const a = [0, 1].map((i) => $(`afQ${i}`).value.trim());
+  if (!a[0] && !a[1]) { toast('اكتب جواباً واحداً على الأقل، أو احذف الجلسة.'); return false; }
+  Object.assign(e, normalizeAfter({ ...e, from: pg('afFrom'), to: pg('afTo'), a }));
+  save();
+  return true;
+}
 function afterHTML(b) {
   const n = b.after.length;
   return `<p class="note-text">${n ? `${n} ${n === 1 ? 'جلسة' : n === 2 ? 'جلستان' : 'جلسات'} من هذا الكتاب` : 'لا شيء بعد: يُكتب هنا ما تجيب به عن سؤالي «بعد الجلسة»'}</p>
-    ${n ? `<div class="bk-bens">${afterSorted(b).map((e) => `<div class="bk-ben bk-after"><div class="after-band">${esc(afterHead(e))}</div>${RN_QS.map(([q], i) => (e.a[i] ? `<div class="${i ? 'ben-lesson' : 'ben-text'}"><b class="ben-lbl">${esc(q)}</b>${esc(e.a[i])}</div>` : '')).join('')}</div>`).join('')}</div>` : ''}`;
+    ${n ? `<div class="bk-bens">${afterSorted(b).map((e) => `<div class="bk-ben bk-after" role="button" tabindex="0" data-action="lib-after-open" data-v="${esc(e.id)}"><div class="after-band">${esc(afterHead(e))}</div>${RN_QS.map(([q], i) => (e.a[i] ? `<div class="${i ? 'ben-lesson' : 'ben-text'}"><b class="ben-lbl">${esc(q)}</b>${esc(e.a[i])}</div>` : '')).join('')}</div>`).join('')}</div>` : ''}`;
 }
 // (v193) the book a task of «خطِّط» belongs to: one of the tasks he wrote under a linked book's year goal
 const bookOfPlanTask = (t) => (t && !t.bookId && !t.sciId ? S.books.find((b) => bookGoal(b) && khGoalTasks(bookGoal(b)).some((x) => x.id === t.id)) || null : null);
