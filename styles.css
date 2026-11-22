@@ -2267,6 +2267,8 @@ li.sel .sel-box { background: var(--high); }
 .wr-ch .ghost.sm { color: var(--high); }
 .wr-scroll { flex: 1; overflow-y: auto; }
 .wr-body { flex: none; overflow: visible; min-height: 55vh; text-align: justify; text-align-last: start; } /* (v187: justified, the last line of a paragraph not spread) */
+/* (v196: an alignment he chose (centre, left…) is the whole paragraph's, its last line too) */
+#wrBody [style*="text-align"], .wr-fn-ed [style*="text-align"] { text-align-last: auto; }
 .wr-body h2 { text-align: center; }
 .wr-body p.ayah { text-align: center; font-weight: 700; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; margin: .6em 1.2em; }
 .wr-body sup.fn { color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 2px; user-select: none; }

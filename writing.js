@@ -1255,6 +1255,7 @@ function wrFindNext() {
     if (i !== -1) {
       const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + q.length);
       sel.removeAllRanges(); sel.addRange(r);
+      if (wrState) wrState.found = r.cloneRange(); // (v196: «استبدل» replaces it though the cursor went to «استبدله بـ»)
       const el = n.parentNode; if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
       $('wrFound').textContent = `في هذا الفصل: ${wrNum(wrCount(wrPlain($('wrBody').innerHTML), q))}`;
       return true;
@@ -1267,8 +1268,10 @@ function wrReplace(all) {
   const q = $('wrQ').value, r = $('wrR').value;
   if (!q) return;
   if (!all) {
-    const sel = getSelection();
+    const sel = getSelection(), f = wrState && wrState.found;
+    if (!(sel.rangeCount && sel.toString() === q && $('wrBody').contains(sel.anchorNode)) && f && f.toString() === q && $('wrBody').contains(f.startContainer)) { sel.removeAllRanges(); sel.addRange(f); }
     if (sel.rangeCount && sel.toString() === q && $('wrBody').contains(sel.anchorNode)) { $('wrBody').focus(); document.execCommand('insertText', false, r); wrDirty(); }
+    if (wrState) wrState.found = null;
     wrFindNext();
     return;
   }
@@ -1344,6 +1347,49 @@ document.addEventListener('click', (e) => {
   else if (a === 'rep') wrReplace(false);
   else if (a === 'repall') wrReplace(true);
 });
+// (v196, «إذا كبرت نص فقرة النص الذي بعدها بعد زر الإدخال يبقى صغيرا»): the new empty line after enlarged (or made
+// smaller) text takes that size: an empty span of it holds the cursor, and what is typed beside it (the phone's
+// keyboard can put it outside) goes into it
+function wrKeepSize() {
+  const sel = getSelection(), body = $('wrBody');
+  if (!sel.rangeCount || !sel.isCollapsed) return;
+  let blk = sel.anchorNode; if (blk.nodeType !== 1) blk = blk.parentNode;
+  blk = blk.closest && blk.closest('p, h2, h3, li, blockquote');
+  if (!blk || !body.contains(blk) || blk.textContent.trim() || blk.querySelector('img, table, sup.fn, span[style*="font-size"]')) return; // (what the browser carried over stays)
+  const prev = blk.previousElementSibling || (blk.nodeName === 'LI' && blk.parentNode.previousElementSibling);
+  if (!prev || prev.nodeName !== blk.nodeName) return;
+  // the size he gave (the «أ+»/«أ−» spans' em), not the page's own sizes (a footnote number, a verse box in «الورق»)
+  const w = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT);
+  let last = null; while (w.nextNode()) if (w.currentNode.textContent.trim() && !w.currentNode.parentNode.closest('sup.fn')) last = w.currentNode;
+  if (!last) return;
+  let f = 1;
+  for (let n = last.parentNode; n && n !== prev; n = n.parentNode) { const m = /^([\d.]+)em$/.exec((n.style && n.style.fontSize) || ''); if (m) f *= Number(m[1]); }
+  if (Math.abs(f - 1) < 0.02) return;
+  const sp = document.createElement('span');
+  sp.style.fontSize = `${Math.round(f * 100) / 100}em`;
+  sp.dataset.keep = '1';
+  sp.append(document.createElement('br'));
+  blk.replaceChildren(sp);
+  const r = document.createRange(); r.setStart(sp, 0); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+}
+// what the phone's keyboard typed beside that span (only it: the line holds nothing else) goes into it
+function wrAdoptSize() {
+  const sel = getSelection(); if (!sel.rangeCount) return;
+  const t = sel.anchorNode; if (!t || t.nodeType !== 3) return;
+  const blk = t.parentNode;
+  if (!blk || !/^(P|H2|H3|LI|BLOCKQUOTE)$/.test(blk.nodeName) || !$('wrBody').contains(blk)) return;
+  const sp = blk.querySelector(':scope > span[data-keep]');
+  if (!sp) return;
+  if (sp.textContent) { delete sp.dataset.keep; return; }
+  if ([...blk.childNodes].some((c) => c !== sp && c !== t && !(c.nodeName === 'BR' || (c.nodeType === 3 && !c.textContent)))) return;
+  if ([...sp.childNodes].some((c) => c.nodeName !== 'BR')) return;
+  const off = sel.anchorOffset;
+  for (const c of [...blk.childNodes]) if (c !== sp && c !== t) c.remove();
+  sp.replaceChildren(t);
+  delete sp.dataset.keep;
+  const r = document.createRange(); r.setStart(t, off); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+}
+document.addEventListener('compositionend', (e) => { if (wrState && e.target.id === 'wrBody') setTimeout(() => { wrAdoptSize(); wrDirty(); }, 0); });
 // the first line typed stands in a paragraph of its own (outside one, a list or a heading made of it went astray)
 document.addEventListener('focusin', (e) => {
   if (!wrState || e.target.id !== 'wrBody' || e.target.firstChild) return;
@@ -1361,7 +1407,9 @@ document.addEventListener('input', (e) => {
         if (blk.nodeName === 'BLOCKQUOTE') document.execCommand('formatBlock', false, '<p>');
         const nb = wrBlock(); if (nb) nb.classList.remove('ayah');
       }
+      wrKeepSize(); // (v196)
     }
+    if (!e.isComposing && /^insert(Text|ReplacementText)$/.test(e.inputType || '')) wrAdoptSize();
     wrRenumber(); wrDirty();
     // (typing ends the trying: an open palette goes, and the bubble with a selection gone; a tool's own change, «format…», does not)
     if (/^(insert(Text|Paragraph|LineBreak|ReplacementText|CompositionText|FromPaste)|delete)/.test(e.inputType || '')) { wrPopsClose(); wrBubble(); }
@@ -1920,11 +1968,21 @@ function wrZoomToggle() {
   $('wrEditor').classList.toggle('wr-zbig', wrZoomBig());
   const sc = $('wrScroll'), pp = $('wrPaper');
   if (!pp) return;
-  // (what was in the middle of the screen stays there)
-  const r0 = pp.getBoundingClientRect(), mid = (sc.getBoundingClientRect().top + sc.clientHeight / 2 - r0.top) / r0.height;
+  // (v196: the line he writes in stays before him: the cursor's, or the first line on the screen; the middle of the
+  // screen kept before was often an empty part of the sheet, so the zoom looked as if it did nothing)
+  const top = sc.getBoundingClientRect().top, body = $('wrBody'), sel = getSelection();
+  let at = null;
+  const rr = sel.rangeCount && body.contains(sel.anchorNode) ? sel.getRangeAt(0) : null, rc = rr && rr.getClientRects()[0];
+  if (rc && rc.top >= top && rc.bottom <= top + sc.clientHeight) {
+    let n = rr.startContainer; if (n.nodeType !== 1) n = n.parentNode;
+    at = { el: n, dy: rc ? rc.top - n.getBoundingClientRect().top : 0, y: sc.clientHeight / 3 };
+  } else {
+    const blk = [...body.children].find((b) => b.getBoundingClientRect().bottom > top + 4);
+    if (blk) { const bt = blk.getBoundingClientRect().top; at = { el: blk, dy: Math.max(0, top - bt), y: Math.max(0, bt - top) }; }
+  }
+  const k0 = at ? at.dy / (at.el.getBoundingClientRect().height || 1) : 0;
   wrPaperZoomSet();
-  const r1 = pp.getBoundingClientRect();
-  sc.scrollTop += r1.top + mid * r1.height - (sc.getBoundingClientRect().top + sc.clientHeight / 2);
+  if (at) { const r1 = at.el.getBoundingClientRect(); sc.scrollTop += r1.top + k0 * r1.height - top - at.y; }
   sc.scrollLeft = 0;
   wrPaperLay(true);
 }
