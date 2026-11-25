@@ -2352,6 +2352,32 @@ li.sel .sel-box { background: var(--high); }
 }
 :root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-ayc="blue"] ::highlight(wr-ayah), #wrEditor.wr-th-night[data-ayc="blue"] ::highlight(wr-ayah) { color: #8fb0ff; }
 :root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-ayc="maroon"] ::highlight(wr-ayah), #wrEditor.wr-th-night[data-ayc="maroon"] ::highlight(wr-ayah) { color: #e8999b; }
+/* (v197) the footnotes' colour per book: each footnote's number in the text and its words below */
+.wr-fnc-btn { font-family: "Amiri", serif; font-size: 1rem; font-weight: 700; }
+.wr-thb[data-fnc="blue"] { color: #1d4ed8; }
+.wr-thb[data-fnc="maroon"] { color: #7f1d1d; }
+.wr-thb[data-fnc="green"] { color: #15803d; }
+.wr-thb[data-fnc="gray"] { color: #6b7280; }
+#wrEditor[data-fnc="blue"] { --wr-fnc: #1d4ed8; }
+#wrEditor[data-fnc="maroon"] { --wr-fnc: #7f1d1d; }
+#wrEditor[data-fnc="green"] { --wr-fnc: #15803d; }
+#wrEditor[data-fnc="gray"] { --wr-fnc: #6b7280; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="blue"] { --wr-fnc: #8fb0ff; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="maroon"] { --wr-fnc: #e8999b; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="green"] { --wr-fnc: #86d6a4; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="gray"] { --wr-fnc: #a8b0bb; }
+}
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="blue"], #wrEditor.wr-th-night[data-fnc="blue"] { --wr-fnc: #8fb0ff; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="maroon"], #wrEditor.wr-th-night[data-fnc="maroon"] { --wr-fnc: #e8999b; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="green"], #wrEditor.wr-th-night[data-fnc="green"] { --wr-fnc: #86d6a4; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnc="gray"], #wrEditor.wr-th-night[data-fnc="gray"] { --wr-fnc: #a8b0bb; }
+#wrEditor[data-fnc] .wr-body sup.fn, #wrEditor[data-fnc] .wr-note > b, #wrEditor[data-fnc] .wr-fn-ed { color: var(--wr-fnc); }
+/* (on the white sheets of «الورق» the colour of a light page, whatever the theme) */
+#wrEditor[data-fnc="blue"] #wrPaper { --wr-fnc: #1d4ed8; }
+#wrEditor[data-fnc="maroon"] #wrPaper { --wr-fnc: #7f1d1d; }
+#wrEditor[data-fnc="green"] #wrPaper { --wr-fnc: #15803d; }
+#wrEditor[data-fnc="gray"] #wrPaper { --wr-fnc: #6b7280; }
 /* (v185) the bookmark: a colour on the word over the text, and 🔖 beside its line; its line on the book's page */
 .wr-scroll { position: relative; }
 .wr-bmk { position: absolute; right: 1px; font-size: 11px; line-height: 18px; pointer-events: none; border-radius: 4px; }
