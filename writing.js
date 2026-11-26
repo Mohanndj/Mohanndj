@@ -2317,48 +2317,59 @@ function wrPaperLay(now) {
   const boxes = {}; for (const n of notes.querySelectorAll('.wr-note')) { const ed = n.querySelector('.wr-fn-ed'); if (ed) boxes[ed.dataset.fn] = n; }
   const k = scale();
   const nh = {}; for (const id of ids) nh[id] = boxes[id] ? boxes[id].getBoundingClientRect().height / k : 0;
-  let foot = (wrState.pgFoot || []).slice(), n = 1, at = {};
-  const build = () => {
+  let foot = [], n = 1, at = {};
+  const build = (trail = true) => {
     let h = '';
     for (let i = 0; i < n; i++) {
       const f = Math.min(foot[i] || 0, CH - 3 * one * 21.333);
       h += `<div class="wrp-push" style="height:${CH - f}px"></div>`;
-      if (i < n - 1) h += `<div class="wrp-gap" style="height:${f + 2 * WP.M + WRP.G}px"></div>`;
+      if (trail || i < n - 1) h += `<div class="wrp-gap" style="height:${f + 2 * WP.M + WRP.G}px"></div>`; // (while laid out, one after the last sheet too: words past it are counted on a sheet of their own)
     }
     flow.innerHTML = h;
     wrPaperBreaks(body, flow, k, STEP);
   };
-  // a mark whose footnote's room sends its line on to the next sheet: its room stays on both (that line goes over, as
-  // in Word, its footnote with it), so the two do not chase each other
-  const seen = {};
-  let real = [];
-  for (let round = 0; round < 8; round++) {
-    n = Math.max(1, foot.length);
+  // (v201) each sheet's room for its footnotes as Word finds it, sheet by sheet (`wrPaperGuess`), then read: a sheet
+  // whose words still run under its footnotes is set again, the sheets after it guessed again from it. (It was every
+  // sheet a mark had stood on in any round, begun from the last layout's rooms: rooms stayed on sheets their marks had
+  // left, and after some writing the sheets emptied, a paragraph alone on each, or the words ran under the footnotes.)
+  const tried = [], fixed = [];
+  let real = [], last = 1;
+  const read = () => {
     build();
     const top = flow.getBoundingClientRect().top;
     const end = (body.getBoundingClientRect().bottom - top) / k;
     const pages = Math.max(1, Math.floor(Math.max(0, end - 0.5) / STEP) + 1);
-    let grew = false;
+    at = {};
     for (const m of body.querySelectorAll('sup.fn')) {
-      const id = m.dataset.fn, y = (m.getBoundingClientRect().top - top) / k, pg = Math.min(pages - 1, Math.max(0, Math.floor(y / STEP)));
-      if (!seen[id]) seen[id] = new Set();
-      if (!seen[id].has(pg)) { seen[id].add(pg); grew = true; }
-      at[id] = Math.max(...seen[id]);
+      const y = (m.getBoundingClientRect().top - top) / k;
+      at[m.dataset.fn] = Math.min(pages - 1, Math.max(0, Math.floor(y / STEP)));
     }
-    const last = Math.max(pages, ...Object.values(at).map((v) => v + 1));
-    const nf = new Array(last).fill(0); real = new Array(last).fill(0);
-    for (const id of Object.keys(at)) {
-      for (const pg of seen[id]) nf[pg] += nh[id] || 0;
-      real[at[id]] += nh[id] || 0;
-    }
-    for (let i = 0; i < last; i++) { if (nf[i]) nf[i] += SEP; if (real[i]) real[i] += SEP; }
-    const same = nf.length === foot.length && nf.every((v, i) => Math.abs(v - foot[i]) < 0.5);
-    foot = nf;
-    if (same && !grew) break;
+    last = pages;
+    real = new Array(last).fill(0);
+    for (const id of Object.keys(at)) real[at[id]] += nh[id] || 0;
+    for (let i = 0; i < last; i++) if (real[i]) real[i] += SEP;
+  };
+  const us = wrPaperUnits(body, flow, k), guess = (pre) => wrPaperGuess(us, pre, STEP, CH, nh, SEP, CH - 3 * one * 21.333);
+  foot = guess([]);
+  // (a picture or a table taller than a sheet goes under every sheet added for it: the sheets stop a few past the guess)
+  const lim = Math.max(1, foot.length) + 3, grow = () => { while (last > n && n < lim) { n = Math.min(last, lim); read(); } };
+  n = Math.max(1, foot.length); read(); grow();
+  // a sheet whose words run under its footnotes (the guess a little off): its room as they need, again until it holds
+  // (a mark whose room sends its line on and back: the larger, that line goes over)
+  for (let round = 0; round < 6 + 3 * lim; round++) {
+    let j = -1;
+    for (let i = 0; i < Math.min(last, lim); i++) if (!fixed[i] && (real[i] || 0) > (foot[i] || 0) + 0.5) { j = i; break; }
+    if (j < 0) break;
+    tried[j] = tried[j] || [foot[j] || 0];
+    if (tried[j].some((v) => Math.abs(v - real[j]) < 0.5)) { foot[j] = Math.max(foot[j] || 0, real[j]); fixed[j] = true; }
+    else { foot[j] = real[j]; tried[j].push(real[j]); }
+    const g = guess(foot.slice(0, j + 1));
+    for (let i = j + 1; i < Math.max(last, g.length); i++) { foot[i] = g[i] || 0; tried[i] = null; fixed[i] = false; }
+    foot.length = Math.max(j + 1, last, g.length);
+    n = Math.min(foot.length, lim); read(); grow();
   }
-  n = foot.length;
-  build();
-  wrState.pgFoot = foot;
+  foot.length = Math.min(last, lim); // (the sheets the words reach)
+  n = foot.length; build(false);
   // the sheets, their numbers, the line over their footnotes; and each footnote at the foot of its sheet
   const from = wrState.pgFrom || 0;
   pp.style.height = `${n * STEP - WRP.G - 2 * WP.M}px`;
@@ -2377,6 +2388,66 @@ function wrPaperLay(now) {
     y0[pg] += nh[id];
   }
   wrBmkPaint();
+}
+
+// (v201) a guess of each sheet's footnotes' room, so that the layout above holds in a few reads and not one a sheet:
+// the words laid out once in one column (`wrPaperUnits`: their lines, a table, a picture, a new page), each line that
+// the sheet's foot (its footnotes' room) does not hold going on to the next sheet's top, as the column of floats does;
+// sheet by sheet. The sheets already found (`pre`) keep their rooms.
+function wrPaperUnits(body, flow, k) {
+  flow.innerHTML = '';
+  for (const x of body.querySelectorAll('.pgbreak')) x.style.marginBottom = '';
+  const top = flow.getBoundingClientRect().top, rs = [], lhs = new Map();
+  const lh = (el) => { if (!lhs.has(el)) lhs.set(el, parseFloat(getComputedStyle(el).lineHeight) || 0); return lhs.get(el); };
+  const add = (t, b, o) => rs.push(Object.assign({ t: (t - top) / k, b: (b - top) / k }, o));
+  const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  while (tw.nextNode()) {
+    const el = tw.currentNode.parentElement; if (el.closest('table, .pgbreak, sup')) continue; // (a mark's raised figure is no line)
+    const rg = document.createRange(); rg.selectNodeContents(tw.currentNode);
+    const h = lh(el.closest('p, li, h2, h3, blockquote, div') || el) * k;
+    for (const r of rg.getClientRects()) { if (r.height < 1) continue; const m = (r.top + r.bottom) / 2, hh = Math.max(h, r.height) / 2; add(m - hh, m + hh); }
+  }
+  for (const x of body.querySelectorAll('img, table, hr, .pgbreak')) { if (x.parentElement.closest('table')) continue; const r = x.getBoundingClientRect(); add(r.top, r.bottom, x.classList.contains('pgbreak') ? { brk: x } : null); }
+  for (const m of body.querySelectorAll('sup.fn')) { const r = m.getBoundingClientRect(); add(r.top, r.bottom, { id: m.dataset.fn }); }
+  rs.sort((a, b) => a.t - b.t);
+  const us = [];
+  for (const r of rs) {
+    const u = us[us.length - 1];
+    if (u && r.t < u.b - 2) {
+      if (r.id) u.ids.push(r.id);
+      else if (u.mk) { u.t = r.t; u.b = r.b; u.mk = false; } // (a mark raised over its line's top: the line is the unit)
+      else u.b = Math.max(u.b, r.b);
+      if (r.brk) u.brk = r.brk;
+      continue;
+    }
+    us.push({ t: r.t, b: r.b, ids: r.id ? [r.id] : [], brk: r.brk || null, mk: !!r.id });
+  }
+  return us;
+}
+function wrPaperGuess(us, pre, STEP, CH, nh, SEP, CAP) {
+  const foot = [], need = (ids) => { let r = 0; for (const id of ids) r += nh[id] || 0; return r ? r + SEP : 0; };
+  let u = 0, off = 0;
+  for (let i = 0; u < us.length && i < 400; i++) {
+    // as Word: the lines it holds with their marks' footnotes under them; the room the first line it does not hold
+    // would leave stays empty, so that line goes on (a sheet already found keeps its room)
+    const ids = [], base = i * STEP, given = i < pre.length;
+    let v = u, o = off, f = given ? pre[i] : 0;
+    for (; v < us.length; v++) {
+      const x = us[v], y0 = x.t + o, y1 = x.b + o, first = v === u;
+      if (!first) {
+        if (given ? y1 > base + CH - Math.min(f, CAP) + 0.5 : y1 > base + CH - Math.min(need([...ids, ...x.ids]), CAP) + 0.5) {
+          if (!given) f = Math.max(need(ids), Math.min(CAP, base + CH - y1 + 1));
+          o += (i + 1) * STEP - y0; break;
+        }
+      }
+      ids.push(...x.ids);
+      if (x.brk && !(first && x.brk.previousElementSibling)) { v++; if (v < us.length) o += (i + 1) * STEP - (us[v].t + o); break; }
+    }
+    if (!given && v >= us.length) f = need(ids);
+    if (!given && v < us.length && us[v - 1] && us[v - 1].brk) f = need(ids);
+    foot[i] = f; u = v; off = o;
+  }
+  return foot;
 }
 
 // (v200, «صفحة جديدة»: it was a dashed line on the sheet, the words going on under it) what follows a new page starts
