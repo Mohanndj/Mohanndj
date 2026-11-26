@@ -2275,9 +2275,7 @@ li.sel .sel-box { background: var(--high); }
 .wr-notes { padding: 0 max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--line); }
 .wr-notes:empty { display: none; }
 .wr-notes h3 { font-size: 1rem; margin: 12px 0 8px; color: var(--muted); }
-.wr-note { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; margin-bottom: 8px; }
 .wr-note > b { color: var(--accent); padding-top: 8px; }
-.wr-note textarea { width: 100%; min-height: 2.6em; resize: vertical; }
 .wr-find input { flex: 1 1 120px; min-width: 0; }
 .wr-find small { width: 100%; color: var(--muted); }
 
@@ -2378,6 +2376,58 @@ li.sel .sel-box { background: var(--high); }
 #wrEditor[data-fnc="maroon"] #wrPaper { --wr-fnc: #7f1d1d; }
 #wrEditor[data-fnc="green"] #wrPaper { --wr-fnc: #15803d; }
 #wrEditor[data-fnc="gray"] #wrPaper { --wr-fnc: #6b7280; }
+/* (v198) the footnotes' calm background (each box) and marker (their whole text), and their size, per book */
+.wr-fn-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; }
+.wr-fn-row + .wr-fn-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.wr-thb[data-fnb="ivory"] { background: #f8f4ea; color: #222; }
+.wr-thb[data-fnb="olive"] { background: #eef2e6; color: #222; }
+.wr-thb[data-fnb="sand"] { background: #f3ece0; color: #222; }
+.wr-thb[data-fnb="slate"] { background: #eceff3; color: #222; }
+.wr-thb[data-fnh="ivory"] { background: #efe9d8; color: #222; }
+.wr-thb[data-fnh="olive"] { background: #dfe6d3; color: #222; }
+.wr-thb[data-fnh="sand"] { background: #ece3cf; color: #222; }
+.wr-thb[data-fnh="slate"] { background: #dfe4ea; color: #222; }
+#wrEditor[data-fnb="ivory"] { --wr-fnb: #f8f4ea; }
+#wrEditor[data-fnb="olive"] { --wr-fnb: #eef2e6; }
+#wrEditor[data-fnb="sand"] { --wr-fnb: #f3ece0; }
+#wrEditor[data-fnb="slate"] { --wr-fnb: #eceff3; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="ivory"] { --wr-fnb: #2e2a22; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="olive"] { --wr-fnb: #262d22; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="sand"] { --wr-fnb: #30291f; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="slate"] { --wr-fnb: #252a31; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="ivory"] ::highlight(wr-fnh) { background-color: #4a4433; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="olive"] ::highlight(wr-fnh) { background-color: #3b4632; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="sand"] ::highlight(wr-fnh) { background-color: #4b4030; }
+  :root:not([data-theme="light"]) #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="slate"] ::highlight(wr-fnh) { background-color: #3a414c; }
+}
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="ivory"], #wrEditor.wr-th-night[data-fnb="ivory"] { --wr-fnb: #2e2a22; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="olive"], #wrEditor.wr-th-night[data-fnb="olive"] { --wr-fnb: #262d22; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="sand"], #wrEditor.wr-th-night[data-fnb="sand"] { --wr-fnb: #30291f; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnb="slate"], #wrEditor.wr-th-night[data-fnb="slate"] { --wr-fnb: #252a31; }
+#wrEditor[data-fnh="ivory"] ::highlight(wr-fnh) { background-color: #efe9d8; }
+#wrEditor[data-fnh="olive"] ::highlight(wr-fnh) { background-color: #dfe6d3; }
+#wrEditor[data-fnh="sand"] ::highlight(wr-fnh) { background-color: #ece3cf; }
+#wrEditor[data-fnh="slate"] ::highlight(wr-fnh) { background-color: #dfe4ea; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="ivory"] ::highlight(wr-fnh), #wrEditor.wr-th-night[data-fnh="ivory"] ::highlight(wr-fnh) { background-color: #4a4433; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="olive"] ::highlight(wr-fnh), #wrEditor.wr-th-night[data-fnh="olive"] ::highlight(wr-fnh) { background-color: #3b4632; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="sand"] ::highlight(wr-fnh), #wrEditor.wr-th-night[data-fnh="sand"] ::highlight(wr-fnh) { background-color: #4b4030; }
+:root[data-theme="dark"] #wrEditor:not(.wr-th-paper):not(.wr-th-green)[data-fnh="slate"] ::highlight(wr-fnh), #wrEditor.wr-th-night[data-fnh="slate"] ::highlight(wr-fnh) { background-color: #3a414c; }
+#wrEditor[data-fnb] .wr-fn-ed { background: var(--wr-fnb); }
+/* (on the white sheets, light whatever the theme, and spread a little round the words without moving a line) */
+#wrEditor[data-fnb="ivory"] #wrPaper { --wr-fnb: #f8f4ea; }
+#wrEditor[data-fnb="olive"] #wrPaper { --wr-fnb: #eef2e6; }
+#wrEditor[data-fnb="sand"] #wrPaper { --wr-fnb: #f3ece0; }
+#wrEditor[data-fnb="slate"] #wrPaper { --wr-fnb: #eceff3; }
+#wrEditor[data-fnh="ivory"] #wrPaper ::highlight(wr-fnh) { background-color: #efe9d8; }
+#wrEditor[data-fnh="olive"] #wrPaper ::highlight(wr-fnh) { background-color: #dfe6d3; }
+#wrEditor[data-fnh="sand"] #wrPaper ::highlight(wr-fnh) { background-color: #ece3cf; }
+#wrEditor[data-fnh="slate"] #wrPaper ::highlight(wr-fnh) { background-color: #dfe4ea; }
+#wrEditor[data-fnb] #wrPaper .wr-fn-ed, #wrEditor[data-fnb] #wrPaper .wr-note:focus-within .wr-fn-ed { background: var(--wr-fnb); box-shadow: 0 0 0 3px var(--wr-fnb); }
+#wrEditor[data-fns="small"] .wr-note { font-size: .833em; }
+#wrEditor[data-fns="big"] .wr-note { font-size: 1.167em; }
+#wrEditor[data-fns="small"] #wrPaper .wr-note { font-size: 13.33px; }
+#wrEditor[data-fns="big"] #wrPaper .wr-note { font-size: 18.67px; }
 /* (v185) the bookmark: a colour on the word over the text, and 🔖 beside its line; its line on the book's page */
 .wr-scroll { position: relative; }
 .wr-bmk { position: absolute; right: 1px; font-size: 11px; line-height: 18px; pointer-events: none; border-radius: 4px; }
@@ -2488,6 +2538,7 @@ li.sel .sel-box { background: var(--high); }
 
 /* v187: «الورق» — the chapter written on A4 sheets as its Word file makes them (the measures of the pages above) */
 .wr-zoom { display: none; }
+#wrEditor.wr-mic #wrTmBtn { margin-left: 46px; } /* (v198) the mic stands there, off the book's words */
 #wrEditor.wr-paper .wr-zoom { display: inline-block; margin-inline-end: 6px; }
 #wrEditor.wr-paper .wr-scroll { background: #d9dde3; overflow: auto; }
 .wrp-paper { position: relative; box-sizing: content-box; width: 602px; padding: 96px; margin: 16px auto 24px; display: flow-root; direction: rtl; color: #111; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }

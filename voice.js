@@ -60,13 +60,16 @@ const Voice = (() => {
     const multi = target.tagName === 'TEXTAREA' || target.isContentEditable;
     let top = multi ? Math.min(r.bottom, vh - 8) - size - 6 : r.top + (r.height - size) / 2;
     top = Math.max(6, Math.min(top, vh - size - 6));
-    const left = Math.max(6, r.left + 6);
+    let left = Math.max(6, r.left + 6);
     // v162: in the writing editor the mic never covers the focus timer button: it sits just above it
     const tm = host.querySelector('#wrTmBtn');
-    if (tm) {
-      const t = tm.getBoundingClientRect();
-      if (t.width && t.top < vh && top + size > t.top - 6 && top < t.bottom && left < t.right && left + size > t.left) top = Math.max(6, t.top - size - 8);
-    }
+    const t = tm ? tm.getBoundingClientRect() : null;
+    if (t && t.width && t.top < vh && target.isContentEditable && target.closest('#wrEditor')) {
+      // v198: nor the words of the book: in its text or a footnote it stands in the row of the timer, in the room kept
+      // for it on the timer's left (the editor's «wr-mic»)
+      left = Math.max(6, t.left - size - 6);
+      top = t.top + (t.height - size) / 2;
+    } else if (t && t.width && t.top < vh && top + size > t.top - 6 && top < t.bottom && left < t.right && left + size > t.left) top = Math.max(6, t.top - size - 8);
     btn.style.top = `${top}px`;
     btn.style.left = `${left}px`;
     // the bubble sits just above the mic (or the field) and never covers it
@@ -351,5 +354,5 @@ const Voice = (() => {
     save();
   });
 
-  return { supported, settingsHTML, place };
+  return { supported, settingsHTML, place, ready: () => supported && cfg().on };
 })();

@@ -56,7 +56,7 @@ function normalizeWBook(b) {
   const kind = WR_KINDS[b.kind] ? b.kind : 'book';
   const chapters = (Array.isArray(b.chapters) ? b.chapters : []).map(normalizeWChapter);
   if (kind !== 'book' && !chapters.length) chapters.push(normalizeWChapter({})); // (an article or a post is one text)
-  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', fnc: WR_FNC[b.fnc] ? b.fnc : '', mark: wrMarkOk(b.mark), created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
+  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', fnc: WR_FNC[b.fnc] ? b.fnc : '', fnb: WR_FNB[b.fnb] ? b.fnb : '', fnh: WR_FNH[b.fnh] ? b.fnh : '', fns: WR_FNS[b.fns] ? b.fns : '', mark: wrMarkOk(b.mark), created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
 }
 // (v185) the bookmark of a book, «أعرف بها أين توقفت»: its chapter, where it stands in that chapter's text (counted in letters),
 // and the words that follow it (to find it again if text was written before it)
@@ -68,6 +68,12 @@ const wrMarkCh = (b) => b.mark && b.chapters.find((c) => c.id === b.mark.ch);
 const WR_AYC = { blue: ['أزرق', '1D4ED8'], maroon: ['عنابي', '7F1D1D'] };
 // (v197) the footnotes' colour per book, «أضف القدرة على جعل الحاشية بلون مغاير»: each footnote's number in the text and its words
 const WR_FNC = { blue: ['أزرق', '1D4ED8'], maroon: ['عنابي', '7F1D1D'], green: ['أخضر', '15803D'], gray: ['رمادي', '6B7280'] };
+// (v198) the footnotes' look per book, in the same palette: a calm background for each footnote's box, a calm marker over
+// its whole text (what he marked by hand keeps its own colour), and their size (Word's footnote text in half-points)
+const WR_FNB = { ivory: ['عاجي', 'F8F4EA'], olive: ['زيتوني', 'EEF2E6'], sand: ['رملي', 'F3ECE0'], slate: ['رمادي مزرق', 'ECEFF3'] };
+const WR_FNH = { ivory: ['عاجي', 'EFE9D8'], olive: ['زيتوني', 'DFE6D3'], sand: ['رملي', 'ECE3CF'], slate: ['رمادي مزرق', 'DFE4EA'] };
+const WR_FNS = { small: ['أصغر', 20], big: ['أكبر', 28] };
+const WR_FN = [['fnc', 'لون الحواشي:', WR_FNC, 'بلا لون'], ['fnb', 'خلفية الحواشي:', WR_FNB, 'بلا'], ['fnh', 'تظليل نص الحواشي:', WR_FNH, 'بلا'], ['fns', 'حجم الحواشي:', WR_FNS, 'عادي']];
 // the three tabs (v156): a book of chapters, an article, a post
 const WR_KINDS = {
   book: { tab: 'الكتب', one: 'كتاب', none: 'كتاب بلا عنوان' },
@@ -606,10 +612,32 @@ function wrAycPaint() {
   }
   CSS.highlights.set('wr-ayah', hl);
 }
-function wrFncSet(v) {
+// (v197, v198) the footnotes' look of the open book (none for an article or a post, or once the editor closes)
+function wrFnSet(b) {
   const d = $('wrEditor');
   if (!d) return;
-  if (WR_FNC[v]) d.dataset.fnc = v; else delete d.dataset.fnc;
+  for (const [k, , vals] of WR_FN) { const v = b && b[k]; if (vals[v]) d.dataset[k] = v; else delete d.dataset[k]; }
+  wrFnhPaint();
+  if (wrPaperIs()) wrPaperLay(); // (a footnote's size moves the sheets' lines)
+}
+// (v198) the marker over the footnotes' whole text: painted over it (CSS highlights), so nothing enters what is written;
+// what he marked by hand stays in its own colour
+function wrFnhPaint() {
+  if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+  const d = $('wrEditor');
+  if (!d || !d.dataset.fnh) { CSS.highlights.delete('wr-fnh'); return; }
+  const hl = new Highlight();
+  for (const ed of d.querySelectorAll('.wr-fn-ed')) {
+    const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      if (!n.data.trim()) continue;
+      const own = n.parentElement.closest('[style*="background"]');
+      if (own && ed.contains(own)) continue;
+      const r = new Range(); r.selectNodeContents(n); hl.add(r);
+    }
+  }
+  CSS.highlights.set('wr-fnh', hl);
 }
 function wrAycSet(v) {
   const d = $('wrEditor');
@@ -617,8 +645,9 @@ function wrAycSet(v) {
   if (WR_AYC[v]) d.dataset.ayc = v; else delete d.dataset.ayc;
   if (!wrAycObs && typeof MutationObserver !== 'undefined') {
     let q = 0;
-    wrAycObs = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; wrAycPaint(); wrBmkPaint(); }); });
+    wrAycObs = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; wrAycPaint(); wrBmkPaint(); wrFnhPaint(); }); });
     wrAycObs.observe($('wrBody'), { childList: true, characterData: true, subtree: true });
+    wrAycObs.observe($('wrNotes'), { childList: true, characterData: true, subtree: true });
   }
   wrAycPaint();
 }
@@ -737,8 +766,9 @@ function wrEdit(b, chId, find) {
   for (const x of $('wrEditor').querySelectorAll('[data-wr="bmk"], [data-wr="paper"]')) x.hidden = one;
   wrPaperSet(false, true); // (the sheets of the work before go: they come back below once this one is in)
   wrAycSet(one ? '' : b.ayc);
-  wrFncSet(one ? '' : b.fnc);
+  wrFnSet(one ? null : b);
   d.classList.toggle('wr-arabic', S.settings.digits === 'arab');
+  d.classList.toggle('wr-mic', typeof Voice !== 'undefined' && Voice.ready()); // (v198) room for the mic beside the timer
   $('wrBody').innerHTML = c.html;
   wrStarsMark($('wrBody'));
   $('wrNotes').innerHTML = '';
@@ -773,7 +803,7 @@ function wrClose(fromEvent) {
   if (typeof wrIdeasClose === 'function') wrIdeasClose();
   WrCloud.soon(1500);
   wrAycSet('');
-  wrFncSet('');
+  wrFnSet(null);
   wrBmkPaint();
   try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {} // (the notes' editor as it was)
   wrPopsClose();
@@ -1196,7 +1226,11 @@ function wrPalHTML(k) {
   if (k === 'hi') return NOTE_HIGHLIGHTS.map(([c, n]) => `<button type="button" class="pal" data-whi="${c}" title="${n}" aria-label="تظليل ${n}" style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('');
   if (k === 'font') return `<div class="wr-fonts">${WR_FONTS.map(([f, n]) => `<button type="button" data-wfont="${f}" style="${f ? `font-family:'${f}'` : ''}">${n}</button>`).join('')}</div>`;
   if (k === 'ayc') { const on = (wrState && wrState.book.ayc) || ''; return '<span class="wr-ayc-l">لون الآيات:</span>' + [['', 'بلا لون'], ...Object.entries(WR_AYC).map(([v, [n]]) => [v, n])].map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wayc="${v}"${v ? ` data-ayc="${v}"` : ''}>${n}</button>`).join(''); }
-  if (k === 'fnc') { const on = (wrState && wrState.book.fnc) || ''; return '<span class="wr-ayc-l">لون الحواشي:</span>' + [['', 'بلا لون'], ...Object.entries(WR_FNC).map(([v, [n]]) => [v, n])].map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wfnc="${v}"${v ? ` data-fnc="${v}"` : ''}>${n}</button>`).join(''); }
+  if (k === 'fnc') return WR_FN.map(([key, lab, vals, none]) => { // (v197, v198) colour, background, marker and size
+    const on = (wrState && wrState.book[key]) || '', o = Object.entries(vals).map(([v, [n]]) => [v, n]);
+    const list = key === 'fns' ? [o[0], ['', none], o[1]] : [['', none], ...o];
+    return `<div class="wr-fn-row"><span class="wr-ayc-l">${lab}</span>${list.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wfk="${key}" data-wfv="${v}"${v && key !== 'fns' ? ` data-${key}="${v}"` : ''}>${n}</button>`).join('')}</div>`;
+  }).join('');
   if (k === 'bmk') return wrBmkPalHTML();
   if (k === 'theme') {
     const on = wrThemeOf(), sh = wrSheetOf();
@@ -1310,7 +1344,7 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wsheet], [data-wayc], [data-wfnc], [data-wbmk], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wsheet], [data-wayc], [data-wfk], [data-wbmk], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1337,13 +1371,14 @@ document.addEventListener('click', (e) => {
     for (const x of document.querySelectorAll('[data-wayc]')) x.classList.toggle('on', x.dataset.wayc === t.dataset.wayc);
     return;
   }
-  if (t.dataset.wfnc !== undefined) { // (v197) kept with the book, as the verses' colour; the palette stays open
+  if (t.dataset.wfk) { // (v197, v198) kept with the book, as the verses' colour; the palette stays open
     if (!wrState) return;
-    wrState.book.fnc = t.dataset.wfnc;
+    const k = t.dataset.wfk;
+    wrState.book[k] = t.dataset.wfv;
     wrState.book.updated = Date.now();
     wrSave(wrState.book);
-    wrFncSet(t.dataset.wfnc);
-    for (const x of document.querySelectorAll('[data-wfnc]')) x.classList.toggle('on', x.dataset.wfnc === t.dataset.wfnc);
+    wrFnSet(wrState.book);
+    for (const x of document.querySelectorAll(`[data-wfk="${k}"]`)) x.classList.toggle('on', x.dataset.wfv === t.dataset.wfv);
     return;
   }
   if (t.dataset.wbmk) { wrBmkDo(t.dataset.wbmk); return; }
@@ -1545,7 +1580,7 @@ function wrDocx(b) {
   const F = 'Amiri'; // (v157: the editor's own font, so the file reads as it was written; Traditional Arabic is not on a phone)
   const notes = [], media = [];
   // (Word reads a paragraph's settings in the schema's order only: bidi stands after the borders and before the spacing)
-  const PPR = ['pStyle', 'keepNext', 'pageBreakBefore', 'pBdr', 'bidi', 'spacing', 'ind', 'jc', 'outlineLvl'];
+  const PPR = ['pStyle', 'keepNext', 'pageBreakBefore', 'pBdr', 'shd', 'bidi', 'spacing', 'ind', 'jc', 'outlineLvl'];
   const ordered = (ppr) => (ppr.match(/<w:(\w+)(?:[^>]*\/>|[^>]*>[\s\S]*?<\/w:\1>)/g) || []).concat('<w:bidi/>')
     .sort((m, n) => PPR.indexOf(m.match(/^<w:(\w+)/)[1]) - PPR.indexOf(n.match(/^<w:(\w+)/)[1])).join('');
   // (v156) a run's look: font, bold, italic, strike, colour, size (the paragraph's own times its «em»), underline, highlight
@@ -1587,6 +1622,11 @@ function wrDocx(b) {
   // small parentheses: a mark of the app's own text («customMarkFollows») came out «1(١)» where Word's own number is shown too
   const FNC = WR_FNC[b.fnc] ? WR_FNC[b.fnc][1] : ''; // (v197) the footnotes' colour: their numbers and their words
   const FR = `<w:rPr><w:rStyle w:val="FootnoteReference"/>${FNC ? `<w:color w:val="${FNC}"/>` : ''}<w:rtl/></w:rPr>`;
+  // (v198) the footnotes' background (their paragraphs), marker (their words) and size (their style), as in the editor
+  const FNB = WR_FNB[b.fnb] ? `<w:shd w:val="clear" w:color="auto" w:fill="${WR_FNB[b.fnb][1]}"/>` : '';
+  const FNH = WR_FNH[b.fnh] ? WR_FNH[b.fnh][1] : '';
+  const FNS = WR_FNS[b.fns] ? WR_FNS[b.fns][1] : 24;
+  const FF = { base: FNS, ...(FNC ? { color: FNC } : {}), ...(FNH ? { hi: FNH } : {}) };
   // (the parentheses held on the right by a right-to-left mark, so a footnote's number at a line's start reads «(١)» not «()١»)
   const NF = S.settings.digits === 'arab' ? 'hindiNumbers' : 'decimal';
   const runs = (node, f, ch) => [...node.childNodes].map((n) => {
@@ -1672,10 +1712,10 @@ function wrDocx(b) {
   const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sect(b.chapters.length < 2)}</w:body></w:document>`;
   // (v157) the page: A4, its number at the foot on the right (in the app's digits), none on the title page
   const ftr = (inner) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:ftr xmlns:w="${W}"><w:p><w:pPr><w:bidi/></w:pPr>${inner}</w:p></w:ftr>`;
-  const fnPara = (inner, first, ppr = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="FootnoteText"/>${ppr}`)}</w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
+  const fnPara = (inner, first, ppr = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="FootnoteText"/>${FNB}${ppr}`)}</w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
   // (v186) a footnote with its formatting: its paragraphs, and its lists' lines each with its «•» or «١-», as in the text
   const fnBody = (n) => {
-    if (!n.h) return (n.t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, FNC ? { color: FNC } : {}), !k)).join('');
+    if (!n.h) return (n.t || '').split(/\r?\n/).map((line, k) => fnPara(run(line, FF), !k)).join('');
     const tpl = document.createElement('template');
     tpl.innerHTML = n.h;
     const out = [];
@@ -1684,9 +1724,9 @@ function wrDocx(b) {
       if (el.nodeName === 'UL' || el.nodeName === 'OL') {
         [...el.children].filter((li) => li.nodeName === 'LI').forEach((li, i) => {
           const lead = el.nodeName === 'UL' ? '• ' : `${wrNum((Number(el.getAttribute('start')) || 1) + i)}- `;
-          out.push([run(lead, { base: 24, color: FNC }) + runs(li, { base: 24, color: FNC }, null), `<w:ind w:left="${425 * (1 + (Number(li.dataset.ind) || 0))}" w:hanging="283"/>${pprOf(li).replace(/<w:ind[^>]*\/>/, '')}`]);
+          out.push([run(lead, FF) + runs(li, FF, null), `<w:ind w:left="${425 * (1 + (Number(li.dataset.ind) || 0))}" w:hanging="283"/>${pprOf(li).replace(/<w:ind[^>]*\/>/, '')}`]);
         });
-      } else out.push([runs(el, { base: 24, color: FNC }, null), pprOf(el)]);
+      } else out.push([runs(el, FF, null), pprOf(el)]);
     }
     ayOff = false;
     if (!out.length) out.push(['', '']);
@@ -1708,7 +1748,7 @@ ${pstyle('Heading2', 'heading 2', `<w:b/><w:bCs/>${sz(38)}`, '<w:keepNext/><w:sp
 ${pstyle('Heading3', 'heading 3', `<w:b/><w:bCs/>${sz(34)}`, '<w:keepNext/><w:spacing w:before="180" w:after="80"/><w:outlineLvl w:val="2"/>')}
 ${pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${sz(34)}`, '<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:left w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:right w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="567" w:right="567"/>')}
 ${pstyle('Quote', 'Quote', `<w:color w:val="444444"/>`, '<w:spacing w:before="120" w:after="120"/><w:ind w:left="567" w:right="567"/><w:jc w:val="both"/>')}
-${pstyle('FootnoteText', 'footnote text', sz(24), '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="both"/>', '')}
+${pstyle('FootnoteText', 'footnote text', sz(FNS), '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="both"/>', '')}
 <w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>
 </w:styles>`;
   const files = [
@@ -1940,7 +1980,7 @@ function wrPaperSet(on, keep) {
     for (const n of notes.querySelectorAll('.wr-note')) n.style.top = '';
     d.classList.remove('wr-paper', 'wr-zbig');
     sc.style.removeProperty('--wp-lh'); sc.style.removeProperty('--wp-l1');
-    wrBmkPaint();
+    wrBmkPaint(); wrAycPaint(); wrFnhPaint(); // (v198) moving the text and footnotes empties what was painted over them
     return;
   }
   d.classList.toggle('wr-zbig', wrZoomBig());
@@ -1950,6 +1990,7 @@ function wrPaperSet(on, keep) {
   pp.innerHTML = '<div class="wrp-sheets" id="wrSheets" aria-hidden="true"></div><div class="wrp-flow" id="wrFlow" aria-hidden="true"></div><h1 class="wrp-h1" id="wrPH1"></h1>';
   sc.prepend(pp);
   pp.append(body, notes);
+  wrAycPaint(); wrFnhPaint();
   d.classList.add('wr-paper');
   wrState.pgFrom = 0;
   if (typeof ResizeObserver === 'function') { if (!wrPaperRO) wrPaperRO = new ResizeObserver(() => wrPaperSoon()); wrPaperRO.observe(body); }
