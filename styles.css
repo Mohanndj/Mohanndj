@@ -2561,10 +2561,10 @@ li.sel .sel-box { background: var(--high); }
 #wrPaper #wrBody li { padding-bottom: 8px; }
 #wrBody p.wr-stars, .wp-page p.wr-stars { text-align: center; text-align-last: center; }
 #wrPaper #wrBody hr { border: 0; border-bottom: 1px solid #999; margin: 0 0 8px; padding: 0; }
-#wrPaper #wrBody .pgbreak { margin: 0 0 8px; }
+#wrPaper #wrBody .pgbreak { margin: 0; padding: 0; height: 0; border: 0; font-size: 0; line-height: 0; overflow: hidden; } /* (v202) the new sheet says it: no green line in the paper view */
 #wrPaper #wrBody [data-ind="1"] { margin-inline-start: 0; padding-right: 37.8px; } #wrPaper #wrBody [data-ind="2"] { margin-inline-start: 0; padding-right: 75.6px; } #wrPaper #wrBody [data-ind="3"] { margin-inline-start: 0; padding-right: 113.4px; }
 #wrPaper #wrBody [data-ind="4"] { margin-inline-start: 0; padding-right: 151.2px; } #wrPaper #wrBody [data-ind="5"] { margin-inline-start: 0; padding-right: 189px; } #wrPaper #wrBody [data-ind="6"] { margin-inline-start: 0; padding-right: 226.8px; }
-#wrPaper #wrBody img { margin: 0 0 8px; border-radius: 0; }
+#wrPaper #wrBody img { margin: 0 0 8px; border-radius: 0; width: auto; max-height: calc(1123px - 2 * var(--wp-m, 96px) - 64px); } /* (v202) a picture taller than the sheet is made smaller to sit in it */
 #wrPaper .wr-notes { position: absolute; top: 0; right: var(--wp-m, 96px); width: calc(794px - 2 * var(--wp-m, 96px)); height: 0; padding: 0; border: 0; z-index: 2; }
 #wrPaper .wr-notes > :is(h3, .wr-ntip) { display: none; }
 #wrPaper .wr-note { position: absolute; right: 0; left: 0; margin: 0; display: flex; gap: 4px; align-items: baseline; font-size: 16px; line-height: var(--wp-l1, 1.6); color: #111; }

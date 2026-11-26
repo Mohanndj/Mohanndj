@@ -1543,7 +1543,22 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('beforeinput', (e) => {
   if (!wrState || !(e.target.id === 'wrBody' || (e.target.matches && e.target.matches('#wrNotes .wr-fn-ed')))) return;
   if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { e.preventDefault(); wrHistory(e.inputType === 'historyUndo' ? -1 : 1); }
+  if (e.inputType === 'deleteContentBackward' && e.cancelable && e.target.id === 'wrBody' && wrPgUnbreak(e.target)) e.preventDefault(); // (a keyboard's delete it cannot stop: as it was)
 });
+// (v202) erasing before the first word after a new page takes the new page away: its words go back on the sheet before
+function wrPgUnbreak(body) {
+  const sel = getSelection();
+  if (!sel.rangeCount || !sel.isCollapsed) return false;
+  let blk = sel.anchorNode;
+  while (blk && blk.parentNode !== body) blk = blk.parentNode;
+  const br = blk && blk.previousElementSibling;
+  if (!br || !br.classList.contains('pgbreak')) return false;
+  const rg = document.createRange(); rg.setStart(blk, 0); rg.setEnd(sel.anchorNode, sel.anchorOffset);
+  const got = rg.cloneContents();
+  if (rg.toString().replace(/\s/g, '') || got.querySelector('img, table, hr, sup') || got.querySelectorAll('li').length > 1) return false;
+  wrMark(); br.remove(); wrDirty();
+  return true;
+}
 // pasted text keeps only what a chapter keeps (Word's own markup goes)
 document.addEventListener('paste', (e) => {
   const inNote = !!(e.target.closest && e.target.closest('#wrNotes .wr-fn-ed'));
@@ -2405,7 +2420,8 @@ function wrPaperUnits(body, flow, k) {
     const el = tw.currentNode.parentElement; if (el.closest('table, .pgbreak, sup')) continue; // (a mark's raised figure is no line)
     const rg = document.createRange(); rg.selectNodeContents(tw.currentNode);
     const h = lh(el.closest('p, li, h2, h3, blockquote, div') || el) * k;
-    for (const r of rg.getClientRects()) { if (r.height < 1) continue; const m = (r.top + r.bottom) / 2, hh = Math.max(h, r.height) / 2; add(m - hh, m + hh); }
+    const hd = !!el.closest('h2, h3') || null; // (v202) a heading's lines: it goes on with the words under it
+    for (const r of rg.getClientRects()) { if (r.height < 1) continue; const m = (r.top + r.bottom) / 2, hh = Math.max(h, r.height) / 2; add(m - hh, m + hh, hd && { hd }); }
   }
   for (const x of body.querySelectorAll('img, table, hr, .pgbreak')) { if (x.parentElement.closest('table')) continue; const r = x.getBoundingClientRect(); add(r.top, r.bottom, x.classList.contains('pgbreak') ? { brk: x } : null); }
   for (const m of body.querySelectorAll('sup.fn')) { const r = m.getBoundingClientRect(); add(r.top, r.bottom, { id: m.dataset.fn }); }
@@ -2415,12 +2431,12 @@ function wrPaperUnits(body, flow, k) {
     const u = us[us.length - 1];
     if (u && r.t < u.b - 2) {
       if (r.id) u.ids.push(r.id);
-      else if (u.mk) { u.t = r.t; u.b = r.b; u.mk = false; } // (a mark raised over its line's top: the line is the unit)
-      else u.b = Math.max(u.b, r.b);
+      else if (u.mk) { u.t = r.t; u.b = r.b; u.mk = false; u.hd = !!r.hd; } // (a mark raised over its line's top: the line is the unit)
+      else { u.b = Math.max(u.b, r.b); u.hd = u.hd && !!r.hd; }
       if (r.brk) u.brk = r.brk;
       continue;
     }
-    us.push({ t: r.t, b: r.b, ids: r.id ? [r.id] : [], brk: r.brk || null, mk: !!r.id });
+    us.push({ t: r.t, b: r.b, ids: r.id ? [r.id] : [], brk: r.brk || null, mk: !!r.id, hd: !!r.hd });
   }
   return us;
 }
@@ -2430,17 +2446,22 @@ function wrPaperGuess(us, pre, STEP, CH, nh, SEP, CAP) {
   for (let i = 0; u < us.length && i < 400; i++) {
     // as Word: the lines it holds with their marks' footnotes under them; the room the first line it does not hold
     // would leave stays empty, so that line goes on (a sheet already found keeps its room)
-    const ids = [], base = i * STEP, given = i < pre.length;
+    const ids = [], nids = [], base = i * STEP, given = i < pre.length;
     let v = u, o = off, f = given ? pre[i] : 0;
     for (; v < us.length; v++) {
       const x = us[v], y0 = x.t + o, y1 = x.b + o, first = v === u;
       if (!first) {
         if (given ? y1 > base + CH - Math.min(f, CAP) + 0.5 : y1 > base + CH - Math.min(need([...ids, ...x.ids]), CAP) + 0.5) {
-          if (!given) f = Math.max(need(ids), Math.min(CAP, base + CH - y1 + 1));
-          o += (i + 1) * STEP - y0; break;
+          // (v202) as Word: a heading is not left alone at the foot of a sheet, it goes on with its words
+          let w = v;
+          while (!given && w - 1 > u && us[w - 1].hd) w--;
+          if (w < v && !us[w - 1].hd) { ids.length = nids[w - u]; v = w; }
+          const z = us[v], z0 = z.t + o, z1 = z.b + o;
+          if (!given) f = Math.max(need(ids), Math.min(CAP, base + CH - z1 + 1));
+          o += (i + 1) * STEP - z0; break;
         }
       }
-      ids.push(...x.ids);
+      nids[v - u] = ids.length; ids.push(...x.ids);
       if (x.brk && !(first && x.brk.previousElementSibling)) { v++; if (v < us.length) o += (i + 1) * STEP - (us[v].t + o); break; }
     }
     if (!given && v >= us.length) f = need(ids);
