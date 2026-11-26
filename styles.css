@@ -2506,7 +2506,7 @@ li.sel .sel-box { background: var(--high); }
 /* the book on pages as its Word file makes them, out of sight: the count of pages before a chapter for «الورق» */
 .wp-lab { position: absolute; top: 0; left: -20000px; width: 794px; visibility: hidden; pointer-events: none; }
 .wp-probe { display: inline-block; font: 100px/normal Amiri, serif; }
-.wp-page { position: relative; box-sizing: border-box; width: 794px; min-height: 1123px; padding: 96px; background: #fff; color: #111; direction: rtl; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }
+.wp-page { position: relative; box-sizing: border-box; width: 794px; min-height: 1123px; padding: var(--wp-m, 96px); background: #fff; color: #111; direction: rtl; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }
 .wp-body { display: flow-root; }
 .wp-body > * { margin: 0; padding: 0 0 8px; }
 .wp-body > .wp-cont { text-align-last: justify; }
@@ -2528,7 +2528,7 @@ li.sel .sel-box { background: var(--high); }
 .wp-body td p, .wp-body th p { margin: 0 0 8px; }
 .wp-page u { text-decoration: underline; } .wp-page s { text-decoration: line-through; }
 .wp-page sup.fn { font-size: .62em; line-height: 0; }
-.wp-fns { position: absolute; right: 96px; left: 96px; bottom: 96px; font-size: var(--wp-fns, 16px); line-height: var(--wp-l1, 1.6); }
+.wp-fns { position: absolute; right: var(--wp-m, 96px); left: var(--wp-m, 96px); bottom: var(--wp-m, 96px); font-size: var(--wp-fns, 16px); line-height: var(--wp-l1, 1.6); }
 .wp-fns::before { content: ''; display: block; width: 192px; height: calc(var(--wp-l1, 1.6) * 21.333px); border-top: 1px solid #111; box-sizing: border-box; margin-top: calc(var(--wp-l1, 1.6) * 10.67px); height: calc(var(--wp-l1, 1.6) * 10.67px); }
 .wp-fn p { margin: 0; }
 .wp-fn .wp-li { padding-right: 28.3px; text-indent: -18.9px; }
@@ -2541,11 +2541,11 @@ li.sel .sel-box { background: var(--high); }
 #wrEditor.wr-mic #wrTmBtn { margin-left: 46px; } /* (v198) the mic stands there, off the book's words */
 #wrEditor.wr-paper .wr-zoom { display: inline-block; margin-inline-end: 6px; }
 #wrEditor.wr-paper .wr-scroll { background: #d9dde3; overflow: auto; }
-.wrp-paper { position: relative; box-sizing: content-box; width: 602px; padding: 96px; margin: 16px auto 24px; display: flow-root; direction: rtl; color: #111; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }
+.wrp-paper { position: relative; box-sizing: content-box; width: calc(794px - 2 * var(--wp-m, 96px)); padding: var(--wp-m, 96px); margin: 16px auto 24px; display: flow-root; direction: rtl; color: #111; font-family: Amiri, serif; font-size: 21.333px; line-height: var(--wp-lh, 2); text-align: justify; text-align-last: start; }
 .wrp-sheets { position: absolute; top: 0; right: 0; left: 0; height: 0; z-index: 0; }
 .wrp-sheet { position: absolute; right: 0; width: 794px; height: 1123px; background: var(--wrp-bg, #fff); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
-.wrp-sep { position: absolute; right: 96px; width: 192px; border-top: 1px solid #111; }
-.wrp-no { position: absolute; right: 96px; bottom: 47px; font-size: 21.333px; line-height: 1; font-weight: 400; color: #111; }
+.wrp-sep { position: absolute; right: var(--wp-m, 96px); width: 192px; border-top: 1px solid #111; }
+.wrp-no { position: absolute; right: var(--wp-m, 96px); bottom: 47px; font-size: 21.333px; line-height: 1; font-weight: 400; color: #111; }
 .wrp-flow > div { float: right; clear: right; width: 0; }
 .wrp-flow > .wrp-gap { width: 100%; }
 .wrp-paper > :is(.wrp-h1, #wrBody) { position: relative; z-index: 1; }
@@ -2565,7 +2565,7 @@ li.sel .sel-box { background: var(--high); }
 #wrPaper #wrBody [data-ind="1"] { margin-inline-start: 0; padding-right: 37.8px; } #wrPaper #wrBody [data-ind="2"] { margin-inline-start: 0; padding-right: 75.6px; } #wrPaper #wrBody [data-ind="3"] { margin-inline-start: 0; padding-right: 113.4px; }
 #wrPaper #wrBody [data-ind="4"] { margin-inline-start: 0; padding-right: 151.2px; } #wrPaper #wrBody [data-ind="5"] { margin-inline-start: 0; padding-right: 189px; } #wrPaper #wrBody [data-ind="6"] { margin-inline-start: 0; padding-right: 226.8px; }
 #wrPaper #wrBody img { margin: 0 0 8px; border-radius: 0; }
-#wrPaper .wr-notes { position: absolute; top: 0; right: 96px; width: 602px; height: 0; padding: 0; border: 0; z-index: 2; }
+#wrPaper .wr-notes { position: absolute; top: 0; right: var(--wp-m, 96px); width: calc(794px - 2 * var(--wp-m, 96px)); height: 0; padding: 0; border: 0; z-index: 2; }
 #wrPaper .wr-notes > :is(h3, .wr-ntip) { display: none; }
 #wrPaper .wr-note { position: absolute; right: 0; left: 0; margin: 0; display: flex; gap: 4px; align-items: baseline; font-size: 16px; line-height: var(--wp-l1, 1.6); color: #111; }
 #wrPaper .wr-note > b { color: #111; padding: 0; font-weight: 400; flex: none; }
@@ -2583,7 +2583,7 @@ li.sel .sel-box { background: var(--high); }
 #print.wpp .wp-page { height: 1122px; min-height: 0; overflow: hidden; break-after: page; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 #print.wpp .wp-page:last-child { break-after: auto; page-break-after: auto; }
 .wp-fns:empty { display: none; }
-.wp-num { position: absolute; right: 96px; bottom: 47px; font-size: 16px; line-height: 1; }
+.wp-num { position: absolute; right: var(--wp-m, 96px); bottom: 47px; font-size: 16px; line-height: 1; }
 .wp-hold { position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 
 /* (v191) «متن القراءة المستوعبة» at the top of «اليوم» */
@@ -2626,3 +2626,31 @@ li.sel .sel-box { background: var(--high); }
 /* v194 (his ask: «أرقام الصفحات ضعها بشريط داخل البطاقة واضح»): the pages as a clear band across the card's top */
 .bk-after { padding-top: 0; overflow: hidden; cursor: pointer; }
 .after-band { margin: 0 -10px 4px; padding: 6px 14px; background: #0f766e; color: #fff; font-weight: 700; font-size: 1.1rem; text-align: center; word-spacing: .15em; }
+
+/* v200: the pages' look of a book («تنسيق الصفحات»), in «الورق» (.wrp-paper) and the pages of the PDF (.wp-page) alike.
+   «الكلاسيكي»: Amiri, wider margins, the chapter's heading in the middle under «الفصل الأول» with an ornament, a paragraph's
+   first line in a little, the verse on its line in the middle, the book's title over each page. «الحديث»: a clear naskh,
+   a large pale number, a short bar under the heading, room between paragraphs, the verse in a calm box, the book's and
+   the chapter's titles over each page. The footnotes' colours and the verses' colour of the book stay as they are. */
+:is(.wpst-classic, .wpst-modern) :is(.wp-body > h1, .wrp-h1), .wpst-classic.wrp-paper > .wrp-h1, .wpst-modern.wrp-paper > .wrp-h1 { line-height: 1.5; }
+.wh-big, .wh-cap, .wh-t, .wh-orn, .wh-bar { display: block; }
+.wpst-classic :is(.wp-body > h1, .wrp-h1), .wpst-classic.wrp-paper > .wrp-h1 { text-align: center; text-align-last: center; font-size: 40px; padding: 150px 0 30px; color: #2b2b2b; }
+.wpst-classic .wh-cap { font-size: 20px; font-weight: 400; color: #8a6d3b; letter-spacing: 1px; margin-bottom: 4px; }
+.wpst-classic .wh-orn { font-size: 22px; font-weight: 400; color: #b08d57; letter-spacing: 10px; margin-top: 8px; }
+.wpst-classic .wp-body > p:not(.ayah, .wp-li, .wr-stars, .wp-rest, .wp-hr), #wrPaper.wpst-classic #wrBody > p:not(.ayah, .wr-stars) { text-indent: 1.4em; padding-bottom: 0; }
+.wpst-classic .wp-body > :is(h1, h2, h3, p.ayah, blockquote, .wp-title, .pgbreak, .wp-hr) + p, .wpst-classic .wp-body > p:first-child:not(.wp-rest), #wrPaper.wpst-classic #wrBody > :is(h2, h3, p.ayah, blockquote, .pgbreak, hr, table) + p, #wrPaper.wpst-classic #wrBody > p:first-child { text-indent: 0 !important; }
+.wpst-classic .wp-body > p.ayah, #wrPaper.wpst-classic #wrBody > p.ayah { border: 0; margin: 10.7px 0; padding: 5.3px 0; text-align: center; text-align-last: center; }
+.wpst-classic .wp-fns::before, .wpst-classic .wrp-sep { border-top-color: #b08d57; }
+.wpst-classic .wrp-hd, .wpst-classic .wp-hd { position: absolute; top: calc(var(--wp-m, 96px) / 2 - 18px); right: var(--wp-m, 96px); left: var(--wp-m, 96px); font: 16px/1.6 Amiri, serif; color: #8a8a8a; text-align: center; border-bottom: 1px solid #d9cfbf; padding-bottom: 4px; }
+.wpst-modern.wp-lab .wp-page, #print.wpst-modern .wp-page, .wpst-modern.wrp-paper { font-family: 'Noto Naskh Arabic', serif; font-size: 18.667px; }
+.wpst-modern :is(.wp-body > h1, .wrp-h1), .wpst-modern.wrp-paper > .wrp-h1 { text-align: right; text-align-last: right; font-size: 34px; padding: 60px 0 36px; color: #1f3b35; }
+.wpst-modern .wh-big { font-size: 120px; line-height: 1; color: #e4ece9; margin-bottom: -30px; }
+.wpst-modern .wh-cap { position: relative; font-size: 17px; color: #3f7d6e; }
+.wpst-modern .wh-bar { width: 90px; height: 4px; border-radius: 2px; background: #3f7d6e; margin-top: 12px; }
+.wpst-modern .wp-body > p:not(.ayah, .wp-li, .wp-cont, .wp-hr), #wrPaper.wpst-modern #wrBody > p:not(.ayah) { padding-bottom: 18px; }
+.wpst-modern .wp-body > p.ayah, #wrPaper.wpst-modern #wrBody > p.ayah { border: 0; border-right: 4px solid #8fb3aa; background: #f2f6f5; margin: 10.7px 0 18px; padding: 8px 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.wpst-modern .wp-fns::before { width: 100%; border-top-color: #cfdcd8; }
+.wpst-modern .wrp-sep { left: var(--wp-m, 96px); width: auto; border-top-color: #cfdcd8; }
+.wpst-modern .wrp-hd, .wpst-modern .wp-hd { position: absolute; top: calc(var(--wp-m, 96px) / 2 - 16px); right: var(--wp-m, 96px); left: var(--wp-m, 96px); display: flex; justify-content: space-between; font: 14px/1.6 'Noto Naskh Arabic', serif; color: #6f8a84; border-bottom: 1px solid #e2e8e6; padding-bottom: 4px; }
+.wpst-modern :is(.wrp-no, .wp-num) { font-weight: 700; color: #3f7d6e; font-size: 16px; }
+.wrp-hd { font-style: normal; }

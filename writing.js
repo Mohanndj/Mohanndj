@@ -56,7 +56,7 @@ function normalizeWBook(b) {
   const kind = WR_KINDS[b.kind] ? b.kind : 'book';
   const chapters = (Array.isArray(b.chapters) ? b.chapters : []).map(normalizeWChapter);
   if (kind !== 'book' && !chapters.length) chapters.push(normalizeWChapter({})); // (an article or a post is one text)
-  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', fnc: WR_FNC[b.fnc] ? b.fnc : '', fnb: WR_FNB[b.fnb] ? b.fnb : '', fnh: WR_FNH[b.fnh] ? b.fnh : '', fns: WR_FNS[b.fns] ? b.fns : '', mark: wrMarkOk(b.mark), created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
+  return { id: b.id || uid(), kind, title: typeof b.title === 'string' ? b.title : '', status: b.status === 'pub' ? 'pub' : 'draft', ayc: WR_AYC[b.ayc] ? b.ayc : '', fnc: WR_FNC[b.fnc] ? b.fnc : '', fnb: WR_FNB[b.fnb] ? b.fnb : '', fnh: WR_FNH[b.fnh] ? b.fnh : '', fns: WR_FNS[b.fns] ? b.fns : '', pst: WR_PST[b.pst] ? b.pst : '', mark: wrMarkOk(b.mark), created: Number(b.created) || Date.now(), updated: Number(b.updated) || Date.now(), chapters };
 }
 // (v185) the bookmark of a book, «أعرف بها أين توقفت»: its chapter, where it stands in that chapter's text (counted in letters),
 // and the words that follow it (to find it again if text was written before it)
@@ -73,6 +73,40 @@ const WR_FNC = { blue: ['أزرق', '1D4ED8'], maroon: ['عنابي', '7F1D1D'],
 const WR_FNB = { ivory: ['عاجي', 'F8F4EA'], olive: ['زيتوني', 'EEF2E6'], sand: ['رملي', 'F3ECE0'], slate: ['رمادي مزرق', 'ECEFF3'] };
 const WR_FNH = { ivory: ['عاجي', 'EFE9D8'], olive: ['زيتوني', 'DFE6D3'], sand: ['رملي', 'ECE3CF'], slate: ['رمادي مزرق', 'DFE4EA'] };
 const WR_FNS = { small: ['أصغر', 20], big: ['أكبر', 28] };
+// (v200) the pages' look per book, his words: «القدرة على تنسيق الصفحات بشكل مريح للعين ولو نشرته على تلك الهيئة لجذبت
+// كثيرًا», his choice «الإصلاح + التنسيقان» (pictures shown first): in «الورق», the PDF and Word. M: the page's margins
+// (pixels at 96 to the inch), tw: the same in Word's twips; '' is the look before (v157)
+const WR_PST = { classic: { n: 'الكلاسيكي', M: 118, tw: 1770, font: 'Amiri' }, modern: { n: 'الحديث', M: 106, tw: 1590, font: 'Noto Naskh Arabic' } };
+const wrPstOf = (b) => (b && b.kind === 'book' && WR_PST[b.pst] ? b.pst : '');
+// the margins of book «b» for the measures of the pages (`WP`) and the sheets
+function wrGeo(b) { const p = WR_PST[wrPstOf(b)]; WP.M = p ? p.M : 96; return wrPstOf(b); }
+const wrPstFont = (pst) => (WR_PST[pst] ? WR_PST[pst].font : 'Amiri');
+// a chapter's heading in a look: «الفصل الأول» over its title (not when the title says it already), an ornament or a bar
+const WR_ORD = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر', 'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر', 'الخامس عشر', 'السادس عشر', 'السابع عشر', 'الثامن عشر', 'التاسع عشر', 'العشرون'];
+const wrChOrd = (i) => (WR_ORD[i] ? `الفصل ${WR_ORD[i]}` : `الفصل ${wrNum(i + 1)}`);
+const WR_LABELED = /^\s*(ال)?(فصل|باب|مبحث|مطلب|مقدمة|خاتمة|تمهيد|قسم|جزء|كتاب|مدخل|توطئة|فهرس|ملحق|تقديم|إهداء)/;
+function wrChParts(title, ci, pst) {
+  const t = (title || '').trim();
+  if (!pst) return { t: t || `فصل ${wrNum(ci + 1)}` };
+  if (!t) return { t: wrChOrd(ci) };
+  return WR_LABELED.test(t) ? { t } : { t, cap: wrChOrd(ci), big: pst === 'modern' ? wrNum(ci + 1) : '' };
+}
+function wrChHead(h, title, ci, pst) {
+  const p = wrChParts(title, ci, pst);
+  h.replaceChildren();
+  h.classList.toggle('wh', !!pst);
+  if (!pst) { h.textContent = p.t; return; }
+  const add = (cls, t) => { const s = document.createElement('span'); s.className = cls; s.textContent = t; h.append(s); };
+  if (p.big) add('wh-big', p.big);
+  if (p.cap) add('wh-cap', p.cap);
+  add('wh-t', p.t);
+  add(pst === 'classic' ? 'wh-orn' : 'wh-bar', pst === 'classic' ? '❁ ❁ ❁' : '');
+}
+// the running head over a page (not a chapter's first): the book's title; in «الحديث» its chapter's at the other side
+function wrHeadHTML(pst, book, chapter) {
+  if (!pst) return '';
+  return pst === 'modern' ? `<span>${esc(book)}</span><span>${esc(chapter)}</span>` : `<span>${esc(book)}</span>`;
+}
 const WR_FN = [['fnc', 'لون الحواشي:', WR_FNC, 'بلا لون'], ['fnb', 'خلفية الحواشي:', WR_FNB, 'بلا'], ['fnh', 'تظليل نص الحواشي:', WR_FNH, 'بلا'], ['fns', 'حجم الحواشي:', WR_FNS, 'عادي']];
 // the three tabs (v156): a book of chapters, an article, a post
 const WR_KINDS = {
@@ -199,7 +233,7 @@ function wrSafe(html) {
       for (const k of ['w', 'h']) { const v = Number(n.dataset[k]); if (v > 0) i.dataset[k] = String(Math.round(v)); }
       return i;
     }
-    if (N === 'DIV' && n.classList.contains('pgbreak')) { const d = document.createElement('div'); d.className = 'pgbreak'; d.contentEditable = 'false'; d.textContent = 'فاصل صفحة'; return d; }
+    if (N === 'DIV' && n.classList.contains('pgbreak')) { const d = document.createElement('div'); d.className = 'pgbreak'; d.contentEditable = 'false'; d.textContent = 'صفحة جديدة'; return d; }
     if (N === 'HR') return document.createElement('hr');
     if (/^(P|DIV|H[1-6]|BLOCKQUOTE|LI|TD|TH)$/.test(N)) {
       const tag = N === 'DIV' ? 'p' : N === 'H1' ? 'h2' : /^H[4-6]$/.test(N) ? 'h3' : N.toLowerCase();
@@ -501,7 +535,7 @@ const WR_TOOLS = [
   ['pal:align', '☰', 'المحاذاة'], ['pal:lh', '↕', 'تباعد الأسطر'], ['ul', '•', 'قائمة نقطية'], ['ol', '١-', 'قائمة مرقّمة'],
   ['indent', '⇤', 'زِد الإزاحة'], ['outdent', '⇥', 'أنقص الإزاحة'], '|',
   ['ayah', '﴿ ﴾', 'آية'], ['quote', '❝', 'اقتباس'], ['note', 'حاشية', 'حاشية سفلية'], '|',
-  ['pal:table', 'جدول', 'جدول'], ['image', 'صورة', 'صورة'], ['pgbreak', 'فاصل صفحة', 'فاصل صفحة'], ['hr', '―', 'خط فاصل'], ['stars', '❊❊❊', 'فاصل نجوم'], ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|',
+  ['pal:table', 'جدول', 'جدول'], ['image', 'صورة', 'صورة'], ['pgbreak', 'صفحة جديدة', 'صفحة جديدة'], ['hr', '―', 'خط فاصل'], ['stars', '❊❊❊', 'فاصل نجوم'], ['clear', 'مسح التنسيق', 'مسح التنسيق'], '|',
   ['undo', wrSvg('undo'), 'تراجع'], ['redo', wrSvg('redo'), 'إعادة'],
 ];
 const wrToolBtn = ([c, face, name]) => `<button type="button" data-wcmd="${c}" aria-label="${name}" title="${name}">${face}</button>`;
@@ -1171,7 +1205,7 @@ function wrCmd(cmd) {
   else if (cmd === 'bigger' || cmd === 'smaller') { if (!wrResize(cmd === 'bigger' ? 1.15 : 1 / 1.15)) return; }
   else if (cmd === 'ul' || cmd === 'ol') wrList(cmd);
   else if (cmd === 'indent' || cmd === 'outdent') wrIndent(cmd === 'indent' ? 1 : -1);
-  else if (cmd === 'pgbreak') wrExec('insertHTML', '<div class="pgbreak" contenteditable="false">فاصل صفحة</div><p><br></p>');
+  else if (cmd === 'pgbreak') wrExec('insertHTML', '<div class="pgbreak" contenteditable="false">صفحة جديدة</div><p><br></p>');
   else if (cmd === 'hr') wrExec('insertHTML', '<hr><p><br></p>');
   else if (cmd === 'stars') wrStarsInsert(body);
   else if (cmd === 'clear') {
@@ -1237,7 +1271,8 @@ function wrPalHTML(k) {
   if (k === 'theme') {
     const on = wrThemeOf(), sh = wrSheetOf();
     return WR_THEMES.map(([v, n]) => `<button type="button" class="wr-thb${v === on ? ' on' : ''}" data-wtheme="${v}"${v ? ` data-th="${v}"` : ''}>${n}</button>`).join('')
-      + (wrState && wrState.book.kind === 'book' ? '<span class="wr-pal-br"></span><span class="wr-ayc-l">لون الورقة:</span>' + WR_SHEETS.map(([v, n, c]) => `<button type="button" class="wr-thb${v === sh ? ' on' : ''}" data-wsheet="${v}" style="background:${c};color:#3a2e20">${n}</button>`).join('') : '');
+      + (wrState && wrState.book.kind === 'book' ? '<span class="wr-pal-br"></span><span class="wr-ayc-l">لون الورقة:</span>' + WR_SHEETS.map(([v, n, c]) => `<button type="button" class="wr-thb${v === sh ? ' on' : ''}" data-wsheet="${v}" style="background:${c};color:#3a2e20">${n}</button>`).join('')
+        + '<span class="wr-pal-br"></span><span class="wr-ayc-l">تنسيق الصفحات:</span>' + [['', 'الحالي'], ...Object.entries(WR_PST).map(([v, o]) => [v, o.n])].map(([v, n]) => `<button type="button" class="wr-thb${v === wrPstOf(wrState.book) ? ' on' : ''}" data-wpst="${v}">${n}</button>`).join('') : '');
   }
   if (k === 'align') return WR_ALIGN.map(([v, n]) => `<button type="button" class="chip" data-walign="${v}">${n}</button>`).join('');
   if (k === 'lh') return WR_LH.map(([v, n]) => `<button type="button" class="chip" data-wlh="${v}">${n}</button>`).join('');
@@ -1346,7 +1381,7 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('change', (e) => { if (e.target.id === 'wrImgIn' && wrState) wrImage(e.target.files && e.target.files[0]); });
 document.addEventListener('click', (e) => {
   if (!wrState) return;
-  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wsheet], [data-wayc], [data-wfk], [data-wbmk], #wrBody sup.fn');
+  const t = e.target.closest('[data-wcmd], [data-wr], [data-wcolor], [data-whi], [data-wfont], [data-walign], [data-wlh], [data-wtbl], [data-wtm], [data-wtheme], [data-wsheet], [data-wpst], [data-wayc], [data-wfk], [data-wbmk], #wrBody sup.fn');
   if (!t) return;
   if (t.dataset.wcmd) { const fab = t.closest('#wrFabMenu'); wrCmd(t.dataset.wcmd); if (fab && !t.dataset.wcmd.startsWith('pal:')) $('wrFabMenu').hidden = true; return; }
   // (v157, «اجعل مدخلات التحرير تبقى إذا ضغطتها … ليتسنى لي التنقل بينها»: a font, colour, highlight, alignment or spacing
@@ -1385,6 +1420,16 @@ document.addEventListener('click', (e) => {
   }
   if (t.dataset.wbmk) { wrBmkDo(t.dataset.wbmk); return; }
   if (t.dataset.wsheet !== undefined) { wrSetSheet(t.dataset.wsheet); return; }
+  if (t.dataset.wpst !== undefined) { // (v200) kept with the book; the palette stays open; the sheets laid out again
+    if (!wrState) return;
+    wrState.book.pst = t.dataset.wpst;
+    wrState.book.updated = Date.now();
+    wrSave(wrState.book);
+    for (const x of document.querySelectorAll('[data-wpst]')) x.classList.toggle('on', x.dataset.wpst === t.dataset.wpst);
+    if (wrPaperIs()) { wrPaperSet(false, true); wrPaperSet(true, true); }
+    else toast('يظهر التنسيق في «الورق» 📄 وفي PDF وملف وورد');
+    return;
+  }
   if (t.dataset.wtheme !== undefined) { wrSetTheme(t.dataset.wtheme); return; } // (the palette stays open, to try one after another)
   if (t.matches('sup.fn')) { wrToNote(t.dataset.fn); return; }
   const a = t.dataset.wr;
@@ -1579,7 +1624,8 @@ function wrDocx(b) {
   const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
   const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const x = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-  const F = 'Amiri'; // (v157: the editor's own font, so the file reads as it was written; Traditional Arabic is not on a phone)
+  const PST = wrPstOf(b); // (v200) the pages' look of the book
+  const F = PST ? WR_PST[PST].font : 'Amiri'; // (v157: the editor's own font, so the file reads as it was written; Traditional Arabic is not on a phone)
   const notes = [], media = [];
   // (Word reads a paragraph's settings in the schema's order only: bidi stands after the borders and before the spacing)
   const PPR = ['pStyle', 'keepNext', 'pageBreakBefore', 'pBdr', 'shd', 'bidi', 'spacing', 'ind', 'jc', 'outlineLvl'];
@@ -1667,7 +1713,16 @@ function wrDocx(b) {
   };
   const para = (style, inner, extra = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="${style}"/>${extra}`)}</w:pPr>${inner}</w:p>`;
   const styleOf = (el) => (el.nodeName === 'H2' ? 'Heading2' : el.nodeName === 'H3' ? 'Heading3' : el.nodeName === 'BLOCKQUOTE' ? 'Quote' : el.classList.contains('ayah') ? 'Ayah' : 'Normal');
-  const block = (el, ch) => {
+  // (v200) a paragraph of the text in the book's look: «الكلاسيكي» its first line in (not after a heading, a verse, a
+  // quote or at the chapter's start) and no room after it; «الحديث» room after it
+  const lookP = (ppr, first) => {
+    const sp = PST === 'classic' ? 'w:after="0"' : 'w:after="270"';
+    ppr = /<w:spacing /.test(ppr) ? ppr.replace('<w:spacing ', `<w:spacing ${sp} `) : `${ppr}<w:spacing ${sp}/>`;
+    if (PST === 'classic') { const fl = `w:firstLine="${first ? 0 : 448}"`; ppr = /<w:ind /.test(ppr) ? ppr.replace('<w:ind ', `<w:ind ${fl} `) : `${ppr}<w:ind ${fl}/>`; }
+    return ppr;
+  };
+  let pFirst = true;
+  const block = (el, ch, top) => {
     const N = el.nodeName;
     inAy = false; // (a ﴿ left open does not colour the paragraphs after it)
     if (N === 'DIV' && el.classList.contains('pgbreak')) return '<w:p><w:pPr><w:bidi/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>';
@@ -1694,7 +1749,8 @@ function wrDocx(b) {
         }).join('')}</w:tr>`).join('') + '</w:tbl><w:p><w:pPr><w:bidi/></w:pPr></w:p>';
     }
     const style = styleOf(el);
-    return para(style, runs(el, { base: BASE[style] }, ch), pprOf(el));
+    const look = PST && top && style === 'Normal' && N === 'P' && !wrIsStars(el);
+    return para(style, runs(el, { base: BASE[style] }, ch), look ? lookP(pprOf(el), pFirst) : pprOf(el));
   };
   function sect(first) {
     return `<w:sectPr>${first ? '<w:footerReference w:type="first" r:id="rIdF2"/>' : ''}<w:footerReference w:type="default" r:id="rIdF1"/>`
@@ -1702,16 +1758,57 @@ function wrDocx(b) {
       + '<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>'
       + `<w:pgNumType w:fmt="${NF}"/>${first ? '<w:titlePg/>' : ''}<w:bidi/></w:sectPr>`;
   }
+  // (v200) in a look: each chapter a section that starts a new page, its first page without the running head (the
+  // title's section none at all), its page's number on every page but the title's; the head of «الحديث» names the chapter
+  const hdrs = [];
+  const szv = (n) => `<w:sz w:val="${n}"/><w:szCs w:val="${n}"/>`;
+  const tw = PST ? WR_PST[PST].tw : 1440;
+  function sectL(kind, i) {
+    const h = kind === 'title' ? 'rIdH0' : PST === 'modern' ? `rIdH${i + 1}` : 'rIdH1';
+    return `<w:sectPr><w:headerReference w:type="default" r:id="${h}"/><w:headerReference w:type="first" r:id="rIdH0"/>`
+      + `<w:footerReference w:type="default" r:id="${kind === 'title' ? 'rIdF2' : 'rIdF1'}"/><w:footerReference w:type="first" r:id="${kind === 'title' ? 'rIdF2' : 'rIdF1'}"/>`
+      + `<w:footnotePr><w:numFmt w:val="${NF}"/><w:numStart w:val="1"/><w:numRestart w:val="eachSect"/></w:footnotePr><w:type w:val="nextPage"/>`
+      + `<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${tw}" w:right="${tw}" w:bottom="${tw}" w:left="${tw}" w:header="708" w:footer="708" w:gutter="0"/>`
+      + `<w:pgNumType w:fmt="${NF}"/><w:titlePg/><w:bidi/></w:sectPr>`;
+  }
+  const rawRun = (t, rp) => `<w:r><w:rPr>${rp}<w:rtl/></w:rPr><w:t xml:space="preserve">${x(t)}</w:t></w:r>`;
+  const chHead = (ch, idx) => {
+    const p = wrChParts(ch.title, idx, PST), out = [];
+    const C = PST === 'classic', JCX = C ? '<w:jc w:val="center"/>' : '<w:jc w:val="left"/>';
+    if (p.big) out.push(['', rawRun(p.big, `<w:b/><w:bCs/><w:color w:val="E4ECE9"/>${szv(144)}`), `<w:keepNext/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>${JCX}`]);
+    if (p.cap) out.push(['', rawRun(p.cap, C ? `<w:color w:val="8A6D3B"/>${szv(30)}` : `<w:b/><w:bCs/><w:color w:val="3F7D6E"/>${szv(26)}`), `<w:keepNext/><w:spacing w:after="60"/>${JCX}`]);
+    out.push(['Heading1', rawRun(p.t, `<w:b/><w:bCs/><w:color w:val="${C ? '2B2B2B' : '1F3B35'}"/>${szv(C ? 60 : 52)}`), `<w:spacing w:after="${C ? 60 : 120}"/>${JCX}`]);
+    out.push(['', C ? rawRun('❁ ❁ ❁', `<w:color w:val="B08D57"/>${szv(32)}`) : rawRun('━━━━', `<w:color w:val="3F7D6E"/>${szv(24)}`), `<w:spacing w:after="${C ? 700 : 600}"/>${JCX}`]);
+    out[0][2] = out[0][2].replace(/<w:spacing /, `<w:spacing w:before="${C ? 2600 : 1000}" `);
+    return out.map(([st, inner, ppr]) => `<w:p><w:pPr>${ordered(`${st ? `<w:pStyle w:val="${st}"/>` : ''}${ppr}`)}</w:pPr>${inner}</w:p>`).join('');
+  };
   let body = para('Title', run(b.title || 'كتاب بلا عنوان', {}));
+  if (PST && b.chapters.length) body += `<w:p><w:pPr><w:bidi/>${sectL('title')}</w:pPr></w:p>`;
   b.chapters.forEach((ch, idx) => {
-    body += para('Heading1', run(ch.title || `فصل ${wrNum(idx + 1)}`, {}), '<w:pageBreakBefore/>');
+    if (PST) {
+      body += chHead(ch, idx);
+      if (PST === 'modern') hdrs[idx] = wrChParts(ch.title, idx, PST).t;
+    } else body += para('Heading1', run(ch.title || `فصل ${wrNum(idx + 1)}`, {}), '<w:pageBreakBefore/>');
     const tpl = document.createElement('template');
     tpl.innerHTML = wrSafe(ch.html);
-    for (const el of tpl.content.children) body += block(el, ch);
+    pFirst = true;
+    for (const el of tpl.content.children) {
+      body += block(el, ch, true);
+      pFirst = el.nodeName !== 'P' || el.classList.contains('ayah') || wrIsStars(el) || el.classList.contains('pgbreak');
+      if (el.nodeName === 'DIV' && el.classList.contains('pgbreak')) pFirst = true;
+    }
     // (each chapter a section of its own, so its footnotes start again from one; its first page is its heading's)
-    if (idx < b.chapters.length - 1) body += `<w:p><w:pPr><w:bidi/>${sect(idx === 0)}</w:pPr></w:p>`;
+    if (idx < b.chapters.length - 1) body += `<w:p><w:pPr><w:bidi/>${PST ? sectL('ch', idx) : sect(idx === 0)}</w:pPr></w:p>`;
   });
-  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sect(b.chapters.length < 2)}</w:body></w:document>`;
+  const lastSect = PST && b.chapters.length ? sectL('ch', b.chapters.length - 1) : sect(b.chapters.length < 2);
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${lastSect}</w:body></w:document>`;
+  // (v200) the running heads: none (H0); the book's title in the middle (H1, «الكلاسيكي»); or the book's title at the
+  // start and the chapter's at the end (one for each chapter, «الحديث»)
+  const hdr = (inner, ppr) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:hdr xmlns:w="${W}"><w:p><w:pPr>${ppr}</w:pPr>${inner}</w:p></w:hdr>`;
+  const BT = b.title || 'كتاب بلا عنوان';
+  const hdrParts = !PST ? [] : [{ id: 'rIdH0', name: 'header0.xml', data: hdr('', '<w:bidi/>') }].concat(PST === 'classic'
+    ? [{ id: 'rIdH1', name: 'header1.xml', data: hdr(rawRun(BT, `<w:color w:val="8A8A8A"/>${szv(24)}`), '<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="4" w:color="D9CFBF"/></w:pBdr><w:bidi/><w:jc w:val="center"/>') }]
+    : b.chapters.map((c, i) => ({ id: `rIdH${i + 1}`, name: `header${i + 1}.xml`, data: hdr(rawRun(BT, `<w:color w:val="6F8A84"/>${szv(21)}`) + '<w:r><w:rPr><w:rtl/></w:rPr><w:tab/></w:r>' + rawRun(hdrs[i] || '', `<w:color w:val="6F8A84"/>${szv(21)}`), `<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="4" w:color="E2E8E6"/></w:pBdr><w:tabs><w:tab w:val="end" w:pos="${11906 - 2 * tw}"/></w:tabs><w:bidi/>`) })));
   // (v157) the page: A4, its number at the foot on the right (in the app's digits), none on the title page
   const ftr = (inner) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:ftr xmlns:w="${W}"><w:p><w:pPr><w:bidi/></w:pPr>${inner}</w:p></w:ftr>`;
   const fnPara = (inner, first, ppr = '') => `<w:p><w:pPr>${ordered(`<w:pStyle w:val="FootnoteText"/>${FNB}${ppr}`)}</w:pPr>${first ? `<w:r>${FR}<w:t>\u200F(</w:t></w:r><w:r>${FR}<w:footnoteRef/></w:r><w:r>${FR}<w:t>)\u200F</w:t></w:r><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>` : ''}${inner}</w:p>`;
@@ -1742,15 +1839,17 @@ function wrDocx(b) {
   const pstyle = (id, name, rpr, ppr, extra = '') => `<w:style w:type="paragraph"${id === 'Normal' ? ' w:default="1"' : ''} w:styleId="${id}"><w:name w:val="${name}"/>${id === 'Normal' ? '' : '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'}${extra}<w:qFormat/><w:pPr>${ordered(ppr)}</w:pPr><w:rPr>${rpr}<w:rtl/></w:rPr></w:style>`;
   const sz = (n) => `<w:sz w:val="${n}"/><w:szCs w:val="${n}"/>`;
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles xmlns:w="${W}">
-<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${F}" w:hAnsi="${F}" w:cs="${F}" w:eastAsia="${F}"/>${sz(32)}<w:lang w:val="ar-SA" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:bidi/><w:spacing w:after="120" w:line="300" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${F}" w:hAnsi="${F}" w:cs="${F}" w:eastAsia="${F}"/>${szv(PST === 'modern' ? 28 : 32)}<w:lang w:val="ar-SA" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:bidi/><w:spacing w:after="120" w:line="300" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
 ${pstyle('Normal', 'Normal', '', '<w:jc w:val="both"/>')}
-${pstyle('Title', 'Title', `<w:b/><w:bCs/>${sz(56)}`, '<w:spacing w:before="2400" w:after="480"/>')}
-${pstyle('Heading1', 'heading 1', `<w:b/><w:bCs/>${sz(44)}`, '<w:keepNext/><w:spacing w:before="240" w:after="240"/><w:outlineLvl w:val="0"/>')}
-${pstyle('Heading2', 'heading 2', `<w:b/><w:bCs/>${sz(38)}`, '<w:keepNext/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="1"/>')}
-${pstyle('Heading3', 'heading 3', `<w:b/><w:bCs/>${sz(34)}`, '<w:keepNext/><w:spacing w:before="180" w:after="80"/><w:outlineLvl w:val="2"/>')}
-${pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${sz(34)}`, '<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:left w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:right w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="567" w:right="567"/>')}
+${pstyle('Title', 'Title', `<w:b/><w:bCs/>${szv(56)}`, '<w:spacing w:before="2400" w:after="480"/>')}
+${pstyle('Heading1', 'heading 1', `<w:b/><w:bCs/>${szv(44)}`, '<w:keepNext/><w:spacing w:before="240" w:after="240"/><w:outlineLvl w:val="0"/>')}
+${pstyle('Heading2', 'heading 2', `<w:b/><w:bCs/>${szv(38)}`, '<w:keepNext/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="1"/>')}
+${pstyle('Heading3', 'heading 3', `<w:b/><w:bCs/>${szv(34)}`, '<w:keepNext/><w:spacing w:before="180" w:after="80"/><w:outlineLvl w:val="2"/>')}
+${PST === 'classic' ? pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${szv(34)}`, '<w:spacing w:before="160" w:after="160"/><w:jc w:val="center"/>')
+  : PST === 'modern' ? pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${szv(34)}`, '<w:pBdr><w:left w:val="single" w:sz="24" w:space="8" w:color="8FB3AA"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F2F6F5"/><w:spacing w:before="160" w:after="270"/>')
+  : pstyle('Ayah', 'Ayah', `<w:b/><w:bCs/>${szv(34)}`, '<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:left w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:bottom w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/><w:right w:val="single" w:sz="4" w:space="4" w:color="0F6E5E"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="567" w:right="567"/>')}
 ${pstyle('Quote', 'Quote', `<w:color w:val="444444"/>`, '<w:spacing w:before="120" w:after="120"/><w:ind w:left="567" w:right="567"/><w:jc w:val="both"/>')}
-${pstyle('FootnoteText', 'footnote text', sz(FNS), '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="both"/>', '')}
+${pstyle('FootnoteText', 'footnote text', szv(FNS), '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="both"/>', '')}
 <w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>
 </w:styles>`;
   const files = [
@@ -1765,7 +1864,7 @@ ${pstyle('FootnoteText', 'footnote text', sz(FNS), '<w:spacing w:after="0" w:lin
 <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
 <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
 <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
-<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>${hdrParts.map((h) => `\n<Override PartName="/word/${h.name}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`).join('')}
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>` },
     { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1781,7 +1880,7 @@ ${pstyle('FootnoteText', 'footnote text', sz(FNS), '<w:spacing w:after="0" w:lin
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
 <Relationship Id="rIdF1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
-<Relationship Id="rIdF2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>
+<Relationship Id="rIdF2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>${hdrParts.map((h) => `\n<Relationship Id="${h.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="${h.name}"/>`).join('')}
 ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i + 1}.${m.ext}"/>`).join('\n')}
 </Relationships>` },
     { name: 'word/settings.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1789,7 +1888,8 @@ ${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.op
     { name: 'word/styles.xml', data: styles },
     { name: 'word/footnotes.xml', data: footnotes },
     { name: 'word/document.xml', data: doc },
-    { name: 'word/footer1.xml', data: ftr('<w:fldSimple w:instr=" PAGE "><w:r><w:rPr><w:rtl/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>') },
+    { name: 'word/footer1.xml', data: ftr(`<w:fldSimple w:instr=" PAGE "><w:r><w:rPr>${PST === 'modern' ? `<w:b/><w:bCs/><w:color w:val="3F7D6E"/>${szv(24)}` : PST === 'classic' ? '<w:color w:val="555555"/>' : ''}<w:rtl/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>`) },
+    ...hdrParts.map((h) => ({ name: `word/${h.name}`, data: h.data })),
     { name: 'word/footer2.xml', data: ftr('') },
     ...media.map((m) => ({ name: m.name, data: m.data })),
   ];
@@ -1862,11 +1962,14 @@ async function wrPagesBefore(upto) {
 // the book's pages laid out in «box», out of sight: to chapter «upto» ({ n: the pages before it }), or all of them
 // ({ pages, starts: the first page of each chapter, lab }); null when «alive» says the work is no longer wanted
 async function wrPgLay(b, box, alive, upto) {
-  try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
+  const pst = wrGeo(b), PF = wrPstFont(pst);
+  try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri'), document.fonts.load(`16px "${PF}"`), document.fonts.load(`bold 16px "${PF}"`)]); await document.fonts.ready; } catch {}
   if (!alive()) return null;
+  wrGeo(b); // (again: the sheets of another book may have been laid out meanwhile)
   // the place pages are made in, at their true size, out of sight
   const lab = document.createElement('div');
-  lab.className = 'wp-lab';
+  lab.className = pst ? `wp-lab wpst-${pst}` : 'wp-lab';
+  if (pst) lab.style.setProperty('--wp-m', `${WP.M}px`);
   box.append(lab);
   // a line of Amiri as Word spaces it: its own height, times 1.25 («300» of «240»)
   const probe = document.createElement('span'); probe.className = 'wp-probe'; probe.textContent = 'كتاب'; lab.append(probe);
@@ -1905,6 +2008,7 @@ async function wrPgLay(b, box, alive, upto) {
     first.append(a.cloneContents()); rest.append(z.cloneContents());
     first.classList.add('wp-cont'); // (its last line spread as Word spreads a line that goes on)
     if (el.classList.contains('wp-li')) rest.classList.add('wp-li-more');
+    rest.classList.add('wp-rest'); // (v200: not a paragraph's first line, so no indent in «الكلاسيكي»)
     return [first, rest];
   };
   const place = (el, ch, nums, fresh) => {
@@ -1950,7 +2054,7 @@ async function wrPgLay(b, box, alive, upto) {
     wrNoteIds(ch.html).forEach((id, i) => { nums[id] = i + 1; });
     newPage();
     starts.push(pages.length - 1);
-    const h = document.createElement('h1'); h.textContent = ch.title || `فصل ${wrNum(ci + 1)}`;
+    const h = document.createElement('h1'); wrChHead(h, ch.title, ci, pst);
     body.append(h);
     for (const el of wrPgBlocks(ch.html, AYC)) {
       if (el.nodeName === 'DIV' && el.classList.contains('pgbreak')) { newPage(); continue; }
@@ -2036,12 +2140,19 @@ function wrPdfGo() {
   let ps = document.getElementById('pageSize');
   if (!ps) { ps = document.createElement('style'); ps.id = 'pageSize'; document.head.appendChild(ps); }
   ps.textContent = '@page{size:A4 portrait;margin:0}';
-  box.className = 'wpp';
-  for (const k of ['--wp-lh', '--wp-l1', '--wp-fns']) { const v = lay.lab.style.getPropertyValue(k); if (v) box.style.setProperty(k, v); else box.style.removeProperty(k); }
+  const pst = wrPstOf(b), starts = new Set(lay.starts);
+  box.className = pst ? `wpp wpst-${pst}` : 'wpp';
+  for (const k of ['--wp-lh', '--wp-l1', '--wp-fns', '--wp-m']) { const v = lay.lab.style.getPropertyValue(k); if (v) box.style.setProperty(k, v); else box.style.removeProperty(k); }
   const fnc = WR_FNC[b.fnc] ? `#${WR_FNC[b.fnc][1]}` : '', fnb = WR_FNB[b.fnb] ? `#${WR_FNB[b.fnb][1]}` : '', fnh = WR_FNH[b.fnh] ? `#${WR_FNH[b.fnh][1]}` : '';
   box.replaceChildren(...p.map((i) => {
     const pg = lay.pages[i - 1].cloneNode(true);
     if (i > 1) { const nb = document.createElement('div'); nb.className = 'wp-num'; nb.textContent = wrNum(i); pg.append(nb); }
+    if (pst && i > 1 && !starts.has(i - 1)) { // (v200) the running head, as the book's look has it
+      let ci = 0; lay.starts.forEach((s, k) => { if (s <= i - 1) ci = k; });
+      const hd = document.createElement('div'); hd.className = 'wp-hd';
+      hd.innerHTML = wrHeadHTML(pst, b.title || 'كتاب بلا عنوان', wrChParts(b.chapters[ci] && b.chapters[ci].title, ci, pst).t);
+      pg.append(hd);
+    }
     // (as the Word file has them: the footnote's number in the text and its words in its colour, its paragraphs on
     // their background, its words marked)
     if (fnc) for (const x of pg.querySelectorAll('.wp-body sup.fn, .wp-fn')) x.style.color = fnc;
@@ -2096,6 +2207,7 @@ function wrPaperSet(on, keep) {
     const pp = $('wrPaper');
     if (!pp) return;
     if (wrPaperRO) wrPaperRO.disconnect();
+    for (const x of body.querySelectorAll('.pgbreak')) x.style.marginBottom = ''; // (v200: the room under a new page is the sheets')
     sc.prepend(body, notes);
     pp.remove();
     for (const n of notes.querySelectorAll('.wr-note')) n.style.top = '';
@@ -2105,9 +2217,11 @@ function wrPaperSet(on, keep) {
     return;
   }
   d.classList.toggle('wr-zbig', wrZoomBig());
+  const pst = wrGeo(wrState.book), PF = wrPstFont(pst);
   if (wrPaperIs()) { wrPaperLay(); return; }
   const pp = document.createElement('div');
-  pp.id = 'wrPaper'; pp.className = 'wrp-paper';
+  pp.id = 'wrPaper'; pp.className = pst ? `wrp-paper wpst-${pst}` : 'wrp-paper';
+  if (pst) pp.style.setProperty('--wp-m', `${WP.M}px`);
   pp.innerHTML = '<div class="wrp-sheets" id="wrSheets" aria-hidden="true"></div><div class="wrp-flow" id="wrFlow" aria-hidden="true"></div><h1 class="wrp-h1" id="wrPH1"></h1>';
   sc.prepend(pp);
   pp.append(body, notes);
@@ -2128,12 +2242,13 @@ function wrPaperSet(on, keep) {
   wrPaperLay(true);
   const ch = wrState.ch.id;
   (async () => {
-    try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
+    try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri'), document.fonts.load(`16px "${PF}"`), document.fonts.load(`bold 16px "${PF}"`)]); await document.fonts.ready; } catch {}
     if (!wrState || wrState.ch.id !== ch || !wrPaperIs()) return;
     lines(); wrPaperLay(true);
     // the number of its first page in the book
     const n = await wrPagesBefore(ch);
     if (!wrState || wrState.ch.id !== ch || !wrPaperIs() || typeof n !== 'number') return;
+    wrGeo(wrState.book);
     wrState.pgFrom = n; wrPaperLay(true);
   })();
 }
@@ -2192,8 +2307,9 @@ function wrPaperLay(now) {
   const CH = WP.H - 2 * WP.M, STEP = WP.H + WRP.G;
   const one = parseFloat(getComputedStyle($('wrScroll')).getPropertyValue('--wp-l1')) || 1.6;
   const SEP = one * 21.333; // (the short line over the footnotes, as Word draws it)
-  const ci = wrState.book.chapters.indexOf(wrState.ch);
-  h1.textContent = $('wrTitle').value.trim() || `فصل ${wrNum(ci + 1)}`;
+  const ci = wrState.book.chapters.indexOf(wrState.ch), pst = wrPstOf(wrState.book);
+  wrChHead(h1, $('wrTitle').value, ci, pst);
+  const hd = wrHeadHTML(pst, wrState.book.title || 'كتاب بلا عنوان', wrChParts($('wrTitle').value, ci, pst).t);
   const fresh = (pp.dataset.w || '') !== String(WP.W);
   pp.dataset.w = String(WP.W);
   const scale = () => pp.getBoundingClientRect().width / WP.W || 1;
@@ -2210,6 +2326,7 @@ function wrPaperLay(now) {
       if (i < n - 1) h += `<div class="wrp-gap" style="height:${f + 2 * WP.M + WRP.G}px"></div>`;
     }
     flow.innerHTML = h;
+    wrPaperBreaks(body, flow, k, STEP);
   };
   // a mark whose footnote's room sends its line on to the next sheet: its room stays on both (that line goes over, as
   // in Word, its footnote with it), so the two do not chase each other
@@ -2248,7 +2365,7 @@ function wrPaperLay(now) {
   let sh = '';
   for (let i = 0; i < n; i++) {
     const f = Math.min(real[i] || 0, CH - 3 * one * 21.333);
-    sh += `<div class="wrp-sheet" style="top:${i * STEP}px">${f ? `<i class="wrp-sep" style="top:${WP.M + CH - f + one * 10.67}px"></i>` : ''}${from ? `<b class="wrp-no">${wrNum(from + i + 1)}</b>` : ''}</div>`;
+    sh += `<div class="wrp-sheet" style="top:${i * STEP}px">${hd && i ? `<i class="wrp-hd">${hd}</i>` : ''}${f ? `<i class="wrp-sep" style="top:${WP.M + CH - f + one * 10.67}px"></i>` : ''}${from ? `<b class="wrp-no">${wrNum(from + i + 1)}</b>` : ''}</div>`;
   }
   sheets.innerHTML = sh;
   const y0 = {};
@@ -2260,6 +2377,23 @@ function wrPaperLay(now) {
     y0[pg] += nh[id];
   }
   wrBmkPaint();
+}
+
+// (v200, «صفحة جديدة»: it was a dashed line on the sheet, the words going on under it) what follows a new page starts
+// at the top of the next sheet: room under it to there, out of the text (the saved text has no style on it, `wrSafe`).
+// A new page that stands at a sheet's top already (its line went over by itself) adds none.
+function wrPaperBreaks(body, flow, k, STEP) {
+  const bs = body.querySelectorAll('.pgbreak');
+  if (!bs.length) return;
+  for (const x of bs) x.style.marginBottom = '';
+  const top = flow.getBoundingClientRect().top;
+  for (const x of bs) {
+    const r = x.getBoundingClientRect(), y0 = (r.top - top) / k, y1 = (r.bottom - top) / k;
+    const pg = Math.floor(y0 / STEP);
+    if (y0 - pg * STEP < 2 && x.previousElementSibling) continue;
+    const to = (pg + 1) * STEP;
+    if (to - y1 > 8) x.style.marginBottom = `${to - y1}px`;
+  }
 }
 
 function wrDocxSave(b) {

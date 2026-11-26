@@ -312,7 +312,7 @@ async function wrFromDocx(file) {
   const chapters = [];
   let cur = null; // (a short line just before a chapter's title, «الباب الأول», joins it)
   const blockHTML = (b) => {
-    if (b.kind === 'break') return '<div class="pgbreak">فاصل صفحة</div>';
+    if (b.kind === 'break') return '<div class="pgbreak">صفحة جديدة</div>';
     if (b.kind === 'table') return b.html;
     const sub = isSub(b);
     // (a heading's or a verse box's own look is the editor's: the bold and the size that made it one are not carried)
