@@ -385,7 +385,8 @@ function wrBookHTML(b) {
       <button type="button" class="ghost sm danger-text" data-action="wr-ch-del" data-v="${c.id}">${wrUi.armed === `c:${c.id}` ? 'متأكد؟' : 'حذف'}</button>
     </div>`).join('')}</div>` : '<p class="note-text">لا فصول بعد.</p>'}
     <div class="btn-row"><button type="button" class="primary" data-action="wr-ch-new">${icon('plus')} فصل جديد</button>
-      <button type="button" class="ghost" data-action="wr-docx"${b.chapters.length ? '' : ' disabled'}>${icon('sheet')} ملف وورد</button></div>
+      <button type="button" class="ghost" data-action="wr-docx"${b.chapters.length ? '' : ' disabled'}>${icon('sheet')} ملف وورد</button>
+      <button type="button" class="ghost" data-action="wr-pdf"${b.chapters.length ? '' : ' disabled'}>📄 صفحات PDF</button></div>
   </section>
   <section class="panel">
     <h2>البحث في الكتاب</h2>
@@ -480,6 +481,7 @@ document.addEventListener('click', (e) => {
     if (!wrArm(`b:${v}`)) return;
     wrGone(v); wrUi.book = ''; render(); toast('حُذف الكتاب');
   } else if (a === 'wr-docx') wrDocxSave(b);
+  else if (a === 'wr-pdf') wrPdfOpen(b);
 });
 
 // ---------- the editor (a full-screen window like the notes', so the page redrawing never touches it) ----------
@@ -1852,11 +1854,16 @@ function wrPgNote(c, id, n) {
 // the sheets of «الورق» to number their pages as the book does
 async function wrPagesBefore(upto) {
   if (!wrState || wrState.book.kind !== 'book') return;
-  const b = wrState.book;
   const box = document.createElement('div'); box.className = 'wp-hold'; $('wrEditor').append(box); // (out of sight and clipped: the editor does not widen)
-  const gone = () => !wrState || wrState.ch.id !== upto;
+  const r = await wrPgLay(wrState.book, box, () => !!wrState && wrState.ch.id === upto, upto);
+  box.remove();
+  return r ? r.n : undefined;
+}
+// the book's pages laid out in «box», out of sight: to chapter «upto» ({ n: the pages before it }), or all of them
+// ({ pages, starts: the first page of each chapter, lab }); null when «alive» says the work is no longer wanted
+async function wrPgLay(b, box, alive, upto) {
   try { await Promise.all([document.fonts.load('16px Amiri'), document.fonts.load('bold 16px Amiri')]); await document.fonts.ready; } catch {}
-  if (gone()) { box.remove(); return; }
+  if (!alive()) return null;
   // the place pages are made in, at their true size, out of sight
   const lab = document.createElement('div');
   lab.className = 'wp-lab';
@@ -1867,6 +1874,7 @@ async function wrPagesBefore(upto) {
   probe.remove();
   lab.style.setProperty('--wp-lh', String(Math.round(one * 1.25 * 1000) / 1000));
   lab.style.setProperty('--wp-l1', String(Math.round(one * 1000) / 1000));
+  if (WR_FNS[b.fns]) lab.style.setProperty('--wp-fns', `${WR_FNS[b.fns][1] * 2 / 3}px`); // (v199: the footnotes' size of the book, as «الورق» and Word have it)
   const AYC = WR_AYC[b.ayc] ? `#${WR_AYC[b.ayc][1]}` : '';
   const pages = [];
   let pg = null, body = null, fns = null;
@@ -1934,12 +1942,14 @@ async function wrPagesBefore(upto) {
   newPage();
   const t = document.createElement('div'); t.className = 'wp-title'; t.textContent = b.title || 'كتاب بلا عنوان';
   body.append(t);
+  const starts = [];
   for (let ci = 0; ci < b.chapters.length; ci++) {
-    if (gone()) { box.remove(); return; }
+    if (!alive()) return null;
     const ch = b.chapters[ci], nums = {};
-    if (ch.id === upto) { box.remove(); return pages.length; }
+    if (upto && ch.id === upto) return { n: pages.length };
     wrNoteIds(ch.html).forEach((id, i) => { nums[id] = i + 1; });
     newPage();
+    starts.push(pages.length - 1);
     const h = document.createElement('h1'); h.textContent = ch.title || `فصل ${wrNum(ci + 1)}`;
     body.append(h);
     for (const el of wrPgBlocks(ch.html, AYC)) {
@@ -1951,8 +1961,119 @@ async function wrPagesBefore(upto) {
     }
     await new Promise((ok) => setTimeout(ok, 0)); // (the screen breathes between chapters)
   }
-  box.remove();
+  return upto ? null : { pages, starts, lab };
 }
+
+// ---------- (v199, his words: «اجعل لي القدرة على تصدير صفحات مختارة من كتبي pdf», his choices «ج: الاثنان معاً»
+// (from a page to a page, and chapters) and «أ: أرقامها في الكتاب»): the pages he picks, laid out as the book's Word
+// file makes them (as «الورق» numbers them), footnotes at the foot of their page, the page's number under it, the
+// verse and footnote colours of the book; then the print window, to keep them as PDF.
+let wrPdfJob = 0;
+function wrPdfOpen(b) {
+  const job = ++wrPdfJob;
+  ldraft = { kind: 'wrpdf', id: b.id, isNew: false, lay: null };
+  $('libForm').innerHTML = `${sheetHead('تصدير صفحات PDF')}<div id="wpdBody"><p class="note-text">أرتّب صفحات الكتاب…</p></div>`;
+  showLib();
+  wrFonts();
+  const box = document.createElement('div'); box.className = 'wp-hold'; document.body.append(box);
+  $('libSheet').addEventListener('close', () => box.remove(), { once: true }); // (the pages laid out go with the window)
+  const alive = () => job === wrPdfJob && ldraft && ldraft.kind === 'wrpdf' && ldraft.id === b.id && $('libSheet').open;
+  wrPgLay(b, box, alive).then((r) => {
+    if (!r || !alive()) return;
+    ldraft.lay = r; ldraft.book = b;
+    wrPdfBody();
+  }, () => { if (alive()) $('wpdBody').innerHTML = '<p class="note-text">تعذّر ترتيب الصفحات.</p>'; });
+}
+const wrPgWord = (n) => (n === 1 ? 'صفحة واحدة' : n === 2 ? 'صفحتان' : `${wrNum(n)} ${n > 10 ? 'صفحة' : 'صفحات'}`);
+const wrPdfRange = (rm) => `<div class="wpd-range"><label class="field"><span>من صفحة</span><input inputmode="numeric" data-wpd="a" autocomplete="off"></label><label class="field"><span>إلى صفحة</span><input inputmode="numeric" data-wpd="z" autocomplete="off"></label>${rm ? '<button type="button" class="icon-btn" data-action="wr-pdf-rm" aria-label="احذف هذا المدى">✕</button>' : ''}</div>`;
+// (each page's place in the book: page 1 is the title's, unnumbered as in the Word file)
+function wrPdfBody() {
+  const { lay, book: b } = ldraft, n = lay.pages.length, N = wrNum;
+  const span = (i) => [lay.starts[i] + 1, i + 1 < lay.starts.length ? lay.starts[i + 1] : n];
+  const sp = (a, z) => (a === z ? `ص ${N(a)}` : `ص ${N(a)}–${N(z)}`);
+  $('wpdBody').innerHTML = `<p class="note-text">الكتاب: ${wrPgWord(n)}، بأرقام صفحاته في «الورق».</p>
+    <div class="wpd-sec"><b>من صفحة إلى صفحة</b>${wrPdfRange(false)}<div id="wpdMore"></div>
+      <button type="button" class="ghost sm" data-action="wr-pdf-add">＋ مدى آخر</button></div>
+    <div class="wpd-sec"><b>أو فصول مختارة</b>
+      <label class="wpd-ch"><input type="checkbox" data-wpd="c" data-a="1" data-z="1"><span>صفحة العنوان (${sp(1, 1)})</span></label>
+      ${b.chapters.map((c, i) => { const [a, z] = span(i); return `<label class="wpd-ch"><input type="checkbox" data-wpd="c" data-a="${a}" data-z="${z}"><span>${esc(c.title || `فصل ${N(i + 1)}`)} (${sp(a, z)})</span></label>`; }).join('')}</div>
+    <p class="note-text" id="wpdSum"></p>
+    <div class="sheet-actions"><button type="submit" class="primary">صدّر PDF</button></div>`;
+  wrPdfSum();
+}
+// the pages picked: each range, and each chapter ticked (one page once, in the book's order)
+function wrPdfPicked() {
+  const n = ldraft.lay.pages.length, set = new Set(), f = $('libForm');
+  const pg = (x) => { const v = Math.round(num(x)); return v ? Math.min(n, Math.max(1, v)) : 0; };
+  for (const r of f.querySelectorAll('.wpd-range')) {
+    let a = pg(r.querySelector('[data-wpd="a"]').value), z = pg(r.querySelector('[data-wpd="z"]').value);
+    if (!a && !z) continue;
+    a = a || z; z = z || a; if (a > z) [a, z] = [z, a];
+    for (let i = a; i <= z; i++) set.add(i);
+  }
+  for (const c of f.querySelectorAll('[data-wpd="c"]:checked')) for (let i = +c.dataset.a; i <= +c.dataset.z; i++) set.add(i);
+  return [...set].sort((x, y) => x - y);
+}
+function wrPdfSum() {
+  const el = $('wpdSum');
+  if (!el) return;
+  const p = wrPdfPicked();
+  if (!p.length) { el.textContent = 'لم تختر صفحات بعد.'; return; }
+  // the picked pages as runs: «من ١٤ إلى ٢٠، و٣١»
+  const runs = [];
+  for (const x of p) { const r = runs[runs.length - 1]; if (r && r[1] === x - 1) r[1] = x; else runs.push([x, x]); }
+  const said = runs.map(([a, z]) => (a === z ? wrNum(a) : `من ${wrNum(a)} إلى ${wrNum(z)}`)).join('، و');
+  el.textContent = `سيُصدَّر: ${wrPgWord(p.length)} (${said})، بحواشيها أسفل كل صفحة وأرقامها.`;
+}
+// the print window, with the pages picked (copies: the laid-out pages stay as they are for another export)
+function wrPdfGo() {
+  if (!ldraft.lay) { toast('انتظر حتى تُرتَّب الصفحات.'); return false; }
+  const p = wrPdfPicked();
+  if (!p.length) { toast('اختر صفحات أولاً.'); return false; }
+  const { lay, book: b } = ldraft;
+  let box = document.getElementById('print');
+  if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.appendChild(box); }
+  let ps = document.getElementById('pageSize');
+  if (!ps) { ps = document.createElement('style'); ps.id = 'pageSize'; document.head.appendChild(ps); }
+  ps.textContent = '@page{size:A4 portrait;margin:0}';
+  box.className = 'wpp';
+  for (const k of ['--wp-lh', '--wp-l1', '--wp-fns']) { const v = lay.lab.style.getPropertyValue(k); if (v) box.style.setProperty(k, v); else box.style.removeProperty(k); }
+  const fnc = WR_FNC[b.fnc] ? `#${WR_FNC[b.fnc][1]}` : '', fnb = WR_FNB[b.fnb] ? `#${WR_FNB[b.fnb][1]}` : '', fnh = WR_FNH[b.fnh] ? `#${WR_FNH[b.fnh][1]}` : '';
+  box.replaceChildren(...p.map((i) => {
+    const pg = lay.pages[i - 1].cloneNode(true);
+    if (i > 1) { const nb = document.createElement('div'); nb.className = 'wp-num'; nb.textContent = wrNum(i); pg.append(nb); }
+    // (as the Word file has them: the footnote's number in the text and its words in its colour, its paragraphs on
+    // their background, its words marked)
+    if (fnc) for (const x of pg.querySelectorAll('.wp-body sup.fn, .wp-fn')) x.style.color = fnc;
+    if (fnb) for (const x of pg.querySelectorAll('.wp-fn')) x.style.background = fnb;
+    if (fnh) for (const fn of pg.querySelectorAll('.wp-fn')) {
+      const w = document.createTreeWalker(fn, NodeFilter.SHOW_TEXT), ts = [];
+      while (w.nextNode()) if (w.currentNode.data.trim()) ts.push(w.currentNode);
+      for (const t of ts) {
+        const bg = t.parentElement.closest('[style*="background"]');
+        if (bg && bg !== fn && fn.contains(bg)) continue; // (words he marked himself keep their colour)
+        const m = document.createElement('span'); m.style.background = fnh; t.replaceWith(m); m.append(t);
+      }
+    }
+    return pg;
+  }));
+  toast('اختر «حفظ PDF» أو «حفظ في الملفات» من نافذة الطباعة');
+  setTimeout(() => window.print(), 300);
+  return true;
+}
+document.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.wpd) wrPdfSum(); });
+// (the keyboard's «Go» in a page's box does not print before he has picked them all: it closes the keyboard)
+document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.wpd) { e.preventDefault(); e.target.blur(); } });
+document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.wpd) wrPdfSum(); });
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-action="wr-pdf-add"], [data-action="wr-pdf-rm"]');
+  if (!t || !ldraft || ldraft.kind !== 'wrpdf') return;
+  if (t.dataset.action === 'wr-pdf-rm') { t.closest('.wpd-range').remove(); wrPdfSum(); return; }
+  const tpl = document.createElement('template');
+  tpl.innerHTML = wrPdfRange(true);
+  $('wpdMore').append(tpl.content);
+  $('wpdMore').lastElementChild.querySelector('input').focus();
+});
 
 // ---------- «الورق» (v187, his words: «كنت أقصد أن يكون نفس الوورد التحرير كله في صفحة كالورد», his choices
 // «أ: زر يبدّل بينهما» and «ج: الاثنتان بزر تكبير»): the chapter written on A4 sheets as its Word file makes them (the

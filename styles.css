@@ -2528,7 +2528,7 @@ li.sel .sel-box { background: var(--high); }
 .wp-body td p, .wp-body th p { margin: 0 0 8px; }
 .wp-page u { text-decoration: underline; } .wp-page s { text-decoration: line-through; }
 .wp-page sup.fn { font-size: .62em; line-height: 0; }
-.wp-fns { position: absolute; right: 96px; left: 96px; bottom: 96px; font-size: 16px; line-height: var(--wp-l1, 1.6); }
+.wp-fns { position: absolute; right: 96px; left: 96px; bottom: 96px; font-size: var(--wp-fns, 16px); line-height: var(--wp-l1, 1.6); }
 .wp-fns::before { content: ''; display: block; width: 192px; height: calc(var(--wp-l1, 1.6) * 21.333px); border-top: 1px solid #111; box-sizing: border-box; margin-top: calc(var(--wp-l1, 1.6) * 10.67px); height: calc(var(--wp-l1, 1.6) * 10.67px); }
 .wp-fn p { margin: 0; }
 .wp-fn .wp-li { padding-right: 28.3px; text-indent: -18.9px; }
@@ -2574,6 +2574,16 @@ li.sel .sel-box { background: var(--high); }
 #wrPaper .wr-note > button { position: absolute; left: -92px; top: 0; display: none; font-size: 14px; }
 #wrPaper .wr-note:focus-within > button { display: inline-block; }
 #wrPaper .wr-note:focus-within .wr-fn-ed { background: rgba(15,118,110,.06); }
+/* (v199) «صفحات PDF»: its window, and the pages picked in the print */
+.wpd-sec { display: grid; gap: 8px; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.wpd-range { display: flex; gap: 8px; align-items: flex-end; }
+.wpd-range .field { flex: 1; margin: 0; }
+.wpd-ch { display: flex; gap: 10px; align-items: center; padding: 4px 0; }
+.wpd-ch input { width: 20px; height: 20px; flex: none; }
+#print.wpp .wp-page { height: 1122px; min-height: 0; overflow: hidden; break-after: page; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+#print.wpp .wp-page:last-child { break-after: auto; page-break-after: auto; }
+.wp-fns:empty { display: none; }
+.wp-num { position: absolute; right: 96px; bottom: 47px; font-size: 16px; line-height: 1; }
 .wp-hold { position: fixed; top: 0; left: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 
 /* (v191) «متن القراءة المستوعبة» at the top of «اليوم» */
