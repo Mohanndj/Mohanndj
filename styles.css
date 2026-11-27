@@ -2564,6 +2564,11 @@ li.sel .sel-box { background: var(--high); }
 #wrPaper #wrBody .pgbreak { margin: 0; padding: 0; height: 0; border: 0; font-size: 0; line-height: 0; overflow: hidden; } /* (v202) the new sheet says it: no green line in the paper view */
 #wrPaper #wrBody [data-ind="1"] { margin-inline-start: 0; padding-right: 37.8px; } #wrPaper #wrBody [data-ind="2"] { margin-inline-start: 0; padding-right: 75.6px; } #wrPaper #wrBody [data-ind="3"] { margin-inline-start: 0; padding-right: 113.4px; }
 #wrPaper #wrBody [data-ind="4"] { margin-inline-start: 0; padding-right: 151.2px; } #wrPaper #wrBody [data-ind="5"] { margin-inline-start: 0; padding-right: 189px; } #wrPaper #wrBody [data-ind="6"] { margin-inline-start: 0; padding-right: 226.8px; }
+#wrPaper #wrBody table.wr-tbl, #wrPaper #wrBody table.wr-tbl > tbody { display: block; } /* (v203) a table goes on row by row over the sheets, as Word's */
+#wrPaper #wrBody table.wr-tbl tr { display: table; width: 100%; table-layout: fixed; border-collapse: collapse; }
+#wrPaper #wrBody table.wr-tbl tr + tr { margin-top: -1px; } /* (one line between rows, and a row at a sheet's top has its own) */
+#wrPaper #wrBody table.wr-tbl tr.wrp-tall, #wrPaper #wrBody table.wr-tbl tr.wrp-tall > td { display: block; }
+#wrPaper #wrBody table.wr-tbl tr.wrp-tall > td + td { border-top: 0; }
 #wrPaper #wrBody img { margin: 0 0 8px; border-radius: 0; width: auto; max-height: calc(1123px - 2 * var(--wp-m, 96px) - 64px); } /* (v202) a picture taller than the sheet is made smaller to sit in it */
 #wrPaper .wr-notes { position: absolute; top: 0; right: var(--wp-m, 96px); width: calc(794px - 2 * var(--wp-m, 96px)); height: 0; padding: 0; border: 0; z-index: 2; }
 #wrPaper .wr-notes > :is(h3, .wr-ntip) { display: none; }

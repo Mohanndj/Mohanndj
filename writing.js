@@ -2364,7 +2364,7 @@ function wrPaperLay(now) {
     for (const id of Object.keys(at)) real[at[id]] += nh[id] || 0;
     for (let i = 0; i < last; i++) if (real[i]) real[i] += SEP;
   };
-  const us = wrPaperUnits(body, flow, k), guess = (pre) => wrPaperGuess(us, pre, STEP, CH, nh, SEP, CH - 3 * one * 21.333);
+  const us = wrPaperUnits(body, flow, k, nh, SEP, CH - 3 * one * 21.333), guess = (pre) => wrPaperGuess(us, pre, STEP, CH, nh, SEP, CH - 3 * one * 21.333);
   foot = guess([]);
   // (a picture or a table taller than a sheet goes under every sheet added for it: the sheets stop a few past the guess)
   const lim = Math.max(1, foot.length) + 3, grow = () => { while (last > n && n < lim) { n = Math.min(last, lim); read(); } };
@@ -2409,21 +2409,29 @@ function wrPaperLay(now) {
 // the words laid out once in one column (`wrPaperUnits`: their lines, a table, a picture, a new page), each line that
 // the sheet's foot (its footnotes' room) does not hold going on to the next sheet's top, as the column of floats does;
 // sheet by sheet. The sheets already found (`pre`) keep their rooms.
-function wrPaperUnits(body, flow, k) {
+function wrPaperUnits(body, flow, k, nh = {}, SEP = 0, CAP = 1e9) {
   flow.innerHTML = '';
   for (const x of body.querySelectorAll('.pgbreak')) x.style.marginBottom = '';
+  // (v203) a table goes on row by row, as Word's (each row its own box between the sheets; a whole table taller than a
+  // sheet stood under every sheet added for it, the sheets left empty); a row taller than a sheet, its cells one under
+  // another, their lines going on (the mark is the view's only: the saved text keeps no class on a row, `wrSafe`)
+  const rows = [...body.querySelectorAll('table.wr-tbl tr')];
+  for (const tr of rows) tr.classList.remove('wrp-tall');
+  const room = (tr) => { let f = 0; for (const m of tr.querySelectorAll('sup.fn')) f += nh[m.dataset.fn] || 0; return WP.H - 2 * WP.M - (f ? Math.min(f + SEP, CAP) : 0); }; // (its footnotes' room under it too)
+  const tall = rows.filter((tr) => tr.getBoundingClientRect().height / k > room(tr) - 2);
+  for (const tr of tall) tr.classList.add('wrp-tall');
   const top = flow.getBoundingClientRect().top, rs = [], lhs = new Map();
   const lh = (el) => { if (!lhs.has(el)) lhs.set(el, parseFloat(getComputedStyle(el).lineHeight) || 0); return lhs.get(el); };
   const add = (t, b, o) => rs.push(Object.assign({ t: (t - top) / k, b: (b - top) / k }, o));
   const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   while (tw.nextNode()) {
-    const el = tw.currentNode.parentElement; if (el.closest('table, .pgbreak, sup')) continue; // (a mark's raised figure is no line)
+    const el = tw.currentNode.parentElement; if (el.closest('tr:not(.wrp-tall), .pgbreak, sup')) continue; // (a mark's raised figure is no line)
     const rg = document.createRange(); rg.selectNodeContents(tw.currentNode);
-    const h = lh(el.closest('p, li, h2, h3, blockquote, div') || el) * k;
+    const h = lh(el.closest('p, li, td, th, h2, h3, blockquote, div') || el) * k;
     const hd = !!el.closest('h2, h3') || null; // (v202) a heading's lines: it goes on with the words under it
     for (const r of rg.getClientRects()) { if (r.height < 1) continue; const m = (r.top + r.bottom) / 2, hh = Math.max(h, r.height) / 2; add(m - hh, m + hh, hd && { hd }); }
   }
-  for (const x of body.querySelectorAll('img, table, hr, .pgbreak')) { if (x.parentElement.closest('table')) continue; const r = x.getBoundingClientRect(); add(r.top, r.bottom, x.classList.contains('pgbreak') ? { brk: x } : null); }
+  for (const x of body.querySelectorAll('img, tr, hr, .pgbreak')) { if (x.nodeName === 'TR' ? x.classList.contains('wrp-tall') : x.parentElement.closest('tr:not(.wrp-tall)')) continue; const r = x.getBoundingClientRect(); add(r.top, r.bottom, x.classList.contains('pgbreak') ? { brk: x } : null); }
   for (const m of body.querySelectorAll('sup.fn')) { const r = m.getBoundingClientRect(); add(r.top, r.bottom, { id: m.dataset.fn }); }
   rs.sort((a, b) => a.t - b.t);
   const us = [];
