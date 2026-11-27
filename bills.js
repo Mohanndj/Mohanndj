@@ -81,7 +81,9 @@ function saveSub() {
 function paySub(id) {
   const s = S.subs.find((x) => x.id === id);
   // one payment: in the bill, in «المصروف», and ticked in this month's plan (links.js)
-  const t = payLink(`sub:${s.id}`, Math.max(0, s.amount - (subShare(s) ? subAside(s) : 0)) || s.amount, today());
+  // this month's plan may hold its own amount for it (changed there alone)
+  const r = rowOfLink(`sub:${s.id}`, today()), base = r && r.ovr ? r.amount : s.amount;
+  const t = payLink(`sub:${s.id}`, Math.max(0, base - (subShare(s) ? subAside(s) : 0)) || base, today());
   if (t) t.note = BILL_KIND[s.kind];
   save(); render();
   toast(`سُجّل في المصروف والخطة. الموعد القادم ${fmtDate(s.next, { day: 'numeric', month: 'long' })}`);

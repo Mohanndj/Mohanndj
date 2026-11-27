@@ -29,7 +29,7 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 const sum = (arr, f = (x) => x.amount) => arr.reduce((n, x) => n + (Number(f(x)) || 0), 0);
-const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num(o.amount), ...(o.every != null ? { every: Math.max(1, num(o.every) || 12) } : {}), ...(o.balance != null ? { balance: num(o.balance) } : {}), ...(o.done != null ? { done: !!o.done } : {}), ...(o.done && o.auto ? { auto: true } : {}), ...(o.link ? { link: String(o.link) } : {}) });
+const row = (o) => ({ id: o.id || uid(), name: String(o.name || ''), amount: num(o.amount), ...(o.every != null ? { every: Math.max(1, num(o.every) || 12) } : {}), ...(o.balance != null ? { balance: num(o.balance) } : {}), ...(o.done != null ? { done: !!o.done } : {}), ...(o.done && o.auto ? { auto: true } : {}), ...(o.link ? { link: String(o.link) } : {}), ...(o.link && o.ovr ? { ovr: true } : {}) });
 
 function normalizeFinPlan(p) {
   return {
@@ -336,11 +336,12 @@ function planListHTML(p, list, scope = 'plan') {
     const sub = [
       list === 'periodic' ? `<select class="pl-every" ${at(x, 'every')} aria-label="كل كم">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select><span class="num">${money(x.amount / (x.every || 12))} شهرياً</span>` : '',
       x.link ? `🔗 ${esc(linkLabel(x.link))}` : '',
+      x.link && x.ovr && month ? `<b class="pl-ovr">معدَّل في هذه الخطة وحدها | الأصل ${money((linkSources(p).find((s) => s.key === x.link) || {}).amount || 0)}</b><button type="button" class="pl-ovr-back" data-action="fin-ovr-back" data-sid="${p.id}" data-v="${x.id}">أرجعه إلى الأصل</button>` : '',
       pr ? `🔗 مشروع «${esc(pr.name)}» | المتوفر ${money(projCalc(pr).avail)}` : '',
     ].filter(Boolean);
     return `<li class="pl-row${tick && x.done ? ' paid' : ''}${spend ? ' spend' : ''}">
       <span class="pl-main"><input type="text" class="pl-name" id="pl-n-${x.id}" ${at(x, 'name')} value="${esc(x.name)}" placeholder="${PH[list] || 'اسم البند'}" aria-label="الاسم" autocomplete="off" data-novoice>${sub.length ? `<small class="pl-sub">${sub.join('<i>|</i>')}</small>` : ''}</span>
-      <input type="text" inputmode="decimal" class="pl-amt num-in" id="pl-a-${x.id}" ${at(x, 'amount')} value="${x.amount ? digitsOut(Number(x.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })) : ''}" placeholder="المبلغ" aria-label="المبلغ" data-novoice${x.link ? ' readonly title="يُعدَّل من مصدره"' : ''}>
+      <input type="text" inputmode="decimal" class="pl-amt num-in" id="pl-a-${x.id}" ${at(x, 'amount')} value="${x.amount ? digitsOut(Number(x.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })) : ''}" placeholder="المبلغ" aria-label="المبلغ" data-novoice${x.link && !(month && /^(sub|debt):/.test(x.link)) ? ' readonly title="يُعدَّل من مصدره"' : ''}>
       ${tick ? `<label class="pl-tick" title="${isPlan ? 'دُفع' : 'اشتريته'}"><input type="checkbox" id="pl-t-${x.id}" ${at(x, 'done')}${x.done ? ' checked' : ''} aria-label="${isPlan ? 'دُفع' : 'اشتريته'} «${esc(x.name)}»"><span aria-hidden="true"></span></label>` : '<span class="pl-tick-gap" aria-hidden="true"></span>'}
       <button type="button" class="pl-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${p.id}" data-list="${list}" data-v="${x.id}" aria-label="حذف «${esc(x.name)}»">✕</button>
     </li>`;
@@ -1069,7 +1070,7 @@ document.addEventListener('change', (e) => {
   const lrow = el.dataset.list && k === 'done' ? obj[el.dataset.list].find((x) => x.id === el.dataset.row) : null;
   if (lrow && lrow.link) {
     const r = finRange(obj);
-    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), shr = ls && ls.kind === 'sub' && subShare(ls.src), rest = !shr ? lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0) : subDueIn(ls.src, obj) ? ls.src.amount - subAside(ls.src) - sum(inPlanList(ls.pays, obj)) : ls.src.amount / ls.src.every - sum(inPlanList(ls.pays, obj)); if (rest > 0.5) payLink(lrow.link, rest, d, null, obj); toast(shr && !subDueIn(ls.src, obj) ? `جُنّبت حصة هذا الشهر من ${linkLabel(lrow.link)}، وسُجّلت في المصروف` : `سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
+    if (el.checked) { const d = inPlan(obj, today()) ? today() : today() > r.to ? r.to : r.from; const ls = linkSrc(lrow.link), shr = ls && ls.kind === 'sub' && subShare(ls.src), rest = !shr ? lrow.amount - (ls ? sum(inPlanList(ls.pays, obj)) : 0) : subDueIn(ls.src, obj) ? lrow.amount - subAside(ls.src) - sum(inPlanList(ls.pays, obj)) : lrow.amount / ls.src.every - sum(inPlanList(ls.pays, obj)); if (rest > 0.5) payLink(lrow.link, rest, d, null, obj); toast(shr && !subDueIn(ls.src, obj) ? `جُنّبت حصة هذا الشهر من ${linkLabel(lrow.link)}، وسُجّلت في المصروف` : `سُجّل الدفع في ${linkLabel(lrow.link)} وفي المصروف`); }
     else { unpayLinkPlan(lrow.link, obj); toast('أُلغي دفعه في هذه الخطة'); }
     save(); render(); return;
   }
@@ -1107,6 +1108,8 @@ document.addEventListener('change', (e) => {
   if (el.dataset.list) {
     const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row);
     if (r) { r[k] = k === 'name' ? String(val).trim() : val; if (k === 'done') delete r.auto; }
+    // a linked item's amount typed in this plan is this plan's alone; its tab stays the default for the other plans
+    if (r && r.link && k === 'amount' && el.dataset.fin === 'plan') { const s0 = linkSources(obj).find((s) => s.key === r.link); if (s0 && Math.abs(s0.amount - r.amount) < 0.005) delete r.ovr; else r.ovr = true; syncPlanLinks(obj); }
     if (r && (k === 'amount' || k === 'every') && r.done && el.dataset.fin === 'plan' && obj.kind === 'month' && !r.link) finRetick(obj, r);
   }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
@@ -1192,6 +1195,11 @@ document.addEventListener('click', (e) => {
     case 'fin-xls-plan': saveWorkbook(finWorkbook({ plans: [v] }), `mahami-plan-${today()}`); break;
     case 'fin-xls-one': saveWorkbook(finWorkbook({ [v]: true }), `mahami-${v}-${today()}`); break;
     case 'fin-exp-all': for (const c of $('libForm').querySelectorAll('[data-exp]')) c.checked = v === '1'; break;
+    case 'fin-ovr-back': {
+      const p = getFinPlan(el.dataset.sid), r = p && [...p.fixed, ...p.periodic].find((x) => x.id === v);
+      if (r) { delete r.ovr; syncPlanLinks(p); p.updated = Date.now(); save(); render(); toast('رجع إلى مبلغه في تبويبه'); }
+      break;
+    }
     case 'fin-copy': {
       const src = getFinPlan(v);
       const d = parse(`${src.month || today().slice(0, 7)}-01`); d.setMonth(d.getMonth() + 1);
@@ -1199,7 +1207,7 @@ document.addEventListener('click', (e) => {
       // one plan per period: the next month's plan already there opens instead
       const exist = m && S.finPlans.find((x) => x.kind === 'month' && x.month === m);
       if (exist) { finUi.tab = 'plans'; finUi.plan = exist.id; render(); toast(`لـ${monthName(m)} خطة من قبل، فتحتها لك`); break; }
-      const clone = (l) => l.map((x) => ({ ...x, id: uid(), ...(x.done != null ? { done: false } : {}) }));
+      const clone = (l) => l.map((x) => ({ ...x, id: uid(), ovr: false, ...(x.done != null ? { done: false } : {}) }));
       // the next period follows on from this one's last day
       const rg = src.kind === 'month' && src.from && src.to ? { from: addDays(src.to, 1), to: addDays(addMonths(addDays(src.to, 1), 1), -1) } : src.kind === 'month' ? defaultRange(m) : { from: '', to: '' };
       const p = normalizeFinPlan({ ...src, ...rg, id: uid(), name: src.kind === 'month' ? `خطة ${monthName(m)}` : `${src.name} (نسخة)`, month: m, income: clone(src.income), fixed: clone(src.fixed), periodic: clone(src.periodic), accounts: clone(src.accounts), created: Date.now() });

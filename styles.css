@@ -1641,6 +1641,8 @@ html:not(.show-explain) .explain { display: none !important; }
 .pl-row.spend input.pl-name { color: var(--muted); }
 .pl-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); font-size: .74rem; line-height: 1.5; }
 .pl-sub i { font-style: normal; opacity: .5; }
+.pl-sub .pl-ovr { color: #b45309; font-weight: 600; }
+.pl-sub .pl-ovr-back { border: 1px solid var(--accent, #0f766e); color: var(--accent, #0f766e); background: none; border-radius: 999px; padding: 0 8px; font: inherit; font-size: .74rem; line-height: 1.7; cursor: pointer; }
 .pl-every { border: 0; background: transparent; padding: 0 0 0 2px; font: inherit; font-size: .74rem; color: var(--accent); min-width: 0; }
 .pl-tick { position: relative; flex: 0 0 auto; width: 24px; height: 24px; cursor: pointer; }
 .pl-tick input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; min-width: 0; padding: 0; opacity: 0; margin: 0; cursor: pointer; } /* sized to its 24px square: «inset: 0» let it stretch over the ✕ */

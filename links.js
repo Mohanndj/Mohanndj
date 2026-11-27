@@ -30,7 +30,7 @@ function linkSources(p) {
   }
   for (const d of S.finDebts) {
     const paidIn = sum(inPlanList(d.payments, p));
-    if (d.monthly && (debtLeft(d) > 0 || paidIn)) out.push({ key: `debt:${d.id}`, name: `قسط ${d.name}`, match: d.name, amount: Math.min(d.monthly, debtLeft(d) + paidIn), every: 1 });
+    if (d.monthly && (debtLeft(d) > 0 || paidIn)) out.push({ key: `debt:${d.id}`, name: `قسط ${d.name}`, match: d.name, amount: Math.min(d.monthly, debtLeft(d) + paidIn), cap: debtLeft(d) + paidIn, every: 1 });
   }
   // a traffic violation stays in the plan until it is paid
   for (const f of S.fines) {
@@ -102,9 +102,12 @@ function syncPlanLinks(p) {
     const ls = linkSrc(s.key);
     const inP = inPlanList(ls.pays, p);
     // its share: put aside this month, or the bill paid in it
-    const done = ls.kind === 'sub' && subShare(ls.src) ? inP.some((q) => !q.aside) || sum(inP) >= s.amount / s.every - 0.5 : sum(inP) >= s.amount - 0.5;
+    // an amount the user changed in this plan alone stays (a debt's never above what is left of it); the tab gives the rest
+    if (r.ovr && s.own) { delete r.ovr; changed = true; }
+    const amt = r.ovr ? (s.cap != null ? Math.min(r.amount, s.cap) : r.amount) : s.amount;
+    const done = ls.kind === 'sub' && subShare(ls.src) ? inP.some((q) => !q.aside) || sum(inP) >= amt / s.every - 0.5 : sum(inP) >= amt - 0.5;
     if (s.own && r.name !== s.name) { r.name = s.name; changed = true; }
-    if (r.amount !== s.amount || (list === 'periodic' && r.every !== s.every) || !!r.done !== done) { r.amount = s.amount; if (list === 'periodic') r.every = s.every; r.done = done; changed = true; }
+    if (r.amount !== amt || (list === 'periodic' && r.every !== s.every) || !!r.done !== done) { r.amount = amt; if (list === 'periodic') r.every = s.every; r.done = done; changed = true; }
   }
   // a source that was deleted, stopped or paid off leaves the plan
   for (const list of ['fixed', 'periodic']) {
