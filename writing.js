@@ -2369,15 +2369,42 @@ function wrPaperLay(now) {
   // (a picture or a table taller than a sheet goes under every sheet added for it: the sheets stop a few past the guess)
   const lim = Math.max(1, foot.length) + 3, grow = () => { while (last > n && n < lim) { n = Math.min(last, lim); read(); } };
   n = Math.max(1, foot.length); read(); grow();
-  // a sheet whose words run under its footnotes (the guess a little off): its room as they need, again until it holds
-  // (a mark whose room sends its line on and back: the larger, that line goes over)
+  // (v205) then each sheet's room as Word finds it from its lines as they stand now, the lines after it coming on after
+  // them in one column: those it holds stay, the first it does not hold goes on (a mark's line with its footnote, or a
+  // heading with its words). It was set only when its words ran under its footnotes, and then to all its marks'
+  // footnotes: a room the guess made too large stayed (a mark it put on it went on), and a mark's line that went on left
+  // its footnote's room empty on the sheet, lines it had held going on with it: lines empty over the footnotes.
+  // Again until it holds (a room that sends a line on and back: the larger, that line goes over).
+  const CAP = CH - 3 * one * 21.333;
+  const fit = (j, lv) => {
+    let a = 0; while (a < lv.length && lv[a].t < j * STEP - 2) a++;
+    let b = a; while (b < lv.length && lv[b].t < j * STEP + CH) b++;
+    if (a === b || b >= lv.length) return null; // (no lines on it, or none after it: as its marks need)
+    const col = [];
+    for (let v = a; v < b; v++) col.push(Object.assign({}, lv[v], { t: lv[v].t - j * STEP, b: lv[v].b - j * STEP }));
+    const d = col[col.length - 1].b - us[b - 1].b; // (the units after it as in one column: the same, once laid out)
+    for (let v = b; v < us.length && v < b + 400; v++) col.push(Object.assign({}, us[v], { t: us[v].t + d, b: us[v].b + d }));
+    const w = wrPaperGuess(col, [], STEP, CH, nh, SEP, CAP)[0] || 0;
+    // (the lines a room holds there, as the sheets lay them: a room off by a little that holds the same lines is let be)
+    const held = (r) => { let v = 1; while (v < col.length && !col[v - 1].brk && col[v].b <= CH - Math.min(r, CAP) + 0.5) v++; return v; };
+    return { w, same: held(w) === held(foot[j] || 0) };
+  };
+  let from0 = 0; // (the sheets before the one last set keep their rooms, so their lines: they are not looked at again)
   for (let round = 0; round < 6 + 3 * lim; round++) {
-    let j = -1;
-    for (let i = 0; i < Math.min(last, lim); i++) if (!fixed[i] && (real[i] || 0) > (foot[i] || 0) + 0.5) { j = i; break; }
+    const lv = wrPaperMeasure(body, flow, k), same = lv.length === us.length;
+    let j = -1, want = 0;
+    for (let i = from0; i < Math.min(last, lim); i++) {
+      if (fixed[i]) continue;
+      const ft = same ? fit(i, lv) : null;
+      want = ft == null ? Math.max(foot[i] || 0, real[i] || 0) : ft.w;
+      if ((ft ? !ft.same : Math.abs(want - (foot[i] || 0)) > 3) || (real[i] || 0) > (foot[i] || 0) + 0.5) { j = i; break; } // (a room a few points off holds the same lines)
+    }
     if (j < 0) break;
+    from0 = j;
+    if ((real[j] || 0) > (foot[j] || 0) + 0.5 && want <= (foot[j] || 0) + 0.5) want = real[j]; // (its words run under its footnotes still)
     tried[j] = tried[j] || [foot[j] || 0];
-    if (tried[j].some((v) => Math.abs(v - real[j]) < 0.5)) { foot[j] = Math.max(foot[j] || 0, real[j]); fixed[j] = true; }
-    else { foot[j] = real[j]; tried[j].push(real[j]); }
+    if (tried[j].some((v) => Math.abs(v - want) < 0.5)) { foot[j] = Math.max(foot[j] || 0, want, real[j] || 0); fixed[j] = true; }
+    else { foot[j] = want; tried[j].push(want); }
     const g = guess(foot.slice(0, j + 1));
     for (let i = j + 1; i < Math.max(last, g.length); i++) { foot[i] = g[i] || 0; tried[i] = null; fixed[i] = false; }
     foot.length = Math.max(j + 1, last, g.length);
@@ -2420,6 +2447,10 @@ function wrPaperUnits(body, flow, k, nh = {}, SEP = 0, CAP = 1e9) {
   const room = (tr) => { let f = 0; for (const m of tr.querySelectorAll('sup.fn')) f += nh[m.dataset.fn] || 0; return WP.H - 2 * WP.M - (f ? Math.min(f + SEP, CAP) : 0); }; // (its footnotes' room under it too)
   const tall = rows.filter((tr) => tr.getBoundingClientRect().height / k > room(tr) - 2);
   for (const tr of tall) tr.classList.add('wrp-tall');
+  return wrPaperMeasure(body, flow, k);
+}
+// (v205) the words' units where they stand now: in one column (above), or on the sheets as laid out (`wrPaperLay`)
+function wrPaperMeasure(body, flow, k) {
   const top = flow.getBoundingClientRect().top, rs = [], lhs = new Map();
   const lh = (el) => { if (!lhs.has(el)) lhs.set(el, parseFloat(getComputedStyle(el).lineHeight) || 0); return lhs.get(el); };
   const add = (t, b, o) => rs.push(Object.assign({ t: (t - top) / k, b: (b - top) / k }, o));
@@ -2459,13 +2490,13 @@ function wrPaperGuess(us, pre, STEP, CH, nh, SEP, CAP) {
     for (; v < us.length; v++) {
       const x = us[v], y0 = x.t + o, y1 = x.b + o, first = v === u;
       if (!first) {
-        if (given ? y1 > base + CH - Math.min(f, CAP) + 0.5 : y1 > base + CH - Math.min(need([...ids, ...x.ids]), CAP) + 0.5) {
+        if (given ? y1 > base + CH - Math.min(f, CAP) - 0.5 : y1 > base + CH - Math.min(need([...ids, ...x.ids]), CAP) - 0.5) {
           // (v202) as Word: a heading is not left alone at the foot of a sheet, it goes on with its words
           let w = v;
           while (!given && w - 1 > u && us[w - 1].hd) w--;
           if (w < v && !us[w - 1].hd) { ids.length = nids[w - u]; v = w; }
           const z = us[v], z0 = z.t + o, z1 = z.b + o;
-          if (!given) f = Math.max(need(ids), Math.min(CAP, base + CH - z1 + 1));
+          if (!given) f = Math.max(need(ids), Math.min(CAP, base + CH - (z0 + z1) / 2)); // (v205) to its middle: it goes on, a line a little taller than measured too (it was its foot)
           o += (i + 1) * STEP - z0; break;
         }
       }
