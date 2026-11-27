@@ -1057,7 +1057,37 @@ function runFinExport() {
 
 // ---------- events ----------
 function finScope(scope, sid) { return scope === 'plan' ? getFinPlan(sid) : S.finProjects.find((x) => x.id === sid); }
-document.addEventListener('focusin', (e) => { const el = e.target; if (el.classList && el.classList.contains('pl-amt') && !el.readOnly) el.value = el.value.replace(/[,٬]/g, ''); });
+// an amount being edited shows no thousands separators; the caret stays where the finger put it (it jumped to the end)
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el.classList || !el.classList.contains('pl-amt') || el.readOnly) return;
+  const strip = () => {
+    if (document.activeElement !== el || !/[,٬]/.test(el.value)) return;
+    const at = el.selectionStart == null ? el.value.length : el.selectionStart;
+    const before = el.value.slice(0, at).replace(/[,٬]/g, '').length;
+    el.value = el.value.replace(/[,٬]/g, '');
+    try { el.setSelectionRange(before, before); } catch { /* not a text field */ }
+  };
+  // the tap places the caret just after the focus: strip once it is there
+  setTimeout(strip, 0);
+});
+// typing in it: the keyboard's digits take the field's own form (no «٩٠٠5»), and the plan's sum above follows at once
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.classList || !el.classList.contains('pl-amt')) return;
+  if (S.settings.digits === 'arab' && /[0-9]/.test(el.value)) {
+    const at = el.selectionStart;
+    el.value = digitsOut(el.value);
+    if (at != null) try { el.setSelectionRange(at, at); } catch { /* not a text field */ }
+  }
+  if (el.dataset.fin !== 'plan' || !el.dataset.list) return;
+  const p = getFinPlan(el.dataset.sid), box = document.querySelector('.pl-calc');
+  const r = p && p.kind === 'month' && p[el.dataset.list] && p[el.dataset.list].find((x) => x.id === el.dataset.row);
+  if (!r || !box) return;
+  const was = r.amount;
+  r.amount = num(el.value);
+  try { box.outerHTML = planSumHTML(p); } finally { r.amount = was; }
+});
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.id === 'fmMonth') { updateMoveHint(); return; }
