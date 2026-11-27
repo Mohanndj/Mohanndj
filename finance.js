@@ -327,6 +327,7 @@ function splitHTML(p, sp = planSplit(p), spendOnly = false) {
 function planListHTML(p, list, scope = 'plan') {
   const isPlan = scope === 'plan';
   const month = isPlan && p.kind === 'month';
+  const live = month && finRange(p).to >= today(); // a plan whose period ended keeps its items as they were
   const at = (x, k) => `data-fin="${scope}" data-sid="${p.id}" data-list="${list}" data-row="${x.id}" data-k="${k}"`;
   const PH = { income: 'مصدر الدخل', items: 'البند', funding: 'من أين (مثل: حساب الحج)' };
   const rows = p[list].map((x) => {
@@ -336,12 +337,12 @@ function planListHTML(p, list, scope = 'plan') {
     const sub = [
       list === 'periodic' ? `<select class="pl-every" ${at(x, 'every')} aria-label="كل كم">${[...new Set([...EVERY_M, x.every])].sort((a, b) => a - b).map((m) => `<option value="${m}"${x.every === m ? ' selected' : ''}>${m === 1 ? 'كل شهر' : m === 12 ? 'سنوياً' : m === 24 ? 'كل سنتين' : `كل ${m} أشهر`}</option>`).join('')}</select><span class="num">${money(x.amount / (x.every || 12))} شهرياً</span>` : '',
       x.link ? `🔗 ${esc(linkLabel(x.link))}` : '',
-      x.link && x.ovr && month ? `<b class="pl-ovr">معدَّل في هذه الخطة وحدها | الأصل ${money((linkSources(p).find((s) => s.key === x.link) || {}).amount || 0)}</b><button type="button" class="pl-ovr-back" data-action="fin-ovr-back" data-sid="${p.id}" data-v="${x.id}">أرجعه إلى الأصل</button>` : '',
+      x.link && x.ovr && live ? `<b class="pl-ovr">معدَّل في هذه الخطة وحدها | الأصل ${money((linkSources(p).find((s) => s.key === x.link) || {}).amount || 0)}</b><button type="button" class="pl-ovr-back" data-action="fin-ovr-back" data-sid="${p.id}" data-v="${x.id}">أرجعه إلى الأصل</button>` : '',
       pr ? `🔗 مشروع «${esc(pr.name)}» | المتوفر ${money(projCalc(pr).avail)}` : '',
     ].filter(Boolean);
     return `<li class="pl-row${tick && x.done ? ' paid' : ''}${spend ? ' spend' : ''}">
       <span class="pl-main"><input type="text" class="pl-name" id="pl-n-${x.id}" ${at(x, 'name')} value="${esc(x.name)}" placeholder="${PH[list] || 'اسم البند'}" aria-label="الاسم" autocomplete="off" data-novoice>${sub.length ? `<small class="pl-sub">${sub.join('<i>|</i>')}</small>` : ''}</span>
-      <input type="text" inputmode="decimal" class="pl-amt num-in" id="pl-a-${x.id}" ${at(x, 'amount')} value="${x.amount ? digitsOut(Number(x.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })) : ''}" placeholder="المبلغ" aria-label="المبلغ" data-novoice${x.link && !(month && /^(sub|debt):/.test(x.link)) ? ' readonly title="يُعدَّل من مصدره"' : ''}>
+      <input type="text" inputmode="decimal" class="pl-amt num-in" id="pl-a-${x.id}" ${at(x, 'amount')} value="${x.amount ? digitsOut(Number(x.amount).toLocaleString('en-US', { maximumFractionDigits: 2 })) : ''}" placeholder="المبلغ" aria-label="المبلغ" data-novoice${x.link && !(live && /^(sub|debt):/.test(x.link)) ? ' readonly title="يُعدَّل من مصدره"' : ''}>
       ${tick ? `<label class="pl-tick" title="${isPlan ? 'دُفع' : 'اشتريته'}"><input type="checkbox" id="pl-t-${x.id}" ${at(x, 'done')}${x.done ? ' checked' : ''} aria-label="${isPlan ? 'دُفع' : 'اشتريته'} «${esc(x.name)}»"><span aria-hidden="true"></span></label>` : '<span class="pl-tick-gap" aria-hidden="true"></span>'}
       <button type="button" class="pl-del" data-action="fin-row-del" data-scope="${scope}" data-sid="${p.id}" data-list="${list}" data-v="${x.id}" aria-label="حذف «${esc(x.name)}»">✕</button>
     </li>`;
@@ -1074,7 +1075,7 @@ document.addEventListener('focusin', (e) => {
 // typing in it: the keyboard's digits take the field's own form (no «٩٠٠5»), and the plan's sum above follows at once
 document.addEventListener('input', (e) => {
   const el = e.target;
-  if (!el.classList || !el.classList.contains('pl-amt')) return;
+  if (!el.classList || !el.classList.contains('pl-amt') || e.isComposing) return;
   if (S.settings.digits === 'arab' && /[0-9]/.test(el.value)) {
     const at = el.selectionStart;
     el.value = digitsOut(el.value);
@@ -1139,7 +1140,7 @@ document.addEventListener('change', (e) => {
     const r = obj[el.dataset.list].find((x) => x.id === el.dataset.row);
     if (r) { r[k] = k === 'name' ? String(val).trim() : val; if (k === 'done') delete r.auto; }
     // a linked item's amount typed in this plan is this plan's alone; its tab stays the default for the other plans
-    if (r && r.link && k === 'amount' && el.dataset.fin === 'plan') { const s0 = linkSources(obj).find((s) => s.key === r.link); if (s0 && Math.abs(s0.amount - r.amount) < 0.005) delete r.ovr; else r.ovr = true; syncPlanLinks(obj); }
+    if (r && r.link && k === 'amount' && el.dataset.fin === 'plan') { const s0 = linkSources(obj).find((s) => s.key === r.link); if (s0 && Math.abs(s0.amount - (s0.cap != null ? Math.min(r.amount, s0.cap) : r.amount)) < 0.005) delete r.ovr; else r.ovr = true; syncPlanLinks(obj); }
     if (r && (k === 'amount' || k === 'every') && r.done && el.dataset.fin === 'plan' && obj.kind === 'month' && !r.link) finRetick(obj, r);
   }
   else obj[k] = typeof val === 'string' && k !== 'notes' && k !== 'note' ? val.trim() : val;
